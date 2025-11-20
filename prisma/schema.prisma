@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  username  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  bets         Bet[]
+  transactions Transaction[]
+  createdEvents Event[]
+}
+
+model Event {
+  id             String   @id @default(cuid())
+  title          String
+  description    String
+  category       String   @default("CRYPTO") // CRYPTO, SPORTS, POLITICS, ENTERTAINMENT
+  imageUrl       String?
+  resolutionDate DateTime
+  status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
+  result         String?  // YES, NO, or Option ID
+  
+  creatorId      String
+  creator        User     @relation(fields: [creatorId], references: [id])
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  bets           Bet[]
+}
+
+model Bet {
+  id        String   @id @default(cuid())
+  amount    Float
+  option    String   // YES, NO, or custom option
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  hash      String   @unique
+  type      String   // DEPOSIT, WITHDRAW, BET_PAYOUT
+  amount    Float
+  status    String   // PENDING, CONFIRMED, FAILED
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
