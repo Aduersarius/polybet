@@ -115,6 +115,7 @@ export default function EventPage() {
                                         </h1>
                                         <p className="text-gray-400 text-sm mb-4 leading-relaxed">{event.description}</p>
 
+
                                         <ShareButtons eventTitle={event.title} eventId={event.id.toString()} />
                                     </div>
 
@@ -187,7 +188,12 @@ export default function EventPage() {
                             {/* Right Column - Sticky Trading Panel */}
                             <div className="lg:col-span-1">
                                 <div className="sticky top-24 space-y-6 px-2">
-                                    <TradingPanel yesOdds={event.yesOdds} noOdds={event.noOdds} />
+                                    <TradingPanel
+                                        yesOdds={event.yesOdds}
+                                        noOdds={event.noOdds}
+                                        creationDate={event.createdAt || event.creationDate}
+                                        resolutionDate={event.resolutionDate}
+                                    />
                                     <SuggestedEvents category={event.categories && event.categories.length > 0 ? event.categories[0] : 'ALL'} currentEventId={event.id.toString()} />
                                 </div>
                             </div>

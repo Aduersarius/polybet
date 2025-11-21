@@ -1,0 +1,20 @@
+<!-- Advanced Split Diamond based on Option 5 -->
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <!-- Top‑left quadrant -->
+  <polygon points="50,10 10,50 50,50" fill="url(#grad5)" opacity="0.6" />
+  <!-- Top‑right quadrant -->
+  <polygon points="50,10 50,50 90,50" fill="url(#grad5)" opacity="0.8" />
+  <!-- Bottom‑left quadrant -->
+  <polygon points="50,50 10,50 50,90" fill="url(#grad5)" opacity="0.4" />
+  <!-- Bottom‑right quadrant -->
+  <polygon points="50,50 90,50 50,90" fill="url(#grad5)" opacity="1" />
+  <!-- Optional cut lines for visual separation -->
+  <line x1="50" y1="10" x2="50" y2="90" stroke="white" stroke-width="0.5" opacity="0.5" />
+  <line x1="10" y1="50" x2="90" y2="50" stroke="white" stroke-width="0.5" opacity="0.5" />
+</svg>

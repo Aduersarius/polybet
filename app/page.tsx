@@ -300,9 +300,9 @@ export default function Home() {
                       backgroundSize: '200% auto',
                     }}
                     animate={{
-                      y: [0, -3, 0, 3, 0], // Reduced range
-                      x: [0, 2, 0, -2, 0], // Reduced range
-                      rotate: [0, 2, 0, -2, 0], // Reduced range
+                      y: [0, -3, 0, 3, 0],
+                      x: [0, 2, 0, -2, 0],
+                      rotate: [0, 2, 0, -2, 0],
                     }}
                     transition={{
                       duration: 4 + Math.random() * 2,
@@ -311,8 +311,8 @@ export default function Home() {
                       delay: i * 0.2,
                     }}
                     whileHover={{
-                      y: -5, // Subtle lift
-                      rotate: Math.random() * 4 - 2, // Subtle rotation
+                      y: -5,
+                      rotate: Math.random() * 4 - 2,
                       transition: { duration: 0.2 }
                     }}
                   >

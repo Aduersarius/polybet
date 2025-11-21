@@ -55,8 +55,11 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
             {/* Top Row: Logo, Search, Wallet - Constrained */}
             <div className="max-w-7xl mx-auto px-4 py-3">
                 <div className="flex justify-between items-center gap-4">
-                    <Link href="/" className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600 hover:opacity-80 transition-opacity shrink-0">
-                        PolyBet
+                    <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
+                        <img src="/logo-option5-advanced-10cuts.svg" alt="PolyBet logo" className="h-8 w-8" />
+                        <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                            PolyBet
+                        </span>
                     </Link>
 
                     <div className="flex-1 max-w-2xl">
@@ -80,8 +83,8 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                                         key={cat.id}
                                         onClick={() => onCategoryChange(cat.id)}
                                         className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
-                                                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                                : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                                            : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
                                             }`}
                                     >
                                         {cat.label}

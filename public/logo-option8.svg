@@ -1,0 +1,11 @@
+<!-- Option 8: Diamond outline with bar -->
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad8" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <path d="M 50 10 L 90 50 L 50 90 L 10 50 Z" stroke="url(#grad8)" stroke-width="5" fill="none"/>
+  <rect x="42" y="25" width="16" height="50" fill="url(#grad8)" rx="3"/>
+</svg>
