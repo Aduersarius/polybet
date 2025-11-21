@@ -1,6 +1,5 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +9,7 @@ export async function GET(request: Request) {
     const category = searchParams.get('category');
 
     try {
+        const { prisma } = await import('@/lib/prisma');
         const where = category ? { categories: { has: category } } : {};
 
         const events = await prisma.event.findMany({
@@ -38,6 +38,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const { prisma } = await import('@/lib/prisma');
         const body = await request.json();
         const { title, description, resolutionDate, creatorId, categories } = body;
 
