@@ -19,13 +19,14 @@ model User {
   bets         Bet[]
   transactions Transaction[]
   createdEvents Event[]
+  messages     Message[]
 }
 
 model Event {
   id             String   @id @default(cuid())
   title          String
   description    String
-  category       String   @default("CRYPTO") // CRYPTO, SPORTS, POLITICS, ENTERTAINMENT
+  categories     String[]  @default([]) // Array of categories: CRYPTO, SPORTS, POLITICS, etc.
   imageUrl       String?
   resolutionDate DateTime
   status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
@@ -38,6 +39,7 @@ model Event {
   updatedAt      DateTime @updatedAt
   
   bets           Bet[]
+  // messages       Message[]
 }
 
 model Bet {
@@ -63,6 +65,19 @@ model Transaction {
   
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  text      String
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  eventId   String
+  // event     Event    @relation(fields: [eventId], references: [id])
   
   createdAt DateTime @default(now())
 }
