@@ -5,8 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST() {
     try {
-        const { PrismaClient } = await import('@prisma/client');
-        const prisma = new PrismaClient();
+        const { prisma } = await import('@/lib/prisma');
 
         // Create admin user
         const user = await prisma.user.upsert({
