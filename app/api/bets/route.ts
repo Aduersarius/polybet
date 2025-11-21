@@ -19,6 +19,10 @@ export async function POST(request: Request) {
             user = await prisma.user.create({ data: { address: userId } });
         }
 
+        if (user.isBanned) {
+            return NextResponse.json({ error: 'User is banned' }, { status: 403 });
+        }
+
         // Create bet
         const bet = await prisma.bet.create({
             data: {
