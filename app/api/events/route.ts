@@ -3,8 +3,10 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 15; // 15 second timeout for Vercel
 
 export async function GET(request: Request) {
+    const startTime = Date.now();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
 
@@ -15,7 +17,8 @@ export async function GET(request: Request) {
             isHidden: false
         };
 
-        const events = await prisma.event.findMany({
+        // Add query timeout and limit for performance
+        const queryPromise = prisma.event.findMany({
             where,
             orderBy: { createdAt: 'desc' },
             select: {
@@ -28,14 +31,36 @@ export async function GET(request: Request) {
                 createdAt: true,
                 _count: { select: { bets: true } },
             },
+            take: 50, // Limit results for performance
         });
-        console.log('First event:', events[0]);
+
+        // Race against timeout
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Database query timeout')), 10000);
+        });
+
+        const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
+        const queryTime = Date.now() - startTime;
+
+        console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`);
+
         return NextResponse.json(events);
     } catch (error) {
-        console.error('ERROR fetching events:', error);
-        console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-        console.error('Error message:', error instanceof Error ? error.message : String(error));
-        return NextResponse.json({ error: 'Failed to fetch events', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+        const errorTime = Date.now() - startTime;
+        console.error(`❌ Events API failed after ${errorTime}ms:`, error);
+
+        if (error instanceof Error && error.message === 'Database query timeout') {
+            return NextResponse.json({
+                error: 'Database timeout',
+                message: 'Query took too long to execute'
+            }, { status: 504 });
+        }
+
+        return NextResponse.json({
+            error: 'Failed to fetch events',
+            message: error instanceof Error ? error.message : String(error),
+            queryTime: `${Date.now() - startTime}ms`
+        }, { status: 500 });
     }
 }
 

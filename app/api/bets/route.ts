@@ -1,9 +1,12 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 10;
 
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
+    const startTime = Date.now();
+
     try {
         const { prisma } = await import('@/lib/prisma');
         const body = await request.json();
@@ -13,18 +16,24 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Ensure user exists
-        let user = await prisma.user.findUnique({ where: { address: userId } });
+        // Ensure user exists with timeout
+        const userQuery = prisma.user.findUnique({ where: { address: userId } });
+        const userTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('User query timeout')), 5000);
+        });
+
+        let user = await Promise.race([userQuery, userTimeout]) as any;
+
         if (!user) {
-            user = await prisma.user.create({ data: { address: userId } });
+            const createUserQuery = prisma.user.create({ data: { address: userId } });
+            const createTimeout = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('User creation timeout')), 5000);
+            });
+            user = await Promise.race([createUserQuery, createTimeout]);
         }
 
-        if (user.isBanned) {
-            return NextResponse.json({ error: 'User is banned' }, { status: 403 });
-        }
-
-        // Create bet
-        const bet = await prisma.bet.create({
+        // Create bet with timeout
+        const betQuery = prisma.bet.create({
             data: {
                 amount: parseFloat(amount),
                 option,
@@ -33,9 +42,27 @@ export async function POST(request: Request) {
             },
         });
 
+        const betTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Bet creation timeout')), 5000);
+        });
+
+        const bet = await Promise.race([betQuery, betTimeout]);
+
+        const totalTime = Date.now() - startTime;
+        console.log(`✅ Bet placed in ${totalTime}ms`);
+
         return NextResponse.json(bet);
     } catch (error) {
-        console.error(error);
+        const errorTime = Date.now() - startTime;
+        console.error(`❌ Bet placement failed after ${errorTime}ms:`, error);
+
+        if (error instanceof Error && error.message.includes('timeout')) {
+            return NextResponse.json({
+                error: 'Database timeout',
+                message: 'Bet placement took too long'
+            }, { status: 504 });
+        }
+
         return NextResponse.json({ error: 'Failed to place bet' }, { status: 500 });
     }
 }

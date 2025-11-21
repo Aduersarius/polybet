@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 10;
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const startTime = Date.now();
+
     try {
         const { prisma } = await import('@/lib/prisma');
         const { id } = await params;
-        const messages = await prisma.message.findMany({
-            where: {
-                eventId: id
-            },
+
+        const queryPromise = prisma.message.findMany({
+            where: { eventId: id },
             include: {
                 user: {
                     select: {
@@ -22,14 +24,31 @@ export async function GET(
                     }
                 }
             },
-            orderBy: {
-                createdAt: 'asc'
-            }
+            orderBy: { createdAt: 'asc' },
+            take: 100 // Limit messages for performance
         });
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Database query timeout')), 8000);
+        });
+
+        const messages = await Promise.race([queryPromise, timeoutPromise]) as any[];
+
+        const queryTime = Date.now() - startTime;
+        console.log(`✅ Messages for event ${id}: ${messages.length} messages in ${queryTime}ms`);
 
         return NextResponse.json(messages);
     } catch (error) {
-        console.error('Error fetching messages:', error);
+        const errorTime = Date.now() - startTime;
+        console.error(`❌ Messages fetch failed after ${errorTime}ms:`, error);
+
+        if (error instanceof Error && error.message === 'Database query timeout') {
+            return NextResponse.json({
+                error: 'Database timeout',
+                message: 'Query took too long to execute'
+            }, { status: 504 });
+        }
+
         return NextResponse.json(
             { error: 'Failed to fetch messages' },
             { status: 500 }
