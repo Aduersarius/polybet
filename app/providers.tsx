@@ -6,7 +6,7 @@ import {
     RainbowKitProvider,
     darkTheme,
 } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
+import { WagmiProvider, http } from 'wagmi';
 import {
     mainnet,
     polygon,
@@ -24,6 +24,14 @@ const config = getDefaultConfig({
     appName: 'PolyBet',
     projectId: 'YOUR_PROJECT_ID', // TODO: Replace with actual Project ID from WalletConnect
     chains: [mainnet, polygon, optimism, arbitrum, base, sepolia],
+    transports: {
+        [mainnet.id]: http('https://cloudflare-eth.com'),
+        [polygon.id]: http(),
+        [optimism.id]: http(),
+        [arbitrum.id]: http(),
+        [base.id]: http(),
+        [sepolia.id]: http(),
+    },
     ssr: true, // If your dApp uses server side rendering (SSR)
 });
 

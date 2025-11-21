@@ -91,6 +91,9 @@ Here is the complete demo with all enhancements:
 - **Share Buttons**: Twitter, Telegram, Copy Link
 
 ## Recent Updates
+- ✅ **Realistic Event Images**: Switched to `loremflickr.com` for category-specific photo placeholders.
+- ✅ **Fixed Metamask SDK Build Error**: Resolved `@react-native-async-storage` resolution issue in `next.config.ts`.
+- ✅ **Fixed CORS Errors**: Updated `app/providers.tsx` to use `cloudflare-eth.com` RPC instead of default fallback.
 - ✅ **Category filtering system** with 5 categories
 - ✅ **Sorting functionality** (volume, ending soon, newest)
 - ✅ **Progress bars** showing time until event ends

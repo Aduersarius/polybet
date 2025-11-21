@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { GlobalParticles } from "./components/GlobalParticles";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
-const roboto = Roboto({
-  weight: ['300', '400', '500', '700'],
+const outfit = Outfit({
   subsets: ["latin"],
-  variable: '--font-roboto',
+  variable: '--font-outfit',
 });
 
 export const metadata: Metadata = {
@@ -22,9 +22,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={roboto.variable} suppressHydrationWarning>
+    <html lang="en" className={outfit.variable} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Providers>
+          <GlobalParticles />
           {children}
         </Providers>
         <Analytics />
