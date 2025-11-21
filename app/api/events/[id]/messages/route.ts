@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +8,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { prisma } = await import('@/lib/prisma');
         const { id } = await params;
         const messages = await prisma.message.findMany({
             where: {
@@ -42,6 +42,7 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { prisma } = await import('@/lib/prisma');
         const { id } = await params;
         const body = await request.json();
         console.log('POST /api/messages - Body:', body);
