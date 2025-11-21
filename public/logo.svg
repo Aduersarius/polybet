@@ -1,0 +1,11 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Simple P letter -->
+  <path d="M 25 20 L 25 80 L 35 80 L 35 55 L 55 55 C 65 55 70 50 70 40 C 70 30 65 20 55 20 Z M 35 30 L 55 30 C 60 30 60 35 60 40 C 60 45 60 45 55 45 L 35 45 Z" 
+        fill="url(#logoGradient)"/>
+</svg>
