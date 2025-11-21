@@ -12,31 +12,29 @@ export async function GET(request: Request) {
 
     try {
         const { prisma } = await import('@/lib/prisma');
-        const where = {
-            ...(category ? { categories: { has: category } } : {}),
-            isHidden: false
-        };
+        const where = category ? { categories: { has: category } } : {};
 
-        // Add query timeout and limit for performance
+        // Simplified query without joins for faster performance
         const queryPromise = prisma.event.findMany({
-            where,
+            where: {
+                ...where,
+                status: 'ACTIVE' // Only active events
+            },
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
                 title: true,
-                description: true,
                 categories: true,
                 resolutionDate: true,
                 imageUrl: true,
                 createdAt: true,
-                _count: { select: { bets: true } },
             },
-            take: 50, // Limit results for performance
+            take: 20, // Smaller limit for speed
         });
 
-        // Race against timeout
+        // Shorter timeout for faster failure
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Database query timeout')), 10000);
+            setTimeout(() => reject(new Error('Database query timeout')), 3000);
         });
 
         const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
