@@ -11,10 +11,13 @@ const ADMIN_ADDRESSES = [
 ];
 
 async function isAdmin(address: string) {
-    if (ADMIN_ADDRESSES.includes(address)) return true;
+    const normalizedAddress = address.toLowerCase();
+    const normalizedAdmins = ADMIN_ADDRESSES.map(a => a.toLowerCase());
+
+    if (normalizedAdmins.includes(normalizedAddress)) return true;
 
     const user = await prisma.user.findUnique({
-        where: { address },
+        where: { address: normalizedAddress }, // Assuming address is stored uniquely and case-insensitively or we trust input
         select: { isAdmin: true }
     });
 

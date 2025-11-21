@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 10;
 
 export async function GET(request: NextRequest) {
+    const startTime = Date.now();
+
     try {
         const { prisma } = await import('@/lib/prisma');
         const searchParams = request.nextUrl.searchParams;
@@ -13,7 +16,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ events: [] });
         }
 
-        const events = await prisma.event.findMany({
+        const queryPromise = prisma.event.findMany({
             where: {
                 OR: [
                     {
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
                         },
                     },
                 ],
-                status: 'ACTIVE', // Only search active events
+                status: 'ACTIVE'
             },
             select: {
                 id: true,
@@ -43,15 +46,33 @@ export async function GET(request: NextRequest) {
                 resolutionDate: true,
                 imageUrl: true,
             },
-            take: 10, // Limit to 10 results
+            take: 20, // Increased limit for better search results
             orderBy: {
                 createdAt: 'desc',
             },
         });
 
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Database query timeout')), 8000);
+        });
+
+        const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
+
+        const queryTime = Date.now() - startTime;
+        console.log(`✅ Search "${query}": ${events.length} results in ${queryTime}ms`);
+
         return NextResponse.json({ events });
     } catch (error) {
-        console.error('Search error:', error);
+        const errorTime = Date.now() - startTime;
+        console.error(`❌ Search failed after ${errorTime}ms:`, error);
+
+        if (error instanceof Error && error.message === 'Database query timeout') {
+            return NextResponse.json({
+                error: 'Database timeout',
+                message: 'Search query took too long to execute'
+            }, { status: 504 });
+        }
+
         return NextResponse.json(
             { error: 'Failed to search events' },
             { status: 500 }
