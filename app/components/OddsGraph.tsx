@@ -71,7 +71,6 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
                 autoScale: false,
                 // min/max are set via applyOptions later
             },
-            watermark: { visible: false },
         });
 
         // Enforce 0‑100 range on the right price scale via applyOptions
