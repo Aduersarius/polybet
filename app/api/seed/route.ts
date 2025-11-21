@@ -122,16 +122,16 @@ export async function POST() {
             },
         ];
 
-        // Create events
-        for (const event of events) {
-            await prisma.event.upsert({
+        // Create events in parallel
+        await Promise.all(events.map(event =>
+            prisma.event.upsert({
                 where: { id: event.id },
                 update: {},
                 create: event,
-            });
-        }
+            })
+        ));
 
-        // Create sample bets
+        // Create sample bets in parallel
         const sampleBets = [
             { amount: 500.50, option: 'YES', eventId: 'event-crypto-1' },
             { amount: 250.75, option: 'NO', eventId: 'event-sports-1' },
@@ -140,14 +140,14 @@ export async function POST() {
             { amount: 750.80, option: 'YES', eventId: 'event-entertainment-1' },
         ];
 
-        for (const bet of sampleBets) {
-            await prisma.bet.create({
+        await Promise.all(sampleBets.map(bet =>
+            prisma.bet.create({
                 data: {
                     ...bet,
                     userId: user.id,
                 },
-            });
-        }
+            })
+        ));
 
         await prisma.$disconnect();
 
