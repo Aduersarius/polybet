@@ -10,7 +10,10 @@ export async function GET(request: Request) {
 
     try {
         const { prisma } = await import('@/lib/prisma');
-        const where = category ? { categories: { has: category } } : {};
+        const where = {
+            ...(category ? { categories: { has: category } } : {}),
+            isHidden: false
+        };
 
         const events = await prisma.event.findMany({
             where,
