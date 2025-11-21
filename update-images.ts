@@ -7,7 +7,7 @@ async function main() {
         select: {
             id: true,
             title: true,
-            category: true,
+            categories: true,
         },
         orderBy: {
             createdAt: 'asc',
@@ -18,7 +18,8 @@ async function main() {
         const event = events[i];
 
         let keywords = 'technology';
-        switch (event.category) {
+        const category = event.categories[0] || 'TECHNOLOGY'; // Use first category or default
+        switch (category) {
             case 'CRYPTO':
                 keywords = 'bitcoin,crypto,blockchain';
                 break;
@@ -41,7 +42,7 @@ async function main() {
             data: { imageUrl },
         });
 
-        console.log(`✅ Updated "${event.title}" with ${event.category} image`);
+        console.log(`✅ Updated "${event.title}" with ${category} image`);
     }
 
     console.log(`🎉 Updated ${events.length} events with unique photo placeholders!`);
