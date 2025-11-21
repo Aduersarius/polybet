@@ -26,9 +26,8 @@ export async function GET(request: NextRequest) {
                         },
                     },
                     {
-                        category: {
-                            contains: query,
-                            mode: 'insensitive',
+                        categories: {
+                            has: query,
                         },
                     },
                 ],
@@ -37,7 +36,7 @@ export async function GET(request: NextRequest) {
             select: {
                 id: true,
                 title: true,
-                category: true,
+                categories: true,
                 resolutionDate: true,
                 imageUrl: true,
             },
