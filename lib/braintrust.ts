@@ -6,6 +6,7 @@ export function getLogger() {
     if (!logger) {
         logger = initLogger({
             projectName: 'polybet',
+            projectId: process.env.BRAINTRUST_PROJECT_ID,
             apiKey: process.env.BRAINTRUST_API_KEY,
         });
     }
