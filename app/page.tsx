@@ -1,6 +1,5 @@
 'use client';
 import { Navbar } from "./components/Navbar";
-import { CategoryBar } from "./components/CategoryBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -38,10 +37,13 @@ export default function Home() {
   // Check for hash on mount to show markets, and persist state to avoid animation replay
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Check if we previously showed markets
+      // Check if we previously showed markets or if navigating to markets
       const hasVisitedMarkets = sessionStorage.getItem('hasVisitedMarkets');
-      if (hasVisitedMarkets === 'true' || window.location.hash === '#markets') {
+      if (hasVisitedMarkets === 'true') {
         setShowMarkets(true);
+      } else if (window.location.hash === '#markets') {
+        setShowMarkets(true);
+        sessionStorage.setItem('hasVisitedMarkets', 'true');
       }
     }
   }, []);
@@ -117,78 +119,151 @@ export default function Home() {
     return Math.min(100, Math.max(0, (elapsed / total) * 100));
   };
 
-  const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => (
-    <Link key={event.id} href={`/event/${event.id}`} scroll={false}>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`bg-[#1e1e1e] border border-[#333] hover:border-[#555] rounded-lg p-4 flex flex-col h-full cursor-pointer transition-all hover:shadow-lg hover:shadow-[#bb86fc]/10 ${isEnded ? 'grayscale opacity-60' : ''}`}
-      >
-        <div className="flex items-start gap-3 mb-4">
-          {/* Event visual - CSS gradient instead of external images */}
-          {event.imageUrl ? (
-            <div className="w-16 h-16 rounded-md overflow-hidden shrink-0">
+  const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => {
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [showQuickBet, setShowQuickBet] = useState(false);
+
+    // Mock odds - in production, fetch from API
+    const yesOdds = 65;
+    const noOdds = 35;
+    const volume = '$12.5k'; // Mock volume
+    const betCount = 234; // Mock bet count
+
+    const handleQuickBet = (e: React.MouseEvent, option: 'YES' | 'NO') => {
+      e.preventDefault();
+      e.stopPropagation();
+      // In production, this would open a quick bet modal
+      alert(`Quick bet ${option} at ${option === 'YES' ? yesOdds : noOdds}%`);
+    };
+
+    const toggleFavorite = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFavorite(!isFavorite);
+    };
+
+    return (
+      <Link key={event.id} href={`/event/${event.id}`} scroll={false}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -4, scale: 1.01 }}
+          onHoverStart={() => setShowQuickBet(true)}
+          onHoverEnd={() => setShowQuickBet(false)}
+          className={`bg-gradient-to-br from-[#1e1e1e] to-[#181818] border border-white/10 hover:border-white/20 rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:shadow-blue-500/20 ${isEnded ? 'grayscale opacity-60' : ''}`}
+        >
+          {/* Header with Image and Favorite */}
+          <div className="relative h-32 overflow-hidden bg-gradient-to-br from-blue-500/10 to-purple-500/10">
+            {event.imageUrl ? (
               <img
                 src={event.imageUrl}
                 alt={event.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover opacity-50"
                 onError={(e) => {
-                  console.log('Image failed to load:', event.imageUrl);
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
-                onLoad={() => console.log('Image loaded:', event.imageUrl)}
               />
-            </div>
-          ) : (
-            <div
-              className={`w-16 h-16 rounded-md flex items-center justify-center text-xl font-bold ${(event as any).categories && (event as any).categories.length > 0 && (event as any).categories[0] === 'CRYPTO' ? 'bg-gradient-to-br from-orange-500/30 to-orange-600/10 text-orange-400' :
-                (event as any).categories && (event as any).categories.length > 0 && (event as any).categories[0] === 'SPORTS' ? 'bg-gradient-to-br from-blue-500/30 to-blue-600/10 text-blue-400' :
-                  (event as any).categories && (event as any).categories.length > 0 && (event as any).categories[0] === 'POLITICS' ? 'bg-gradient-to-br from-red-500/30 to-red-600/10 text-red-400' :
-                    'bg-gradient-to-br from-purple-500/30 to-purple-600/10 text-purple-400'
-                }`}
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-6xl font-bold text-white/10">
+                {(event as any).categories && (event as any).categories.length > 0 ? (event as any).categories[0][0] : '?'}
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1e1e1e] to-transparent" />
+
+            {/* Favorite Button */}
+            <button
+              onClick={toggleFavorite}
+              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center hover:bg-black/70 transition-all"
             >
-              {(event as any).categories && (event as any).categories.length > 0 ? (event as any).categories[0][0] : '?'}
+              <svg className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white/60'}`} fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            </button>
+
+            {/* Time Left Badge */}
+            <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm border border-white/10 text-xs font-medium text-white/90">
+              ⏱ {isEnded ? 'Ended' : getTimeRemaining(new Date(event.resolutionDate))}
             </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-medium leading-snug text-white line-clamp-2 mb-1">
+          </div>
+
+          {/* Content */}
+          <div className="p-4">
+            {/* Title */}
+            <h3 className="text-base font-semibold leading-snug text-white line-clamp-2 mb-3">
               {event.title}
             </h3>
-            <div className="text-xs text-gray-500">
-              {isEnded ? 'Ended' : getTimeRemaining(new Date(event.resolutionDate))}
-            </div>
-          </div>
-        </div>
 
-        {/* Category Badges */}
-        {(event as any).categories && (event as any).categories.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {(event as any).categories.slice(0, 3).map((cat: string, idx: number) => (
-              <span
-                key={idx}
-                className="px-2 py-0.5 text-xs font-medium bg-white/5 text-gray-400 border border-white/10 rounded"
-              >
-                {cat}
-              </span>
-            ))}
-            {(event as any).categories.length > 3 && (
-              <span className="px-2 py-0.5 text-xs font-medium text-gray-500">
-                +{(event as any).categories.length - 3}
-              </span>
+            {/* Category Tags */}
+            {(event as any).categories && (event as any).categories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {(event as any).categories.slice(0, 2).map((cat: string, idx: number) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-1 text-xs font-medium bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 border border-blue-500/30 rounded-md"
+                  >
+                    {cat}
+                  </span>
+                ))}
+              </div>
             )}
+
+            {/* Stats Row */}
+            <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
+              <div className="flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <span>{volume}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <span>{betCount} bets</span>
+              </div>
+            </div>
+
+            {/* Odds Display */}
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-center">
+                <div className="text-xs text-green-400 mb-1">YES</div>
+                <div className="text-lg font-bold text-white">{yesOdds}%</div>
+              </div>
+              <div className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
+                <div className="text-xs text-red-400 mb-1">NO</div>
+                <div className="text-lg font-bold text-white">{noOdds}%</div>
+              </div>
+            </div>
+
+            {/* Quick Bet Buttons (shown on hover) */}
+            <AnimatePresence>
+              {showQuickBet && !isEnded && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex gap-2"
+                >
+                  <button
+                    onClick={(e) => handleQuickBet(e, 'YES')}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm"
+                  >
+                    Bet YES
+                  </button>
+                  <button
+                    onClick={(e) => handleQuickBet(e, 'NO')}
+                    className="flex-1 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm"
+                  >
+                    Bet NO
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        )}
-
-        {/* Description Preview */}
-        <div className="mt-auto">
-          <p className="text-xs text-gray-400 line-clamp-2 mb-3">
-            {event.description}
-          </p>
-        </div>
-
-      </motion.div>
-    </Link>
-  );
+        </motion.div>
+      </Link>
+    );
+  };
 
   return (
     <main className="min-h-screen relative overflow-hidden">
@@ -290,8 +365,7 @@ export default function Home() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="min-h-screen relative text-white z-10"
           >
-            <Navbar />
-            <CategoryBar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+            <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
 
             {/* Markets Background */}
             <div className="fixed inset-0 z-0">
@@ -300,7 +374,7 @@ export default function Home() {
             </div>
 
             {/* Markets Content */}
-            <div className="relative z-10 pt-[180px] px-4 max-w-7xl mx-auto pb-12">
+            <div className="relative z-10 pt-[120px] px-4 max-w-7xl mx-auto pb-12">
 
               {/* Sort Options */}
               <motion.div

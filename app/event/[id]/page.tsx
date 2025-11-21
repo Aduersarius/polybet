@@ -1,6 +1,5 @@
 'use client';
 import { Navbar } from '@/app/components/Navbar';
-import { CategoryBar } from '@/app/components/CategoryBar';
 import { ShareButtons } from '@/app/components/ShareButtons';
 import { EventChat } from '@/app/components/EventChat';
 import { OddsGraph } from '@/app/components/OddsGraph';
@@ -58,10 +57,9 @@ export default function EventPage() {
             </div>
 
             <div className="relative z-10">
-                <Navbar />
-                <CategoryBar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
+                <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
-                <div className="pt-[180px] px-4 max-w-7xl mx-auto pb-8">
+                <div className="pt-[120px] px-4 max-w-7xl mx-auto pb-8">
                     {/* Back Button */}
                     <Link href="/#markets" scroll={false}>
                         <motion.button
