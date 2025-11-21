@@ -42,6 +42,19 @@ export async function GET(request: Request) {
 
         console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`);
 
+        // Log events fetch to Braintrust
+        try {
+            const { logEventAction } = await import('@/lib/braintrust');
+            await logEventAction('fetch_events', 'all', undefined, {
+                category: category || 'all',
+                eventCount: events.length,
+                queryTime,
+                success: true,
+            });
+        } catch (logError) {
+            console.warn('Braintrust logging failed:', logError);
+        }
+
         return NextResponse.json(events);
     } catch (error) {
         const errorTime = Date.now() - startTime;

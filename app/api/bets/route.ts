@@ -46,10 +46,27 @@ export async function POST(request: Request) {
             setTimeout(() => reject(new Error('Bet creation timeout')), 5000);
         });
 
-        const bet = await Promise.race([betQuery, betTimeout]);
+        const bet = await Promise.race([betQuery, betTimeout]) as any;
 
         const totalTime = Date.now() - startTime;
         console.log(`✅ Bet placed in ${totalTime}ms`);
+
+        // Log bet placement to Braintrust
+        try {
+            const { logBetPlacement } = await import('@/lib/braintrust');
+            await logBetPlacement({
+                eventId,
+                option,
+                amount: parseFloat(amount),
+                userId,
+                betId: bet.id,
+            }, {
+                processingTime: totalTime,
+                success: true,
+            });
+        } catch (logError) {
+            console.warn('Braintrust logging failed:', logError);
+        }
 
         return NextResponse.json(bet);
     } catch (error) {
