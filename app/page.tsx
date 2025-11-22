@@ -290,67 +290,63 @@ export default function Home() {
 
             {/* Floating Content */}
             <div className="relative z-10 text-center">
-              {/* Independently Floating Letters in POLYBET - CSS Animations for Performance */}
-              <div className="text-4xl md:text-5xl font-black mb-4 flex justify-center gap-1">
-                {['P', 'O', 'L', 'Y', 'B', 'E', 'T'].map((letter, i) => (
-                  <motion.span
-                    key={i}
-                    className="inline-block bg-gradient-to-r from-[#bb86fc] via-[#03dac6] to-[#bb86fc] bg-clip-text text-transparent drop-shadow-2xl cursor-default"
-                    style={{
-                      backgroundSize: '200% auto',
-                    }}
-                    animate={{
-                      y: [0, -3, 0, 3, 0],
-                      x: [0, 2, 0, -2, 0],
-                      rotate: [0, 2, 0, -2, 0],
-                    }}
-                    transition={{
-                      duration: 4 + Math.random() * 2,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      delay: i * 0.2,
-                    }}
-                    whileHover={{
-                      y: -5,
-                      rotate: Math.random() * 4 - 2,
-                      transition: { duration: 0.2 }
-                    }}
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="bg-gradient-to-br from-gray-900/95 via-gray-800/90 to-black/95 backdrop-blur-md border border-white/20 rounded-3xl p-10 max-w-lg mx-auto shadow-2xl shadow-purple-500/20 relative overflow-hidden"
+              >
+                {/* Subtle inner glow */}
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 rounded-3xl" />
+
+                <div className="relative z-10 mb-8">
+                  <motion.h1
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3, duration: 0.6 }}
+                    className="text-5xl font-black bg-gradient-to-r from-[#bb86fc] via-[#03dac6] to-[#bb86fc] bg-clip-text text-transparent mb-3 tracking-wide drop-shadow-lg uppercase"
                   >
-                    {letter}
-                  </motion.span>
-                ))}
-              </div>
+                    POLYBET
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5, duration: 0.6 }}
+                    className="text-xl text-gray-200 font-light tracking-wide leading-relaxed"
+                  >
+                    Decentralized Prediction Markets
+                  </motion.p>
+                </div>
 
-              {/* Floating Subtitle - CSS Animation */}
-              <p
-                className="text-base md:text-lg text-gray-300 mb-6 font-light tracking-wide"
-                style={{
-                  animation: 'float-subtitle 5s ease-in-out infinite',
-                  willChange: 'transform, opacity',
-                }}
-              >
-                Decentralized Prediction Markets
-              </p>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.8, duration: 0.5 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="mb-4 relative z-10"
+                >
+                  <button
+                    onClick={() => {
+                      setShowMarkets(true);
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('hasVisitedMarkets', 'true');
+                      }
+                      window.location.hash = 'markets';
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white text-base font-bold rounded-full shadow-2xl shadow-[#bb86fc]/50 hover:shadow-[0_0_40px_rgba(187,134,252,0.7)] transition-all"
+                  >
+                    ENTER MARKETS
+                  </button>
+                </motion.div>
 
-              {/* Rock Solid Button - No floating animation */}
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.8, duration: 0.5 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ rotate: 5, scale: 0.95 }}
-                onClick={() => {
-                  setShowMarkets(true);
-                  if (typeof window !== 'undefined') {
-                    sessionStorage.setItem('hasVisitedMarkets', 'true');
-                  }
-                  window.location.hash = 'markets';
-                }}
-                className="relative px-6 py-3 bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white text-base font-bold rounded-full shadow-2xl shadow-[#bb86fc]/50 hover:shadow-[#bb86fc]/70 transition-all overflow-hidden group"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-[#9965f4] to-[#bb86fc] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <span className="relative z-10 tracking-wider">ENTER MARKETS</span>
-              </motion.button>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  By pressing the button user agrees to the{' '}
+                  <a href="/terms" className="text-[#bb86fc] hover:text-[#9965f4] underline transition-colors">
+                    Terms of Use
+                  </a>
+                </p>
+              </motion.div>
             </div>
 
             {/* Ambient Glow Effects */}
@@ -426,57 +422,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <style jsx global>{`
-        @keyframes gradient {
-          0% { background-position: 0% center; }
-          100% { background-position: 200% center; }
-        }
-
-        /* Hide scrollbar but keep functionality */
-        .scrollbar-hide {
-          -ms-overflow-style: none;  /* IE and Edge */
-          scrollbar-width: none;  /* Firefox */
-        }
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;  /* Chrome, Safari and Opera */
-        }
-
-        /* GPU-accelerated letter animations */
-        @keyframes float-letter-0 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg) scale(1); }
-          50% { transform: translate3d(0, -12px, 0) rotate(1deg) scale(1.03); }
-        }
-        @keyframes float-letter-1 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(1deg) scale(1); }
-          50% { transform: translate3d(0, -14px, 0) rotate(-1deg) scale(1.03); }
-        }
-        @keyframes float-letter-2 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg) scale(1); }
-          50% { transform: translate3d(0, -16px, 0) rotate(1deg) scale(1.03); }
-        }
-        @keyframes float-letter-3 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(1deg) scale(1); }
-          50% { transform: translate3d(0, -18px, 0) rotate(-1deg) scale(1.03); }
-        }
-        @keyframes float-letter-4 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg) scale(1); }
-          50% { transform: translate3d(0, -20px, 0) rotate(1deg) scale(1.03); }
-        }
-        @keyframes float-letter-5 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(1deg) scale(1); }
-          50% { transform: translate3d(0, -22px, 0) rotate(-1deg) scale(1.03); }
-        }
-        @keyframes float-letter-6 {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg) scale(1); }
-          50% { transform: translate3d(0, -24px, 0) rotate(1deg) scale(1.03); }
-        }
-
-        /* Subtitle float animation */
-        @keyframes float-subtitle {
-          0%, 100% { transform: translate3d(-3px, 0, 0); opacity: 0.7; }
-          50% { transform: translate3d(3px, -8px, 0); opacity: 1; }
-        }
-      `}</style>
     </main >
   );
 }
