@@ -77,7 +77,7 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                 <div className="w-full bg-black/30 backdrop-blur-sm border-t border-white/5">
                     <div className="max-w-7xl mx-auto px-4 py-2">
                         <div className="overflow-x-auto scrollbar-hide">
-                            <div className="flex gap-2 min-w-max justify-center">
+                            <div className="flex gap-2 min-w-max justify-center items-center">
                                 {categories.map((cat) => (
                                     <button
                                         key={cat.id}
@@ -90,6 +90,18 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                                         {cat.label}
                                     </button>
                                 ))}
+                                <div className="w-px h-6 bg-white/20 mx-2" />
+                                <button
+                                    onClick={() => onCategoryChange('FAVORITES')}
+                                    className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
+                                        ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                        }`}
+                                >
+                                    <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     </div>
