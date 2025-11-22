@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { calculateLMSROdds } from '@/lib/amm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,10 +41,58 @@ export async function GET(
             );
         }
 
+        // Get pre-calculated AMM state and volume stats
+        const qYes = (event as any).qYes || 0;
+        const qNo = (event as any).qNo || 0;
+        const b = (event as any).liquidityParameter || 10000.0;
+
+        const bets = await prisma.bet.findMany({
+            where: { eventId: id },
+            select: { amount: true },
+        });
+
+        const volume = bets.reduce((sum, bet) => sum + bet.amount, 0);
+
+        // Use LMSR to calculate current odds from AMM state
+        let odds;
+        if (qYes === 0 && qNo === 0) {
+            // No trades yet - use 50/50 as default
+            odds = {
+                yesPrice: 0.5,
+                noPrice: 0.5,
+                yesOdds: 2.0,
+                noOdds: 2.0
+            };
+        } else {
+            // Calculate odds using actual token positions
+            const diff = (qNo - qYes) / b;
+            const yesPrice = 1 / (1 + Math.exp(diff));
+            const noPrice = 1 - yesPrice;
+
+            odds = {
+                yesPrice,
+                noPrice,
+                yesOdds: 1 / yesPrice,
+                noOdds: 1 / noPrice
+            };
+        }
+
+        const yesOdds = odds.yesPrice; // Return price (probability) instead of odds
+        const noOdds = odds.noPrice;  // Return price (probability) instead of odds
+
+        // Add calculated odds to the response
+        const eventWithOdds = {
+            ...event,
+            yesOdds,
+            noOdds,
+            volume,
+            betCount: bets.length,
+        };
+
         const queryTime = Date.now() - startTime;
         console.log(`✅ Event ${id} fetched in ${queryTime}ms`);
 
-        return NextResponse.json(event);
+        return NextResponse.json(eventWithOdds);
     } catch (error) {
         const errorTime = Date.now() - startTime;
         console.error(`❌ Event fetch failed after ${errorTime}ms:`, error);

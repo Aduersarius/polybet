@@ -13,6 +13,13 @@ async function main() {
     });
 
     // Create diverse events with images
+    const baseAMMParams = {
+        liquidityParameter: 100.0,
+        qYes: 0.0,
+        qNo: 0.0,
+        initialLiquidity: 100.0,
+    };
+
     const events = [
         // CRYPTO
         {
@@ -23,6 +30,7 @@ async function main() {
             imageUrl: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=800&q=80',
             resolutionDate: new Date('2024-12-31'),
             creatorId: user.id,
+            ...baseAMMParams,
         },
         {
             id: 'eth-flip-btc',
@@ -199,26 +207,39 @@ async function main() {
     for (const event of events) {
         await prisma.event.upsert({
             where: { id: event.id },
-            update: event,
-            create: event,
+            update: { ...event, ...baseAMMParams },
+            create: { ...event, ...baseAMMParams },
         });
     }
 
     console.log('Creating mock bets...');
-    // Create varied bets for each event
+    // Create 2000-5000 random bets for each event for realistic market data
     for (const event of events) {
-        const betCount = Math.floor(Math.random() * 300) + 50; // 50-350 bets
-        const yesRatio = Math.random(); // Random ratio for YES/NO
+        const betCount = Math.floor(Math.random() * 3000) + 2000; // 2000-5000 bets per event
+        const yesRatio = Math.random(); // Random ratio for YES/NO (creates market sentiment)
 
-        for (let i = 0; i < betCount; i++) {
-            await prisma.bet.create({
-                data: {
-                    amount: Math.random() * 5000 + 50, // $50-$5050
-                    option: Math.random() < yesRatio ? 'YES' : 'NO',
-                    userId: user.id,
-                    eventId: event.id,
-                },
-            });
+        console.log(`Creating ${betCount} bets for ${event.title}...`);
+
+        // Create bets in batches to avoid memory issues
+        const batchSize = 500;
+        for (let batch = 0; batch < betCount; batch += batchSize) {
+            const batchEnd = Math.min(batch + batchSize, betCount);
+            const batchPromises = [];
+
+            for (let i = batch; i < batchEnd; i++) {
+                batchPromises.push(
+                    prisma.bet.create({
+                        data: {
+                            amount: Math.random() * 990 + 10, // $10-$1000
+                            option: Math.random() < yesRatio ? 'YES' : 'NO',
+                            userId: user.id,
+                            eventId: event.id,
+                        },
+                    })
+                );
+            }
+
+            await Promise.all(batchPromises);
         }
     }
 
