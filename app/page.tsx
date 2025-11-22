@@ -232,7 +232,7 @@ export default function Home() {
         }}
       >
         <div
-          className={`material-card group relative rounded-xl overflow-hidden ${isEnded
+          className={`material-card group relative rounded-xl overflow-hidden h-[320px] flex flex-col ${isEnded
             ? 'opacity-70'
             : ''
             }`}
@@ -272,7 +272,7 @@ export default function Home() {
           </div>
 
           {/* Content */}
-          <div className="p-4">
+          <div className="p-4 flex-1 flex flex-col">
             {/* Title */}
             <h3 className="text-base font-semibold leading-snug text-white line-clamp-2 mb-3">
               {event.title}
@@ -314,8 +314,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Odds Display */}
-            <div className="flex gap-2 mb-3">
+            {/* Odds Display - Push to bottom */}
+            <div className="flex gap-2 mt-auto">
               <motion.button
                 onClick={(e) => {
                   e.preventDefault();
