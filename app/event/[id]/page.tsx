@@ -24,11 +24,14 @@ export default function EventPage() {
         sessionStorage.setItem('scrollPos', window.scrollY.toString());
         // Navigate to home with category filter
         router.push(`/?category=${categoryId}#markets`);
+<<<<<<< HEAD
     };
 
     const handleTrade = () => {
         // Increment trade counter to trigger chart refresh
         setTradeCounter(prev => prev + 1);
+=======
+>>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
     };
 
     // Fetch event from database

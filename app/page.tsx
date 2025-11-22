@@ -20,8 +20,20 @@ interface DbEvent {
 }
 
 export default function Home() {
+<<<<<<< HEAD
   const [showMarkets, setShowMarkets] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+=======
+  const [showMarkets, setShowMarkets] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('hasVisitedMarkets') === 'true' || window.location.hash === '#markets';
+  });
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    const saved = sessionStorage.getItem('selectedCategory');
+    return saved || 'ALL';
+  });
+>>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
@@ -76,9 +88,12 @@ export default function Home() {
       const category = urlParams.get('category');
       if (category) {
         setSelectedCategory(category);
+<<<<<<< HEAD
       } else {
         const saved = sessionStorage.getItem('selectedCategory');
         if (saved) setSelectedCategory(saved);
+=======
+>>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
       }
       // Restore scroll position
       const scrollPos = sessionStorage.getItem('scrollPos');
@@ -158,6 +173,15 @@ export default function Home() {
 
   const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => {
     const [isFavorite, setIsFavorite] = useState(false);
+<<<<<<< HEAD
+=======
+
+    // Initialize favorite state from localStorage
+    useEffect(() => {
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      setIsFavorite(favorites.includes(event.id));
+    }, [event.id]);
+>>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
 
     // Initialize favorite state from localStorage
     useEffect(() => {
@@ -165,6 +189,7 @@ export default function Home() {
       setIsFavorite(favorites.includes(event.id));
     }, [event.id]);
 
+<<<<<<< HEAD
     // Fetch messages count
     const { data: messages } = useQuery({
       queryKey: ['messages', event.id],
@@ -208,6 +233,8 @@ export default function Home() {
     }
     // Otherwise keep 50/50 default
 
+=======
+>>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
     const toggleFavorite = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -444,6 +471,7 @@ export default function Home() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-400">Sort by:</span>
+<<<<<<< HEAD
                   <div className="relative">
                     <button
                       onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
@@ -485,6 +513,25 @@ export default function Home() {
                         ))}
                       </motion.div>
                     )}
+=======
+                  <div className="flex gap-1 bg-[#1e1e1e] rounded-lg p-1 border border-white/10">
+                    {[
+                      { value: 'volume', label: 'Volume' },
+                      { value: 'ending', label: 'Ending Soon' },
+                      { value: 'newest', label: 'Newest' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setSortBy(option.value as any)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${sortBy === option.value
+                          ? 'bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white shadow-lg'
+                          : 'text-gray-300 hover:text-white hover:bg-white/10'
+                          }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+>>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
                   </div>
                 </div>
               </motion.div>

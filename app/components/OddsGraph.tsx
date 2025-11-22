@@ -177,9 +177,9 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
             const date = new Date(hoveredPoint.timestamp * 1000);
             const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
             const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const percentStr = `Yes ${(hoveredPoint.value * 100).toFixed(1)}%`;
+            const percentStr = `Yes ${(hoveredPoint.value * 100).toFixed(1)}% `;
 
-            const tooltipLines = [percentStr, `${dateStr} ${timeStr}`];
+            const tooltipLines = [percentStr, `${dateStr} ${timeStr} `];
             const lineHeight = 18;
             const tooltipPadding = 8;
             const tooltipWidth = 140;
@@ -307,8 +307,8 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
                         key={p}
                         onClick={() => setPeriod(p)}
                         className={`px - 3 py - 1.5 text - xs font - medium rounded transition - colors ${period === p
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                             } `}
                     >
                         {p.toUpperCase()}
