@@ -19,8 +19,10 @@ export default function EventPage() {
 
     const handleCategoryChange = (categoryId: string) => {
         setSelectedCategory(categoryId);
+        // Save scroll position
+        sessionStorage.setItem('scrollPos', window.scrollY.toString());
         // Navigate to home with category filter
-        router.push('/#markets');
+        router.push(`/?category=${categoryId}#markets`);
     };
 
     // Fetch event from database

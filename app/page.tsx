@@ -16,8 +16,15 @@ interface DbEvent {
 }
 
 export default function Home() {
-  const [showMarkets, setShowMarkets] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [showMarkets, setShowMarkets] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('hasVisitedMarkets') === 'true' || window.location.hash === '#markets';
+  });
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    const saved = sessionStorage.getItem('selectedCategory');
+    return saved || 'ALL';
+  });
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -57,6 +64,32 @@ export default function Home() {
     return () => window.removeEventListener('globalSearch', handleGlobalSearch as EventListener);
   }, []);
 
+  // Save selectedCategory to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('selectedCategory', selectedCategory);
+    }
+  }, [selectedCategory]);
+
+  // Check for category query param and restore scroll on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const category = urlParams.get('category');
+      if (category) {
+        setSelectedCategory(category);
+      }
+      // Restore scroll position
+      const scrollPos = sessionStorage.getItem('scrollPos');
+      if (scrollPos) {
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(scrollPos));
+          sessionStorage.removeItem('scrollPos');
+        }, 500);
+      }
+    }
+  }, []);
+
 
   const { activeEvents, endedEvents } = useMemo(() => {
     let filtered = events;
@@ -70,6 +103,9 @@ export default function Home() {
     } else if (selectedCategory === 'NEW') {
       // Show newest events
       filtered = events;
+    } else if (selectedCategory === 'FAVORITES') {
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      filtered = events.filter((e: DbEvent) => favorites.includes(e.id));
     } else {
       filtered = events.filter((e: DbEvent) => (e as any).categories && (e as any).categories.includes(selectedCategory));
     }
@@ -121,7 +157,12 @@ export default function Home() {
 
   const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => {
     const [isFavorite, setIsFavorite] = useState(false);
-    const [showQuickBet, setShowQuickBet] = useState(false);
+
+    // Initialize favorite state from localStorage
+    useEffect(() => {
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      setIsFavorite(favorites.includes(event.id));
+    }, [event.id]);
 
     // Mock odds - in production, fetch from API
     const yesOdds = 65;
@@ -129,16 +170,12 @@ export default function Home() {
     const volume = '$12.5k'; // Mock volume
     const betCount = 234; // Mock bet count
 
-    const handleQuickBet = (e: React.MouseEvent, option: 'YES' | 'NO') => {
-      e.preventDefault();
-      e.stopPropagation();
-      // In production, this would open a quick bet modal
-      alert(`Quick bet ${option} at ${option === 'YES' ? yesOdds : noOdds}%`);
-    };
-
     const toggleFavorite = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      const newFavorites = isFavorite ? favorites.filter((id: string) => id !== event.id) : [...favorites, event.id];
+      localStorage.setItem('favorites', JSON.stringify(newFavorites));
       setIsFavorite(!isFavorite);
     };
 
@@ -148,9 +185,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           whileHover={{ y: -4, scale: 1.01 }}
-          onHoverStart={() => setShowQuickBet(true)}
-          onHoverEnd={() => setShowQuickBet(false)}
-          className={`bg-gradient-to-br from-[#1e1e1e] to-[#181818] border border-white/10 hover:border-white/20 rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:shadow-blue-500/20 ${isEnded ? 'grayscale opacity-60' : ''}`}
+          className={`bg-gradient-to-br from-[#1e1e1e] to-[#181818] border border-white/10 hover:border-white/20 rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:shadow-blue-500/20 h-80 flex flex-col ${isEnded ? 'grayscale opacity-60' : ''}`}
         >
           {/* Header with Image and Favorite */}
           <div className="relative h-32 overflow-hidden bg-gradient-to-br from-blue-500/10 to-purple-500/10">
@@ -225,40 +260,24 @@ export default function Home() {
 
             {/* Odds Display */}
             <div className="flex gap-2 mb-3">
-              <div className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-center">
-                <div className="text-xs text-green-400 mb-1">YES</div>
-                <div className="text-lg font-bold text-white">{yesOdds}%</div>
-              </div>
-              <div className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
-                <div className="text-xs text-red-400 mb-1">NO</div>
-                <div className="text-lg font-bold text-white">{noOdds}%</div>
-              </div>
+              <motion.div
+                whileHover={{ scale: 1.02, borderColor: 'rgba(34, 197, 94, 0.5)' }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-green-500/20 transition-colors"
+              >
+                <div className="text-xs text-green-400 mb-0.5">YES</div>
+                <div className="text-base font-bold text-white">{yesOdds}%</div>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.02, borderColor: 'rgba(239, 68, 68, 0.5)' }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-red-500/20 transition-colors"
+              >
+                <div className="text-xs text-red-400 mb-0.5">NO</div>
+                <div className="text-base font-bold text-white">{noOdds}%</div>
+              </motion.div>
             </div>
 
-            {/* Quick Bet Buttons (shown on hover) */}
-            <AnimatePresence>
-              {showQuickBet && !isEnded && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex gap-2"
-                >
-                  <button
-                    onClick={(e) => handleQuickBet(e, 'YES')}
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm"
-                  >
-                    Bet YES
-                  </button>
-                  <button
-                    onClick={(e) => handleQuickBet(e, 'NO')}
-                    className="flex-1 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm"
-                  >
-                    Bet NO
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         </motion.div>
       </Link>
@@ -381,15 +400,24 @@ export default function Home() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-400">Sort by:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="bg-[#1e1e1e] text-white px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#bb86fc] cursor-pointer border border-white/10"
-                  >
-                    <option value="volume">Volume</option>
-                    <option value="ending">Ending Soon</option>
-                    <option value="newest">Newest</option>
-                  </select>
+                  <div className="flex gap-1 bg-[#1e1e1e] rounded-lg p-1 border border-white/10">
+                    {[
+                      { value: 'volume', label: 'Volume' },
+                      { value: 'ending', label: 'Ending Soon' },
+                      { value: 'newest', label: 'Newest' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setSortBy(option.value as any)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${sortBy === option.value
+                          ? 'bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white shadow-lg'
+                          : 'text-gray-300 hover:text-white hover:bg-white/10'
+                          }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
 
