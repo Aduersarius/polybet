@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from '@tanstack/react-query';
+import { TradingPanelModal } from "./components/TradingPanelModal";
 
 interface DbEvent {
   id: string;
@@ -25,6 +26,11 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+
+  // Trading panel modal state
+  const [tradingModalOpen, setTradingModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<DbEvent | null>(null);
+  const [preselectedOption, setPreselectedOption] = useState<'YES' | 'NO'>('YES');
 
   // Fetch events from database
   const { data: eventsData, isLoading, error } = useQuery({
@@ -304,22 +310,34 @@ export default function Home() {
 
             {/* Odds Display */}
             <div className="flex gap-2 mb-3">
-              <motion.div
+              <motion.button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedEvent(event);
+                  setPreselectedOption('YES');
+                  setTradingModalOpen(true);
+                }}
                 whileHover={{ scale: 1.02, borderColor: 'rgba(34, 197, 94, 0.5)' }}
                 transition={{ duration: 0.2 }}
                 className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-green-500/20 transition-colors"
               >
                 <div className="text-xs text-green-400 mb-0.5">YES</div>
                 <div className="text-base font-bold text-white">{yesOdds}%</div>
-              </motion.div>
-              <motion.div
+              </motion.button>
+              <motion.button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedEvent(event);
+                  setPreselectedOption('NO');
+                  setTradingModalOpen(true);
+                }}
                 whileHover={{ scale: 1.02, borderColor: 'rgba(239, 68, 68, 0.5)' }}
                 transition={{ duration: 0.2 }}
                 className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-red-500/20 transition-colors"
               >
                 <div className="text-xs text-red-400 mb-0.5">NO</div>
                 <div className="text-base font-bold text-white">{noOdds}%</div>
-              </motion.div>
+              </motion.button>
             </div>
 
           </div>
@@ -525,6 +543,20 @@ export default function Home() {
         }
       </AnimatePresence >
 
-    </main >
+      {/* Trading Panel Modal */}
+      {selectedEvent && (
+        <TradingPanelModal
+          isOpen={tradingModalOpen}
+          onClose={() => setTradingModalOpen(false)}
+          eventId={selectedEvent.id}
+          eventTitle={selectedEvent.title}
+          yesPrice={selectedEvent.yesOdds ? selectedEvent.yesOdds / 100 : 0.5}
+          noPrice={selectedEvent.noOdds ? selectedEvent.noOdds / 100 : 0.5}
+          creationDate={selectedEvent.createdAt}
+          resolutionDate={selectedEvent.resolutionDate}
+          preselectedOption={preselectedOption}
+        />
+      )}
+    </main>
   );
 }
