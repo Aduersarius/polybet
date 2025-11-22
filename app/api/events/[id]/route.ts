@@ -83,6 +83,7 @@ export async function GET(
         // Add calculated odds to the response
         const eventWithOdds = {
             ...event,
+            rules: (event as any).rules, // Explicitly include rules
             yesOdds,
             noOdds,
             volume,

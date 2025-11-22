@@ -68,20 +68,6 @@ export default function EventPage() {
                 <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
                 <div className="pt-[120px] px-4 max-w-7xl mx-auto pb-8">
-                    {/* Back Button */}
-                    <Link href="/#markets" scroll={false}>
-                        <motion.button
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            whileHover={{ x: -5 }}
-                            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6 group"
-                        >
-                            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                            Back to Markets
-                        </motion.button>
-                    </Link>
 
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -92,8 +78,8 @@ export default function EventPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Left Column - Chart & Stats */}
                             <div className="lg:col-span-2 space-y-6">
-                                {/* Header Section - Compact */}
-                                <div className="flex flex-col-reverse md:flex-row justify-between gap-6 mb-2">
+                                {/* Header Section - With Image on Right */}
+                                <div className="flex gap-6 mt-6">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-3">
                                             {/* Display all categories as badges */}
@@ -118,66 +104,69 @@ export default function EventPage() {
                                             </div>
                                         </div>
 
-                                        <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent leading-tight drop-shadow-lg">
-                                            {event.title}
-                                        </h1>
+                                        <div className="flex items-baseline gap-3 mb-3">
+                                            <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent leading-tight drop-shadow-lg">
+                                                {event.title}
+                                            </h1>
+                                        </div>
                                         <p className="text-gray-400 text-sm mb-4 leading-relaxed">{event.description}</p>
 
-
-                                        <ShareButtons eventTitle={event.title} eventId={event.id.toString()} />
+                                        <div className="flex items-center gap-4">
+                                            <ShareButtons eventTitle={event.title} eventId={event.id.toString()} />
+                                            <div className="flex items-center gap-2 text-sm bg-[#1e1e1e]/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
+                                                <svg className="w-4 h-4 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                                </svg>
+                                                <span className="text-gray-500">Volume:</span>
+                                                <span className="text-[#03dac6] font-bold">
+                                                    {event.volume
+                                                        ? event.volume >= 1000000
+                                                            ? `$${(event.volume / 1000000).toFixed(2)}m`
+                                                            : event.volume >= 1000
+                                                                ? `$${(event.volume / 1000).toFixed(1)}k`
+                                                                : `$${Math.round(event.volume)}`
+                                                        : '$0'}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    {/* Event Image - Right Side & Smaller */}
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        className="shrink-0"
-                                    >
-                                        <div className="w-full md:w-48 h-32 rounded-lg overflow-hidden border border-white/10 shadow-xl relative group">
-                                            {event.imageUrl ? (
+                                    {/* Event Image - Right Side */}
+                                    {event.imageUrl && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="shrink-0"
+                                        >
+                                            <div className="w-48 h-32 rounded-lg overflow-hidden border border-white/10 shadow-xl relative group">
                                                 <img
                                                     src={event.imageUrl}
                                                     alt={event.title}
                                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                 />
-                                            ) : (
-                                                <div className={`w-full h-full flex items-center justify-center ${event.categories && event.categories.length > 0 && event.categories[0] === 'CRYPTO' ? 'bg-gradient-to-br from-orange-500/20 to-orange-900/40' :
-                                                    event.categories && event.categories.length > 0 && event.categories[0] === 'SPORTS' ? 'bg-gradient-to-br from-blue-500/20 to-blue-900/40' :
-                                                        event.categories && event.categories.length > 0 && event.categories[0] === 'POLITICS' ? 'bg-gradient-to-br from-red-500/20 to-red-900/40' :
-                                                            'bg-gradient-to-br from-purple-500/20 to-purple-900/40'
-                                                    }`}>
-                                                    <span className="text-2xl opacity-50">{event.categories && event.categories.length > 0 ? event.categories[0][0] : '?'}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                </div>
-
-                                {/* Stats Cards - Compact */}
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
-                                        <div className="text-gray-400 text-xs mb-1">Volume</div>
-                                        <div className="text-xl font-bold text-[#03dac6]">
-                                            {event.volume
-                                                ? event.volume >= 1000
-                                                    ? `$${(event.volume / 1000).toFixed(1)}k`
-                                                    : `$${Math.round(event.volume)}`
-                                                : '$0'}
-                                        </div>
-                                    </div>
-                                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
-                                        <div className="text-gray-400 text-xs mb-1">Trades</div>
-                                        <div className="text-xl font-bold text-[#bb86fc]">{event.betCount || 0}</div>
-                                    </div>
-                                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
-                                        <div className="text-gray-400 text-xs mb-1">Liquidity</div>
-                                        <div className="text-xl font-bold text-white">$100.0</div>
-                                    </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
                                 </div>
 
                                 {/* Charts Section */}
                                 <div className="space-y-6">
                                     <OddsGraph eventId={event.id} key={`odds-${event.id}-${tradeCounter}`} />
+
+                                    {/* Rules Section */}
+                                    {event.rules && (
+                                        <div className="material-card p-6">
+                                            <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                                                <svg className="w-5 h-5 text-[#bb86fc]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                                Rules
+                                            </h3>
+                                            <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                                                {event.rules}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Live Chat */}

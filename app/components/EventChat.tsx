@@ -3,11 +3,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActivityList } from './ActivityList';
+import { UserHoverCard } from './UserHoverCard';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
     id: string;
     text: string;
     createdAt: string;
+    editedAt?: string | null;
+    isDeleted?: boolean;
+    parentId?: string | null;
     user: {
         address: string;
         username: string | null;
@@ -17,6 +22,8 @@ interface Message {
             amount: number;
         }[];
     };
+    reactions: Record<string, string[]>;
+    replyCount: number;
 }
 
 interface EventChatProps {
@@ -26,6 +33,10 @@ interface EventChatProps {
 export function EventChat({ eventId }: EventChatProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [inputText, setInputText] = useState('');
+    const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
+    const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [editText, setEditText] = useState('');
     const { address, isConnected } = useAccount();
     const queryClient = useQueryClient();
 
@@ -37,7 +48,19 @@ export function EventChat({ eventId }: EventChatProps) {
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
-        refetchInterval: 3000, // Poll every 3 seconds
+        refetchInterval: 3000,
+    });
+
+    // Filter root messages and create a map of children
+    const rootMessages = messages.filter(m => !m.parentId);
+    const messageMap = new Map<string, Message[]>();
+    messages.forEach(msg => {
+        if (msg.parentId) {
+            if (!messageMap.has(msg.parentId)) {
+                messageMap.set(msg.parentId, []);
+            }
+            messageMap.get(msg.parentId)!.push(msg);
+        }
     });
 
     // Send message mutation
@@ -46,13 +69,62 @@ export function EventChat({ eventId }: EventChatProps) {
             const res = await fetch(`/api/events/${eventId}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, address }),
+                body: JSON.stringify({
+                    text,
+                    address: address?.toLowerCase(),
+                    parentId: replyTo?.id
+                }),
             });
             if (!res.ok) throw new Error('Failed to send message');
             return res.json();
         },
         onSuccess: () => {
             setInputText('');
+            setReplyTo(null);
+            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+        },
+    });
+
+    // Edit mutation
+    const editMutation = useMutation({
+        mutationFn: async ({ id, text }: { id: string; text: string }) => {
+            await fetch(`/api/messages/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, address: address?.toLowerCase() }),
+            });
+        },
+        onSuccess: () => {
+            setEditingMessageId(null);
+            setEditText('');
+            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+        },
+    });
+
+    // Delete mutation
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await fetch(`/api/messages/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: address?.toLowerCase() }),
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+        },
+    });
+
+    // Reaction mutation
+    const reactMutation = useMutation({
+        mutationFn: async ({ messageId, type }: { messageId: string; type: string }) => {
+            await fetch(`/api/messages/${messageId}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address, type }),
+            });
+        },
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
         },
     });
@@ -69,58 +141,251 @@ export function EventChat({ eventId }: EventChatProps) {
         }
     };
 
+    const handleEditStart = (msg: Message) => {
+        setEditingMessageId(msg.id);
+        setEditText(msg.text);
+    };
+
+    const handleEditSave = (id: string) => {
+        if (!editText.trim()) return;
+        editMutation.mutate({ id, text: editText });
+    };
+
+    const handleEditCancel = () => {
+        setEditingMessageId(null);
+        setEditText('');
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('Are you sure you want to delete this message?')) {
+            deleteMutation.mutate(id);
+        }
+    };
+
+    const toggleThread = (messageId: string) => {
+        const newExpanded = new Set(expandedThreads);
+        if (newExpanded.has(messageId)) {
+            newExpanded.delete(messageId);
+        } else {
+            newExpanded.add(messageId);
+        }
+        setExpandedThreads(newExpanded);
+    };
+
+    const handleCopyBet = (option: string) => {
+        alert(`Copying trade: ${option}`);
+    };
+
     // Scroll to bottom on new messages
     useEffect(() => {
-        if (scrollRef.current) {
+        if (scrollRef.current && !replyTo) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages.length, replyTo]);
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
         const now = new Date();
         const diff = now.getTime() - date.getTime();
         const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-
         if (minutes < 1) return 'Just now';
         if (minutes < 60) return `${minutes}m ago`;
-        if (hours < 24) return `${hours}h ago`;
+        if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
         return date.toLocaleDateString();
     };
 
-    const formatAddress = (addr: string) => {
-        return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-    };
-
-    // Tab state
     const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat');
 
-    // Import ActivityList dynamically to avoid circular deps if any (though not expected here)
-    // For now, we'll assume it's imported at the top. 
-    // Since I can't edit imports easily with replace_file_content in one go if I don't include the top, 
-    // I will use a dynamic import or assume the user will fix imports? 
-    // Actually, I should use multi_replace to add the import.
-    // But for now, let's implement the UI logic.
+    const renderMessage = (msg: Message, isReply = false) => {
+        const isMe = msg.user.address === address;
+        const likes = msg.reactions?.['LIKE'] || [];
+        const dislikes = msg.reactions?.['DISLIKE'] || [];
+        const hasLiked = address && likes.includes(address);
+        const hasDisliked = address && dislikes.includes(address);
+        const isEditing = editingMessageId === msg.id;
+        const replies = messageMap.get(msg.id) || [];
+        const isExpanded = expandedThreads.has(msg.id);
+
+        // Don't render deleted messages without replies at all
+        if (msg.isDeleted && replies.length === 0) {
+            return null;
+        }
+
+        return (
+            <div key={msg.id} className={`${isReply ? 'ml-12 border-l-2 border-white/10 pl-3' : ''}`}>
+                <div className={`group relative rounded-lg p-3 transition-colors ${isMe ? 'bg-[#3a3a3a]/50 border border-[#bb86fc]/20' : 'hover:bg-white/5'}`}>
+                    <div className="flex gap-3">
+                        <div className="shrink-0 pt-1">
+                            <UserHoverCard address={msg.user.address}>
+                                <div className="cursor-pointer">
+                                    {msg.user.avatarUrl ? (
+                                        <img src={msg.user.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-white/10" />
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white border border-white/10 shadow-lg">
+                                            {(msg.user.username?.[0] || msg.user.address.slice(2, 3)).toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+                            </UserHoverCard>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                                <UserHoverCard address={msg.user.address}>
+                                    <span className={`text-sm font-bold cursor-pointer hover:underline ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
+                                        {msg.user.username || `${msg.user.address.slice(0, 6)}...`}
+                                    </span>
+                                </UserHoverCard>
+                                <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
+                                {msg.editedAt && (
+                                    <span className="text-[9px] text-gray-600">(edited)</span>
+                                )}
+
+                                {/* Bet Badge & Copy Button */}
+                                {msg.user.bets && msg.user.bets.length > 0 && (
+                                    <div className="flex gap-1 ml-auto items-center">
+                                        {msg.user.bets.slice(0, 1).map((bet, idx) => (
+                                            <div key={idx} className="flex items-center gap-1 bg-[#1e1e1e] rounded px-1.5 py-0.5 border border-white/10">
+                                                <span className={`text-[10px] font-bold ${bet.option === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
+                                                    {bet.option}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleCopyBet(bet.option)}
+                                                    className="text-[9px] text-gray-400 hover:text-white uppercase tracking-wider border-l border-white/10 pl-1 ml-1"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Message Content */}
+                            {msg.isDeleted ? (
+                                <p className="text-sm text-gray-600 italic">*message deleted*</p>
+                            ) : isEditing ? (
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={editText}
+                                        onChange={(e) => setEditText(e.target.value)}
+                                        className="w-full bg-[#2c2c2c] text-sm px-2 py-1 rounded border border-white/10 text-white"
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleEditSave(msg.id)} className="text-xs bg-[#bb86fc] text-black px-3 py-1 rounded">
+                                            Save
+                                        </button>
+                                        <button onClick={handleEditCancel} className="text-xs bg-white/10 text-white px-3 py-1 rounded">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-300 break-words leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                            )}
+
+                            {/* Actions Row */}
+                            {!msg.isDeleted && (
+                                <div className="flex items-center gap-4 mt-2">
+                                    <button
+                                        onClick={() => setReplyTo({ id: msg.id, username: msg.user.username || 'User' })}
+                                        className="text-xs text-gray-500 hover:text-white flex items-center gap-1"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                        Reply
+                                    </button>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
+                                            className={`text-xs flex items-center gap-1 ${hasLiked ? 'text-[#bb86fc]' : 'text-gray-500 hover:text-[#bb86fc]'}`}
+                                        >
+                                            <svg className="w-3 h-3" fill={hasLiked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
+                                            {likes.length > 0 && likes.length}
+                                        </button>
+                                        <button
+                                            onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
+                                            className={`text-xs flex items-center gap-1 ${hasDisliked ? 'text-[#cf6679]' : 'text-gray-500 hover:text-[#cf6679]'}`}
+                                        >
+                                            <svg className="w-3 h-3" fill={hasDisliked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" /></svg>
+                                            {dislikes.length > 0 && dislikes.length}
+                                        </button>
+                                    </div>
+
+                                    {/* Edit/Delete for own messages */}
+                                    {isMe && !isEditing && (
+                                        <>
+                                            <button
+                                                onClick={() => handleEditStart(msg)}
+                                                className="text-xs text-gray-500 hover:text-white flex items-center gap-1"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(msg.id)}
+                                                className="text-xs text-gray-500 hover:text-red-500 flex items-center gap-1"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                Delete
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Thread Toggle & Replies */}
+                {replies.length > 0 && (
+                    <div className="mt-1">
+                        <button
+                            onClick={() => toggleThread(msg.id)}
+                            className="text-xs text-[#bb86fc] hover:text-[#a66ef1] flex items-center gap-1 ml-12"
+                        >
+                            <svg className={`w-3 h-3 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            {isExpanded ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+                        </button>
+
+                        <AnimatePresence>
+                            {isExpanded && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="mt-1 space-y-2 overflow-hidden"
+                                >
+                                    {replies.map(reply => renderMessage(reply, true))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
-        <div className="material-card p-4 flex flex-col h-full min-h-[500px]">
+        <div className="material-card p-4 flex flex-col h-full min-h-[600px]">
             {/* Tabs Header */}
             <div className="flex items-center gap-6 mb-4 border-b border-white/10 pb-2">
                 <button
                     onClick={() => setActiveTab('chat')}
-                    className={`text-sm font-medium pb-2 relative transition-colors ${activeTab === 'chat' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
-                        }`}
+                    className={`text-sm font-medium pb-2 relative transition-colors ${activeTab === 'chat' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 >
-                    Comments ({messages.length})
+                    Comments ({rootMessages.length})
                     {activeTab === 'chat' && (
                         <span className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-[#bb86fc] rounded-t-full" />
                     )}
                 </button>
                 <button
                     onClick={() => setActiveTab('activity')}
-                    className={`text-sm font-medium pb-2 relative transition-colors ${activeTab === 'activity' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
-                        }`}
+                    className={`text-sm font-medium pb-2 relative transition-colors ${activeTab === 'activity' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 >
                     Activity
                     {activeTab === 'activity' && (
@@ -131,99 +396,57 @@ export function EventChat({ eventId }: EventChatProps) {
 
             {activeTab === 'chat' ? (
                 <>
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 mb-4 max-h-[400px] pr-2 custom-scrollbar">
-                        {messages.length === 0 ? (
-                            <div className="text-center text-gray-500 py-10 text-sm">
-                                No messages yet. Be the first to say hi!
-                            </div>
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
+                        {rootMessages.length === 0 ? (
+                            <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
                         ) : (
-                            messages.map((msg) => (
-                                <div key={msg.id} className={`rounded p-3 ${msg.user.address === address ? 'bg-[#3a3a3a] border border-[#bb86fc]/20' : 'bg-[#2c2c2c]'}`}>
-                                    <div className="flex justify-between items-start mb-1 gap-2">
-                                        <div className="flex items-center gap-2">
-                                            <a href={`/user/${msg.user.address}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity group">
-                                                {msg.user.avatarUrl ? (
-                                                    <img src={msg.user.avatarUrl} alt="Avatar" className="w-5 h-5 rounded-full object-cover border border-white/10" />
-                                                ) : (
-                                                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[8px] font-bold text-white">
-                                                        {(msg.user.username?.[0] || msg.user.address.slice(2, 3)).toUpperCase()}
-                                                    </div>
-                                                )}
-                                                <span className={`text-xs font-mono group-hover:underline ${msg.user.address === address ? 'text-[#bb86fc]' : 'text-gray-400'}`}>
-                                                    {msg.user.username || formatAddress(msg.user.address)}
-                                                </span>
-                                            </a>
-
-                                            {/* Bet Badge */}
-                                            {msg.user.bets && msg.user.bets.length > 0 && (
-                                                <div className="flex gap-1">
-                                                    {msg.user.bets.some(b => b.option === 'YES') && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#03dac6]/20 text-[#03dac6] border border-[#03dac6]/30">
-                                                            YES
-                                                        </span>
-                                                    )}
-                                                    {msg.user.bets.some(b => b.option === 'NO') && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#cf6679]/20 text-[#cf6679] border border-[#cf6679]/30">
-                                                            NO
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
-                                    </div>
-                                    <p className="text-sm text-gray-300 break-words">{msg.text}</p>
-                                </div>
-                            ))
+                            rootMessages.map(msg => renderMessage(msg))
                         )}
                     </div>
 
-                    <div className="flex gap-2">
-                        {isConnected ? (
-                            <>
-                                <input
-                                    type="text"
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    placeholder="Type a message..."
-                                    className="flex-1 bg-[#2c2c2c] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#bb86fc] transition-all placeholder-gray-600"
-                                    disabled={sendMessageMutation.isPending}
-                                />
-                                <button
-                                    onClick={handleSend}
-                                    disabled={!inputText.trim() || sendMessageMutation.isPending}
-                                    className="bg-[#bb86fc] hover:bg-[#a66ef1] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 py-2 rounded-lg text-sm transition-colors"
-                                >
-                                    {sendMessageMutation.isPending ? '...' : 'Send'}
-                                </button>
-                            </>
-                        ) : (
-                            <div className="w-full text-center p-2 bg-[#2c2c2c] rounded-lg text-sm text-gray-400">
-                                Connect wallet to chat
+                    {/* Input Area */}
+                    <div className="relative">
+                        {replyTo && (
+                            <div className="flex items-center justify-between bg-[#2c2c2c] px-3 py-1.5 rounded-t-lg border-b border-white/5 text-xs text-gray-400">
+                                <span>Replying to <span className="text-[#bb86fc]">@{replyTo.username}</span></span>
+                                <button onClick={() => setReplyTo(null)} className="hover:text-white">&times;</button>
                             </div>
                         )}
+                        <div className={`flex gap-2 bg-[#1e1e1e] p-2 rounded-lg border border-white/10 ${replyTo ? 'rounded-t-none' : ''}`}>
+                            {isConnected ? (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={inputText}
+                                        onChange={(e) => setInputText(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder={replyTo ? "Write a reply..." : "Type a message..."}
+                                        className="flex-1 bg-transparent text-sm focus:outline-none text-white placeholder-gray-600 px-2"
+                                        disabled={sendMessageMutation.isPending}
+
+                                    />
+                                    <button
+                                        onClick={handleSend}
+                                        disabled={!inputText.trim() || sendMessageMutation.isPending}
+                                        className="bg-[#bb86fc] hover:bg-[#a66ef1] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 py-1.5 rounded text-sm transition-colors"
+                                    >
+                                        {sendMessageMutation.isPending ? '...' : 'Send'}
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="w-full text-center py-1 text-sm text-gray-500">Connect wallet to chat</div>
+                            )}
+                        </div>
                     </div>
                 </>
             ) : (
                 <ActivityList eventId={eventId} />
             )}
-
             <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: rgba(255, 255, 255, 0.05);
-                    border-radius: 3px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: rgba(255, 255, 255, 0.1);
-                    border-radius: 3px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: rgba(255, 255, 255, 0.2);
-                }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 3px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
             `}</style>
         </div>
     );
