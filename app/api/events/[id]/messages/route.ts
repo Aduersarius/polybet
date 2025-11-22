@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 10;
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const startTime = Date.now();
-
     try {
-        const { prisma } = await import('@/lib/prisma');
         const { id } = await params;
-
-        const queryPromise = prisma.message.findMany({
+        console.log(`[API] Fetching messages for event: ${id}`);
+        const messages = await prisma.message.findMany({
             where: { eventId: id },
             include: {
                 user: {
                     select: {
-                        address: true,
                         username: true,
                         avatarUrl: true,
+                        address: true,
                         bets: {
                             where: { eventId: id },
                             select: {
@@ -30,37 +27,32 @@ export async function GET(
                             }
                         }
                     }
-                }
+                },
+                reactions: {
+                    include: {
+                        user: { select: { address: true } }
+                    }
+                },
+                replies: { select: { id: true } }
             },
             orderBy: { createdAt: 'asc' },
-            take: 100 // Limit messages for performance
         });
 
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Database query timeout')), 8000);
-        });
+        // Transform for frontend
+        const formattedMessages = messages.map((msg: any) => ({
+            ...msg,
+            replyCount: msg.replies.length,
+            reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {
+                if (!acc[r.type]) acc[r.type] = [];
+                acc[r.type].push(r.user.address);
+                return acc;
+            }, {} as Record<string, string[]>)
+        }));
 
-        const messages = await Promise.race([queryPromise, timeoutPromise]) as any[];
-
-        const queryTime = Date.now() - startTime;
-        console.log(`✅ Messages for event ${id}: ${messages.length} messages in ${queryTime}ms`);
-
-        return NextResponse.json(messages);
+        return NextResponse.json(formattedMessages);
     } catch (error) {
-        const errorTime = Date.now() - startTime;
-        console.error(`❌ Messages fetch failed after ${errorTime}ms:`, error);
-
-        if (error instanceof Error && error.message === 'Database query timeout') {
-            return NextResponse.json({
-                error: 'Database timeout',
-                message: 'Query took too long to execute'
-            }, { status: 504 });
-        }
-
-        return NextResponse.json(
-            { error: 'Failed to fetch messages' },
-            { status: 500 }
-        );
+        console.error('Error fetching messages:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
@@ -69,24 +61,18 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { prisma } = await import('@/lib/prisma');
         const { id } = await params;
         const body = await request.json();
-        console.log('POST /api/messages - Body:', body);
-        const { text, address } = body;
+        const { text, address, parentId } = body;
+        console.log(`[API] Posting message for event: ${id}, address: ${address}, text: ${text}`);
 
         if (!text || !address) {
-            return NextResponse.json(
-                { error: 'Missing required fields' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
         }
 
-        // Find or create user
         let user = await prisma.user.findUnique({
             where: { address }
         });
-        console.log('User found:', user);
 
         if (!user) {
             user = await prisma.user.create({
@@ -97,35 +83,61 @@ export async function POST(
         const message = await prisma.message.create({
             data: {
                 text,
+                userId: user.id,
                 eventId: id,
-                userId: user.id
+                parentId: parentId || null
             },
             include: {
                 user: {
                     select: {
-                        address: true,
                         username: true,
                         avatarUrl: true,
-                        bets: {
-                            where: { eventId: id },
-                            select: {
-                                option: true,
-                                amount: true
-                            }
-                        }
+                        address: true
                     }
                 }
             }
         });
 
+        // Handle Notifications
+        if (parentId) {
+            const parentMsg = await prisma.message.findUnique({
+                where: { id: parentId },
+                select: { userId: true }
+            });
+            if (parentMsg && parentMsg.userId !== user.id) {
+                await prisma.notification.create({
+                    data: {
+                        userId: parentMsg.userId,
+                        type: 'REPLY',
+                        message: `${user.username || 'Someone'} replied to your message`,
+                        resourceId: id
+                    }
+                });
+            }
+        }
+
+        const mentionMatch = text.match(/@(\w+)/);
+        if (mentionMatch) {
+            const mentionedUsername = mentionMatch[1];
+            const mentionedUser = await prisma.user.findFirst({
+                where: { username: mentionedUsername }
+            });
+
+            if (mentionedUser && mentionedUser.id !== user.id) {
+                await prisma.notification.create({
+                    data: {
+                        userId: mentionedUser.id,
+                        type: 'MENTION',
+                        message: `${user.username || 'Someone'} mentioned you`,
+                        resourceId: id
+                    }
+                });
+            }
+        }
+
         return NextResponse.json(message);
     } catch (error) {
-        console.error('Error creating message:', error);
-        // @ts-ignore
-        console.error('Error details:', error.message);
-        return NextResponse.json(
-            { error: 'Failed to create message', details: String(error) },
-            { status: 500 }
-        );
+        console.error('Error posting message:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

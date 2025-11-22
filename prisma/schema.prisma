@@ -31,6 +31,8 @@ model User {
   transactions Transaction[]
   createdEvents Event[]
   messages     Message[]
+  reactions    MessageReaction[]
+  notifications Notification[]
 }
 
 model Event {
@@ -43,6 +45,7 @@ model Event {
   status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
   result         String?  // YES, NO, or Option ID
   isHidden       Boolean  @default(false)
+  rules          String?  @db.Text // Markdown supported rules text
 
   // AMM Parameters for LMSR
   liquidityParameter Float    @default(100.0) // b parameter in LMSR
@@ -101,6 +104,44 @@ model Message {
   
   eventId   String
   // event     Event    @relation(fields: [eventId], references: [id])
+  
+  createdAt DateTime @default(now())
+  editedAt  DateTime?
+  isDeleted Boolean  @default(false)
+  
+  // Threading
+  parentId  String?
+  parent    Message? @relation("Thread", fields: [parentId], references: [id])
+  replies   Message[] @relation("Thread")
+
+  // Reactions
+  reactions MessageReaction[]
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  type      String   // LIKE, DISLIKE
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id])
+  
+  createdAt DateTime @default(now())
+
+  @@unique([userId, messageId]) // One reaction per user per message
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // REPLY, MENTION, BET_RESULT, FAVORITE_UPDATE
+  message   String
+  resourceId String? // Link to event or message
+  isRead    Boolean  @default(false)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
   
   createdAt DateTime @default(now())
 }

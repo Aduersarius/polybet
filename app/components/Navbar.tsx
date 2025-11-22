@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
+import { NotificationBell } from './NotificationBell';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -84,6 +85,9 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                     </div>
 
                     <div className="shrink-0 flex items-center gap-4">
+                        {isConnected && (
+                            <NotificationBell />
+                        )}
                         {isConnected && address && (
                             <Link
                                 href={`/user/${address}`}
