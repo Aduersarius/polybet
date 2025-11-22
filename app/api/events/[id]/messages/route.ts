@@ -20,7 +20,15 @@ export async function GET(
                 user: {
                     select: {
                         address: true,
-                        username: true
+                        username: true,
+                        avatarUrl: true,
+                        bets: {
+                            where: { eventId: id },
+                            select: {
+                                option: true,
+                                amount: true
+                            }
+                        }
                     }
                 }
             },
@@ -96,7 +104,15 @@ export async function POST(
                 user: {
                     select: {
                         address: true,
-                        username: true
+                        username: true,
+                        avatarUrl: true,
+                        bets: {
+                            where: { eventId: id },
+                            select: {
+                                option: true,
+                                amount: true
+                            }
+                        }
                     }
                 }
             }

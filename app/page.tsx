@@ -13,13 +13,18 @@ interface DbEvent {
   resolutionDate: string;
   createdAt: string;
   imageUrl?: string | null;
+  volume?: number;
+  betCount?: number;
+  yesOdds?: number;
+  noOdds?: number;
 }
 
 export default function Home() {
   const [showMarkets, setShowMarkets] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // Fetch events from database
   const { data: eventsData, isLoading, error } = useQuery({
@@ -57,6 +62,35 @@ export default function Home() {
     return () => window.removeEventListener('globalSearch', handleGlobalSearch as EventListener);
   }, []);
 
+  // Save selectedCategory to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('selectedCategory', selectedCategory);
+    }
+  }, [selectedCategory]);
+
+  // Check for category query param and restore scroll on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const category = urlParams.get('category');
+      if (category) {
+        setSelectedCategory(category);
+      } else {
+        const saved = sessionStorage.getItem('selectedCategory');
+        if (saved) setSelectedCategory(saved);
+      }
+      // Restore scroll position
+      const scrollPos = sessionStorage.getItem('scrollPos');
+      if (scrollPos) {
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(scrollPos));
+          sessionStorage.removeItem('scrollPos');
+        }, 500);
+      }
+    }
+  }, []);
+
 
   const { activeEvents, endedEvents } = useMemo(() => {
     let filtered = events;
@@ -70,6 +104,9 @@ export default function Home() {
     } else if (selectedCategory === 'NEW') {
       // Show newest events
       filtered = events;
+    } else if (selectedCategory === 'FAVORITES') {
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      filtered = events.filter((e: DbEvent) => favorites.includes(e.id));
     } else {
       filtered = events.filter((e: DbEvent) => (e as any).categories && (e as any).categories.includes(selectedCategory));
     }
@@ -121,24 +158,62 @@ export default function Home() {
 
   const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => {
     const [isFavorite, setIsFavorite] = useState(false);
-    const [showQuickBet, setShowQuickBet] = useState(false);
 
-    // Mock odds - in production, fetch from API
-    const yesOdds = 65;
-    const noOdds = 35;
-    const volume = '$12.5k'; // Mock volume
-    const betCount = 234; // Mock bet count
+    // Initialize favorite state from localStorage
+    useEffect(() => {
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      setIsFavorite(favorites.includes(event.id));
+    }, [event.id]);
 
-    const handleQuickBet = (e: React.MouseEvent, option: 'YES' | 'NO') => {
-      e.preventDefault();
-      e.stopPropagation();
-      // In production, this would open a quick bet modal
-      alert(`Quick bet ${option} at ${option === 'YES' ? yesOdds : noOdds}%`);
-    };
+    // Fetch messages count
+    const { data: messages } = useQuery({
+      queryKey: ['messages', event.id],
+      queryFn: async () => {
+        const res = await fetch(`/api/events/${event.id}/messages`);
+        if (!res.ok) return [];
+        return res.json();
+      },
+    });
+
+    // Format volume
+    const volume = event.volume
+      ? event.volume >= 1000
+        ? `$${(event.volume / 1000).toFixed(1)}k`
+        : `$${Math.round(event.volume)}`
+      : '$0';
+
+    const betCount = event.betCount || 0;
+    const commentsCount = messages?.length || 0;
+
+    // Use odds from props or calculate simple estimate based on bet count
+    let yesOdds = 50;
+    let noOdds = 50;
+
+    if (event.yesOdds != null && event.noOdds != null) {
+      // Use real calculated odds if available
+      // Check if they are already percentages (60, 40) or probabilities (0.6, 0.4)
+      if (event.yesOdds > 1) {
+        // Already percentages
+        yesOdds = Math.round(event.yesOdds);
+        noOdds = Math.round(event.noOdds);
+      } else {
+        // Probabilities, convert to percentages
+        yesOdds = Math.round(event.yesOdds * 100);
+        noOdds = Math.round(event.noOdds * 100);
+      }
+    } else if (betCount > 0) {
+      // Simple estimate: assume 55/45 split for events with trades
+      yesOdds = 55;
+      noOdds = 45;
+    }
+    // Otherwise keep 50/50 default
 
     const toggleFavorite = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      const newFavorites = isFavorite ? favorites.filter((id: string) => id !== event.id) : [...favorites, event.id];
+      localStorage.setItem('favorites', JSON.stringify(newFavorites));
       setIsFavorite(!isFavorite);
     };
 
@@ -148,9 +223,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           whileHover={{ y: -4, scale: 1.01 }}
-          onHoverStart={() => setShowQuickBet(true)}
-          onHoverEnd={() => setShowQuickBet(false)}
-          className={`bg-gradient-to-br from-[#1e1e1e] to-[#181818] border border-white/10 hover:border-white/20 rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:shadow-blue-500/20 ${isEnded ? 'grayscale opacity-60' : ''}`}
+          className={`bg-gradient-to-br from-[#1e1e1e] to-[#181818] border border-white/10 hover:border-white/20 rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:shadow-blue-500/20 h-80 flex flex-col ${isEnded ? 'grayscale opacity-60' : ''}`}
         >
           {/* Header with Image and Favorite */}
           <div className="relative h-32 overflow-hidden bg-gradient-to-br from-blue-500/10 to-purple-500/10">
@@ -221,44 +294,34 @@ export default function Home() {
                 </svg>
                 <span>{betCount} bets</span>
               </div>
+              <div className="flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span>{commentsCount} comments</span>
+              </div>
             </div>
 
             {/* Odds Display */}
             <div className="flex gap-2 mb-3">
-              <div className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-center">
-                <div className="text-xs text-green-400 mb-1">YES</div>
-                <div className="text-lg font-bold text-white">{yesOdds}%</div>
-              </div>
-              <div className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
-                <div className="text-xs text-red-400 mb-1">NO</div>
-                <div className="text-lg font-bold text-white">{noOdds}%</div>
-              </div>
+              <motion.div
+                whileHover={{ scale: 1.02, borderColor: 'rgba(34, 197, 94, 0.5)' }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-green-500/20 transition-colors"
+              >
+                <div className="text-xs text-green-400 mb-0.5">YES</div>
+                <div className="text-base font-bold text-white">{yesOdds}%</div>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.02, borderColor: 'rgba(239, 68, 68, 0.5)' }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-red-500/20 transition-colors"
+              >
+                <div className="text-xs text-red-400 mb-0.5">NO</div>
+                <div className="text-base font-bold text-white">{noOdds}%</div>
+              </motion.div>
             </div>
 
-            {/* Quick Bet Buttons (shown on hover) */}
-            <AnimatePresence>
-              {showQuickBet && !isEnded && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex gap-2"
-                >
-                  <button
-                    onClick={(e) => handleQuickBet(e, 'YES')}
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm"
-                  >
-                    Bet YES
-                  </button>
-                  <button
-                    onClick={(e) => handleQuickBet(e, 'NO')}
-                    className="flex-1 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm"
-                  >
-                    Bet NO
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         </motion.div>
       </Link>
@@ -266,7 +329,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen relative overflow-hidden">
+    <main className="min-h-screen relative overflow-hidden" suppressHydrationWarning={true}>
       <AnimatePresence mode="wait">
         {!showMarkets ? (
           <motion.div
@@ -381,15 +444,48 @@ export default function Home() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-400">Sort by:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="bg-[#1e1e1e] text-white px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#bb86fc] cursor-pointer border border-white/10"
-                  >
-                    <option value="volume">Volume</option>
-                    <option value="ending">Ending Soon</option>
-                    <option value="newest">Newest</option>
-                  </select>
+                  <div className="relative">
+                    <button
+                      onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#1e1e1e] text-white rounded-lg border border-white/10 hover:border-white/20 transition-all"
+                    >
+                      {sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending Soon' : 'Newest'}
+                      <svg
+                        className={`w-4 h-4 transition-transform ${sortDropdownOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {sortDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-full right-0 mt-1 w-48 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl z-10"
+                      >
+                        {[
+                          { value: 'volume', label: 'Volume' },
+                          { value: 'ending', label: 'Ending Soon' },
+                          { value: 'newest', label: 'Newest' }
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              setSortBy(option.value as any);
+                              setSortDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors ${sortBy === option.value ? 'text-[#bb86fc]' : 'text-gray-300'
+                              }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
 

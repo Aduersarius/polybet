@@ -1,5 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Updated for User Profile features
 
 generator client {
   provider = "prisma-client-js"
@@ -14,6 +15,13 @@ model User {
   id        String   @id @default(cuid())
   address   String   @unique
   username  String?
+  description String?
+  avatarUrl String?
+  achievements String[] @default([])
+  twitter   String?
+  discord   String?
+  telegram  String?
+  website   String?
   isAdmin   Boolean  @default(false)
   isBanned  Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -35,28 +43,39 @@ model Event {
   status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
   result         String?  // YES, NO, or Option ID
   isHidden       Boolean  @default(false)
-  
+
+  // AMM Parameters for LMSR
+  liquidityParameter Float    @default(100.0) // b parameter in LMSR
+  qYes              Float    @default(0.0)    // Cumulative YES tokens
+  qNo               Float    @default(0.0)    // Cumulative NO tokens
+  initialLiquidity  Float    @default(100.0) // Initial liquidity amount
+
+  // Cached current odds for performance
+  yesOdds          Float?
+  noOdds           Float?
+
   creatorId      String
   creator        User     @relation(fields: [creatorId], references: [id])
-  
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  
+
   bets           Bet[]
   // messages       Message[]
 }
 
 model Bet {
-  id        String   @id @default(cuid())
-  amount    Float
-  option    String   // YES, NO, or custom option
-  
+  id            String   @id @default(cuid())
+  amount        Float
+  option        String   // YES, NO, or custom option
+  priceAtTrade  Float?   // Price of the outcome token at time of trade
+
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  
+
   eventId   String
   event     Event    @relation(fields: [eventId], references: [id])
-  
+
   createdAt DateTime @default(now())
 }
 

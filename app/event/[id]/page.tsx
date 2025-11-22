@@ -16,16 +16,24 @@ export default function EventPage() {
     const router = useRouter();
     const eventId = params.id as string;
     const [selectedCategory, setSelectedCategory] = useState('ALL');
+    const [tradeCounter, setTradeCounter] = useState(0);
 
     const handleCategoryChange = (categoryId: string) => {
         setSelectedCategory(categoryId);
+        // Save scroll position
+        sessionStorage.setItem('scrollPos', window.scrollY.toString());
         // Navigate to home with category filter
-        router.push('/#markets');
+        router.push(`/?category=${categoryId}#markets`);
+    };
+
+    const handleTrade = () => {
+        // Increment trade counter to trigger chart refresh
+        setTradeCounter(prev => prev + 1);
     };
 
     // Fetch event from database
-    const { data: event, isLoading } = useQuery({
-        queryKey: ['event', eventId],
+    const { data: event, isLoading, refetch } = useQuery({
+        queryKey: ['event', eventId, tradeCounter], // Include tradeCounter to refetch on trades
         queryFn: async () => {
             const res = await fetch(`/api/events/${eventId}`);
             if (!res.ok) throw new Error('Failed to fetch event');
@@ -149,29 +157,27 @@ export default function EventPage() {
                                 <div className="grid grid-cols-3 gap-4">
                                     <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
                                         <div className="text-gray-400 text-xs mb-1">Volume</div>
-                                        <div className="text-xl font-bold text-[#03dac6]">$124.5k</div>
+                                        <div className="text-xl font-bold text-[#03dac6]">
+                                            {event.volume
+                                                ? event.volume >= 1000
+                                                    ? `$${(event.volume / 1000).toFixed(1)}k`
+                                                    : `$${Math.round(event.volume)}`
+                                                : '$0'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                                        <div className="text-gray-400 text-xs mb-1">Trades</div>
+                                        <div className="text-xl font-bold text-[#bb86fc]">{event.betCount || 0}</div>
                                     </div>
                                     <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
                                         <div className="text-gray-400 text-xs mb-1">Liquidity</div>
-                                        <div className="text-xl font-bold text-[#bb86fc]">$45.2k</div>
-                                    </div>
-                                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
-                                        <div className="text-gray-400 text-xs mb-1">Holders</div>
-                                        <div className="text-xl font-bold text-white">1,234</div>
+                                        <div className="text-xl font-bold text-white">$100.0</div>
                                     </div>
                                 </div>
 
                                 {/* Charts Section */}
                                 <div className="space-y-6">
-                                    <div className="bg-[#1e1e1e]/50 backdrop-blur-xl rounded-2xl border border-white/5 p-6 shadow-xl">
-                                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                            <span className="w-1 h-6 bg-[#bb86fc] rounded-full"></span>
-                                            Price History
-                                        </h3>
-                                        <div className="h-[300px] w-full">
-                                            <OddsGraph eventId={event.id} />
-                                        </div>
-                                    </div>
+                                    <OddsGraph eventId={event.id} key={`odds-${event.id}-${tradeCounter}`} />
                                 </div>
 
                                 {/* Live Chat */}
@@ -187,12 +193,13 @@ export default function EventPage() {
 
                             {/* Right Column - Sticky Trading Panel */}
                             <div className="lg:col-span-1">
-                                <div className="sticky top-24 space-y-6 px-2">
+                                <div className="sticky top-32 space-y-6 px-2">
                                     <TradingPanel
-                                        yesOdds={event.yesOdds}
-                                        noOdds={event.noOdds}
+                                        yesPrice={event.yesOdds}
+                                        noPrice={event.noOdds}
                                         creationDate={event.createdAt || event.creationDate}
                                         resolutionDate={event.resolutionDate}
+                                        onTrade={handleTrade}
                                     />
                                     <SuggestedEvents category={event.categories && event.categories.length > 0 ? event.categories[0] : 'ALL'} currentEventId={event.id.toString()} />
                                 </div>

@@ -2,22 +2,85 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useParams } from 'next/navigation';
 
 interface TradingPanelProps {
-    yesOdds: number;
-    noOdds: number;
+    yesPrice: number;  // Actually the price/probability (0-1)
+    noPrice: number;   // Actually the price/probability (0-1)
     creationDate?: string;
     resolutionDate?: string;
     onTrade?: (type: 'YES' | 'NO', amount: number) => void;
 }
 
-export function TradingPanel({ yesOdds, noOdds, creationDate, resolutionDate, onTrade }: TradingPanelProps) {
+export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, onTrade }: TradingPanelProps) {
+    const params = useParams();
+    const eventId = params.id as string;
+
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>('YES');
     const [amount, setAmount] = useState<string>('0');
+    const [isLoading, setIsLoading] = useState(false);
+    const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number } | null>(null);
 
-    const yesPrice = (yesOdds / 100).toFixed(2);
-    const noPrice = (noOdds / 100).toFixed(2);
+    // Prices are probabilities (0-1), convert to percentages
+    // Handle edge cases and ensure valid probabilities
+    const safeYesPrice = Math.max(0, Math.min(1, yesPrice || 0.5));
+    const safeNoPrice = Math.max(0, Math.min(1, noPrice || 0.5));
+
+    const yesProbability = Math.round(safeYesPrice * 100);
+    const noProbability = Math.round(safeNoPrice * 100);
+
+    // Calculate odds from prices (decimal odds = 1 / price)
+    const yesOdds = yesPrice > 0 ? (1 / yesPrice) : 1;
+    const noOdds = noPrice > 0 ? (1 / noPrice) : 1;
+
+    // Calculate potential payout for current amount
+    const currentAmount = parseFloat(amount) || 0;
+    const potentialPayout = selectedOption === 'YES'
+        ? currentAmount * yesOdds
+        : currentAmount * noOdds;
+    const potentialProfit = potentialPayout - currentAmount;
+
+    const handleTrade = async () => {
+        if (!amount || parseFloat(amount) <= 0) return;
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/api/events/${eventId}/bets`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    outcome: selectedOption,
+                    amount: parseFloat(amount),
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Trade failed');
+            }
+
+            const result = await response.json();
+            setLastTrade({
+                tokens: result.tokensReceived,
+                price: result.priceAtTrade,
+            });
+
+            // Call the onTrade callback if provided
+            if (onTrade) {
+                onTrade(selectedOption, parseFloat(amount));
+            }
+
+            // Reset amount after successful trade
+            setAmount('0');
+        } catch (error) {
+            console.error('Trade error:', error);
+            // You could add error handling UI here
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Real-time countdown state
     const [countdown, setCountdown] = useState<{
@@ -134,7 +197,7 @@ export function TradingPanel({ yesOdds, noOdds, creationDate, resolutionDate, on
                             }`}
                     >
                         <span className="text-sm font-bold">Yes</span>
-                        <span className="text-xs opacity-80">{yesPrice}¢</span>
+                        <span className="text-xs opacity-80">{yesProbability}%</span>
                     </button>
                     <button
                         onClick={() => setSelectedOption('NO')}
@@ -144,7 +207,7 @@ export function TradingPanel({ yesOdds, noOdds, creationDate, resolutionDate, on
                             }`}
                     >
                         <span className="text-sm font-bold">No</span>
-                        <span className="text-xs opacity-80">{noPrice}¢</span>
+                        <span className="text-xs opacity-80">{noProbability}%</span>
                     </button>
                 </div>
 
@@ -152,7 +215,7 @@ export function TradingPanel({ yesOdds, noOdds, creationDate, resolutionDate, on
                 <div className="space-y-2">
                     <div className="flex justify-between text-sm text-gray-400">
                         <span>Amount</span>
-                        <span className="text-white font-medium">$0.00</span>
+                        <span className="text-white font-medium">${currentAmount.toFixed(2)}</span>
                     </div>
                     <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
@@ -164,10 +227,35 @@ export function TradingPanel({ yesOdds, noOdds, creationDate, resolutionDate, on
                             placeholder="0"
                         />
                     </div>
+
+                    {/* Payout Display */}
+                    {currentAmount > 0 && (
+                        <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-400">You will win:</span>
+                                <span className="text-white font-bold">${potentialPayout.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                                <span>Profit:</span>
+                                <span className={`font-medium ${potentialProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    ${potentialProfit.toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex gap-2">
                         {['+1', '+20', '+100', 'Max'].map((val) => (
                             <button
                                 key={val}
+                                onClick={() => {
+                                    if (val === 'Max') {
+                                        setAmount('1000'); // Set a reasonable max
+                                    } else {
+                                        const increment = parseFloat(val.replace('+', ''));
+                                        setAmount((parseFloat(amount) || 0 + increment).toString());
+                                    }
+                                }}
                                 className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
                             >
                                 {val}
@@ -178,13 +266,31 @@ export function TradingPanel({ yesOdds, noOdds, creationDate, resolutionDate, on
 
                 {/* Trade Button */}
                 <button
-                    className={`w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg ${selectedOption === 'YES'
+                    onClick={handleTrade}
+                    disabled={isLoading || !amount || parseFloat(amount) <= 0}
+                    className={`w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${selectedOption === 'YES'
                         ? 'bg-[#03dac6] hover:bg-[#02b3a5] shadow-[#03dac6]/20'
                         : 'bg-[#cf6679] hover:bg-[#b85868] shadow-[#cf6679]/20'
                         }`}
                 >
-                    {selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption}
+                    {isLoading ? 'Processing...' : (selectedTab === 'buy' ? 'Buy' : 'Sell') + ' ' + selectedOption}
                 </button>
+
+                {/* Trade Success Feedback */}
+                {lastTrade && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center"
+                    >
+                        <p className="text-green-400 text-sm font-medium">
+                            Trade successful! You bought {lastTrade.tokens.toFixed(2)} {selectedOption} tokens
+                        </p>
+                        <p className="text-green-300 text-xs mt-1">
+                            If {selectedOption.toLowerCase()} wins, you'll receive ${(lastTrade.tokens * (selectedOption === 'YES' ? yesOdds : noOdds)).toFixed(2)} total
+                        </p>
+                    </motion.div>
+                )}
 
                 <p className="text-xs text-center text-gray-500">
                     By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.
