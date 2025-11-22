@@ -224,12 +224,18 @@ export default function Home() {
     };
 
     return (
-      <Link key={event.id} href={`/event/${event.id}`} scroll={false}>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          whileHover={{ y: -4, scale: 1.01 }}
-          className={`bg-gradient-to-br from-[#1e1e1e] to-[#181818] border border-white/10 hover:border-white/20 rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:shadow-blue-500/20 h-80 flex flex-col ${isEnded ? 'grayscale opacity-60' : ''}`}
+      <Link key={event.id} href={`/event/${event.id}`} scroll={false}
+        onClick={() => {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('scrollPos', window.scrollY.toString());
+          }
+        }}
+      >
+        <div
+          className={`material-card group relative rounded-xl overflow-hidden ${isEnded
+            ? 'opacity-70'
+            : ''
+            }`}
         >
           {/* Header with Image and Favorite */}
           <div className="relative h-32 overflow-hidden bg-gradient-to-br from-blue-500/10 to-purple-500/10">
@@ -341,7 +347,7 @@ export default function Home() {
             </div>
 
           </div>
-        </motion.div>
+        </div>
       </Link>
     );
   };
@@ -372,31 +378,18 @@ export default function Home() {
             {/* Floating Content */}
             <div className="relative z-10 text-center">
               <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="bg-gradient-to-br from-gray-900/95 via-gray-800/90 to-black/95 backdrop-blur-md border border-white/20 rounded-3xl p-10 max-w-lg mx-auto shadow-2xl shadow-purple-500/20 relative overflow-hidden"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="material-card p-8 sm:p-12 !rounded-[32px] max-w-2xl mx-auto"
               >
-                {/* Subtle inner glow */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 rounded-3xl" />
-
                 <div className="relative z-10 mb-8">
-                  <motion.h1
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3, duration: 0.6 }}
-                    className="text-5xl font-black bg-gradient-to-r from-[#bb86fc] via-[#03dac6] to-[#bb86fc] bg-clip-text text-transparent mb-3 tracking-wide drop-shadow-lg uppercase"
-                  >
-                    POLYBET
-                  </motion.h1>
-                  <motion.p
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5, duration: 0.6 }}
-                    className="text-xl text-gray-200 font-light tracking-wide leading-relaxed"
-                  >
-                    Decentralized Prediction Markets
-                  </motion.p>
+                  <h1 className="text-4xl sm:text-5xl font-black mb-4 bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent drop-shadow-2xl">
+                    PolyBet
+                  </h1>
+                  <p className="text-lg sm:text-xl text-white/80 mb-6 font-light leading-relaxed">
+                    Where markets meet destiny.
+                  </p>
                 </div>
 
                 <motion.div
@@ -455,59 +448,55 @@ export default function Home() {
 
               {/* Sort Options */}
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mb-8 flex justify-end"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="relative mb-8"
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-400">Sort by:</span>
-                  <div className="relative">
-                    <button
-                      onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#1e1e1e] text-white rounded-lg border border-white/10 hover:border-white/20 transition-all"
-                    >
-                      <span className="capitalize">{sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending Soon' : 'Newest'}</span>
-                      <motion.svg
-                        animate={{ rotate: sortDropdownOpen ? 180 : 0 }}
-                        transition={{ duration: 0.2 }}
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        className="text-gray-400"
-                      >
-                        <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </motion.svg>
-                    </button>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
+                    {selectedCategory === 'FAVORITES' ? 'My Favorites' :
+                      selectedCategory === 'ALL' ? 'All Markets' :
+                        selectedCategory === 'NEW' ? 'New Markets' :
+                          selectedCategory === 'TRENDING' ? 'Trending Markets' :
+                            `${selectedCategory} Markets`}
+                    <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
+                  </h2>
+                </div>
 
-                    {sortDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full mt-2 right-0 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden min-w-[160px]"
-                      >
-                        {[
-                          { value: 'volume', label: 'Volume' },
-                          { value: 'ending', label: 'Ending Soon' },
-                          { value: 'newest', label: 'Newest' }
-                        ].map((option) => (
-                          <button
-                            key={option.value}
-                            onClick={() => {
-                              setSortBy(option.value as any);
-                              setSortDropdownOpen(false);
-                            }}
-                            className={`w-full px-4 py-2.5 text-left hover:bg-white/5 transition-colors ${sortBy === option.value ? 'text-[#bb86fc] bg-white/5' : 'text-gray-300'
-                              }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </div>
+                {/* Sort Dropdown - Floating Right */}
+                <div className="absolute right-0 top-0">
+                  <button
+                    onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                    className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                    </svg>
+                    {sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending' : 'Newest'}
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {sortDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-32 material-card rounded-lg shadow-xl z-10 overflow-hidden">
+                      {['volume', 'ending', 'newest'].map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => {
+                            setSortBy(option as 'volume' | 'ending' | 'newest');
+                            setSortDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option
+                            ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
+                            : 'text-gray-300 hover:bg-white/5'
+                            }`}
+                        >
+                          {option === 'volume' ? 'Volume' : option === 'ending' ? 'Ending' : 'Newest'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
