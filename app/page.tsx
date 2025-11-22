@@ -20,20 +20,8 @@ interface DbEvent {
 }
 
 export default function Home() {
-<<<<<<< HEAD
   const [showMarkets, setShowMarkets] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
-=======
-  const [showMarkets, setShowMarkets] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return sessionStorage.getItem('hasVisitedMarkets') === 'true' || window.location.hash === '#markets';
-  });
-  const [selectedCategory, setSelectedCategory] = useState(() => {
-    if (typeof window === 'undefined') return 'ALL';
-    const saved = sessionStorage.getItem('selectedCategory');
-    return saved || 'ALL';
-  });
->>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
@@ -88,12 +76,9 @@ export default function Home() {
       const category = urlParams.get('category');
       if (category) {
         setSelectedCategory(category);
-<<<<<<< HEAD
       } else {
         const saved = sessionStorage.getItem('selectedCategory');
         if (saved) setSelectedCategory(saved);
-=======
->>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
       }
       // Restore scroll position
       const scrollPos = sessionStorage.getItem('scrollPos');
@@ -173,15 +158,6 @@ export default function Home() {
 
   const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => {
     const [isFavorite, setIsFavorite] = useState(false);
-<<<<<<< HEAD
-=======
-
-    // Initialize favorite state from localStorage
-    useEffect(() => {
-      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-      setIsFavorite(favorites.includes(event.id));
-    }, [event.id]);
->>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
 
     // Initialize favorite state from localStorage
     useEffect(() => {
@@ -189,7 +165,6 @@ export default function Home() {
       setIsFavorite(favorites.includes(event.id));
     }, [event.id]);
 
-<<<<<<< HEAD
     // Fetch messages count
     const { data: messages } = useQuery({
       queryKey: ['messages', event.id],
@@ -233,8 +208,6 @@ export default function Home() {
     }
     // Otherwise keep 50/50 default
 
-=======
->>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
     const toggleFavorite = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -471,28 +444,31 @@ export default function Home() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-400">Sort by:</span>
-<<<<<<< HEAD
                   <div className="relative">
                     <button
                       onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
                       className="flex items-center gap-2 px-4 py-2 bg-[#1e1e1e] text-white rounded-lg border border-white/10 hover:border-white/20 transition-all"
                     >
-                      {sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending Soon' : 'Newest'}
-                      <svg
-                        className={`w-4 h-4 transition-transform ${sortDropdownOpen ? 'rotate-180' : ''}`}
+                      <span className="capitalize">{sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending Soon' : 'Newest'}</span>
+                      <motion.svg
+                        animate={{ rotate: sortDropdownOpen ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
                         fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                        className="text-gray-400"
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                        <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </motion.svg>
                     </button>
+
                     {sortDropdownOpen && (
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full right-0 mt-1 w-48 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl z-10"
+                        className="absolute top-full mt-2 right-0 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden min-w-[160px]"
                       >
                         {[
                           { value: 'volume', label: 'Volume' },
@@ -505,7 +481,7 @@ export default function Home() {
                               setSortBy(option.value as any);
                               setSortDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors ${sortBy === option.value ? 'text-[#bb86fc]' : 'text-gray-300'
+                            className={`w-full px-4 py-2.5 text-left hover:bg-white/5 transition-colors ${sortBy === option.value ? 'text-[#bb86fc] bg-white/5' : 'text-gray-300'
                               }`}
                           >
                             {option.label}
@@ -513,25 +489,6 @@ export default function Home() {
                         ))}
                       </motion.div>
                     )}
-=======
-                  <div className="flex gap-1 bg-[#1e1e1e] rounded-lg p-1 border border-white/10">
-                    {[
-                      { value: 'volume', label: 'Volume' },
-                      { value: 'ending', label: 'Ending Soon' },
-                      { value: 'newest', label: 'Newest' }
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setSortBy(option.value as any)}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${sortBy === option.value
-                          ? 'bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white shadow-lg'
-                          : 'text-gray-300 hover:text-white hover:bg-white/10'
-                          }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
->>>>>>> be285b1edd1a10888d6bbcac86e1ef5df12d1e3a
                   </div>
                 </div>
               </motion.div>
@@ -543,27 +500,30 @@ export default function Home() {
               </div>
 
               {/* Ended Markets Section */}
-              {endedEvents.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
-                    Ended Markets
-                    <div className="h-px bg-gray-800 flex-1" />
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                    {endedEvents.map((event) => (
-                      <EventCard key={event.id} event={event} isEnded={true} />
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {
+                endedEvents.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
+                      Ended Markets
+                      <div className="h-px bg-gray-800 flex-1" />
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                      {endedEvents.map((event) => (
+                        <EventCard key={event.id} event={event} isEnded={true} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )
+              }
+            </div >
+          </motion.div >
+        )
+        }
+      </AnimatePresence >
 
     </main >
   );
