@@ -48,8 +48,23 @@ export function EventChat({ eventId }: EventChatProps) {
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
-        refetchInterval: 3000,
     });
+
+    // Real-time updates via WebSocket
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+
+        function onMessage(data: any) {
+            // Simple strategy: Just refetch the list when a new message comes in
+            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+        }
+
+        socket.on(`chat-message-${eventId}`, onMessage);
+
+        return () => {
+            socket.off(`chat-message-${eventId}`, onMessage);
+        };
+    }, [eventId, queryClient]);
 
     // Filter root messages and create a map of children
     const rootMessages = messages.filter(m => !m.parentId);
