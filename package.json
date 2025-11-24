@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "stress": "npx tsx stress-test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.35.5",

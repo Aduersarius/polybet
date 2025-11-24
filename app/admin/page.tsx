@@ -1,22 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useUser } from '@clerk/nextjs';
 import { Navbar } from '../components/Navbar';
 import { AdminEventList } from '../components/admin/AdminEventList';
 import { AdminUserList } from '../components/admin/AdminUserList';
 
 export default function AdminPage() {
-    const { isConnected } = useAccount();
+    const { user, isLoaded } = useUser();
     const [activeTab, setActiveTab] = useState<'events' | 'users'>('events');
 
-    if (!isConnected) {
+    if (!isLoaded) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white">
+                <Navbar />
+                <div className="pt-32 px-4 text-center">
+                    <h1 className="text-2xl font-bold mb-4">Loading...</h1>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if user is admin (you can customize this logic)
+    const isAdmin = user?.publicMetadata?.isAdmin === true || user?.id === 'admin_user_id'; // Replace with your admin check
+
+    if (!user || !isAdmin) {
         return (
             <div className="min-h-screen bg-[#0a0a0a] text-white">
                 <Navbar />
                 <div className="pt-32 px-4 text-center">
                     <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
-                    <p className="text-gray-400">Please connect your wallet to access the admin panel.</p>
+                    <p className="text-gray-400">You need admin privileges to access this page.</p>
                 </div>
             </div>
         );
@@ -34,8 +48,8 @@ export default function AdminPage() {
                         <button
                             onClick={() => setActiveTab('events')}
                             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'events'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-gray-400 hover:text-white'
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             Events
@@ -43,8 +57,8 @@ export default function AdminPage() {
                         <button
                             onClick={() => setActiveTab('users')}
                             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'users'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-gray-400 hover:text-white'
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             Users

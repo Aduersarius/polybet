@@ -72,10 +72,6 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
 
     const handleTrade = async () => {
         if (!amount || parseFloat(amount) <= 0) return;
-        if (!user?.id) {
-            alert('Please sign in to trade');
-            return;
-        }
 
         setIsLoading(true);
         try {
@@ -88,7 +84,7 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                     eventId: eventId,
                     outcome: selectedOption,
                     amount: parseFloat(amount),
-                    userId: user.id, // Clerk user ID
+                    // No userId needed - backend handles anonymous users
                 }),
             });
 

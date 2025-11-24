@@ -11,12 +11,9 @@ export async function POST(request: Request) {
     const startTime = Date.now();
 
     try {
+        // Allow anonymous betting - no authentication required
         const { auth } = await import('@clerk/nextjs/server');
         const { userId: clerkUserId } = await auth();
-
-        if (!clerkUserId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
 
         const body = await request.json();
         // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
@@ -58,13 +55,27 @@ export async function POST(request: Request) {
         const newOdds = calculateLMSROdds(newQYes, newQNo, b);
 
         // 3. Database Transaction (Update Event + Create Bet)
-        // Get or create user with Clerk ID
-        let user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
-        if (!user) {
+        // Get or create user (anonymous if not logged in)
+        let user = null;
+        if (clerkUserId) {
+            // Logged in user
+            user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
+            if (!user) {
+                user = await prisma.user.create({
+                    data: {
+                        clerkId: clerkUserId,
+                        // Additional user data can be populated from Clerk if needed
+                    }
+                });
+            }
+        } else {
+            // Anonymous user - create new anonymous user
+            const anonymousId = `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             user = await prisma.user.create({
                 data: {
-                    clerkId: clerkUserId,
-                    // Additional user data can be populated from Clerk if needed
+                    address: anonymousId, // Use address field for anonymous users
+                    username: `Anonymous_${anonymousId.slice(-8)}`,
+                    // No clerkId for anonymous users
                 }
             });
         }
@@ -83,7 +94,7 @@ export async function POST(request: Request) {
                 data: {
                     amount: parseFloat(amount),
                     option,
-                    userId: user?.id || 'anonymous', // Handle anonymous bets if needed, or error
+                    userId: user.id,
                     eventId,
                 }
             })

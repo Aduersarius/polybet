@@ -1,5 +1,5 @@
 'use client';
-import { UserButton } from '@clerk/nextjs';
+import { UserButton, SignInButton, SignUpButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -70,17 +70,36 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                     </div>
 
                     <div className="shrink-0 flex items-center gap-4">
-                        {user && (
-                            <NotificationBell />
+                        {isLoaded && (
+                            <>
+                                {user ? (
+                                    <>
+                                        <NotificationBell />
+                                        <UserButton
+                                            appearance={{
+                                                elements: {
+                                                    avatarBox: "w-10 h-10",
+                                                    userButtonAvatarBox: "w-10 h-10"
+                                                }
+                                            }}
+                                        />
+                                    </>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <SignInButton mode="modal">
+                                            <button className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors">
+                                                Sign In
+                                            </button>
+                                        </SignInButton>
+                                        <SignUpButton mode="modal">
+                                            <button className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg font-medium transition-colors">
+                                                Sign Up
+                                            </button>
+                                        </SignUpButton>
+                                    </div>
+                                )}
+                            </>
                         )}
-                        <UserButton
-                            appearance={{
-                                elements: {
-                                    avatarBox: "w-10 h-10",
-                                    userButtonAvatarBox: "w-10 h-10"
-                                }
-                            }}
-                        />
                     </div>
                 </div>
             </div>
