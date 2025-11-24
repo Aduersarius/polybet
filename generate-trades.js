@@ -30,6 +30,10 @@ async function generateTrades() {
 
             console.log(`Generating ${tradeCount} trades for ${event.title}...`);
 
+            const now = new Date();
+            const eventCreatedAt = new Date(event.createdAt);
+            const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+
             // Create trades in batches
             const batchSize = 100;
             for (let i = 0; i < tradeCount; i += batchSize) {
@@ -40,11 +44,27 @@ async function generateTrades() {
                     const amount = Math.random() * 990 + 10; // $10-$1000
                     const option = Math.random() < yesRatio ? 'YES' : 'NO';
 
+                    // 70% historical bets, 30% recent bets (last 6 hours)
+                    let createdAt;
+                    if (Math.random() < 0.7) {
+                        // Historical bet: between event creation and 6 hours ago
+                        const historicalEnd = Math.max(sixHoursAgo.getTime(), eventCreatedAt.getTime());
+                        createdAt = new Date(
+                            eventCreatedAt.getTime() + Math.random() * (historicalEnd - eventCreatedAt.getTime())
+                        );
+                    } else {
+                        // Recent bet: within last 6 hours
+                        createdAt = new Date(
+                            sixHoursAgo.getTime() + Math.random() * (now.getTime() - sixHoursAgo.getTime())
+                        );
+                    }
+
                     batchTrades.push({
                         amount,
                         option,
                         userId: defaultUser.id,
                         eventId: event.id,
+                        createdAt,
                     });
                 }
 
