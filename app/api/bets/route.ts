@@ -100,14 +100,16 @@ export async function POST(request: Request) {
             })
         ]);
 
-        // 4. Publish to Redis for Real-time Updates
-        const updatePayload = {
-            eventId,
-            timestamp: Math.floor(Date.now() / 1000),
-            yesPrice: newOdds.yesPrice,
-            volume: parseFloat(amount) // This trade's volume
-        };
-        await redis.publish('event-updates', JSON.stringify(updatePayload));
+        // 4. Publish to Redis for Real-time Updates (if available)
+        if (redis) {
+            const updatePayload = {
+                eventId,
+                timestamp: Math.floor(Date.now() / 1000),
+                yesPrice: newOdds.yesPrice,
+                volume: parseFloat(amount) // This trade's volume
+            };
+            await redis.publish('event-updates', JSON.stringify(updatePayload));
+        }
 
         const totalTime = Date.now() - startTime;
         console.log(`✅ Trade executed: ${option} $${amount} -> ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)}`);

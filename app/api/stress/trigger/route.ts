@@ -21,8 +21,10 @@ export async function POST(req: Request) {
             timestamp: timestamp || Date.now(),
         };
 
-        // Publish to the channel the VPS is listening to
-        await redis.publish('event-updates', JSON.stringify(payload));
+        // Publish to the channel the VPS is listening to (if Redis is available)
+        if (redis) {
+            await redis.publish('event-updates', JSON.stringify(payload));
+        }
 
         return NextResponse.json({ success: true, payload });
     } catch (error) {
