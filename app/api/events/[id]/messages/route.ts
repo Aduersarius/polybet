@@ -153,7 +153,9 @@ export async function POST(
             replyCount: 0,
             reactions: {}
         };
-        await redis.publish('chat-messages', JSON.stringify(messagePayload));
+        if (redis) {
+            await redis.publish('chat-messages', JSON.stringify(messagePayload));
+        }
 
         return NextResponse.json(message);
     } catch (error) {
