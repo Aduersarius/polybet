@@ -16,7 +16,6 @@ export default function EventPage() {
     const router = useRouter();
     const eventId = params.id as string;
     const [selectedCategory, setSelectedCategory] = useState('ALL');
-    const [tradeCounter, setTradeCounter] = useState(0);
 
     const handleCategoryChange = (categoryId: string) => {
         setSelectedCategory(categoryId);
@@ -27,13 +26,14 @@ export default function EventPage() {
     };
 
     const handleTrade = () => {
-        // Increment trade counter to trigger chart refresh
-        setTradeCounter(prev => prev + 1);
+        // Trading panel will handle the API call
+        // WebSocket will automatically update odds in real-time
+        // No manual refetch needed!
     };
 
     // Fetch event from database
-    const { data: event, isLoading, refetch } = useQuery({
-        queryKey: ['event', eventId, tradeCounter], // Include tradeCounter to refetch on trades
+    const { data: event, isLoading } = useQuery({
+        queryKey: ['event', eventId], // WebSockets handle real-time updates
         queryFn: async () => {
             const res = await fetch(`/api/events/${eventId}`);
             if (!res.ok) throw new Error('Failed to fetch event');
@@ -151,7 +151,7 @@ export default function EventPage() {
 
                                 {/* Charts Section */}
                                 <div className="space-y-6">
-                                    <OddsGraph eventId={event.id} key={`odds-${event.id}-${tradeCounter}`} />
+                                    <OddsGraph eventId={event.id} />
 
                                     {/* Rules Section */}
                                     {event.rules && (

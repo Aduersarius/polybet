@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
+import { useAccount } from 'wagmi';
 
 interface TradingPanelProps {
     yesPrice: number;  // Actually the price/probability (0-1)
@@ -68,24 +69,33 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
         : currentAmount * noOdds;
     const potentialProfit = potentialPayout - currentAmount;
 
+    const { address } = useAccount();
+
     const handleTrade = async () => {
         if (!amount || parseFloat(amount) <= 0) return;
+        if (!address) {
+            alert('Please connect your wallet to trade');
+            return;
+        }
 
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/events/${eventId}/bets`, {
+            const response = await fetch('/api/bets', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    eventId: eventId,
                     outcome: selectedOption,
                     amount: parseFloat(amount),
+                    userId: address.toLowerCase(), // Wallet address
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Trade failed');
+                const error = await response.json();
+                throw new Error(error.error || 'Trade failed');
             }
 
             const result = await response.json();
@@ -94,16 +104,14 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                 price: result.priceAtTrade,
             });
 
-            // Call the onTrade callback if provided
-            if (onTrade) {
-                onTrade(selectedOption, parseFloat(amount));
-            }
-
             // Reset amount after successful trade
             setAmount('0');
+
+            // WebSocket will automatically update odds in real-time
+            // No manual refetch needed!
         } catch (error) {
             console.error('Trade error:', error);
-            // You could add error handling UI here
+            alert(error instanceof Error ? error.message : 'Failed to place trade');
         } finally {
             setIsLoading(false);
         }
