@@ -14,7 +14,7 @@ async function main() {
 
     // Create diverse events with images
     const baseAMMParams = {
-        liquidityParameter: 100.0,
+        liquidityParameter: 10000.0,
         qYes: 0.0,
         qNo: 0.0,
         initialLiquidity: 100.0,
@@ -220,6 +220,10 @@ async function main() {
 
         console.log(`Creating ${betCount} bets for ${event.title}...`);
 
+        let qYes = 0.0;
+        let qNo = 0.0;
+        const b = 10000.0; // Must match the liquidityParameter set earlier
+
         // Create bets in batches to avoid memory issues
         const batchSize = 500;
         for (let batch = 0; batch < betCount; batch += batchSize) {
@@ -227,11 +231,44 @@ async function main() {
             const batchPromises = [];
 
             for (let i = batch; i < batchEnd; i++) {
+                const amount = Math.random() * 990 + 10; // $10-$1000
+                const outcome = Math.random() < yesRatio ? 'YES' : 'NO';
+
+                // Calculate AMM impact for this bet to track state
+                // We need to approximate the tokens bought since we don't have the full AMM logic here easily available without importing it
+                // But for the seed script, we can just use the simplified logic or import the helper if possible.
+                // To avoid import issues with 'lib/amm', we'll implement a simplified token calculator here or just track the raw amounts?
+                // NO, we must track qYes/qNo correctly for the odds to match.
+
+                // Simplified AMM logic for seed (inverse of cost function is hard, so we'll approximate or just use a fixed price impact? No that's bad).
+                // Let's just import the AMM logic or duplicate it.
+
+                // Duplicate calculateTokensForCost logic here to be safe and self-contained
+                const calcTokens = (currentQYes: number, currentQNo: number, cost: number, isYes: boolean) => {
+                    let low = 0;
+                    let high = cost * 10;
+                    while (high - low > 0.001) {
+                        const mid = (low + high) / 2;
+                        const buyQYes = isYes ? mid : 0;
+                        const buyQNo = !isYes ? mid : 0;
+                        const currentCost = b * Math.log(Math.exp(currentQYes / b) + Math.exp(currentQNo / b));
+                        const newCost = b * Math.log(Math.exp((currentQYes + buyQYes) / b) + Math.exp((currentQNo + buyQNo) / b));
+                        const actualCost = newCost - currentCost;
+                        if (actualCost < cost) low = mid;
+                        else high = mid;
+                    }
+                    return (low + high) / 2;
+                };
+
+                const tokens = calcTokens(qYes, qNo, amount, outcome === 'YES');
+                if (outcome === 'YES') qYes += tokens;
+                else qNo += tokens;
+
                 batchPromises.push(
                     prisma.bet.create({
                         data: {
-                            amount: Math.random() * 990 + 10, // $10-$1000
-                            option: Math.random() < yesRatio ? 'YES' : 'NO',
+                            amount,
+                            option: outcome,
                             userId: user.id,
                             eventId: event.id,
                         },
@@ -241,6 +278,23 @@ async function main() {
 
             await Promise.all(batchPromises);
         }
+
+        // Update Event with final AMM state
+        // Calculate final odds
+        const diff = (qNo - qYes) / b;
+        const yesPrice = 1 / (1 + Math.exp(diff));
+        const noPrice = 1 - yesPrice;
+
+        await prisma.event.update({
+            where: { id: event.id },
+            data: {
+                qYes,
+                qNo,
+                yesOdds: yesPrice, // Store as probability (0-1)
+                noOdds: noPrice,   // Store as probability (0-1)
+            }
+        });
+        console.log(`Updated ${event.title} state: qYes=${qYes.toFixed(2)}, qNo=${qNo.toFixed(2)}, Price=${yesPrice.toFixed(2)}`);
     }
 
     console.log('✅ Seed data created successfully!');

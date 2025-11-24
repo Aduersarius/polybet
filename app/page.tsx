@@ -539,8 +539,8 @@ export default function Home() {
           onClose={() => setTradingModalOpen(false)}
           eventId={selectedEvent.id}
           eventTitle={selectedEvent.title}
-          yesPrice={selectedEvent.yesOdds ? selectedEvent.yesOdds / 100 : 0.5}
-          noPrice={selectedEvent.noOdds ? selectedEvent.noOdds / 100 : 0.5}
+          yesPrice={selectedEvent.yesOdds ? (selectedEvent.yesOdds > 1 ? selectedEvent.yesOdds / 100 : selectedEvent.yesOdds) : 0.5}
+          noPrice={selectedEvent.noOdds ? (selectedEvent.noOdds > 1 ? selectedEvent.noOdds / 100 : selectedEvent.noOdds) : 0.5}
           creationDate={selectedEvent.createdAt}
           resolutionDate={selectedEvent.resolutionDate}
           preselectedOption={preselectedOption}

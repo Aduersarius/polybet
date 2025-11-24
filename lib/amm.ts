@@ -146,7 +146,7 @@ export async function generateHistoricalOdds(
     // Replay state
     let qYes = 0;
     let qNo = 0;
-    const b = event.liquidityParameter || 25000.0; // Default to new standard
+    const b = event.liquidityParameter || 10000.0; // Default to standard
 
     // Initial point
     data.push({

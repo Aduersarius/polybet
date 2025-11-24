@@ -69,8 +69,8 @@ export async function GET(request: Request) {
             const betCount = event.bets.length;
 
             // Use pre-calculated AMM state from the Event model
-            let yesOdds = 50;
-            let noOdds = 50;
+            let yesOdds = 0.5;
+            let noOdds = 0.5;
 
             const qYes = event.qYes || 0;
             const qNo = event.qNo || 0;
@@ -80,17 +80,17 @@ export async function GET(request: Request) {
                 // Calculate odds using actual token positions
                 const diff = (qNo - qYes) / b;
                 const yesPrice = 1 / (1 + Math.exp(diff));
-                yesOdds = Math.round(yesPrice * 100);
-                noOdds = 100 - yesOdds;
+                yesOdds = yesPrice;
+                noOdds = 1 - yesOdds;
             } else {
                 // Mock odds logic for demo if no bets
                 const mockScenarios = [
-                    { yes: 60 }, { yes: 40 }, { yes: 70 }, { yes: 30 }, { yes: 50 },
-                    { yes: 75 }, { yes: 25 }, { yes: 55 }, { yes: 45 }, { yes: 65 }
+                    { yes: 0.60 }, { yes: 0.40 }, { yes: 0.70 }, { yes: 0.30 }, { yes: 0.50 },
+                    { yes: 0.75 }, { yes: 0.25 }, { yes: 0.55 }, { yes: 0.45 }, { yes: 0.65 }
                 ];
                 const scenarioIndex = event.id.split('').reduce((sum: number, char: string) => sum + char.charCodeAt(0), 0) % mockScenarios.length;
                 yesOdds = mockScenarios[scenarioIndex].yes;
-                noOdds = 100 - yesOdds;
+                noOdds = 1 - yesOdds;
             }
 
             const { bets, qYes: _, qNo: __, liquidityParameter: ___, ...eventData } = event; // Remove bets and AMM state from response
