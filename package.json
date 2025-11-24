@@ -11,6 +11,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.35.5",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.208.0",
     "@opentelemetry/resources": "^2.2.0",
@@ -18,7 +19,6 @@
     "@opentelemetry/semantic-conventions": "^1.38.0",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
-    "@rainbow-me/rainbowkit": "^2.2.9",
     "@tanstack/react-query": "^5.90.10",
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
@@ -39,9 +39,7 @@
     "react-dom": "^18.3.1",
     "recharts": "^3.4.1",
     "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^3.4.0",
-    "viem": "^2.39.3",
-    "wagmi": "^2.19.5"
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -53,10 +51,10 @@
     "postcss": "^8.5.6",
     "prisma": "^7.0.0",
     "tailwindcss": "^3.4.17",
-    "tape": "^5.6.3",
     "tap": "^15.0.0",
-    "why-is-node-running": "^2.2.0",
-    "typescript": "^5"
+    "tape": "^5.6.3",
+    "typescript": "^5",
+    "why-is-node-running": "^2.2.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

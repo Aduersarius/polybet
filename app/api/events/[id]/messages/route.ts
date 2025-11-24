@@ -62,22 +62,33 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = await params;
-        const body = await request.json();
-        const { text, address, parentId } = body;
-        console.log(`[API] Posting message for event: ${id}, address: ${address}, text: ${text}`);
+        const { auth } = await import('@clerk/nextjs/server');
+        const { userId: clerkUserId } = await auth();
 
-        if (!text || !address) {
-            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+        if (!clerkUserId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { id } = await params;
+        const body = await request.json();
+        const { text, parentId } = body;
+        console.log(`[API] Posting message for event: ${id}, user: ${clerkUserId}, text: ${text}`);
+
+        if (!text) {
+            return NextResponse.json({ error: 'Missing text field' }, { status: 400 });
+        }
+
+        // Get or create user with Clerk ID
         let user = await prisma.user.findUnique({
-            where: { address }
+            where: { clerkId: clerkUserId }
         });
 
         if (!user) {
             user = await prisma.user.create({
-                data: { address }
+                data: {
+                    clerkId: clerkUserId,
+                    // Additional user data can be populated from Clerk if needed
+                }
             });
         }
 

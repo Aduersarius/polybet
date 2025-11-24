@@ -29,7 +29,7 @@ export async function PATCH(
         }
 
         // Verify ownership
-        if (message.user.address.toLowerCase() !== address.toLowerCase()) {
+        if (!message.user.address || message.user.address.toLowerCase() !== address.toLowerCase()) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 
@@ -72,7 +72,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Missing address' }, { status: 400 });
         }
 
-        // Find the message with replies
+        // Find the message with user and replies
         const message = await prisma.message.findUnique({
             where: { id },
             include: {
@@ -86,7 +86,7 @@ export async function DELETE(
         }
 
         // Verify ownership
-        if (message.user.address.toLowerCase() !== address.toLowerCase()) {
+        if (!message.user.address || message.user.address.toLowerCase() !== address.toLowerCase()) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 

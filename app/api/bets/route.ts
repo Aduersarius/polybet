@@ -11,9 +11,16 @@ export async function POST(request: Request) {
     const startTime = Date.now();
 
     try {
+        const { auth } = await import('@clerk/nextjs/server');
+        const { userId: clerkUserId } = await auth();
+
+        if (!clerkUserId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await request.json();
         // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
-        const { eventId, amount, userId } = body;
+        const { eventId, amount } = body;
         const option = body.option || body.outcome;
 
         if (!eventId || !option || !amount) {
@@ -51,10 +58,15 @@ export async function POST(request: Request) {
         const newOdds = calculateLMSROdds(newQYes, newQNo, b);
 
         // 3. Database Transaction (Update Event + Create Bet)
-        // We also need to ensure the user exists (simple check/create)
-        let user = userId ? await prisma.user.findUnique({ where: { address: userId } }) : null;
-        if (userId && !user) {
-            user = await prisma.user.create({ data: { address: userId } });
+        // Get or create user with Clerk ID
+        let user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
+        if (!user) {
+            user = await prisma.user.create({
+                data: {
+                    clerkId: clerkUserId,
+                    // Additional user data can be populated from Clerk if needed
+                }
+            });
         }
 
         const [updatedEvent, newBet] = await prisma.$transaction([

@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {},
+  // Force webpack instead of turbopack for compatibility
+  experimental: {
+    webpackBuildWorker: false,
+  },
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream");
     config.resolve.alias = {

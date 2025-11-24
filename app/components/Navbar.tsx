@@ -1,12 +1,12 @@
 'use client';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
+import { useUser } from '@clerk/nextjs';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -30,9 +30,8 @@ interface NavbarProps {
 }
 
 export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarProps) {
-    const { address, isConnected } = useAccount();
+    const { user, isLoaded } = useUser();
     const [scrolled, setScrolled] = useState(false);
-    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -45,20 +44,6 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
     const handleSearch = (query: string) => {
         window.dispatchEvent(new CustomEvent('globalSearch', { detail: { query } }));
     };
-
-    // Auto-create user in DB when wallet connects and get avatar
-    useEffect(() => {
-        if (isConnected && address) {
-            fetch(`/api/users/${address}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-                })
-                .catch(err => console.error('Failed to ensure user exists:', err));
-        } else {
-            setAvatarUrl(null);
-        }
-    }, [isConnected, address]);
 
     return (
         <motion.nav
@@ -85,24 +70,17 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                     </div>
 
                     <div className="shrink-0 flex items-center gap-4">
-                        {isConnected && (
+                        {user && (
                             <NotificationBell />
                         )}
-                        {isConnected && address && (
-                            <Link
-                                href={`/user/${address}`}
-                                className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold hover:opacity-90 transition-opacity shadow-lg border border-white/20 overflow-hidden"
-                            >
-                                {avatarUrl ? (
-                                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-                                ) : (
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                )}
-                            </Link>
-                        )}
-                        <ConnectButton />
+                        <UserButton
+                            appearance={{
+                                elements: {
+                                    avatarBox: "w-10 h-10",
+                                    userButtonAvatarBox: "w-10 h-10"
+                                }
+                            }}
+                        />
                     </div>
                 </div>
             </div>

@@ -21,7 +21,13 @@ interface DbEvent {
 }
 
 export default function Home() {
-  const [showMarkets, setShowMarkets] = useState(false);
+  // Initialize showMarkets from sessionStorage to prevent landing page flash
+  const [showMarkets, setShowMarkets] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('hasVisitedMarkets') === 'true';
+    }
+    return false;
+  });
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');

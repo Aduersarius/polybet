@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAccount } from 'wagmi';
+import { useUser } from '@clerk/nextjs';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Notification {
@@ -14,20 +14,20 @@ interface Notification {
 }
 
 export function NotificationBell() {
-    const { address, isConnected } = useAccount();
+    const { user, isLoaded } = useUser();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
 
     const { data } = useQuery<{ notifications: Notification[], unreadCount: number }>({
-        queryKey: ['notifications', address],
+        queryKey: ['notifications', user?.id],
         queryFn: async () => {
-            if (!address) return { notifications: [], unreadCount: 0 };
-            const res = await fetch(`/api/notifications?address=${address}`);
+            if (!user?.id) return { notifications: [], unreadCount: 0 };
+            const res = await fetch(`/api/notifications?userId=${user.id}`);
             if (!res.ok) throw new Error('Failed to fetch notifications');
             return res.json();
         },
-        enabled: !!address,
+        enabled: !!user?.id && isLoaded,
         refetchInterval: 10000, // Poll every 10s
     });
 
@@ -43,7 +43,7 @@ export function NotificationBell() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['notifications', address] });
+            queryClient.invalidateQueries({ queryKey: ['notifications', user?.id] });
         },
     });
 
@@ -70,7 +70,7 @@ export function NotificationBell() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    if (!isConnected) return null;
+    if (!user || !isLoaded) return null;
 
     return (
         <div className="relative" ref={dropdownRef}>

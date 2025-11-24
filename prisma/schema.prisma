@@ -12,28 +12,30 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  address   String   @unique
-  username  String?
-  description String?
-  avatarUrl String?
-  achievements String[] @default([])
-  twitter   String?
-  discord   String?
-  telegram  String?
-  website   String?
-  isAdmin   Boolean  @default(false)
-  isBanned  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  bets         Bet[]
-  transactions Transaction[]
-  createdEvents Event[]
-  messages     Message[]
-  reactions    MessageReaction[]
-  notifications Notification[]
-}
+   id        String   @id @default(cuid())
+   clerkId   String?  @unique // Clerk user ID
+   address   String?  @unique // Keep for backward compatibility
+   email     String?  @unique // Clerk email
+   username  String?
+   description String?
+   avatarUrl String?
+   achievements String[] @default([])
+   twitter   String?
+   discord   String?
+   telegram  String?
+   website   String?
+   isAdmin   Boolean  @default(false)
+   isBanned  Boolean  @default(false)
+   createdAt DateTime @default(now())
+   updatedAt DateTime @updatedAt
+
+   bets         Bet[]
+   transactions Transaction[]
+   createdEvents Event[]
+   messages     Message[]
+   reactions    MessageReaction[]
+   notifications Notification[]
+ }
 
 model Event {
   id             String   @id @default(cuid())

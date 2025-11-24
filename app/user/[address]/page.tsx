@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, use } from 'react';
-import { useAccount } from 'wagmi';
+import { useUser } from '@clerk/nextjs';
 import { Navbar } from '@/app/components/Navbar';
 import { ProfileHeader } from '@/app/components/user/ProfileHeader';
 import { UserStats } from '@/app/components/user/UserStats';
@@ -23,7 +23,7 @@ interface UserData {
 
 export default function ProfilePage({ params }: { params: Promise<{ address: string }> }) {
     const resolvedParams = use(params);
-    const { address: connectedAddress } = useAccount();
+    const { user: currentUser, isLoaded } = useUser();
     const [user, setUser] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -53,7 +53,9 @@ export default function ProfilePage({ params }: { params: Promise<{ address: str
         fetchUser();
     }, [resolvedParams.address]);
 
-    const isOwner = connectedAddress?.toLowerCase() === resolvedParams.address.toLowerCase();
+    // For Web2, ownership is determined by Clerk user ID matching the profile user ID
+    // Since we're transitioning, we'll check if the current user matches the profile
+    const isOwner = Boolean(currentUser?.id && user?.id === currentUser.id);
 
     return (
         <div className="min-h-screen bg-black text-white">
