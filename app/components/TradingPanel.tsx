@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { useUser } from '@clerk/nextjs';
 
 interface TradingPanelProps {
     yesPrice: number;  // Actually the price/probability (0-1)
@@ -16,6 +16,7 @@ interface TradingPanelProps {
 export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, onTrade }: TradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
+    const { user, isLoaded } = useUser();
 
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>('YES');
@@ -69,12 +70,10 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
         : currentAmount * noOdds;
     const potentialProfit = potentialPayout - currentAmount;
 
-    const { address } = useAccount();
-
     const handleTrade = async () => {
         if (!amount || parseFloat(amount) <= 0) return;
-        if (!address) {
-            alert('Please connect your wallet to trade');
+        if (!user?.id) {
+            alert('Please sign in to trade');
             return;
         }
 
@@ -89,7 +88,7 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                     eventId: eventId,
                     outcome: selectedOption,
                     amount: parseFloat(amount),
-                    userId: address.toLowerCase(), // Wallet address
+                    userId: user.id, // Clerk user ID
                 }),
             });
 

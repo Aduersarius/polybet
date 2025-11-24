@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActivityList } from './ActivityList';
 import { UserHoverCard } from './UserHoverCard';
@@ -13,8 +13,9 @@ interface Message {
     editedAt?: string | null;
     isDeleted?: boolean;
     parentId?: string | null;
+    userId: string;
     user: {
-        address: string;
+        address?: string;
         username: string | null;
         avatarUrl: string | null;
         bets?: {
@@ -37,7 +38,7 @@ export function EventChat({ eventId }: EventChatProps) {
     const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
-    const { address, isConnected } = useAccount();
+    const { user, isLoaded } = useUser();
     const queryClient = useQueryClient();
 
     // Fetch messages
@@ -86,7 +87,7 @@ export function EventChat({ eventId }: EventChatProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text,
-                    address: address?.toLowerCase(),
+                    userId: user?.id,
                     parentId: replyTo?.id
                 }),
             });
@@ -106,7 +107,7 @@ export function EventChat({ eventId }: EventChatProps) {
             await fetch(`/api/messages/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, address: address?.toLowerCase() }),
+                body: JSON.stringify({ text, userId: user?.id }),
             });
         },
         onSuccess: () => {
@@ -122,7 +123,7 @@ export function EventChat({ eventId }: EventChatProps) {
             await fetch(`/api/messages/${id}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ address: address?.toLowerCase() }),
+                body: JSON.stringify({ userId: user?.id }),
             });
         },
         onSuccess: () => {
@@ -136,7 +137,7 @@ export function EventChat({ eventId }: EventChatProps) {
             await fetch(`/api/messages/${messageId}/react`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ address, type }),
+                body: JSON.stringify({ userId: user?.id, type }),
             });
         },
         onSuccess: () => {
@@ -145,7 +146,7 @@ export function EventChat({ eventId }: EventChatProps) {
     });
 
     const handleSend = () => {
-        if (!inputText.trim() || !isConnected || !address) return;
+        if (!inputText.trim() || !user?.id) return;
         sendMessageMutation.mutate(inputText);
     };
 
@@ -212,11 +213,11 @@ export function EventChat({ eventId }: EventChatProps) {
     const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat');
 
     const renderMessage = (msg: Message, isReply = false) => {
-        const isMe = msg.user.address === address;
+        const isMe = msg.userId === user?.id;
         const likes = msg.reactions?.['LIKE'] || [];
         const dislikes = msg.reactions?.['DISLIKE'] || [];
-        const hasLiked = address && likes.includes(address);
-        const hasDisliked = address && dislikes.includes(address);
+        const hasLiked = user?.id && likes.includes(user.id);
+        const hasDisliked = user?.id && dislikes.includes(user.id);
         const isEditing = editingMessageId === msg.id;
         const replies = messageMap.get(msg.id) || [];
         const isExpanded = expandedThreads.has(msg.id);
@@ -231,13 +232,13 @@ export function EventChat({ eventId }: EventChatProps) {
                 <div className={`group relative rounded-lg p-3 transition-colors ${isMe ? 'bg-[#3a3a3a]/50 border border-[#bb86fc]/20' : 'hover:bg-white/5'}`}>
                     <div className="flex gap-3">
                         <div className="shrink-0 pt-1">
-                            <UserHoverCard address={msg.user.address}>
+                            <UserHoverCard address={msg.user.address || msg.userId}>
                                 <div className="cursor-pointer">
                                     {msg.user.avatarUrl ? (
                                         <img src={msg.user.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-white/10" />
                                     ) : (
                                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white border border-white/10 shadow-lg">
-                                            {(msg.user.username?.[0] || msg.user.address.slice(2, 3)).toUpperCase()}
+                                            {(msg.user.username?.[0] || (msg.user.address ? msg.user.address.slice(2, 3) : msg.userId.slice(0, 1))).toUpperCase()}
                                         </div>
                                     )}
                                 </div>
@@ -246,9 +247,9 @@ export function EventChat({ eventId }: EventChatProps) {
 
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                                <UserHoverCard address={msg.user.address}>
+                                <UserHoverCard address={msg.user.address || msg.userId}>
                                     <span className={`text-sm font-bold cursor-pointer hover:underline ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
-                                        {msg.user.username || `${msg.user.address.slice(0, 6)}...`}
+                                        {msg.user.username || `${(msg.user.address || msg.userId).slice(0, 6)}...`}
                                     </span>
                                 </UserHoverCard>
                                 <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
@@ -428,7 +429,7 @@ export function EventChat({ eventId }: EventChatProps) {
                             </div>
                         )}
                         <div className={`flex gap-2 bg-[#1e1e1e] p-2 rounded-lg border border-white/10 ${replyTo ? 'rounded-t-none' : ''}`}>
-                            {isConnected ? (
+                            {user && isLoaded ? (
                                 <>
                                     <input
                                         type="text"
@@ -449,7 +450,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                     </button>
                                 </>
                             ) : (
-                                <div className="w-full text-center py-1 text-sm text-gray-500">Connect wallet to chat</div>
+                                <div className="w-full text-center py-1 text-sm text-gray-500">Sign in to chat</div>
                             )}
                         </div>
                     </div>

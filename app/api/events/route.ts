@@ -10,6 +10,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
 
+    // Debug logging
+    console.log('DATABASE_URL:', process.env.DATABASE_URL);
+    console.log('Environment check:', {
+        hasDbUrl: !!process.env.DATABASE_URL,
+        dbUrlLength: process.env.DATABASE_URL?.length
+    });
+
     try {
         const { prisma } = await import('@/lib/prisma');
         const where = category ? { categories: { has: category } } : {};
@@ -125,19 +132,31 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const { auth } = await import('@clerk/nextjs/server');
+        const { userId } = await auth();
+
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { prisma } = await import('@/lib/prisma');
         const body = await request.json();
-        const { title, description, resolutionDate, creatorId, categories } = body;
+        const { title, description, resolutionDate, categories } = body;
 
         // Basic validation
-        if (!title || !description || !resolutionDate || !creatorId) {
+        if (!title || !description || !resolutionDate) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Ensure creator exists
-        let user = await prisma.user.findUnique({ where: { address: creatorId } });
+        // Get or create user with Clerk ID
+        let user = await prisma.user.findUnique({ where: { clerkId: userId } });
         if (!user) {
-            user = await prisma.user.create({ data: { address: creatorId } });
+            user = await prisma.user.create({
+                data: {
+                    clerkId: userId,
+                    // Clerk will provide additional user data if needed
+                }
+            });
         }
 
         const event = await prisma.event.create({
