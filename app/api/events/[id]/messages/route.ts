@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -134,6 +135,14 @@ export async function POST(
                 });
             }
         }
+
+        // Publish to Redis for WebSocket Server
+        const messagePayload = {
+            ...message,
+            replyCount: 0,
+            reactions: {}
+        };
+        await redis.publish('chat-messages', JSON.stringify(messagePayload));
 
         return NextResponse.json(message);
     } catch (error) {

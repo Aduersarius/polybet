@@ -3,83 +3,104 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
 
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
+import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
 
     try {
-        const { prisma } = await import('@/lib/prisma');
         const body = await request.json();
-        const { eventId, option, amount, userId } = body;
+        // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
+        const { eventId, amount, userId } = body;
+        const option = body.option || body.outcome;
 
-        if (!eventId || !option || !amount || !userId) {
+        if (!eventId || !option || !amount) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Ensure user exists with timeout
-        const userQuery = prisma.user.findUnique({ where: { address: userId } });
-        const userTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('User query timeout')), 5000);
+        // 1. Fetch Event State
+        const event = await prisma.event.findUnique({
+            where: { id: eventId }
         });
 
-        let user = await Promise.race([userQuery, userTimeout]) as any;
-
-        if (!user) {
-            const createUserQuery = prisma.user.create({ data: { address: userId } });
-            const createTimeout = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('User creation timeout')), 5000);
-            });
-            user = await Promise.race([createUserQuery, createTimeout]);
+        if (!event) {
+            return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        // Create bet with timeout
-        const betQuery = prisma.bet.create({
-            data: {
-                amount: parseFloat(amount),
-                option,
-                userId: user.id,
-                eventId,
-            },
-        });
+        // 2. Run AMM Math
+        const b = event.liquidityParameter || 10000;
+        const currentQYes = event.qYes || 0;
+        const currentQNo = event.qNo || 0;
 
-        const betTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Bet creation timeout')), 5000);
-        });
+        // Calculate tokens received for this amount
+        const tokensReceived = calculateTokensForCost(
+            currentQYes,
+            currentQNo,
+            parseFloat(amount),
+            option as 'YES' | 'NO',
+            b
+        );
 
-        const bet = await Promise.race([betQuery, betTimeout]) as any;
+        // Calculate new state
+        const newQYes = option === 'YES' ? currentQYes + tokensReceived : currentQYes;
+        const newQNo = option === 'NO' ? currentQNo + tokensReceived : currentQNo;
+
+        // Calculate new odds
+        const newOdds = calculateLMSROdds(newQYes, newQNo, b);
+
+        // 3. Database Transaction (Update Event + Create Bet)
+        // We also need to ensure the user exists (simple check/create)
+        let user = userId ? await prisma.user.findUnique({ where: { address: userId } }) : null;
+        if (userId && !user) {
+            user = await prisma.user.create({ data: { address: userId } });
+        }
+
+        const [updatedEvent, newBet] = await prisma.$transaction([
+            prisma.event.update({
+                where: { id: eventId },
+                data: {
+                    qYes: newQYes,
+                    qNo: newQNo,
+                    yesOdds: newOdds.yesPrice, // Store as probability (0-1) or percentage? Schema says Float. Usually 0.55
+                    noOdds: newOdds.noPrice
+                }
+            }),
+            prisma.bet.create({
+                data: {
+                    amount: parseFloat(amount),
+                    option,
+                    userId: user?.id || 'anonymous', // Handle anonymous bets if needed, or error
+                    eventId,
+                }
+            })
+        ]);
+
+        // 4. Publish to Redis for Real-time Updates
+        const updatePayload = {
+            eventId,
+            timestamp: Math.floor(Date.now() / 1000),
+            yesPrice: newOdds.yesPrice,
+            volume: parseFloat(amount) // This trade's volume
+        };
+        await redis.publish('event-updates', JSON.stringify(updatePayload));
 
         const totalTime = Date.now() - startTime;
-        console.log(`✅ Bet placed in ${totalTime}ms`);
+        console.log(`✅ Trade executed: ${option} $${amount} -> ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)}`);
 
-        // Log bet placement to Braintrust
-        try {
-            const { logBetPlacement } = await import('@/lib/braintrust');
-            await logBetPlacement({
-                eventId,
-                option,
-                amount: parseFloat(amount),
-                userId,
-                betId: bet.id,
-            }, {
-                processingTime: totalTime,
-                success: true,
-            });
-        } catch (logError) {
-            console.warn('Braintrust logging failed:', logError);
-        }
+        // 5. Return Result
+        return NextResponse.json({
+            success: true,
+            betId: newBet.id,
+            tokensReceived,
+            priceAtTrade: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice, // Approximate price after trade
+            newYesPrice: newOdds.yesPrice,
+            newNoPrice: newOdds.noPrice
+        });
 
-        return NextResponse.json(bet);
     } catch (error) {
-        const errorTime = Date.now() - startTime;
-        console.error(`❌ Bet placement failed after ${errorTime}ms:`, error);
-
-        if (error instanceof Error && error.message.includes('timeout')) {
-            return NextResponse.json({
-                error: 'Database timeout',
-                message: 'Bet placement took too long'
-            }, { status: 504 });
-        }
-
+        console.error('❌ Trade failed:', error);
         return NextResponse.json({ error: 'Failed to place bet' }, { status: 500 });
     }
 }

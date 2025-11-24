@@ -37,6 +37,32 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
         fetchData();
     }, [eventId, period]);
 
+    // Real-time updates via WebSocket
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+
+        function onOddsUpdate(update: any) {
+            // update: { timestamp, yesPrice, volume, eventId }
+            if (update.eventId !== eventId) return;
+
+            setData(prevData => {
+                const newPoint: DataPoint = {
+                    timestamp: update.timestamp,
+                    yesPrice: update.yesPrice,
+                    volume: update.volume
+                };
+                // Append new point
+                return [...prevData, newPoint];
+            });
+        }
+
+        socket.on(`odds-update-${eventId}`, onOddsUpdate);
+
+        return () => {
+            socket.off(`odds-update-${eventId}`, onOddsUpdate);
+        };
+    }, [eventId]);
+
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || data.length === 0) return;

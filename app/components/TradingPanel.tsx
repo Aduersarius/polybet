@@ -22,17 +22,44 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number } | null>(null);
 
+    // Local state for real-time prices
+    const [liveYesPrice, setLiveYesPrice] = useState(yesPrice);
+    const [liveNoPrice, setLiveNoPrice] = useState(noPrice);
+
+    // Update local state if props change (e.g. parent refetch)
+    useEffect(() => {
+        setLiveYesPrice(yesPrice);
+        setLiveNoPrice(noPrice);
+    }, [yesPrice, noPrice]);
+
+    // Real-time updates via WebSocket
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+
+        function onOddsUpdate(update: any) {
+            if (update.eventId !== eventId) return;
+            setLiveYesPrice(update.yesPrice);
+            setLiveNoPrice(1 - update.yesPrice);
+        }
+
+        socket.on(`odds-update-${eventId}`, onOddsUpdate);
+
+        return () => {
+            socket.off(`odds-update-${eventId}`, onOddsUpdate);
+        };
+    }, [eventId]);
+
     // Prices are probabilities (0-1), convert to percentages
     // Handle edge cases and ensure valid probabilities
-    const safeYesPrice = Math.max(0, Math.min(1, yesPrice || 0.5));
-    const safeNoPrice = Math.max(0, Math.min(1, noPrice || 0.5));
+    const safeYesPrice = Math.max(0, Math.min(1, liveYesPrice || 0.5));
+    const safeNoPrice = Math.max(0, Math.min(1, liveNoPrice || 0.5));
 
     const yesProbability = Math.round(safeYesPrice * 100);
     const noProbability = Math.round(safeNoPrice * 100);
 
     // Calculate odds from prices (decimal odds = 1 / price)
-    const yesOdds = yesPrice > 0 ? (1 / yesPrice) : 1;
-    const noOdds = noPrice > 0 ? (1 / noPrice) : 1;
+    const yesOdds = liveYesPrice > 0 ? (1 / liveYesPrice) : 1;
+    const noOdds = liveNoPrice > 0 ? (1 / liveNoPrice) : 1;
 
     // Calculate potential payout for current amount
     const currentAmount = parseFloat(amount) || 0;
