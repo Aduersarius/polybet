@@ -204,17 +204,31 @@ async function main() {
     ];
 
     console.log('Creating events...');
+    const now = new Date();
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
     for (const event of events) {
+        // Random creation time between 3 months ago and 1 month ago (so at least 1 month old)
+        const randomCreatedAt = new Date(
+            threeMonthsAgo.getTime() + Math.random() * (oneMonthAgo.getTime() - threeMonthsAgo.getTime())
+        );
+
         await prisma.event.upsert({
             where: { id: event.id },
-            update: { ...event, ...baseAMMParams },
-            create: { ...event, ...baseAMMParams },
+            update: { ...event, ...baseAMMParams, createdAt: randomCreatedAt },
+            create: { ...event, ...baseAMMParams, createdAt: randomCreatedAt },
         });
     }
 
     console.log('Creating mock bets...');
     // Create 2000-5000 random bets for each event for realistic market data
     for (const event of events) {
+        // Get the event with its actual creation time
+        const eventRecord = await prisma.event.findUnique({ where: { id: event.id } });
+        if (!eventRecord) continue;
+
+        const eventCreatedAt = eventRecord.createdAt;
         const betCount = Math.floor(Math.random() * 3000) + 2000; // 2000-5000 bets per event
         const yesRatio = Math.random(); // Random ratio for YES/NO (creates market sentiment)
 
@@ -233,6 +247,11 @@ async function main() {
             for (let i = batch; i < batchEnd; i++) {
                 const amount = Math.random() * 990 + 10; // $10-$1000
                 const outcome = Math.random() < yesRatio ? 'YES' : 'NO';
+
+                // Random bet time between event creation and now
+                const betCreatedAt = new Date(
+                    eventCreatedAt.getTime() + Math.random() * (now.getTime() - eventCreatedAt.getTime())
+                );
 
                 // Calculate AMM impact for this bet to track state
                 // We need to approximate the tokens bought since we don't have the full AMM logic here easily available without importing it
@@ -271,6 +290,7 @@ async function main() {
                             option: outcome,
                             userId: user.id,
                             eventId: event.id,
+                            createdAt: betCreatedAt,
                         },
                     })
                 );

@@ -113,96 +113,171 @@ export async function generateHistoricalOdds(
     period: string
 ): Promise<Array<{ timestamp: number; yesPrice: number; volume: number }>> {
     // Fetch event to get creation time and liquidity param
-    const event = await prisma.event.findUnique({
-        where: { id: eventId },
-        select: { createdAt: true, liquidityParameter: true }
-    });
+    const event = (await prisma.event.findUnique({
+        where: { id: eventId }
+    })) as any;
 
     if (!event) return [];
 
-    // Determine start time based on period
+    // All periods show FULL history from event creation to now
+    // Period only controls the granularity (bucket size)
     const now = new Date();
-    let startTime = new Date(event.createdAt);
+    const startTime = new Date(event.createdAt);
+    let bucketSizeMs = 0; // in milliseconds
 
-    if (period === '1h') startTime = new Date(now.getTime() - 60 * 60 * 1000);
-    else if (period === '24h') startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    else if (period === '7d') startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    else if (period === '30d') startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    // Determine bucket size based on period
+    if (period === '5m') {
+        bucketSizeMs = 5 * 60 * 1000; // 5 minutes per bucket
+    } else if (period === '1h') {
+        bucketSizeMs = 60 * 60 * 1000; // 1 hour per bucket
+    } else if (period === '6h') {
+        bucketSizeMs = 6 * 60 * 60 * 1000; // 6 hours per bucket
+    } else if (period === '1d' || period === '24h') {
+        bucketSizeMs = 24 * 60 * 60 * 1000; // 1 day per bucket
+    } else if (period === '1w' || period === '7d') {
+        bucketSizeMs = 7 * 24 * 60 * 60 * 1000; // 1 week per bucket
+    } else if (period === '1m' || period === '30d') {
+        bucketSizeMs = 30 * 24 * 60 * 60 * 1000; // 1 month per bucket
+    } else {
+        // 'all' - adaptive bucket size for ~100 points
+        const totalTimeMs = now.getTime() - event.createdAt.getTime();
+        bucketSizeMs = Math.max(totalTimeMs / 100, 60 * 1000); // At least 1 minute buckets
+    }
 
-    // Ensure start time is not before event creation
-    if (startTime < event.createdAt) startTime = event.createdAt;
-
-    // Fetch bets
-    const bets = await prisma.bet.findMany({
+    // Fetch ALL bets to replay AMM state correctly
+    const allBets = await prisma.bet.findMany({
         where: {
             eventId,
-            createdAt: { gte: event.createdAt } // Get all bets to replay state correctly
+            createdAt: { gte: event.createdAt }
         },
         orderBy: { createdAt: 'asc' }
     });
 
-    const data: Array<{ timestamp: number; yesPrice: number; volume: number }> = [];
-
-    // Replay state
+    // Replay AMM state through all bets
     let qYes = 0;
     let qNo = 0;
-    const b = event.liquidityParameter || 10000.0; // Default to standard
+    const b = event.liquidityParameter || 10000.0;
 
-    // Initial point
-    data.push({
-        timestamp: Math.floor(event.createdAt.getTime() / 1000),
-        yesPrice: 0.5,
-        volume: 0
-    });
+    // Track state at each bet
+    const stateHistory: Array<{ time: Date; qYes: number; qNo: number; yesPrice: number; volume: number }> = [];
 
-    // Process bets
-    for (const bet of bets) {
-        // Update AMM state
-        // Calculate tokens bought (simplified reverse calculation or just assume 1:1 for volume tracking? 
-        // No, we need accurate price impact. 
-        // We need to know how many tokens were bought. 
-        // Since we don't store tokens bought in Bet model (only amount in $), 
-        // we have to re-calculate tokensForCost.
-
+    for (const bet of allBets) {
         const tokens = calculateTokensForCost(qYes, qNo, bet.amount, bet.option as 'YES' | 'NO', b);
 
         if (bet.option === 'YES') qYes += tokens;
         else qNo += tokens;
 
-        // Calculate new price
         const diff = (qNo - qYes) / b;
         const yesPrice = 1 / (1 + Math.exp(diff));
 
-        // Only add data point if it's within the requested period
-        if (bet.createdAt >= startTime) {
-            data.push({
-                timestamp: Math.floor(bet.createdAt.getTime() / 1000),
-                yesPrice,
-                volume: bet.amount
+        stateHistory.push({
+            time: bet.createdAt,
+            qYes,
+            qNo,
+            yesPrice,
+            volume: bet.amount
+        });
+    }
+
+    // Now aggregate into time buckets
+    const buckets: Array<{ timestamp: number; yesPrice: number; volume: number }> = [];
+
+    // Round the start time to the nearest period boundary
+    let currentBucketStart = startTime.getTime();
+
+    // Align to period boundaries
+    if (period === '5m') {
+        // Round down to nearest 5 minutes
+        const date = new Date(currentBucketStart);
+        date.setMinutes(Math.floor(date.getMinutes() / 5) * 5, 0, 0);
+        currentBucketStart = date.getTime();
+    } else if (period === '1h') {
+        // Round down to nearest hour
+        const date = new Date(currentBucketStart);
+        date.setMinutes(0, 0, 0);
+        currentBucketStart = date.getTime();
+    } else if (period === '6h') {
+        // Round down to nearest 6 hours (0, 6, 12, 18)
+        const date = new Date(currentBucketStart);
+        date.setHours(Math.floor(date.getHours() / 6) * 6, 0, 0, 0);
+        currentBucketStart = date.getTime();
+    } else if (period === '1d' || period === '24h') {
+        // Round down to start of day (midnight)
+        const date = new Date(currentBucketStart);
+        date.setHours(0, 0, 0, 0);
+        currentBucketStart = date.getTime();
+    }
+
+    let currentBucketEnd = currentBucketStart + bucketSizeMs;
+
+    // Find the initial state (last state before startTime)
+    let initialQYes = 0;
+    let initialQNo = 0;
+    let initialYesPrice = 0.5;
+
+    for (const state of stateHistory) {
+        if (state.time.getTime() < startTime.getTime()) {
+            initialQYes = state.qYes;
+            initialQNo = state.qNo;
+            initialYesPrice = state.yesPrice;
+        } else {
+            break;
+        }
+    }
+
+    // Create buckets
+    while (currentBucketStart <= now.getTime()) {
+        let bucketVolume = 0;
+        let lastStateInBucket: typeof stateHistory[0] | null = null;
+
+        // Find all states in this bucket
+        for (const state of stateHistory) {
+            const stateTime = state.time.getTime();
+            if (stateTime >= currentBucketStart && stateTime < currentBucketEnd) {
+                bucketVolume += state.volume;
+                lastStateInBucket = state;
+            }
+        }
+
+        // Use last state in bucket, or carry forward previous state
+        const yesPrice = lastStateInBucket ? lastStateInBucket.yesPrice : initialYesPrice;
+
+        // Round timestamp to the bucket start (removes seconds/milliseconds)
+        const roundedTimestamp = Math.floor(currentBucketStart / 1000);
+
+        buckets.push({
+            timestamp: roundedTimestamp,
+            yesPrice,
+            volume: bucketVolume
+        });
+
+        // Update initial price for next bucket
+        if (lastStateInBucket) {
+            initialYesPrice = lastStateInBucket.yesPrice;
+        }
+
+        currentBucketStart = currentBucketEnd;
+        currentBucketEnd = currentBucketStart + bucketSizeMs;
+    }
+
+    // Always include the very latest state as the last point
+    if (stateHistory.length > 0) {
+        const lastState = stateHistory[stateHistory.length - 1];
+        const lastTimestamp = Math.floor(lastState.time.getTime() / 1000);
+        const lastBucketTimestamp = buckets.length > 0 ? buckets[buckets.length - 1].timestamp : 0;
+
+        // Only add if it's actually later than the last bucket
+        if (lastTimestamp > lastBucketTimestamp) {
+            buckets.push({
+                timestamp: lastTimestamp,
+                yesPrice: lastState.yesPrice,
+                volume: lastState.volume
             });
         }
     }
 
-    // Deduplicate timestamps - keep only the last entry for each unique timestamp
-    const timestampMap = new Map<number, { timestamp: number; yesPrice: number; volume: number }>();
-    for (const point of data) {
-        timestampMap.set(point.timestamp, point);
-    }
-    const deduplicatedData = Array.from(timestampMap.values());
+    // Ensure data is sorted by timestamp (ascending)
+    buckets.sort((a, b) => a.timestamp - b.timestamp);
 
-    // If too many points, downsample
-    if (deduplicatedData.length > 100) {
-        const sampledData = [];
-        const step = Math.ceil(deduplicatedData.length / 100);
-        for (let i = 0; i < deduplicatedData.length; i += step) {
-            sampledData.push(deduplicatedData[i]);
-        }
-        // Always include the last point
-        if (sampledData[sampledData.length - 1] !== deduplicatedData[deduplicatedData.length - 1]) {
-            sampledData.push(deduplicatedData[deduplicatedData.length - 1]);
-        }
-        return sampledData;
-    }
-
-    return deduplicatedData;
+    return buckets;
 }
