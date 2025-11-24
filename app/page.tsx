@@ -21,13 +21,9 @@ interface DbEvent {
 }
 
 export default function Home() {
-  // Initialize showMarkets from sessionStorage to prevent landing page flash
-  const [showMarkets, setShowMarkets] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('hasVisitedMarkets') === 'true';
-    }
-    return false;
-  });
+  // Use a separate hydrated state to prevent hydration mismatches
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [showMarkets, setShowMarkets] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,8 +47,9 @@ export default function Home() {
 
   const events = eventsData || [];
 
-  // Check for hash on mount to show markets, and persist state to avoid animation replay
+  // Handle hydration and initial state
   useEffect(() => {
+    setIsHydrated(true);
     if (typeof window !== 'undefined') {
       // Check if we previously showed markets or if navigating to markets
       const hasVisitedMarkets = sessionStorage.getItem('hasVisitedMarkets');
@@ -387,9 +384,12 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen relative overflow-hidden" suppressHydrationWarning={true}>
-      <AnimatePresence mode="wait">
-        {!showMarkets ? (
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Navbar - Always rendered outside AnimatePresence */}
+      <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+
+      <AnimatePresence mode="wait" initial={false}>
+        {!isHydrated || !showMarkets ? (
           <motion.div
             key="landing"
             initial={{ opacity: 1 }}
@@ -468,9 +468,8 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="min-h-screen relative text-white z-10"
+            suppressHydrationWarning={true}
           >
-            <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
-
             {/* Markets Background */}
             <div className="fixed inset-0 z-0">
 

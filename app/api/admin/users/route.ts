@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Hardcoded admin addresses for initial security
-const ADMIN_ADDRESSES = [
-    '0x0000000000000000000000000000000000000000', // Seed admin
-    '0x26295B14552b505e841B02957970C67Ae3B10877', // User admin
+// Hardcoded admin user IDs for initial security
+const ADMIN_USER_IDS = [
+    'admin_user_id', // Replace with actual admin user IDs from Clerk
 ];
 
-async function isAdmin(address: string) {
-    const normalizedAddress = address.toLowerCase();
-    const normalizedAdmins = ADMIN_ADDRESSES.map(a => a.toLowerCase());
-
-    if (normalizedAdmins.includes(normalizedAddress)) return true;
+async function isAdmin(userId: string) {
+    if (ADMIN_USER_IDS.includes(userId)) return true;
 
     const user = await prisma.user.findUnique({
-        where: { address: normalizedAddress },
+        where: { clerkId: userId },
         select: { isAdmin: true }
     });
 
@@ -26,10 +23,9 @@ async function isAdmin(address: string) {
 
 export async function GET(request: NextRequest) {
     try {
-        const searchParams = request.nextUrl.searchParams;
-        const adminAddress = searchParams.get('adminAddress');
+        const { userId } = await auth();
 
-        if (!adminAddress || !(await isAdmin(adminAddress))) {
+        if (!userId || !(await isAdmin(userId))) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -51,10 +47,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
+        const { userId } = await auth();
         const body = await request.json();
-        const { adminAddress, targetUserId, action } = body;
+        const { targetUserId, action } = body;
 
-        if (!adminAddress || !(await isAdmin(adminAddress))) {
+        if (!userId || !(await isAdmin(userId))) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

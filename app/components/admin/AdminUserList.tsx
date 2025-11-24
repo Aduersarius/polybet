@@ -1,6 +1,6 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface AdminUser {
@@ -16,18 +16,18 @@ interface AdminUser {
 }
 
 export function AdminUserList() {
-    const { address } = useAccount();
+    const { user } = useUser();
     const queryClient = useQueryClient();
 
     const { data: users, isLoading } = useQuery({
-        queryKey: ['admin', 'users', address],
+        queryKey: ['admin', 'users', user?.id],
         queryFn: async () => {
-            if (!address) return [];
-            const res = await fetch(`/api/admin/users?adminAddress=${address}`);
+            if (!user?.id) return [];
+            const res = await fetch(`/api/admin/users?adminId=${user.id}`);
             if (!res.ok) throw new Error('Failed to fetch users');
             return res.json() as Promise<AdminUser[]>;
         },
-        enabled: !!address,
+        enabled: !!user?.id,
     });
 
     const updateUserMutation = useMutation({
@@ -35,7 +35,7 @@ export function AdminUserList() {
             const res = await fetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminAddress: address, targetUserId, action }),
+                body: JSON.stringify({ adminId: user?.id, targetUserId, action }),
             });
             if (!res.ok) throw new Error('Failed to update user');
             return res.json();
