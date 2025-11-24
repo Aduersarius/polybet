@@ -171,6 +171,34 @@ export default function Home() {
       setIsFavorite(favorites.includes(event.id));
     }, [event.id]);
 
+    // Real-time odds state
+    const [liveYesOdds, setLiveYesOdds] = useState(event.yesOdds);
+    const [liveNoOdds, setLiveNoOdds] = useState(event.noOdds);
+
+    // Update local state if props change
+    useEffect(() => {
+      setLiveYesOdds(event.yesOdds);
+      setLiveNoOdds(event.noOdds);
+    }, [event.yesOdds, event.noOdds]);
+
+    // Listen for real-time updates
+    useEffect(() => {
+      const { socket } = require('@/lib/socket');
+
+      function onOddsUpdate(update: any) {
+        if (update.eventId !== event.id) return;
+        // Update provides probabilities (0-1)
+        setLiveYesOdds(update.yesPrice);
+        setLiveNoOdds(1 - update.yesPrice);
+      }
+
+      socket.on(`odds-update-${event.id}`, onOddsUpdate);
+
+      return () => {
+        socket.off(`odds-update-${event.id}`, onOddsUpdate);
+      };
+    }, [event.id]);
+
     // Fetch messages count
     const { data: messages } = useQuery({
       queryKey: ['messages', event.id],
@@ -195,17 +223,17 @@ export default function Home() {
     let yesOdds = 50;
     let noOdds = 50;
 
-    if (event.yesOdds != null && event.noOdds != null) {
+    if (liveYesOdds != null && liveNoOdds != null) {
       // Use real calculated odds if available
       // Check if they are already percentages (60, 40) or probabilities (0.6, 0.4)
-      if (event.yesOdds > 1) {
+      if (liveYesOdds > 1) {
         // Already percentages
-        yesOdds = Math.round(event.yesOdds);
-        noOdds = Math.round(event.noOdds);
+        yesOdds = Math.round(liveYesOdds);
+        noOdds = Math.round(liveNoOdds);
       } else {
         // Probabilities, convert to percentages
-        yesOdds = Math.round(event.yesOdds * 100);
-        noOdds = Math.round(event.noOdds * 100);
+        yesOdds = Math.round(liveYesOdds * 100);
+        noOdds = Math.round(liveNoOdds * 100);
       }
     } else if (betCount > 0) {
       // Simple estimate: assume 55/45 split for events with trades
