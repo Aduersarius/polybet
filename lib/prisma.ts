@@ -7,15 +7,16 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 const connectionString = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
-// Aggressive connection pooling for high concurrency
+// Optimized connection pooling for high concurrency
 const pool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    max: 100, // Maximum pool size (increased from default 10)
-    min: 10, // Minimum pool size 
+    max: 50, // Reduced from 100 to prevent connection exhaustion
+    min: 5,  // Reduced minimum connections
     idleTimeoutMillis: 30000, // Close idle clients after 30s
-    connectionTimeoutMillis: 10000, // Wait 10s for connection
-    maxUses: 7500, // Recycle connections after 7500 uses
+    connectionTimeoutMillis: 5000, // Faster timeout (5s)
+    maxUses: 5000, // Recycle connections sooner
+    allowExitOnIdle: true, // Allow pool to close when idle
 });
 
 const adapter = new PrismaPg(pool);

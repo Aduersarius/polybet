@@ -74,6 +74,10 @@ model Event {
   @@index([status, createdAt])
   @@index([categories])
   @@index([creatorId])
+  @@index([title])
+  @@index([description])
+  @@index([status, resolutionDate])
+  @@index([categories, status])
 }
 
 model Bet {

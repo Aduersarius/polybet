@@ -1,9 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable compression for better performance
+  compress: true,
+
   // Force webpack instead of turbopack for compatibility
   experimental: {
     webpackBuildWorker: false,
+    optimizePackageImports: ['@prisma/client', 'ioredis', '@upstash/ratelimit'],
   },
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream");

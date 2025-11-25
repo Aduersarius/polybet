@@ -42,10 +42,12 @@ export async function getOrSet<T>(
         // Cache miss - execute function
         const result = await fn();
 
-        // Store in cache
+        // Store in cache with optimized TTL
         if (ttl > 0) {
-            await redis.setex(fullKey, ttl, JSON.stringify(result));
-            console.log(`💾 Cached: ${fullKey} (TTL: ${ttl}s)`);
+            // Increase TTL for search results to reduce database load
+            const optimizedTtl = prefix === 'search' ? Math.max(ttl, 1800) : ttl; // 30 min minimum for search
+            await redis.setex(fullKey, optimizedTtl, JSON.stringify(result));
+            console.log(`💾 Cached: ${fullKey} (TTL: ${optimizedTtl}s)`);
         }
 
         return result;
@@ -117,6 +119,56 @@ export async function getCacheStats(): Promise<{
     } catch (error) {
         console.error('Failed to get cache stats:', error);
         return { keys: 0, memory: '0' };
+    }
+}
+
+/**
+ * Cache warming for popular content
+ */
+export async function warmCache<T>(
+    keys: string[],
+    fetchFn: (key: string) => Promise<T>,
+    options: CacheOptions = {}
+): Promise<void> {
+    if (!redis) return;
+
+    console.log(`🔥 Warming cache for ${keys.length} keys...`);
+
+    const promises = keys.map(async (key) => {
+        try {
+            const result = await fetchFn(key);
+            await getOrSet(key, () => Promise.resolve(result), options);
+        } catch (error) {
+            console.error(`Failed to warm cache for ${key}:`, error);
+        }
+    });
+
+    await Promise.allSettled(promises);
+    console.log('✅ Cache warming completed');
+}
+
+/**
+ * Get cache hit rate statistics
+ */
+export async function getCacheHitRate(windowMinutes: number = 60): Promise<{
+    hits: number;
+    misses: number;
+    hitRate: number;
+} | null> {
+    if (!redis) return null;
+
+    try {
+        const info = await redis.info('stats');
+        const hits = parseInt(info.match(/keyspace_hits:(\d+)/)?.[1] || '0');
+        const misses = parseInt(info.match(/keyspace_misses:(\d+)/)?.[1] || '0');
+
+        const total = hits + misses;
+        const hitRate = total > 0 ? (hits / total) * 100 : 0;
+
+        return { hits, misses, hitRate: Math.round(hitRate * 100) / 100 };
+    } catch (error) {
+        console.error('Failed to get cache hit rate:', error);
+        return null;
     }
 }
 
