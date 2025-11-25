@@ -8,30 +8,21 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const address = searchParams.get('address');
+        const userId = searchParams.get('userId');
 
-        if (!address) {
-            return NextResponse.json({ error: 'Address required' }, { status: 400 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { address },
-            select: { id: true }
-        });
-
-        if (!user) {
-            return NextResponse.json({ notifications: [], unreadCount: 0 });
+        if (!userId) {
+            return NextResponse.json({ error: 'User ID required' }, { status: 400 });
         }
 
         const notifications = await prisma.notification.findMany({
-            where: { userId: user.id },
+            where: { userId },
             orderBy: { createdAt: 'desc' },
             take: 20,
         });
 
         const unreadCount = await prisma.notification.count({
             where: {
-                userId: user.id,
+                userId,
                 isRead: false
             }
         });
