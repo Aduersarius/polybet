@@ -5,13 +5,26 @@
 
 echo "🚀 Starting PolyBet Performance Optimizations..."
 
-# 1. Update PostgreSQL configuration
-echo "📊 Updating PostgreSQL configuration..."
-sudo cp /etc/postgresql/14/main/postgresql.conf /etc/postgresql/14/main/postgresql.conf.backup
+# 1. Detect PostgreSQL version and update configuration
+echo "📊 Detecting PostgreSQL version..."
+PG_VERSION=$(ls /etc/postgresql/ | head -1)
+PG_CONF="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
 
-sudo sed -i 's/max_connections = [0-9]*/max_connections = 300/' /etc/postgresql/14/main/postgresql.conf
+echo "Found PostgreSQL version: ${PG_VERSION}"
+echo "Config file: ${PG_CONF}"
 
-echo "✅ PostgreSQL max_connections set to 300"
+if [ -f "$PG_CONF" ]; then
+    echo "📝 Backing up PostgreSQL configuration..."
+    sudo cp "$PG_CONF" "${PG_CONF}.backup"
+
+    echo "🔧 Updating max_connections to 300..."
+    sudo sed -i 's/max_connections = [0-9]*/max_connections = 300/' "$PG_CONF"
+
+    echo "✅ PostgreSQL max_connections set to 300"
+else
+    echo "❌ PostgreSQL config file not found at ${PG_CONF}"
+    exit 1
+fi
 
 # 2. Restart PostgreSQL
 echo "🔄 Restarting PostgreSQL..."
@@ -28,7 +41,7 @@ fi
 
 # 4. Check current connections
 echo "📈 Current PostgreSQL connections:"
-sudo -u postgres psql -c "SHOW max_connections;"
+sudo -u postgres psql -h localhost -U postgres -d postgres -c "SHOW max_connections;" 2>/dev/null || echo "Could not query max_connections (might be expected if using different auth)"
 
 # 5. Redis optimization (if running on same server)
 if systemctl is-active --quiet redis-server; then
