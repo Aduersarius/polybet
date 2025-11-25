@@ -57,7 +57,7 @@ export async function GET(
     }
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         // Mock auth for dev
         const userId = 'dev-user';
@@ -65,7 +65,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
         const body = await req.json();
         const { text, parentId } = body;
         console.log(`[API] Posting message for event: ${id}, user: ${userId}, text: ${text}`);
@@ -88,6 +88,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
                     clerkId: 'dev-user-clerk-id'
                 }
             });
+        }
+
+        if (!user) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
         const message = await prisma.message.create({
