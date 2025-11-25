@@ -9,6 +9,14 @@ export async function GET(request: Request) {
     const startTime = Date.now();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Cap at 100
+    const offset = parseInt(searchParams.get('offset') || '0');
+
+    // Rate limiting
+    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
 
     // Debug logging
     console.log('DATABASE_URL:', process.env.DATABASE_URL);
@@ -19,14 +27,24 @@ export async function GET(request: Request) {
 
     try {
         const { getOrSet } = await import('@/lib/cache');
-        const cacheKey = category ? `all:${category}` : 'all';
+        const cacheKey = category
+            ? `all:${category}:${limit}:${offset}`
+            : `all:${limit}:${offset}`;
 
-        // Use Redis caching with 60s TTL
-        const eventsWithStats = await getOrSet(
+        // Use Redis caching with 600s TTL (10 minutes)
+        const result = await getOrSet(
             cacheKey,
             async () => {
                 const { prisma } = await import('@/lib/prisma');
                 const where = category ? { categories: { has: category } } : {};
+
+                // Get total count for pagination
+                const totalCountPromise = prisma.event.count({
+                    where: {
+                        ...where,
+                        status: 'ACTIVE'
+                    }
+                });
 
                 // Simplified query without joins for faster performance
                 const queryPromise = prisma.event.findMany({
@@ -52,7 +70,8 @@ export async function GET(request: Request) {
                             }
                         }
                     },
-                    take: 20, // Smaller limit for speed
+                    take: limit,
+                    skip: offset,
                 });
 
                 // Shorter timeout for faster failure
@@ -60,7 +79,11 @@ export async function GET(request: Request) {
                     setTimeout(() => reject(new Error('Database query timeout')), 3000);
                 });
 
-                const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
+                const [events, totalCount] = await Promise.all([
+                    Promise.race([queryPromise, timeoutPromise]) as Promise<any[]>,
+                    totalCountPromise
+                ]);
+
                 const queryTime = Date.now() - startTime;
 
                 console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`);
@@ -78,7 +101,7 @@ export async function GET(request: Request) {
                     console.warn('Braintrust logging failed:', logError);
                 }
 
-                return events.map(event => {
+                const eventsWithStats = events.map(event => {
                     const volume = event.bets.reduce((sum: number, bet: any) => sum + bet.amount, 0);
                     const betCount = event.bets.length;
 
@@ -116,11 +139,21 @@ export async function GET(request: Request) {
                         noOdds
                     };
                 });
+
+                return {
+                    data: eventsWithStats,
+                    pagination: {
+                        limit,
+                        offset,
+                        total: totalCount,
+                        hasMore: offset + limit < totalCount
+                    }
+                };
             },
-            { ttl: 600, prefix: 'events' } // Increased from 120s to 600s (10 min)
+            { ttl: 600, prefix: 'events' } // 10 minutes cache
         );
 
-        return NextResponse.json(eventsWithStats);
+        return NextResponse.json(result);
     } catch (error) {
         const errorTime = Date.now() - startTime;
         console.error(`❌ Events API failed after ${errorTime}ms:`, error);

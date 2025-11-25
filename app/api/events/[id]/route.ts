@@ -11,6 +11,12 @@ export async function GET(
 ) {
     const startTime = Date.now();
 
+    // Rate limiting
+    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
+
     try {
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
