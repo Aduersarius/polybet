@@ -20,7 +20,11 @@ interface ActivityListProps {
 }
 
 export function ActivityList({ eventId }: ActivityListProps) {
-    const { data: trades = [], isLoading } = useQuery<Trade[]>({
+    const { data: tradesData, isLoading } = useQuery<{
+        bets: Trade[];
+        hasMore: boolean;
+        nextCursor: string | null;
+    }>({
         queryKey: ['trades', eventId],
         queryFn: async () => {
             const res = await fetch(`/api/events/${eventId}/bets`);
@@ -29,6 +33,8 @@ export function ActivityList({ eventId }: ActivityListProps) {
         },
         refetchInterval: 5000, // Poll every 5 seconds
     });
+
+    const trades = tradesData?.bets || [];
 
     const formatAddress = (addr: string) => {
         return `${addr.slice(0, 4)}...${addr.slice(-4)}`;

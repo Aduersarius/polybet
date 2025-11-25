@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Enable compression for better performance
   compress: true,
 
+  // Turbopack configuration
+  turbopack: {},
+
   // Force webpack instead of turbopack for compatibility
   experimental: {
     webpackBuildWorker: false,

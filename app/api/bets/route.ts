@@ -136,6 +136,7 @@ export async function POST(request: Request) {
         const { invalidate, invalidatePattern } = await import('@/lib/cache');
         await invalidate(eventId, 'event'); // Invalidate this event's cache
         await invalidatePattern('events:all:*'); // Invalidate all events list caches
+        await invalidatePattern(`bets:event:${eventId}:*`); // Invalidate all bet caches for this event
         console.log(`🗑️ Invalidated cache for event: ${eventId}`);
 
         // 5. Return Result

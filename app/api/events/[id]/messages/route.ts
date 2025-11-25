@@ -18,15 +18,43 @@ export async function GET(
     try {
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
+        const { searchParams } = new URL(request.url);
+        const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50); // Default 10, max 50
+        const cursor = searchParams.get('cursor'); // For pagination
+        const before = searchParams.get('before'); // Load messages before this ID
 
-        console.log(`[API] Fetching messages for event: ${id}`);
+        console.log(`[API] Fetching messages for event: ${id}, limit: ${limit}, cursor: ${cursor}`);
 
-        // Use Redis caching with 20s TTL
-        const formattedMessages = await getOrSet(
-            `${id}:messages`,
+        // Create cache key that includes pagination params
+        const cacheKey = `${id}:messages:${limit}:${cursor || 'latest'}:${before || 'none'}`;
+
+        // Use Redis caching with pagination-aware key
+        const result = await getOrSet(
+            cacheKey,
             async () => {
+                const whereClause: any = {
+                    eventId: id,
+                    isDeleted: false
+                };
+
+                // Add cursor-based pagination
+                if (cursor) {
+                    whereClause.createdAt = { lt: new Date(cursor) };
+                }
+
+                // Alternative: load messages before a specific message ID
+                if (before) {
+                    const beforeMessage = await prisma.message.findUnique({
+                        where: { id: before },
+                        select: { createdAt: true }
+                    });
+                    if (beforeMessage) {
+                        whereClause.createdAt = { lt: beforeMessage.createdAt };
+                    }
+                }
+
                 const messages = await prisma.message.findMany({
-                    where: { eventId: id },
+                    where: whereClause,
                     include: {
                         user: {
                             select: {
@@ -49,11 +77,15 @@ export async function GET(
                         },
                         replies: { select: { id: true } }
                     },
-                    orderBy: { createdAt: 'asc' },
+                    orderBy: { createdAt: 'desc' }, // Most recent first for lazy loading
+                    take: limit + 1, // Take one extra to check if there are more
                 });
 
+                const hasMore = messages.length > limit;
+                const messagesToReturn = hasMore ? messages.slice(0, limit) : messages;
+
                 // Transform for frontend
-                return messages.map((msg: any) => ({
+                const formattedMessages = messagesToReturn.map((msg: any) => ({
                     ...msg,
                     replyCount: msg.replies.length,
                     reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {
@@ -62,11 +94,19 @@ export async function GET(
                         return acc;
                     }, {} as Record<string, string[]>)
                 }));
+
+                return {
+                    messages: formattedMessages,
+                    hasMore,
+                    nextCursor: hasMore && messagesToReturn.length > 0
+                        ? messagesToReturn[messagesToReturn.length - 1].createdAt.toISOString()
+                        : null
+                };
             },
-            { ttl: 120, prefix: 'event' } // Increased from 30s to 120s (2 min)
+            { ttl: 60, prefix: 'event' } // 1 minute cache for paginated results
         );
 
-        return NextResponse.json(formattedMessages);
+        return NextResponse.json(result);
     } catch (error) {
         console.error('Error fetching messages:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -181,10 +221,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             await redis.publish('chat-messages', JSON.stringify(messagePayload));
         }
 
-        // Invalidate messages cache for this event
-        const { invalidate } = await import('@/lib/cache');
-        await invalidate(`${id}:messages`, 'event');
-        console.log(`🗑️ Invalidated messages cache for event: ${id}`);
+        // Invalidate all message caches for this event (pagination-aware)
+        const { invalidatePattern } = await import('@/lib/cache');
+        await invalidatePattern(`event:${id}:messages:*`);
+        console.log(`🗑️ Invalidated all message caches for event: ${id}`);
 
         return NextResponse.json(message);
     } catch (error) {
