@@ -11,11 +11,11 @@ const connectionString = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES
 const pool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    max: 50, // Reduced from 100 to prevent connection exhaustion
-    min: 5,  // Reduced minimum connections
-    idleTimeoutMillis: 30000, // Close idle clients after 30s
-    connectionTimeoutMillis: 5000, // Faster timeout (5s)
-    maxUses: 5000, // Recycle connections sooner
+    max: 20, // Further reduced to prevent connection exhaustion under load
+    min: 2,  // Minimal minimum connections
+    idleTimeoutMillis: 10000, // Close idle clients after 10s (more aggressive)
+    connectionTimeoutMillis: 3000, // Faster timeout (3s)
+    maxUses: 1000, // Recycle connections much sooner
     allowExitOnIdle: true, // Allow pool to close when idle
 });
 
