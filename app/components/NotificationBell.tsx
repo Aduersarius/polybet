@@ -1,7 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Notification {
@@ -14,7 +13,9 @@ interface Notification {
 }
 
 export function NotificationBell() {
-    const { user, isLoaded } = useUser();
+    // Mock user for dev
+    const user = { id: 'dev-user' };
+    const isLoaded = true;
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();

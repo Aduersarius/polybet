@@ -14,7 +14,7 @@ export default function AdminPage() {
         return (
             <div className="min-h-screen bg-[#0a0a0a] text-white">
                 <Navbar />
-                <div className="pt-32 px-4 text-center">
+                <div className="pt-8 px-4 text-center">
                     <h1 className="text-2xl font-bold mb-4">Loading...</h1>
                 </div>
             </div>
@@ -28,7 +28,7 @@ export default function AdminPage() {
         return (
             <div className="min-h-screen bg-[#0a0a0a] text-white">
                 <Navbar />
-                <div className="pt-32 px-4 text-center">
+                <div className="pt-8 px-4 text-center">
                     <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
                     <p className="text-gray-400">You need admin privileges to access this page.</p>
                 </div>
@@ -39,7 +39,7 @@ export default function AdminPage() {
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white">
             <Navbar />
-            <div className="pt-24 px-4 max-w-7xl mx-auto">
+            <div className="pt-8 px-4 max-w-7xl mx-auto">
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
                         Admin Dashboard

@@ -67,7 +67,7 @@ export default function EventPage() {
             <div className="relative z-10">
                 <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
-                <div className="pt-[120px] px-4 max-w-7xl mx-auto pb-8">
+                <div className="pt-4 px-4 max-w-7xl mx-auto pb-8">
 
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}

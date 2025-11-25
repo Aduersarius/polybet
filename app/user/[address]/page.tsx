@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, use } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { Navbar } from '@/app/components/Navbar';
 import { ProfileHeader } from '@/app/components/user/ProfileHeader';
 import { UserStats } from '@/app/components/user/UserStats';
 import { AchievementsList } from '@/app/components/user/AchievementsList';
+import { ActivityList } from "@/app/components/ActivityList";
 
 interface UserData {
     id: string;
@@ -23,7 +25,10 @@ interface UserData {
 
 export default function ProfilePage({ params }: { params: Promise<{ address: string }> }) {
     const resolvedParams = use(params);
-    const { user: currentUser, isLoaded } = useUser();
+    // Mock current user for dev
+    const currentUser = { id: 'dev-user' };
+    const isLoaded = true;
+
     const [user, setUser] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -61,7 +66,7 @@ export default function ProfilePage({ params }: { params: Promise<{ address: str
         <div className="min-h-screen bg-black text-white">
             <Navbar />
 
-            <main className="max-w-7xl mx-auto px-4 pt-24 pb-12">
+            <main className="max-w-7xl mx-auto px-4 pt-8 pb-12">
                 {loading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />

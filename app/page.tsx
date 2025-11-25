@@ -388,182 +388,170 @@ export default function Home() {
       {/* Navbar - Always rendered outside AnimatePresence */}
       <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
 
-      <AnimatePresence mode="wait" initial={false}>
-        {!isHydrated || !showMarkets ? (
-          <motion.div
-            key="landing"
-            initial={{ opacity: 1 }}
-            exit={{
-              opacity: 0,
-              filter: 'blur(10px)',
-              scale: 0.8,
-              y: -100,
-            }}
-            transition={{ duration: 1.2, ease: [0.43, 0.13, 0.23, 0.96] }}
-            className="fixed inset-0 flex items-center justify-center z-10"
-          >
-            {/* Dark Background with Gradient */}
+      {/* AnimatePresence removed for instant transition */}
+      {!isHydrated || !showMarkets ? (
+        <motion.div
+          key="landing"
+          className="fixed inset-0 flex items-center justify-center z-10"
+        >
+          {/* Dark Background with Gradient */}
 
 
 
 
 
 
-            {/* Floating Content */}
-            <div className="relative z-10 text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="material-card p-8 sm:p-12 !rounded-[32px] max-w-2xl mx-auto"
-              >
-                <div className="relative z-10 mb-8">
-                  <h1 className="text-4xl sm:text-5xl font-black mb-4 bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent drop-shadow-2xl">
-                    PolyBet
-                  </h1>
-                  <p className="text-lg sm:text-xl text-white/80 mb-6 font-light leading-relaxed">
-                    Where markets meet destiny.
-                  </p>
-                </div>
-
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.8, duration: 0.5 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="mb-4 relative z-10"
-                >
-                  <button
-                    onClick={() => {
-                      setShowMarkets(true);
-                      if (typeof window !== 'undefined') {
-                        sessionStorage.setItem('hasVisitedMarkets', 'true');
-                      }
-                      window.location.hash = 'markets';
-                    }}
-                    className="px-6 py-3 bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white text-base font-bold rounded-full shadow-2xl shadow-[#bb86fc]/50 hover:shadow-[0_0_40px_rgba(187,134,252,0.7)] transition-all"
-                  >
-                    ENTER MARKETS
-                  </button>
-                </motion.div>
-
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  By pressing the button user agrees to the{' '}
-                  <a href="/terms" className="text-[#bb86fc] hover:text-[#9965f4] underline transition-colors">
-                    Terms of Use
-                  </a>
+          {/* Floating Content */}
+          <div className="relative z-10 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="material-card p-8 sm:p-12 !rounded-[32px] max-w-2xl mx-auto"
+            >
+              <div className="relative z-10 mb-8">
+                <h1 className="text-4xl sm:text-5xl font-black mb-4 bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent drop-shadow-2xl">
+                  PolyBet
+                </h1>
+                <p className="text-lg sm:text-xl text-white/80 mb-6 font-light leading-relaxed">
+                  Where markets meet destiny.
                 </p>
-              </motion.div>
-            </div>
-
-            {/* Ambient Glow Effects */}
-            <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-[#bb86fc]/10 rounded-full blur-3xl animate-pulse" style={{ zIndex: 0 }} />
-            <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-[#03dac6]/10 rounded-full blur-3xl animate-pulse" style={{ zIndex: 0, animationDelay: '1s' }} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="markets"
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="min-h-screen relative text-white z-10"
-            suppressHydrationWarning={true}
-          >
-            {/* Markets Background */}
-            <div className="fixed inset-0 z-0">
-
-
-            </div>
-
-            {/* Markets Content */}
-            <div className="relative z-10 pt-[120px] px-4 max-w-7xl mx-auto pb-12">
-
-              {/* Sort Options */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="relative mb-8"
-              >
-                <div className="flex items-center gap-4">
-                  <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
-                    {selectedCategory === 'FAVORITES' ? 'My Favorites' :
-                      selectedCategory === 'ALL' ? 'All Markets' :
-                        selectedCategory === 'NEW' ? 'New Markets' :
-                          selectedCategory === 'TRENDING' ? 'Trending Markets' :
-                            `${selectedCategory} Markets`}
-                    <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
-                  </h2>
-                </div>
-
-                {/* Sort Dropdown - Floating Right */}
-                <div className="absolute right-0 top-0">
-                  <button
-                    onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                    className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                    </svg>
-                    {sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending' : 'Newest'}
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {sortDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-32 material-card rounded-lg shadow-xl z-10 overflow-hidden">
-                      {['volume', 'ending', 'newest'].map((option) => (
-                        <button
-                          key={option}
-                          onClick={() => {
-                            setSortBy(option as 'volume' | 'ending' | 'newest');
-                            setSortDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option
-                            ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
-                            : 'text-gray-300 hover:bg-white/5'
-                            }`}
-                        >
-                          {option === 'volume' ? 'Volume' : option === 'ending' ? 'Ending' : 'Newest'}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
-                {activeEvents.map((event) => (
-                  <EventCard key={event.id} event={event} />
-                ))}
               </div>
 
-              {/* Ended Markets Section */}
-              {
-                endedEvents.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                    <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
-                      Ended Markets
-                      <div className="h-px bg-gray-800 flex-1" />
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                      {endedEvents.map((event) => (
-                        <EventCard key={event.id} event={event} isEnded={true} />
-                      ))}
-                    </div>
-                  </motion.div>
-                )
-              }
-            </div >
-          </motion.div >
-        )
-        }
-      </AnimatePresence >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.8, duration: 0.5 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="mb-4 relative z-10"
+              >
+                <button
+                  onClick={() => {
+                    setShowMarkets(true);
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('hasVisitedMarkets', 'true');
+                    }
+                    window.location.hash = 'markets';
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white text-base font-bold rounded-full shadow-2xl shadow-[#bb86fc]/50 hover:shadow-[0_0_40px_rgba(187,134,252,0.7)] transition-all"
+                >
+                  ENTER MARKETS
+                </button>
+              </motion.div>
+
+              <p className="text-xs text-gray-400 leading-relaxed">
+                By pressing the button user agrees to the{' '}
+                <a href="/terms" className="text-[#bb86fc] hover:text-[#9965f4] underline transition-colors">
+                  Terms of Use
+                </a>
+              </p>
+            </motion.div>
+          </div>
+
+          {/* Ambient Glow Effects */}
+          <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-[#bb86fc]/10 rounded-full blur-3xl animate-pulse" style={{ zIndex: 0 }} />
+          <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-[#03dac6]/10 rounded-full blur-3xl animate-pulse" style={{ zIndex: 0, animationDelay: '1s' }} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="markets"
+          className="min-h-screen relative text-white z-10"
+          suppressHydrationWarning={true}
+        >
+          {/* Markets Background */}
+          <div className="fixed inset-0 z-0">
+
+
+          </div>
+
+          {/* Markets Content */}
+          <div className="relative z-10 pt-8 px-4 max-w-7xl mx-auto pb-12">
+
+            {/* Sort Options */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="relative mb-8"
+            >
+              <div className="flex items-center gap-4">
+                <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
+                  {selectedCategory === 'FAVORITES' ? 'My Favorites' :
+                    selectedCategory === 'ALL' ? 'All Markets' :
+                      selectedCategory === 'NEW' ? 'New Markets' :
+                        selectedCategory === 'TRENDING' ? 'Trending Markets' :
+                          `${selectedCategory} Markets`}
+                  <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
+                </h2>
+              </div>
+
+              {/* Sort Dropdown - Floating Right */}
+              <div className="absolute right-0 top-0">
+                <button
+                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                  className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  </svg>
+                  {sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending' : 'Newest'}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {sortDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-32 material-card rounded-lg shadow-xl z-10 overflow-hidden">
+                    {['volume', 'ending', 'newest'].map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setSortBy(option as 'volume' | 'ending' | 'newest');
+                          setSortDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option
+                          ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
+                          : 'text-gray-300 hover:bg-white/5'
+                          }`}
+                      >
+                        {option === 'volume' ? 'Volume' : option === 'ending' ? 'Ending' : 'Newest'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+              {activeEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </div>
+
+            {/* Ended Markets Section */}
+            {
+              endedEvents.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
+                    Ended Markets
+                    <div className="h-px bg-gray-800 flex-1" />
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    {endedEvents.map((event) => (
+                      <EventCard key={event.id} event={event} isEnded={true} />
+                    ))}
+                  </div>
+                </motion.div>
+              )
+            }
+          </div >
+        </motion.div >
+      )
+      }
 
       {/* Trading Panel Modal */}
       {selectedEvent && (

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useMutation } from '@tanstack/react-query';
 
 interface TradingPanelProps {
     yesPrice: number;  // Actually the price/probability (0-1)
@@ -16,7 +16,9 @@ interface TradingPanelProps {
 export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, onTrade }: TradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
-    const { user, isLoaded } = useUser();
+    // Mock user for dev
+    const user = { id: 'dev-user' };
+    const isLoaded = true;
 
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>('YES');
@@ -70,30 +72,25 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
         : currentAmount * noOdds;
     const potentialProfit = potentialPayout - currentAmount;
 
-    const handleTrade = async () => {
-        if (!amount || parseFloat(amount) <= 0) return;
-
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/bets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+    const tradeMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch("/api/bets", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    eventId: eventId,
-                    outcome: selectedOption,
+                    eventId,
                     amount: parseFloat(amount),
-                    // No userId needed - backend handles anonymous users
+                    option: selectedOption,
+                    userId: "dev-user", // Hardcoded for dev
                 }),
             });
 
-            if (!response.ok) {
-                const error = await response.json();
+            if (!res.ok) {
+                const error = await res.json();
                 throw new Error(error.error || 'Trade failed');
             }
 
-            const result = await response.json();
+            const result = await res.json();
             setLastTrade({
                 tokens: result.tokensReceived,
                 price: result.priceAtTrade,
@@ -104,12 +101,20 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
 
             // WebSocket will automatically update odds in real-time
             // No manual refetch needed!
-        } catch (error) {
+        },
+        onError: (error) => {
             console.error('Trade error:', error);
             alert(error instanceof Error ? error.message : 'Failed to place trade');
-        } finally {
+        },
+        onSettled: () => {
             setIsLoading(false);
         }
+    });
+
+    const handleTrade = () => {
+        if (!amount || parseFloat(amount) <= 0) return;
+        setIsLoading(true);
+        tradeMutation.mutate();
     };
 
     // Real-time countdown state
