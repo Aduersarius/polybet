@@ -41,41 +41,23 @@ export async function GET(request: NextRequest) {
                     async () => {
                         const { prisma } = await import('@/lib/prisma');
 
-                        const queryPromise = prisma.event.findMany({
-                            where: {
-                                OR: [
-                                    {
-                                        title: {
-                                            contains: query,
-                                            mode: 'insensitive',
-                                        },
-                                    },
-                                    {
-                                        description: {
-                                            contains: query,
-                                            mode: 'insensitive',
-                                        },
-                                    },
-                                    {
-                                        categories: {
-                                            has: query,
-                                        },
-                                    },
-                                ],
-                                status: 'ACTIVE'
-                            },
-                            select: {
-                                id: true,
-                                title: true,
-                                categories: true,
-                                resolutionDate: true,
-                                imageUrl: true,
-                            },
-                            take: 20, // Increased limit for better search results
-                            orderBy: {
-                                createdAt: 'desc',
-                            },
-                        });
+                        // Use full-text search for better performance and relevance
+                        const searchQuery = query.trim().toLowerCase();
+                        const queryPromise = prisma.$queryRaw`
+                            SELECT
+                                id,
+                                title,
+                                categories,
+                                "resolutionDate",
+                                "imageUrl",
+                                ts_rank("searchVector", plainto_tsquery('english', ${searchQuery})) as rank
+                            FROM "Event"
+                            WHERE
+                                status = 'ACTIVE' AND
+                                "searchVector" @@ plainto_tsquery('english', ${searchQuery})
+                            ORDER BY rank DESC, "createdAt" DESC
+                            LIMIT 20
+                        `;
 
                         const timeoutPromise = new Promise((_, reject) => {
                             setTimeout(() => reject(new Error('Database query timeout')), 8000);

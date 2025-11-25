@@ -41,43 +41,48 @@ model User {
  }
 
 model Event {
-  id             String   @id @default(cuid())
-  title          String
-  description    String
-  categories     String[]  @default([]) // Array of categories: CRYPTO, SPORTS, POLITICS, etc.
-  imageUrl       String?
-  resolutionDate DateTime
-  status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
-  result         String?  // YES, NO, or Option ID
-  isHidden       Boolean  @default(false)
-  rules          String?  @db.Text // Markdown supported rules text
+   id             String   @id @default(cuid())
+   title          String
+   description    String
+   categories     String[]  @default([]) // Array of categories: CRYPTO, SPORTS, POLITICS, etc.
+   imageUrl       String?
+   resolutionDate DateTime
+   status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
+   result         String?  // YES, NO, or Option ID
+   isHidden       Boolean  @default(false)
+   rules          String?  @db.Text // Markdown supported rules text
 
-  // AMM Parameters for LMSR
-  liquidityParameter Float    @default(100.0) // b parameter in LMSR
-  qYes              Float    @default(0.0)    // Cumulative YES tokens
-  qNo               Float    @default(0.0)    // Cumulative NO tokens
-  initialLiquidity  Float    @default(100.0) // Initial liquidity amount
+   // Full-text search vector for optimized search performance
+   searchVector   Unsupported("tsvector")?
 
-  // Cached current odds for performance
-  yesOdds          Float?
-  noOdds           Float?
+   // AMM Parameters for LMSR
+   liquidityParameter Float    @default(100.0) // b parameter in LMSR
+   qYes              Float    @default(0.0)    // Cumulative YES tokens
+   qNo               Float    @default(0.0)    // Cumulative NO tokens
+   initialLiquidity  Float    @default(100.0) // Initial liquidity amount
 
-  creatorId      String
-  creator        User     @relation(fields: [creatorId], references: [id])
+   // Cached current odds for performance
+   yesOdds          Float?
+   noOdds           Float?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+   creatorId      String
+   creator        User     @relation(fields: [creatorId], references: [id])
 
-  bets           Bet[]
-  // messages       Message[]
+   createdAt      DateTime @default(now())
+   updatedAt      DateTime @updatedAt
 
-  @@index([status, createdAt])
-  @@index([categories])
-  @@index([creatorId])
-  @@index([title])
-  @@index([description])
-  @@index([status, resolutionDate])
-  @@index([categories, status])
+   bets           Bet[]
+   // messages       Message[]
+
+   @@index([status, createdAt])
+   @@index([categories])
+   @@index([creatorId])
+   @@index([title])
+   @@index([description])
+   @@index([status, resolutionDate])
+   @@index([categories, status])
+   // Full-text search GIN index for fast search queries
+   @@index([searchVector], type: Gin)
 }
 
 model Bet {
