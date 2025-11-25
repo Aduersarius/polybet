@@ -11,27 +11,30 @@ import { NextResponse } from "next/server";
 // Standard API rate limiter - 100 requests per minute
 export const apiLimiter = redis
     ? new Ratelimit({
-        redis: redis as any, // Type assertion for ioredis compatibility
+        redis: redis as any,
         limiter: Ratelimit.slidingWindow(100, "1 m"),
         analytics: true,
+        prefix: "@upstash/ratelimit/api",
     })
     : null;
 
 // Heavy operation limiter - 20 requests per minute
 export const heavyLimiter = redis
     ? new Ratelimit({
-        redis: redis as any, // Type assertion for ioredis compatibility
+        redis: redis as any,
         limiter: Ratelimit.slidingWindow(20, "1 m"),
         analytics: true,
+        prefix: "@upstash/ratelimit/heavy",
     })
     : null;
 
 // Search limiter - 30 requests per minute
 export const searchLimiter = redis
     ? new Ratelimit({
-        redis: redis as any, // Type assertion for ioredis compatibility
+        redis: redis as any,
         limiter: Ratelimit.slidingWindow(30, "1 m"),
         analytics: true,
+        prefix: "@upstash/ratelimit/search",
     })
     : null;
 
