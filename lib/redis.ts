@@ -34,7 +34,7 @@ function getRedisInstance(): Redis | null {
     connectionAttempted = true;
 
     try {
-        console.log('🔴 Redis URL:', redisUrl);
+        // Silent initialization - errors logged only on failure
         redisInstance = new Redis(redisUrl, {
             maxRetriesPerRequest: 3,
             retryStrategy(times) {

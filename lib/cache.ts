@@ -33,11 +33,8 @@ export async function getOrSet<T>(
         const cached = await redis.get(fullKey);
 
         if (cached) {
-            console.log(`✅ Cache HIT: ${fullKey}`);
             return JSON.parse(cached) as T;
         }
-
-        console.log(`❌ Cache MISS: ${fullKey}`);
 
         // Cache miss - execute function
         const result = await fn();
@@ -47,7 +44,6 @@ export async function getOrSet<T>(
             // Increase TTL for search results to reduce database load
             const optimizedTtl = prefix === 'search' ? Math.max(ttl, 1800) : ttl; // 30 min minimum for search
             await redis.setex(fullKey, optimizedTtl, JSON.stringify(result));
-            console.log(`💾 Cached: ${fullKey} (TTL: ${optimizedTtl}s)`);
         }
 
         return result;
@@ -68,7 +64,6 @@ export async function invalidate(key: string, prefix: string = ''): Promise<void
 
     try {
         await redis.del(fullKey);
-        console.log(`🗑️ Invalidated cache: ${fullKey}`);
     } catch (error) {
         console.error(`Failed to invalidate cache ${fullKey}:`, error);
     }
@@ -85,8 +80,7 @@ export async function invalidatePattern(pattern: string): Promise<void> {
         const keys = await redis.keys(pattern);
 
         if (keys.length > 0) {
-            await redis.del(...keys);
-            console.log(`🗑️ Invalidated ${keys.length} cache keys matching: ${pattern}`);
+            await Promise.all(keys.map(key => redis.del(key)));
         }
     } catch (error) {
         console.error(`Failed to invalidate pattern ${pattern}:`, error);
@@ -144,7 +138,6 @@ export async function warmCache<T>(
     });
 
     await Promise.allSettled(promises);
-    console.log('✅ Cache warming completed');
 }
 
 /**
@@ -163,7 +156,6 @@ export async function batchInvalidate(keys: string[], prefix: string = ''): Prom
         }
 
         await pipeline.exec();
-        console.log(`🗑️ Batch invalidated ${keys.length} cache keys`);
     } catch (error) {
         console.error('Batch invalidation failed:', error);
     }
@@ -203,7 +195,6 @@ export async function clearAllCache(): Promise<void> {
 
     try {
         await redis.flushdb();
-        console.log('🗑️ Cleared all cache');
     } catch (error) {
         console.error('Failed to clear cache:', error);
     }

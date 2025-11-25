@@ -19,12 +19,7 @@ export async function GET(request: Request) {
     const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
     if (rateLimitResponse) return rateLimitResponse;
 
-    // Debug logging
-    console.log('DATABASE_URL:', process.env.DATABASE_URL);
-    console.log('Environment check:', {
-        hasDbUrl: !!process.env.DATABASE_URL,
-        dbUrlLength: process.env.DATABASE_URL?.length
-    });
+    // Production-ready: minimal logging
 
     try {
         const { getOrSet } = await import('@/lib/cache');
