@@ -1,40 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useUser } from '@clerk/nextjs';
 import { Navbar } from '../components/Navbar';
 import { AdminEventList } from '../components/admin/AdminEventList';
 import { AdminUserList } from '../components/admin/AdminUserList';
 
 export default function AdminPage() {
-    const { user, isLoaded } = useUser();
     const [activeTab, setActiveTab] = useState<'events' | 'users'>('events');
 
-    if (!isLoaded) {
-        return (
-            <div className="min-h-screen bg-[#0a0a0a] text-white">
-                <Navbar />
-                <div className="pt-8 px-4 text-center">
-                    <h1 className="text-2xl font-bold mb-4">Loading...</h1>
-                </div>
-            </div>
-        );
-    }
-
-    // Check if user is admin (you can customize this logic)
-    const isAdmin = user?.publicMetadata?.isAdmin === true || user?.id === 'admin_user_id'; // Replace with your admin check
-
-    if (!user || !isAdmin) {
-        return (
-            <div className="min-h-screen bg-[#0a0a0a] text-white">
-                <Navbar />
-                <div className="pt-8 px-4 text-center">
-                    <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
-                    <p className="text-gray-400">You need admin privileges to access this page.</p>
-                </div>
-            </div>
-        );
-    }
+    // Mock admin check (in production, verify via API)
+    const isAdmin = true; // For development
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white">
