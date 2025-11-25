@@ -398,7 +398,7 @@ export default function Home() {
           key="landing"
           className="fixed inset-0 flex items-center justify-center z-10"
         >
-          <InteractiveParticles variant="simple" />
+          <InteractiveParticles variant="simple" id="particles-landing" />
           {/* Dark Background with Gradient */}
           {/* Floating Content */}
           <div className="relative z-10 text-center">

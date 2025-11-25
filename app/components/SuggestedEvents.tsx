@@ -15,7 +15,9 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
         queryFn: async () => {
             const res = await fetch(`/api/events?category=${category}`);
             if (!res.ok) throw new Error('Failed to fetch events');
-            return res.json();
+            const data = await res.json();
+            // Handle both array (legacy) and paginated response (new)
+            return (Array.isArray(data) ? data : data.data) || [];
         },
     });
 

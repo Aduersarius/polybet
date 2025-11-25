@@ -130,7 +130,12 @@ async function scenario_browseEvents(): Promise<void> {
     const eventsRes = await apiRequest('/api/events');
 
     if (eventsRes.success && eventsRes.data) {
-        cachedEvents = eventsRes.data;
+        // Handle both array (legacy) and paginated response (new)
+        if (Array.isArray(eventsRes.data)) {
+            cachedEvents = eventsRes.data;
+        } else if (eventsRes.data.data && Array.isArray(eventsRes.data.data)) {
+            cachedEvents = eventsRes.data.data;
+        }
     }
 
     await sleep(CONFIG.THINK_TIME_MS);

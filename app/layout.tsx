@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en" className={outfit.variable} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <Providers>
-          <InteractiveParticles variant="simple" interactive={false} />
+          <InteractiveParticles variant="simple" interactive={false} id="particles-global" />
           {children}
         </Providers>
         <Analytics />
