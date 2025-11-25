@@ -93,3 +93,4 @@ export const redis = new Proxy({} as Redis, {
         return typeof value === 'function' ? value.bind(instance) : value;
     }
 });
+

@@ -57,7 +57,7 @@ export async function GET(
                     }, {} as Record<string, string[]>)
                 }));
             },
-            { ttl: 20, prefix: 'event' }
+            { ttl: 30, prefix: 'event' } // Increased from 20s to 30s
         );
 
         return NextResponse.json(formattedMessages);

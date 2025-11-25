@@ -93,7 +93,7 @@ export async function GET(
                     betCount: bets.length,
                 };
             },
-            { ttl: 30, prefix: 'event' }
+            { ttl: 60, prefix: 'event' } // Increased from 30s to 60s
         );
 
         const queryTime = Date.now() - startTime;
