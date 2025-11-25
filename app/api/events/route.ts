@@ -38,51 +38,48 @@ export async function GET(request: Request) {
                 const { prisma } = await import('@/lib/prisma');
                 const where = category ? { categories: { has: category } } : {};
 
-                // Get total count for pagination
-                const totalCountPromise = prisma.event.count({
-                    where: {
-                        ...where,
-                        status: 'ACTIVE'
-                    }
-                });
-
-                // Simplified query without joins for faster performance
-                const queryPromise = prisma.event.findMany({
-                    where: {
-                        ...where,
-                        status: 'ACTIVE' // Only active events
-                    },
-                    orderBy: { createdAt: 'desc' },
-                    select: {
-                        id: true,
-                        title: true,
-                        categories: true,
-                        resolutionDate: true,
-                        imageUrl: true,
-                        createdAt: true,
-                        qYes: true,
-                        qNo: true,
-                        liquidityParameter: true,
-                        bets: {
-                            select: {
-                                amount: true,
-                                option: true
-                            }
+                // Use a single transaction to reduce connection usage
+                const result = await prisma.$transaction(async (tx) => {
+                    // Get total count
+                    const totalCount = await tx.event.count({
+                        where: {
+                            ...where,
+                            status: 'ACTIVE'
                         }
-                    },
-                    take: limit,
-                    skip: offset,
+                    });
+
+                    // Get events with bets
+                    const events = await tx.event.findMany({
+                        where: {
+                            ...where,
+                            status: 'ACTIVE'
+                        },
+                        orderBy: { createdAt: 'desc' },
+                        select: {
+                            id: true,
+                            title: true,
+                            categories: true,
+                            resolutionDate: true,
+                            imageUrl: true,
+                            createdAt: true,
+                            qYes: true,
+                            qNo: true,
+                            liquidityParameter: true,
+                            bets: {
+                                select: {
+                                    amount: true,
+                                    option: true
+                                }
+                            }
+                        },
+                        take: limit,
+                        skip: offset,
+                    });
+
+                    return { events, totalCount };
                 });
 
-                // Shorter timeout for faster failure
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Database query timeout')), 3000);
-                });
-
-                const [events, totalCount] = await Promise.all([
-                    Promise.race([queryPromise, timeoutPromise]) as Promise<any[]>,
-                    totalCountPromise
-                ]);
+                const { events, totalCount } = result;
 
                 const queryTime = Date.now() - startTime;
 
