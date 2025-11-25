@@ -4,6 +4,7 @@ import { RequestQueue } from '@/lib/queue';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 export const maxDuration = 10;
 
 export async function GET(request: NextRequest) {
@@ -13,14 +14,14 @@ export async function GET(request: NextRequest) {
     const method = request.method;
 
     try {
-        // Rate limiting temporarily disabled for stress testing
-        // const { searchLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-        // const identifier = getRateLimitIdentifier(request);
-        // const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
-        // if (rateLimitResponse) {
-        //     await PerformanceMonitor.logRequest(endpoint, method, Date.now() - startTime, false, 429);
-        //     return rateLimitResponse;
-        // }
+        // Rate limiting with IP bypass for 185.72.224.35
+        const { searchLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+        const identifier = getRateLimitIdentifier(request);
+        const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
+        if (rateLimitResponse) {
+            await PerformanceMonitor.logRequest(endpoint, method, Date.now() - startTime, false, 429);
+            return rateLimitResponse;
+        }
 
         const { getOrSet } = await import('@/lib/cache');
         const searchParams = request.nextUrl.searchParams;
@@ -41,29 +42,49 @@ export async function GET(request: NextRequest) {
                     async () => {
                         const { prisma } = await import('@/lib/prisma');
 
-                        // Use full-text search for better performance and relevance
-                        const searchQuery = query.trim().toLowerCase();
-                        const queryPromise = prisma.$queryRaw`
-                            SELECT
-                                id,
-                                title,
-                                categories,
-                                "resolutionDate",
-                                "imageUrl",
-                                ts_rank("searchVector", plainto_tsquery('english', ${searchQuery})) as rank
-                            FROM "Event"
-                            WHERE
-                                status = 'ACTIVE' AND
-                                "searchVector" @@ plainto_tsquery('english', ${searchQuery})
-                            ORDER BY rank DESC, "createdAt" DESC
-                            LIMIT 20
-                        `;
+                        // Temporary fallback: Use indexed contains search while debugging full-text search
+                        const searchPromise = prisma.event.findMany({
+                            where: {
+                                status: 'ACTIVE',
+                                OR: [
+                                    {
+                                        title: {
+                                            contains: query,
+                                            mode: 'insensitive',
+                                        },
+                                    },
+                                    {
+                                        description: {
+                                            contains: query,
+                                            mode: 'insensitive',
+                                        },
+                                    },
+                                    {
+                                        categories: {
+                                            has: query,
+                                        },
+                                    },
+                                ],
+                            },
+                            select: {
+                                id: true,
+                                title: true,
+                                categories: true,
+                                resolutionDate: true,
+                                imageUrl: true,
+                            },
+                            take: 20,
+                            orderBy: {
+                                createdAt: 'desc',
+                            },
+                        });
 
-                        const timeoutPromise = new Promise((_, reject) => {
+                        // Add timeout for the search query
+                        const timeoutPromise = new Promise<never>((_, reject) => {
                             setTimeout(() => reject(new Error('Database query timeout')), 8000);
                         });
 
-                        return await Promise.race([queryPromise, timeoutPromise]) as any[];
+                        return await Promise.race([searchPromise, timeoutPromise]);
                     },
                     { ttl: 300, prefix: 'search' } // Cache for 5 minutes (will be optimized to 30 min)
                 );

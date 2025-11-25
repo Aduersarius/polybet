@@ -10,11 +10,11 @@ import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 export async function POST(request: Request) {
     const startTime = Date.now();
 
-    // Rate limiting temporarily disabled for stress testing
-    // const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    // const identifier = getRateLimitIdentifier(request);
-    // const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
-    // if (rateLimitResponse) return rateLimitResponse;
+    // Rate limiting with IP bypass for 185.72.224.35
+    const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
 
     try {
         const body = await request.json();
