@@ -5,33 +5,91 @@ import Redis from 'ioredis';
 const globalForRedis = global as unknown as { redis: Redis | null };
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-console.log('🔴 Redis URL:', redisUrl);
 
-// Create Redis instance with error handling
+// Lazy initialization - only connect when actually used (not during build)
 let redisInstance: Redis | null = null;
+let connectionAttempted = false;
 
-try {
-    redisInstance = globalForRedis.redis || new Redis(redisUrl);
+function getRedisInstance(): Redis | null {
+    // Skip Redis during build time
+    if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
+        return null;
+    }
 
-    // Add error handling
-    redisInstance.on('error', (err) => {
-        console.error('🔴 Redis Error:', err.message);
-        // Don't throw, just log - make Redis optional
-    });
+    // Return existing instance
+    if (redisInstance) {
+        return redisInstance;
+    }
 
-    redisInstance.on('connect', () => {
-        console.log('🟢 Redis connected successfully');
-    });
+    // Return cached global instance in development
+    if (process.env.NODE_ENV !== 'production' && globalForRedis.redis) {
+        return globalForRedis.redis;
+    }
 
-    redisInstance.on('ready', () => {
-        console.log('🟢 Redis ready');
-    });
+    // Only attempt connection once
+    if (connectionAttempted) {
+        return null;
+    }
 
-    if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redisInstance;
-} catch (error) {
-    console.error('🔴 Failed to create Redis instance:', error);
-    redisInstance = null;
+    connectionAttempted = true;
+
+    try {
+        console.log('🔴 Redis URL:', redisUrl);
+        redisInstance = new Redis(redisUrl, {
+            maxRetriesPerRequest: 3,
+            retryStrategy(times) {
+                if (times > 3) {
+                    console.log('⚠️ Redis connection failed after 3 retries, disabling Redis');
+                    return null; // Stop retrying
+                }
+                return Math.min(times * 100, 2000);
+            },
+            lazyConnect: true, // Don't connect immediately
+        });
+
+        // Add error handling
+        redisInstance.on('error', (err) => {
+            console.error('🔴 Redis Error:', err.message);
+            // Don't throw, just log - make Redis optional
+        });
+
+        redisInstance.on('connect', () => {
+            console.log('🟢 Redis connected successfully');
+        });
+
+        redisInstance.on('ready', () => {
+            console.log('🟢 Redis ready');
+        });
+
+        // Attempt connection
+        redisInstance.connect().catch((err) => {
+            console.error('⚠️ Redis connection failed:', err.message);
+            redisInstance = null;
+        });
+
+        if (process.env.NODE_ENV !== 'production') {
+            globalForRedis.redis = redisInstance;
+        }
+
+        return redisInstance;
+    } catch (error) {
+        console.error('🔴 Failed to create Redis instance:', error);
+        return null;
+    }
 }
 
-// Export Redis instance (can be null if connection fails)
-export const redis = redisInstance;
+// Export getter function instead of direct instance
+export const redis = new Proxy({} as Redis, {
+    get(target, prop) {
+        const instance = getRedisInstance();
+        if (!instance) {
+            // Return no-op functions for common Redis methods
+            if (typeof prop === 'string' && ['get', 'set', 'setex', 'del', 'keys', 'publish', 'subscribe', 'on'].includes(prop)) {
+                return async () => null;
+            }
+            return undefined;
+        }
+        const value = (instance as any)[prop];
+        return typeof value === 'function' ? value.bind(instance) : value;
+    }
+});
