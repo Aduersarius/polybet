@@ -217,7 +217,7 @@ function textSummary(data, options) {
         output += `${indent}  Avg: ${metrics.http_req_duration.values.avg.toFixed(2)}ms\n`;
         output += `${indent}  p50: ${metrics.http_req_duration.values['p(50)'].toFixed(2)}ms\n`;
         output += `${indent}  p95: ${metrics.http_req_duration.values['p(95)'].toFixed(2)}ms\n`;
-        output += `${indent}  p99: ${metrics.http_req_duration.values['p(99)'].toFixed(2)}ms\n`;
+        output += `${indent}  p99: ${(metrics.http_req_duration.values['p(99)'] || 0).toFixed(2)}ms\n`;
         output += `${indent}  Max: ${metrics.http_req_duration.values.max.toFixed(2)}ms\n\n`;
     }
 
