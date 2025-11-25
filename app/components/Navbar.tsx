@@ -1,12 +1,11 @@
 'use client';
-import { UserButton, SignInButton, SignUpButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
-import { useUser } from '@clerk/nextjs';
+import { Plus, Wallet } from 'lucide-react';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -30,7 +29,6 @@ interface NavbarProps {
 }
 
 export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarProps) {
-    const { user, isLoaded } = useUser();
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
@@ -46,60 +44,34 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
     };
 
     return (
-        <motion.nav
-            initial={{ y: -100 }}
-            animate={{ y: 0 }}
-            transition={{ duration: 0.5 }}
-            className={cn(
-                "fixed top-0 w-full z-50 transition-all duration-300",
-                scrolled ? "bg-black/50 backdrop-blur-md border-b border-white/10" : "bg-transparent"
-            )}
-        >
-            {/* Top Row: Logo, Search, Wallet - Constrained */}
-            <div className="max-w-7xl mx-auto px-4 py-3">
-                <div className="flex justify-between items-center gap-4">
-                    <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
-                        <img src="/logo-option5-advanced-10cuts.svg" alt="PolyBet logo" className="h-8 w-8" />
-                        <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-                            PolyBet
-                        </span>
+        <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16">
+                    {/* Logo */}
+                    <Link href="/" className="flex items-center gap-2 group">
+                        <img src="/logo.png" alt="PolyBet Logo" className="h-10 w-auto object-contain group-hover:scale-105 transition-transform" />
                     </Link>
 
-                    <div className="flex-1 max-w-2xl">
+                    {/* Search */}
+                    <div className="flex-1 max-w-md mx-8 hidden md:block">
                         <SearchBar onSearch={handleSearch} />
                     </div>
 
-                    <div className="shrink-0 flex items-center gap-4">
-                        {isLoaded && (
-                            <>
-                                {user ? (
-                                    <>
-                                        <NotificationBell />
-                                        <UserButton
-                                            appearance={{
-                                                elements: {
-                                                    avatarBox: "w-10 h-10",
-                                                    userButtonAvatarBox: "w-10 h-10"
-                                                }
-                                            }}
-                                        />
-                                    </>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <SignInButton mode="modal">
-                                            <button className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors">
-                                                Sign In
-                                            </button>
-                                        </SignInButton>
-                                        <SignUpButton mode="modal">
-                                            <button className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg font-medium transition-colors">
-                                                Sign Up
-                                            </button>
-                                        </SignUpButton>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                    {/* Right Side */}
+                    <div className="flex items-center gap-4">
+                        <button
+                            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
+                        >
+                            <Wallet className="w-4 h-4" />
+                            Top Up
+                        </button>
+
+                        <NotificationBell />
+
+                        {/* User Profile (Mock) */}
+                        <Link href="/user/dev-user" className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                            DV
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -139,6 +111,6 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                     </div>
                 </div>
             )}
-        </motion.nav>
+        </nav>
     );
 }

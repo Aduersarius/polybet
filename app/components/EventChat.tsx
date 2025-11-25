@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActivityList } from './ActivityList';
 import { UserHoverCard } from './UserHoverCard';
@@ -38,7 +37,9 @@ export function EventChat({ eventId }: EventChatProps) {
     const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
-    const { user, isLoaded } = useUser();
+    // Mock user for dev
+    const user = { id: 'dev-user', username: 'Dev User' };
+    const isLoaded = true;
     const queryClient = useQueryClient();
 
     // Fetch messages

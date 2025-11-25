@@ -11,13 +11,9 @@ export async function POST(request: Request) {
     const startTime = Date.now();
 
     try {
-        // Allow anonymous betting - no authentication required
-        const { auth } = await import('@clerk/nextjs/server');
-        const { userId: clerkUserId } = await auth();
-
         const body = await request.json();
         // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
-        const { eventId, amount } = body;
+        const { eventId, amount, userId: bodyUserId } = body;
         const option = body.option || body.outcome;
 
         if (!eventId || !option || !amount) {
@@ -55,27 +51,29 @@ export async function POST(request: Request) {
         const newOdds = calculateLMSROdds(newQYes, newQNo, b);
 
         // 3. Database Transaction (Update Event + Create Bet)
-        // Get or create user (anonymous if not logged in)
-        let user = null;
-        if (clerkUserId) {
-            // Logged in user
-            user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
-            if (!user) {
-                user = await prisma.user.create({
-                    data: {
-                        clerkId: clerkUserId,
-                        // Additional user data can be populated from Clerk if needed
-                    }
-                });
-            }
-        } else {
-            // Anonymous user - create new anonymous user
+        // Get or create user
+        let user;
+        const targetUserId = bodyUserId || 'dev-user'; // Default to dev-user if not provided
+
+        // Try to find user by ID or create if it's the dev-user
+        user = await prisma.user.findUnique({ where: { id: targetUserId } });
+
+        if (!user && targetUserId === 'dev-user') {
+            user = await prisma.user.create({
+                data: {
+                    id: 'dev-user',
+                    username: 'Dev User',
+                    address: '0xDevUser',
+                    clerkId: 'dev-user-clerk-id'
+                }
+            });
+        } else if (!user) {
+            // Fallback for other IDs or anonymous
             const anonymousId = `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             user = await prisma.user.create({
                 data: {
-                    address: anonymousId, // Use address field for anonymous users
+                    address: anonymousId,
                     username: `Anonymous_${anonymousId.slice(-8)}`,
-                    // No clerkId for anonymous users
                 }
             });
         }
@@ -86,7 +84,7 @@ export async function POST(request: Request) {
                 data: {
                     qYes: newQYes,
                     qNo: newQNo,
-                    yesOdds: newOdds.yesPrice, // Store as probability (0-1) or percentage? Schema says Float. Usually 0.55
+                    yesOdds: newOdds.yesPrice,
                     noOdds: newOdds.noPrice
                 }
             }),

@@ -57,37 +57,35 @@ export async function GET(
     }
 }
 
-export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
     try {
-        const { auth } = await import('@clerk/nextjs/server');
-        const { userId: clerkUserId } = await auth();
-
-        if (!clerkUserId) {
+        // Mock auth for dev
+        const userId = 'dev-user';
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = await params;
-        const body = await request.json();
+        const { id } = params;
+        const body = await req.json();
         const { text, parentId } = body;
-        console.log(`[API] Posting message for event: ${id}, user: ${clerkUserId}, text: ${text}`);
+        console.log(`[API] Posting message for event: ${id}, user: ${userId}, text: ${text}`);
 
         if (!text) {
             return NextResponse.json({ error: 'Missing text field' }, { status: 400 });
         }
 
-        // Get or create user with Clerk ID
+        // Get or create user
         let user = await prisma.user.findUnique({
-            where: { clerkId: clerkUserId }
+            where: { id: userId }
         });
 
-        if (!user) {
+        if (!user && userId === 'dev-user') {
             user = await prisma.user.create({
                 data: {
-                    clerkId: clerkUserId,
-                    // Additional user data can be populated from Clerk if needed
+                    id: 'dev-user',
+                    username: 'Dev User',
+                    address: '0xDevUser',
+                    clerkId: 'dev-user-clerk-id'
                 }
             });
         }
