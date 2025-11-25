@@ -1,4 +1,3 @@
-```typescript
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { RequestQueue } from '@/lib/queue';
@@ -26,23 +25,20 @@ export async function GET(
         const { getOrSet } = await import('@/lib/cache');
         const { id: eventId } = await params;
         const { searchParams } = new URL(request.url);
-        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Default 20, max 100
-        const cursor = searchParams.get('cursor'); // For pagination
-
-        console.log(`[API] Fetching bets for event: ${ eventId }, limit: ${ limit }, cursor: ${ cursor } `);
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+        const cursor = searchParams.get('cursor');
 
         // Use request queuing for database operations
         const result = await RequestQueue.enqueue(
-            `bets:${ eventId } `,
+            `bets:${eventId}`,
             async () => {
-                const cacheKey = `event:${ eventId }: bets:${ limit }:${ cursor || 'latest' } `;
+                const cacheKey = `event:${eventId}:bets:${limit}:${cursor || 'latest'}`;
 
                 return await getOrSet(
                     cacheKey,
                     async () => {
                         const whereClause: any = { eventId };
 
-                        // Add cursor-based pagination
                         if (cursor) {
                             whereClause.createdAt = { lt: new Date(cursor) };
                         }
@@ -50,7 +46,7 @@ export async function GET(
                         const bets = await prisma.bet.findMany({
                             where: whereClause,
                             orderBy: { createdAt: 'desc' },
-                            take: limit + 1, // Take one extra to check if there are more
+                            take: limit + 1,
                             include: {
                                 user: {
                                     select: {
@@ -74,17 +70,13 @@ export async function GET(
                             totalLoaded: betsToReturn.length
                         };
                     },
-                    { ttl: 30, prefix: 'bets' } // 30 second cache for bet data
+                    { ttl: 30, prefix: 'bets' }
                 );
             }
         );
 
-        const duration = Date.now() - startTime;
-        await PerformanceMonitor.logRequest('bets', 'GET', duration, true, 200);
-
         return NextResponse.json(result);
     } catch (error) {
-        const duration = Date.now() - startTime;
         console.error('Error fetching bets:', error);
 
         let statusCode = 500;
@@ -94,8 +86,6 @@ export async function GET(
             statusCode = 503;
             errorMessage = 'Service temporarily unavailable - too many requests';
         }
-
-        await PerformanceMonitor.logRequest('bets', 'GET', duration, false, statusCode);
 
         return NextResponse.json(
             { error: errorMessage },
