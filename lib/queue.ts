@@ -33,12 +33,23 @@ export class RequestQueue {
 
         try {
             // Check current processing count
-            const processing = await redis.incr(processingKey);
-            await redis.expire(processingKey, 60); // Auto-cleanup
+            // Wrap in try-catch because Redis might be a proxy without all methods
+            let processing: number;
+            try {
+                processing = await redis.incr(processingKey);
+                await redis.expire(processingKey, 60); // Auto-cleanup
+            } catch (redisError) {
+                console.warn('⚠️ Redis operation failed, falling back to direct execution:', redisError);
+                return await fn();
+            }
 
             if (processing > this.MAX_CONCURRENT) {
                 // Too many concurrent requests, queue or reject
-                await redis.decr(processingKey);
+                try {
+                    await redis.decr(processingKey);
+                } catch (e) {
+                    // Ignore decrement error
+                }
 
                 if (Date.now() - startTime > timeout) {
                     throw new Error('Request timeout while waiting in queue');
@@ -61,9 +72,23 @@ export class RequestQueue {
 
             return result;
 
+        } catch (error) {
+            // If it's a queue/timeout error, rethrow it
+            if ((error as any).statusCode === 503 || (error as Error).message.includes('timeout')) {
+                throw error;
+            }
+            // For other errors (like Redis failures), log and execute anyway
+            console.warn('⚠️ Queue error, executing directly:', error);
+            return await fn();
         } finally {
-            // Always decrement the counter
-            await redis.decr(processingKey);
+            // Always try to decrement the counter
+            try {
+                if (redis) {
+                    await redis.decr(processingKey);
+                }
+            } catch (e) {
+                // Ignore errors in cleanup
+            }
         }
     }
 
