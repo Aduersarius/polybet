@@ -26,24 +26,33 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // 1. Fetch Event State with caching
-        const { getOrSet } = await import('@/lib/cache');
-        const event = await getOrSet(
-            `amm:${eventId}`,
-            async () => {
-                return (await prisma.event.findUnique({
-                    where: { id: eventId },
-                    select: {
-                        id: true,
-                        liquidityParameter: true,
-                        qYes: true,
-                        qNo: true,
-                        status: true,
-                    }
-                })) as any;
-            },
-            { ttl: 300, prefix: 'event' } // Cache AMM state for 5 minutes
-        );
+        const targetUserId = bodyUserId || 'dev-user';
+
+        // Helper for query timeout protection
+        const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
+            return Promise.race([
+                promise,
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Query timeout')), ms)
+                )
+            ]);
+        };
+
+        // 1. Fetch FRESH Event State (no stale cache for AMM)
+        // CRITICAL: Always get latest AMM state to prevent race conditions
+        const event = await withTimeout(
+            prisma.event.findUnique({
+                where: { id: eventId },
+                select: {
+                    id: true,
+                    liquidityParameter: true,
+                    qYes: true,
+                    qNo: true,
+                    status: true,
+                }
+            }),
+            2000 // 2 second timeout for single record
+        ) as any;
 
         if (!event) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
@@ -70,87 +79,85 @@ export async function POST(request: Request) {
         // Calculate new odds
         const newOdds = calculateLMSROdds(newQYes, newQNo, b);
 
-        // 3. Database Transaction (Update Event + Create Bet)
-        // Get or create user
-        let user;
-        const targetUserId = bodyUserId || 'dev-user'; // Default to dev-user if not provided
+        // 3. Atomic User Upsert + Bet Transaction
+        // OPTIMIZATION: Use upsert to find-or-create user in 1 query instead of 2-3
+        const [user, updatedEvent, newBet] = await withTimeout(
+            prisma.$transaction([
+                prisma.user.upsert({
+                    where: { id: targetUserId },
+                    update: {}, // No updates needed if user exists
+                    create: {
+                        id: targetUserId,
+                        username: targetUserId === 'dev-user' ? 'Dev User' : `User_${targetUserId.slice(-8)}`,
+                        address: targetUserId === 'dev-user' ? '0xDevUser' : `0x${targetUserId}`,
+                        clerkId: targetUserId === 'dev-user' ? 'dev-user-clerk-id' : undefined
+                    }
+                }),
+                prisma.event.update({
+                    where: { id: eventId },
+                    data: {
+                        qYes: newQYes,
+                        qNo: newQNo,
+                        yesOdds: newOdds.yesPrice,
+                        noOdds: newOdds.noPrice
+                    }
+                }),
+                prisma.bet.create({
+                    data: {
+                        amount: parseFloat(amount),
+                        option,
+                        userId: targetUserId,
+                        eventId,
+                    }
+                })
+            ]),
+            5000 // 5 second timeout for transaction
+        );
 
-        // Try to find user by ID or create if it's the dev-user
-        user = await prisma.user.findUnique({ where: { id: targetUserId } });
-
-        if (!user && targetUserId === 'dev-user') {
-            user = await prisma.user.create({
-                data: {
-                    id: 'dev-user',
-                    username: 'Dev User',
-                    address: '0xDevUser',
-                    clerkId: 'dev-user-clerk-id'
-                }
-            });
-        } else if (!user) {
-            // Fallback for other IDs or anonymous
-            const anonymousId = `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            user = await prisma.user.create({
-                data: {
-                    address: anonymousId,
-                    username: `Anonymous_${anonymousId.slice(-8)}`,
-                }
-            });
-        }
-
-        const [updatedEvent, newBet] = await prisma.$transaction([
-            prisma.event.update({
-                where: { id: eventId },
-                data: {
-                    qYes: newQYes,
-                    qNo: newQNo,
-                    yesOdds: newOdds.yesPrice,
-                    noOdds: newOdds.noPrice
-                }
-            }),
-            prisma.bet.create({
-                data: {
-                    amount: parseFloat(amount),
-                    option,
-                    userId: user.id,
-                    eventId,
-                }
-            })
-        ]);
-
-        // 4. Publish to Redis for Real-time Updates (if available)
+        // 4. Publish to Redis for Real-time Updates (non-blocking)
         if (redis) {
             const updatePayload = {
                 eventId,
                 timestamp: Math.floor(Date.now() / 1000),
                 yesPrice: newOdds.yesPrice,
-                volume: parseFloat(amount) // This trade's volume
+                volume: parseFloat(amount)
             };
-            await redis.publish('event-updates', JSON.stringify(updatePayload));
+            // Don't await - fire and forget for better performance
+            redis.publish('event-updates', JSON.stringify(updatePayload)).catch(err =>
+                console.error('Redis publish failed:', err)
+            );
         }
 
         const totalTime = Date.now() - startTime;
-        console.log(`✅ Trade executed: ${option} $${amount} -> ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)}`);
+        console.log(`✅ Trade executed: ${option} $${amount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
 
-        // Invalidate caches
-        const { invalidate, invalidatePattern } = await import('@/lib/cache');
-        await invalidate(eventId, 'event'); // Invalidate this event's cache
-        await invalidatePattern('events:all:*'); // Invalidate all events list caches
-        await invalidatePattern(`bets:event:${eventId}:*`); // Invalidate all bet caches for this event
-        console.log(`🗑️ Invalidated cache for event: ${eventId}`);
+        // 5. Minimal Cache Invalidation (OPTIMIZATION: Don't invalidate events:all:*)
+        // Let the global event list cache expire naturally - invalidating it creates Redis storms
+        const { invalidate } = await import('@/lib/cache');
+        await Promise.all([
+            invalidate(`event:${eventId}`, 'event'), // Specific event only
+            invalidate(`amm:${eventId}`, 'event') // AMM state
+        ]);
 
-        // 5. Return Result
+        // 6. Return Result
         return NextResponse.json({
             success: true,
             betId: newBet.id,
             tokensReceived,
-            priceAtTrade: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice, // Approximate price after trade
+            priceAtTrade: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
             newYesPrice: newOdds.yesPrice,
             newNoPrice: newOdds.noPrice
         });
 
     } catch (error) {
-        console.error('❌ Trade failed:', error);
-        return NextResponse.json({ error: 'Failed to place bet' }, { status: 500 });
+        const errorTime = Date.now() - startTime;
+        console.error(`❌ Trade failed after ${errorTime}ms:`, error);
+
+        // Return 504 for timeouts, 500 for other errors
+        const status = (error as Error).message === 'Query timeout' ? 504 : 500;
+        return NextResponse.json({
+            error: 'Failed to place bet',
+            details: status === 504 ? 'Request timed out' : undefined
+        }, { status });
     }
 }

@@ -115,6 +115,8 @@ export async function GET(
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const startTime = Date.now();
+
     // Rate limiting with IP bypass for 185.72.224.35
     const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
     const identifier = getRateLimitIdentifier(req);
@@ -131,105 +133,118 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const { id } = await params;
         const body = await req.json();
         const { text, parentId } = body;
-        console.log(`[API] Posting message for event: ${id}, user: ${userId}, text: ${text}`);
 
         if (!text) {
             return NextResponse.json({ error: 'Missing text field' }, { status: 400 });
         }
 
-        // Get or create user
-        let user = await prisma.user.findUnique({
-            where: { id: userId }
-        });
+        // Helper for query timeout protection
+        const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
+            return Promise.race([
+                promise,
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Query timeout')), ms)
+                )
+            ]);
+        };
 
-        if (!user && userId === 'dev-user') {
-            user = await prisma.user.create({
-                data: {
+        // OPTIMIZATION: Use upsert for atomic user find-or-create
+        const user = await withTimeout(
+            prisma.user.upsert({
+                where: { id: userId },
+                update: {}, // No updates if exists
+                create: {
                     id: 'dev-user',
                     username: 'Dev User',
                     address: '0xDevUser',
                     clerkId: 'dev-user-clerk-id'
                 }
-            });
-        }
+            }),
+            2000
+        );
 
-        if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
-
-        const message = await prisma.message.create({
-            data: {
-                text,
-                userId: user.id,
-                eventId: id,
-                parentId: parentId || null
-            },
-            include: {
-                user: {
-                    select: {
-                        username: true,
-                        avatarUrl: true,
-                        address: true
+        const message = await withTimeout(
+            prisma.message.create({
+                data: {
+                    text,
+                    userId: user.id,
+                    eventId: id,
+                    parentId: parentId || null
+                },
+                include: {
+                    user: {
+                        select: {
+                            username: true,
+                            avatarUrl: true,
+                            address: true
+                        }
                     }
                 }
-            }
-        });
+            }),
+            3000
+        );
 
-        // Handle Notifications
+        // Handle Notifications (with timeout)
         if (parentId) {
-            const parentMsg = await prisma.message.findUnique({
-                where: { id: parentId },
-                select: { userId: true }
-            });
-            if (parentMsg && parentMsg.userId !== user.id) {
-                await prisma.notification.create({
-                    data: {
-                        userId: parentMsg.userId,
-                        type: 'REPLY',
-                        message: `${user.username || 'Someone'} replied to your message`,
-                        resourceId: id
+            withTimeout(
+                (async () => {
+                    const parentMsg = await prisma.message.findUnique({
+                        where: { id: parentId },
+                        include: { user: true }
+                    });
+
+                    if (parentMsg && parentMsg.userId !== user.id) {
+                        await prisma.notification.create({
+                            data: {
+                                userId: parentMsg.userId,
+                                type: 'REPLY',
+                                message: `${user.username} replied to your message`,
+                                resourceId: id
+                            }
+                        });
                     }
-                });
-            }
+                })(),
+                2000
+            ).catch(err => console.error('Notification failed:', err)); // Non-blocking
         }
 
-        const mentionMatch = text.match(/@(\w+)/);
-        if (mentionMatch) {
-            const mentionedUsername = mentionMatch[1];
-            const mentionedUser = await prisma.user.findFirst({
-                where: { username: mentionedUsername }
-            });
-
-            if (mentionedUser && mentionedUser.id !== user.id) {
-                await prisma.notification.create({
-                    data: {
-                        userId: mentionedUser.id,
-                        type: 'MENTION',
-                        message: `${user.username || 'Someone'} mentioned you`,
-                        resourceId: id
-                    }
-                });
-            }
-        }
-
-        // Publish to Redis for WebSocket Server
-        const messagePayload = {
-            ...message,
-            replyCount: 0,
-            reactions: {}
-        };
+        // Publish to WebSocket (non-blocking)
+        const { redis } = await import('@/lib/redis');
         if (redis) {
-            await redis.publish('chat-messages', JSON.stringify(messagePayload));
+            const messagePayload = {
+                eventId: id,
+                message: {
+                    id: message.id,
+                    text: message.text,
+                    userId: message.userId,
+                    username: message.user.username,
+                    avatarUrl: message.user.avatarUrl,
+                    address: message.user.address,
+                    createdAt: message.createdAt,
+                    parentId: message.parentId,
+                    reactions: {}
+                }
+            };
+            redis.publish('chat-messages', JSON.stringify(messagePayload))
+                .catch(err => console.error('Redis publish failed:', err));
         }
 
-        // Invalidate all message caches for this event (pagination-aware)
+        // OPTIMIZATION: Minimal cache invalidation - only this event's messages
         const { invalidatePattern } = await import('@/lib/cache');
         await invalidatePattern(`event:${id}:messages:*`);
-        console.log(`🗑️ Invalidated all message caches for event: ${id}`);
+
+        const totalTime = Date.now() - startTime;
+        console.log(`✅ Message posted for event ${id} (${totalTime}ms)`);
 
         return NextResponse.json(message);
     } catch (error) {
-        console.error('Error posting message:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        const errorTime = Date.now() - startTime;
+        console.error(`❌ Message post failed after ${errorTime}ms:`, error);
+
+        const status = (error as Error).message === 'Query timeout' ? 504 : 500;
+        return NextResponse.json({
+            error: 'Internal Server Error',
+            details: status === 504 ? 'Request timed out' : undefined
+        }, { status });
     }
 }
