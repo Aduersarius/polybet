@@ -112,6 +112,12 @@ export async function POST(request: Request) {
         const totalTime = Date.now() - startTime;
         console.log(`✅ Trade executed: ${option} $${amount} -> ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)}`);
 
+        // Invalidate caches
+        const { invalidate, invalidatePattern } = await import('@/lib/cache');
+        await invalidate(eventId, 'event'); // Invalidate this event's cache
+        await invalidatePattern('events:all:*'); // Invalidate all events list caches
+        console.log(`🗑️ Invalidated cache for event: ${eventId}`);
+
         // 5. Return Result
         return NextResponse.json({
             success: true,

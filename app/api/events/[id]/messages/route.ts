@@ -10,45 +10,55 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
-        console.log(`[API] Fetching messages for event: ${id}`);
-        const messages = await prisma.message.findMany({
-            where: { eventId: id },
-            include: {
-                user: {
-                    select: {
-                        username: true,
-                        avatarUrl: true,
-                        address: true,
-                        bets: {
-                            where: { eventId: id },
-                            select: {
-                                option: true,
-                                amount: true
-                            }
-                        }
-                    }
-                },
-                reactions: {
-                    include: {
-                        user: { select: { address: true } }
-                    }
-                },
-                replies: { select: { id: true } }
-            },
-            orderBy: { createdAt: 'asc' },
-        });
 
-        // Transform for frontend
-        const formattedMessages = messages.map((msg: any) => ({
-            ...msg,
-            replyCount: msg.replies.length,
-            reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {
-                if (!acc[r.type]) acc[r.type] = [];
-                acc[r.type].push(r.user.address);
-                return acc;
-            }, {} as Record<string, string[]>)
-        }));
+        console.log(`[API] Fetching messages for event: ${id}`);
+
+        // Use Redis caching with 20s TTL
+        const formattedMessages = await getOrSet(
+            `${id}:messages`,
+            async () => {
+                const messages = await prisma.message.findMany({
+                    where: { eventId: id },
+                    include: {
+                        user: {
+                            select: {
+                                username: true,
+                                avatarUrl: true,
+                                address: true,
+                                bets: {
+                                    where: { eventId: id },
+                                    select: {
+                                        option: true,
+                                        amount: true
+                                    }
+                                }
+                            }
+                        },
+                        reactions: {
+                            include: {
+                                user: { select: { address: true } }
+                            }
+                        },
+                        replies: { select: { id: true } }
+                    },
+                    orderBy: { createdAt: 'asc' },
+                });
+
+                // Transform for frontend
+                return messages.map((msg: any) => ({
+                    ...msg,
+                    replyCount: msg.replies.length,
+                    reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {
+                        if (!acc[r.type]) acc[r.type] = [];
+                        acc[r.type].push(r.user.address);
+                        return acc;
+                    }, {} as Record<string, string[]>)
+                }));
+            },
+            { ttl: 20, prefix: 'event' }
+        );
 
         return NextResponse.json(formattedMessages);
     } catch (error) {
@@ -158,6 +168,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         if (redis) {
             await redis.publish('chat-messages', JSON.stringify(messagePayload));
         }
+
+        // Invalidate messages cache for this event
+        const { invalidate } = await import('@/lib/cache');
+        await invalidate(`${id}:messages`, 'event');
+        console.log(`🗑️ Invalidated messages cache for event: ${id}`);
 
         return NextResponse.json(message);
     } catch (error) {
