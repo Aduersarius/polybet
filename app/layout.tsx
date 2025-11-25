@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { GlobalParticles } from "./components/GlobalParticles";
+import { InteractiveParticles } from "./components/InteractiveParticles";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en" className={outfit.variable} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <Providers>
-          <GlobalParticles />
+          <InteractiveParticles variant="simple" interactive={false} />
           {children}
         </Providers>
         <Analytics />
