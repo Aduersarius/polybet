@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface AdminEvent {
@@ -20,18 +19,16 @@ interface AdminEvent {
 }
 
 export function AdminEventList() {
-    const { user } = useUser();
+    const adminId = 'dev-user'; // Mock admin ID
     const queryClient = useQueryClient();
 
     const { data: events, isLoading } = useQuery({
-        queryKey: ['admin', 'events', user?.id],
+        queryKey: ['admin', 'events', adminId],
         queryFn: async () => {
-            if (!user?.id) return [];
-            const res = await fetch(`/api/admin/events?adminId=${user.id}`);
+            const res = await fetch(`/api/admin/events?adminId=${adminId}`);
             if (!res.ok) throw new Error('Failed to fetch events');
             return res.json() as Promise<AdminEvent[]>;
         },
-        enabled: !!user?.id,
     });
 
     const updateEventMutation = useMutation({
@@ -39,7 +36,7 @@ export function AdminEventList() {
             const res = await fetch('/api/admin/events', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminId: user?.id, eventId, action, value }),
+                body: JSON.stringify({ adminId, eventId, action, value }),
             });
             if (!res.ok) throw new Error('Failed to update event');
             return res.json();
