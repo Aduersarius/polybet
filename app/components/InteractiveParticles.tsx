@@ -9,9 +9,15 @@ interface InteractiveParticlesProps {
     interactive?: boolean;
     zIndex?: number;
     id?: string;
+    variant?: 'default' | 'simple';
 }
 
-export function InteractiveParticles({ interactive = true, zIndex = 0, id = "tsparticles" }: InteractiveParticlesProps) {
+export function InteractiveParticles({
+    interactive = true,
+    zIndex = 0,
+    id = "tsparticles",
+    variant = 'default'
+}: InteractiveParticlesProps) {
     const [init, setInit] = useState(false);
 
     useEffect(() => {
@@ -23,6 +29,8 @@ export function InteractiveParticles({ interactive = true, zIndex = 0, id = "tsp
     }, []);
 
     if (!init) return null;
+
+    const isSimple = variant === 'simple';
 
     return (
         <Particles
@@ -40,7 +48,7 @@ export function InteractiveParticles({ interactive = true, zIndex = 0, id = "tsp
                     events: {
                         onHover: {
                             enable: interactive,
-                            mode: "repulse", // Sparks fly away
+                            mode: "repulse",
                         },
                         resize: {
                             enable: true,
@@ -56,33 +64,34 @@ export function InteractiveParticles({ interactive = true, zIndex = 0, id = "tsp
                 },
                 particles: {
                     color: {
-                        value: ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#ffffff"], // Vivid + White
+                        value: isSimple
+                            ? "#ffffff"
+                            : ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#ffffff"],
                     },
                     links: {
-                        enable: false, // No links for sparks
+                        enable: false,
                     },
                     move: {
-                        direction: "top", // Flowing upwards
+                        direction: isSimple ? "none" : "top",
                         enable: true,
                         outModes: {
-                            default: "out", // Particles flow out of screen
+                            default: "out",
                         },
-                        random: false,
-                        speed: 0.5, // Gentle flow
-                        straight: false,
+                        random: isSimple, // Random movement for simple, straight for default
+                        speed: 0.5,
+                        straight: !isSimple,
                     },
                     number: {
                         density: {
                             enable: true,
-                            // area: 800,
                         },
-                        value: 70, // Optimal count
+                        value: isSimple ? 100 : 140,
                     },
                     opacity: {
-                        value: { min: 0.3, max: 0.8 },
+                        value: { min: isSimple ? 0.1 : 0.3, max: isSimple ? 0.5 : 0.8 },
                         animation: {
                             enable: true,
-                            speed: 1, // Gentle flicker
+                            speed: 1,
                             sync: false,
                             mode: "auto",
                             startValue: "random",
@@ -95,7 +104,6 @@ export function InteractiveParticles({ interactive = true, zIndex = 0, id = "tsp
                     size: {
                         value: { min: 1, max: 3 },
                     },
-                    // Add a trail effect for "spark" feel?
                     effect: {
                         fill: true,
                         close: true
