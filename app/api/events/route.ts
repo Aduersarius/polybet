@@ -18,97 +18,107 @@ export async function GET(request: Request) {
     });
 
     try {
-        const { prisma } = await import('@/lib/prisma');
-        const where = category ? { categories: { has: category } } : {};
+        const { getOrSet } = await import('@/lib/cache');
+        const cacheKey = category ? `all:${category}` : 'all';
 
-        // Simplified query without joins for faster performance
-        const queryPromise = prisma.event.findMany({
-            where: {
-                ...where,
-                status: 'ACTIVE' // Only active events
-            },
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                title: true,
-                categories: true,
-                resolutionDate: true,
-                imageUrl: true,
-                createdAt: true,
-                qYes: true,
-                qNo: true,
-                liquidityParameter: true,
-                bets: {
+        // Use Redis caching with 60s TTL
+        const eventsWithStats = await getOrSet(
+            cacheKey,
+            async () => {
+                const { prisma } = await import('@/lib/prisma');
+                const where = category ? { categories: { has: category } } : {};
+
+                // Simplified query without joins for faster performance
+                const queryPromise = prisma.event.findMany({
+                    where: {
+                        ...where,
+                        status: 'ACTIVE' // Only active events
+                    },
+                    orderBy: { createdAt: 'desc' },
                     select: {
-                        amount: true,
-                        option: true
-                    }
+                        id: true,
+                        title: true,
+                        categories: true,
+                        resolutionDate: true,
+                        imageUrl: true,
+                        createdAt: true,
+                        qYes: true,
+                        qNo: true,
+                        liquidityParameter: true,
+                        bets: {
+                            select: {
+                                amount: true,
+                                option: true
+                            }
+                        }
+                    },
+                    take: 20, // Smaller limit for speed
+                });
+
+                // Shorter timeout for faster failure
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Database query timeout')), 3000);
+                });
+
+                const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
+                const queryTime = Date.now() - startTime;
+
+                console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`);
+
+                // Log events fetch to Braintrust
+                try {
+                    const { logEventAction } = await import('@/lib/braintrust');
+                    await logEventAction('fetch_events', 'all', undefined, {
+                        category: category || 'all',
+                        eventCount: events.length,
+                        queryTime,
+                        success: true,
+                    });
+                } catch (logError) {
+                    console.warn('Braintrust logging failed:', logError);
                 }
+
+                return events.map(event => {
+                    const volume = event.bets.reduce((sum: number, bet: any) => sum + bet.amount, 0);
+                    const betCount = event.bets.length;
+
+                    // Use pre-calculated AMM state from the Event model
+                    let yesOdds = 0.5;
+                    let noOdds = 0.5;
+
+                    const qYes = event.qYes || 0;
+                    const qNo = event.qNo || 0;
+                    const b = event.liquidityParameter || 10000.0;
+
+                    if (qYes > 0 || qNo > 0) {
+                        // Calculate odds using actual token positions
+                        const diff = (qNo - qYes) / b;
+                        const yesPrice = 1 / (1 + Math.exp(diff));
+                        yesOdds = yesPrice;
+                        noOdds = 1 - yesOdds;
+                    } else {
+                        // Mock odds logic for demo if no bets
+                        const mockScenarios = [
+                            { yes: 0.60 }, { yes: 0.40 }, { yes: 0.70 }, { yes: 0.30 }, { yes: 0.50 },
+                            { yes: 0.75 }, { yes: 0.25 }, { yes: 0.55 }, { yes: 0.45 }, { yes: 0.65 }
+                        ];
+                        const scenarioIndex = event.id.split('').reduce((sum: number, char: string) => sum + char.charCodeAt(0), 0) % mockScenarios.length;
+                        yesOdds = mockScenarios[scenarioIndex].yes;
+                        noOdds = 1 - yesOdds;
+                    }
+
+                    const { bets, qYes: _, qNo: __, liquidityParameter: ___, ...eventData } = event; // Remove bets and AMM state from response
+                    return {
+                        ...eventData,
+                        volume,
+                        betCount,
+                        yesOdds,
+                        noOdds
+                    };
+                });
             },
-            take: 20, // Smaller limit for speed
-        });
-
-        // Shorter timeout for faster failure
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Database query timeout')), 3000);
-        });
-
-        const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
-        const queryTime = Date.now() - startTime;
-
-        console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`);
-
-        // Log events fetch to Braintrust
-        try {
-            const { logEventAction } = await import('@/lib/braintrust');
-            await logEventAction('fetch_events', 'all', undefined, {
-                category: category || 'all',
-                eventCount: events.length,
-                queryTime,
-                success: true,
-            });
-        } catch (logError) {
-            console.warn('Braintrust logging failed:', logError);
-        }
-
-        const eventsWithStats = events.map(event => {
-            const volume = event.bets.reduce((sum: number, bet: any) => sum + bet.amount, 0);
-            const betCount = event.bets.length;
-
-            // Use pre-calculated AMM state from the Event model
-            let yesOdds = 0.5;
-            let noOdds = 0.5;
-
-            const qYes = event.qYes || 0;
-            const qNo = event.qNo || 0;
-            const b = event.liquidityParameter || 10000.0;
-
-            if (qYes > 0 || qNo > 0) {
-                // Calculate odds using actual token positions
-                const diff = (qNo - qYes) / b;
-                const yesPrice = 1 / (1 + Math.exp(diff));
-                yesOdds = yesPrice;
-                noOdds = 1 - yesOdds;
-            } else {
-                // Mock odds logic for demo if no bets
-                const mockScenarios = [
-                    { yes: 0.60 }, { yes: 0.40 }, { yes: 0.70 }, { yes: 0.30 }, { yes: 0.50 },
-                    { yes: 0.75 }, { yes: 0.25 }, { yes: 0.55 }, { yes: 0.45 }, { yes: 0.65 }
-                ];
-                const scenarioIndex = event.id.split('').reduce((sum: number, char: string) => sum + char.charCodeAt(0), 0) % mockScenarios.length;
-                yesOdds = mockScenarios[scenarioIndex].yes;
-                noOdds = 1 - yesOdds;
-            }
-
-            const { bets, qYes: _, qNo: __, liquidityParameter: ___, ...eventData } = event; // Remove bets and AMM state from response
-            return {
-                ...eventData,
-                volume,
-                betCount,
-                yesOdds,
-                noOdds
-            };
-        });
+            { ttl: 60, prefix: 'events' }
+        );
 
         return NextResponse.json(eventsWithStats);
     } catch (error) {
