@@ -35,6 +35,9 @@ model User {
    messages     Message[]
    reactions    MessageReaction[]
    notifications Notification[]
+
+   @@index([address])
+   @@index([clerkId])
  }
 
 model Event {
@@ -67,6 +70,10 @@ model Event {
 
   bets           Bet[]
   // messages       Message[]
+
+  @@index([status, createdAt])
+  @@index([categories])
+  @@index([creatorId])
 }
 
 model Bet {
@@ -82,6 +89,10 @@ model Bet {
   event     Event    @relation(fields: [eventId], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model Transaction {
@@ -118,6 +129,10 @@ model Message {
 
   // Reactions
   reactions MessageReaction[]
+
+  @@index([eventId, createdAt])
+  @@index([userId])
+  @@index([parentId])
 }
 
 model MessageReaction {
