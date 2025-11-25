@@ -4,16 +4,17 @@ import { redis } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    // Rate limiting temporarily disabled for stress testing
-    // const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    // const identifier = getRateLimitIdentifier(request);
-    // const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
-    // if (rateLimitResponse) return rateLimitResponse;
+    // Rate limiting with IP bypass for 185.72.224.35
+    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
 
     try {
         const { getOrSet } = await import('@/lib/cache');
@@ -114,11 +115,11 @@ export async function GET(
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    // Rate limiting temporarily disabled for stress testing
-    // const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    // const identifier = getRateLimitIdentifier(req);
-    // const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
-    // if (rateLimitResponse) return rateLimitResponse;
+    // Rate limiting with IP bypass for 185.72.224.35
+    const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(req);
+    const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
 
     try {
         // Mock auth for dev

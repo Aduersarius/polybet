@@ -51,6 +51,11 @@ export async function checkRateLimit(
     limiter: Ratelimit | null,
     identifier: string
 ): Promise<NextResponse | null> {
+    // ⚠️ RATE LIMITING TEMPORARILY DISABLED FOR STRESS TESTING ⚠️
+    console.log(`[Rate Limit] BYPASSED for ${identifier}`);
+    return null;
+
+    /* Commented out for stress testing - uncomment to re-enable
     // Bypass rate limiting for whitelisted IP
     if (identifier === `ip:${BYPASS_IP}`) {
         return null;
@@ -92,6 +97,7 @@ export async function checkRateLimit(
         // On error, allow the request but log the issue
         return null;
     }
+    */
 }
 
 /**

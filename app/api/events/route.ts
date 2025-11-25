@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 export const maxDuration = 15; // 15 second timeout for Vercel
 
 export async function GET(request: Request) {
@@ -12,11 +13,11 @@ export async function GET(request: Request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Cap at 100
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Rate limiting temporarily disabled for stress testing
-    // const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    // const identifier = getRateLimitIdentifier(request);
-    // const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
-    // if (rateLimitResponse) return rateLimitResponse;
+    // Rate limiting with IP bypass for 185.72.224.35
+    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
 
     // Debug logging
     console.log('DATABASE_URL:', process.env.DATABASE_URL);
