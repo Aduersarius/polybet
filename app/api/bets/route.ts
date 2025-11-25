@@ -131,13 +131,31 @@ export async function POST(request: Request) {
         const totalTime = Date.now() - startTime;
         console.log(`✅ Trade executed: ${option} $${amount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
 
-        // 5. Minimal Cache Invalidation (OPTIMIZATION: Don't invalidate events:all:*)
-        // Let the global event list cache expire naturally - invalidating it creates Redis storms
-        const { invalidate } = await import('@/lib/cache');
-        await Promise.all([
-            invalidate(`event:${eventId}`, 'event'), // Specific event only
-            invalidate(`amm:${eventId}`, 'event') // AMM state
-        ]);
+        // 5. PHASE 2: Batch cache invalidation + WebSocket publish using Redis pipeline
+        // Single atomic operation instead of sequential calls
+        if (redis) {
+            const pipeline = redis.pipeline();
+
+            // Cache invalidation
+            pipeline.del(`event:${eventId}`);
+            pipeline.del(`event:amm:${eventId}`);
+
+            // WebSocket publish
+            const updatePayload = {
+                eventId,
+                timestamp: Math.floor(Date.now() / 1000),
+                yesPrice: newOdds.yesPrice,
+                volume: parseFloat(amount)
+            };
+            pipeline.publish('event-updates', JSON.stringify(updatePayload));
+
+            // Execute all operations atomically
+            await pipeline.exec().catch(err => console.error('Redis pipeline failed:', err));
+        } else {
+            // Fallback if Redis unavailable
+            const { batchInvalidate } = await import('@/lib/cache');
+            await batchInvalidate([`event:${eventId}`, `amm:${eventId}`], 'event');
+        }
 
         // 6. Return Result
         return NextResponse.json({

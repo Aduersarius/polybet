@@ -148,6 +148,28 @@ export async function warmCache<T>(
 }
 
 /**
+ * PHASE 2 OPTIMIZATION: Batch invalidate multiple keys using Redis pipeline
+ * Reduces RTT from N separate calls to 1 batched call
+ */
+export async function batchInvalidate(keys: string[], prefix: string = ''): Promise<void> {
+    if (!redis || keys.length === 0) return;
+
+    try {
+        const pipeline = redis.pipeline();
+
+        for (const key of keys) {
+            const fullKey = prefix ? `${prefix}:${key}` : key;
+            pipeline.del(fullKey);
+        }
+
+        await pipeline.exec();
+        console.log(`🗑️ Batch invalidated ${keys.length} cache keys`);
+    } catch (error) {
+        console.error('Batch invalidation failed:', error);
+    }
+}
+
+/**
  * Get cache hit rate statistics
  */
 export async function getCacheHitRate(windowMinutes: number = 60): Promise<{
