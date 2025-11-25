@@ -7,8 +7,14 @@ export const maxDuration = 10;
 export async function GET(request: NextRequest) {
     const startTime = Date.now();
 
+    // Rate limiting - use search limiter
+    const { searchLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
+
     try {
-        const { prisma } = await import('@/lib/prisma');
+        const { getOrSet } = await import('@/lib/cache');
         const searchParams = request.nextUrl.searchParams;
         const query = searchParams.get('q');
 
@@ -16,47 +22,56 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ events: [] });
         }
 
-        const queryPromise = prisma.event.findMany({
-            where: {
-                OR: [
-                    {
-                        title: {
-                            contains: query,
-                            mode: 'insensitive',
-                        },
-                    },
-                    {
-                        description: {
-                            contains: query,
-                            mode: 'insensitive',
-                        },
-                    },
-                    {
-                        categories: {
-                            has: query,
-                        },
-                    },
-                ],
-                status: 'ACTIVE'
-            },
-            select: {
-                id: true,
-                title: true,
-                categories: true,
-                resolutionDate: true,
-                imageUrl: true,
-            },
-            take: 20, // Increased limit for better search results
-            orderBy: {
-                createdAt: 'desc',
-            },
-        });
+        // Cache search results
+        const events = await getOrSet(
+            `search:${query.toLowerCase()}`,
+            async () => {
+                const { prisma } = await import('@/lib/prisma');
 
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Database query timeout')), 8000);
-        });
+                const queryPromise = prisma.event.findMany({
+                    where: {
+                        OR: [
+                            {
+                                title: {
+                                    contains: query,
+                                    mode: 'insensitive',
+                                },
+                            },
+                            {
+                                description: {
+                                    contains: query,
+                                    mode: 'insensitive',
+                                },
+                            },
+                            {
+                                categories: {
+                                    has: query,
+                                },
+                            },
+                        ],
+                        status: 'ACTIVE'
+                    },
+                    select: {
+                        id: true,
+                        title: true,
+                        categories: true,
+                        resolutionDate: true,
+                        imageUrl: true,
+                    },
+                    take: 20, // Increased limit for better search results
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                });
 
-        const events = await Promise.race([queryPromise, timeoutPromise]) as any[];
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Database query timeout')), 8000);
+                });
+
+                return await Promise.race([queryPromise, timeoutPromise]) as any[];
+            },
+            { ttl: 300, prefix: 'search' } // Cache for 5 minutes
+        );
 
         const queryTime = Date.now() - startTime;
         console.log(`✅ Search "${query}": ${events.length} results in ${queryTime}ms`);

@@ -1,5 +1,6 @@
 'use client';
 import { Navbar } from "./components/Navbar";
+import { LandingParticles } from "./components/LandingParticles";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -24,6 +25,7 @@ export default function Home() {
   // Use a separate hydrated state to prevent hydration mismatches
   const [isHydrated, setIsHydrated] = useState(false);
   const [showMarkets, setShowMarkets] = useState(false);
+  const [burst, setBurst] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
   const [searchQuery, setSearchQuery] = useState('');
@@ -393,6 +395,7 @@ export default function Home() {
           key="landing"
           className="fixed inset-0 flex items-center justify-center z-10"
         >
+          <LandingParticles burst={burst} />
           {/* Dark Background with Gradient */}
           {/* Floating Content */}
           <div className="relative z-10 text-center">
@@ -421,11 +424,14 @@ export default function Home() {
               >
                 <button
                   onClick={() => {
-                    setShowMarkets(true);
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('hasVisitedMarkets', 'true');
-                    }
-                    window.location.hash = 'markets';
+                    setBurst(true);
+                    setTimeout(() => {
+                      setShowMarkets(true);
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('hasVisitedMarkets', 'true');
+                      }
+                      window.location.hash = 'markets';
+                    }, 1000); // Wait for burst animation to complete
                   }}
                   className="px-6 py-3 bg-gradient-to-r from-[#bb86fc] to-[#9965f4] text-white text-base font-bold rounded-full shadow-2xl shadow-[#bb86fc]/50 hover:shadow-[0_0_40px_rgba(187,134,252,0.7)] transition-all"
                 >

@@ -9,6 +9,12 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    // Rate limiting
+    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
+
     try {
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
@@ -68,6 +74,12 @@ export async function GET(
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    // Rate limiting - use heavy limiter for message posting
+    const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(req);
+    const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
+
     try {
         // Mock auth for dev
         const userId = 'dev-user';

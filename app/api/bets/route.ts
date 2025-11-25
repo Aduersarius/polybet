@@ -10,6 +10,12 @@ import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 export async function POST(request: Request) {
     const startTime = Date.now();
 
+    // Rate limiting - use heavy limiter for expensive bet operations
+    const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+    const identifier = getRateLimitIdentifier(request);
+    const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
+    if (rateLimitResponse) return rateLimitResponse;
+
     try {
         const body = await request.json();
         // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)

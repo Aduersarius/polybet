@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import Redis from 'ioredis';
+import { redis } from '@/lib/redis';
 
-// Initialize Redis client
-// NOTE: In production, ensure REDIS_URL is set in Vercel env vars
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+export const maxDuration = 10; // 10s timeout
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
     try {
@@ -21,14 +20,28 @@ export async function POST(req: Request) {
             timestamp: timestamp || Date.now(),
         };
 
-        // Publish to the channel the VPS is listening to (if Redis is available)
+        // Publish with timeout
         if (redis) {
-            await redis.publish('event-updates', JSON.stringify(payload));
+            console.log(`[Trigger] Publishing to event-updates for ${eventId}`);
+
+            // Race condition to prevent hanging
+            const publishPromise = redis.publish('event-updates', JSON.stringify(payload));
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Redis publish timeout')), 3000)
+            );
+
+            await Promise.race([publishPromise, timeoutPromise]);
+            console.log(`[Trigger] Published successfully`);
+        } else {
+            console.warn('[Trigger] Redis not available');
         }
 
         return NextResponse.json({ success: true, payload });
     } catch (error) {
         console.error('Stress trigger error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({
+            error: 'Internal Server Error',
+            details: error instanceof Error ? error.message : String(error)
+        }, { status: 500 });
     }
 }
