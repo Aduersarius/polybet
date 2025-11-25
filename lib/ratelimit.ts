@@ -8,6 +8,11 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { redis } from "./redis";
 import { NextResponse } from "next/server";
 
+// --------------------------------------------------------------------------
+// Whitelisted IP – requests from this address will bypass all rate limits.
+// --------------------------------------------------------------------------
+const BYPASS_IP = "185.72.224.35";
+
 // Standard API rate limiter - 100 requests per minute
 export const apiLimiter = redis
     ? new Ratelimit({
@@ -46,6 +51,11 @@ export async function checkRateLimit(
     limiter: Ratelimit | null,
     identifier: string
 ): Promise<NextResponse | null> {
+    // Bypass rate limiting for whitelisted IP
+    if (identifier === `ip:${BYPASS_IP}`) {
+        return null;
+    }
+
     if (!limiter) {
         // If rate limiting is not available (no Redis), allow all requests
         return null;

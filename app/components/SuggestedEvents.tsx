@@ -13,7 +13,8 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
     const { data: events, isLoading } = useQuery({
         queryKey: ['events', category],
         queryFn: async () => {
-            const res = await fetch(`/api/events?category=${category}`);
+            const queryCategory = category === 'ALL' ? '' : category;
+            const res = await fetch(`/api/events?category=${queryCategory}`);
             if (!res.ok) throw new Error('Failed to fetch events');
             const data = await res.json();
             // Handle both array (legacy) and paginated response (new)
