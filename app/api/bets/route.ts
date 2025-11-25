@@ -58,7 +58,7 @@ export async function POST(request: Request) {
                             status: true,
                         }
                     }),
-                    2000 // 2 second timeout for single record
+                    3000 // 3 second timeout for single record
                 ) as any;
 
                 if (!event) {
@@ -118,12 +118,12 @@ export async function POST(request: Request) {
                             }
                         })
                     ]),
-                    5000 // 5 second timeout for transaction
+                    8000 // 8 second timeout for transaction
                 );
 
                 return { user, updatedEvent, newBet, tokensReceived, newOdds };
             },
-            { timeout: 8000 } // 8 second queue timeout
+            { timeout: 10000 } // 10 second queue timeout
         );
 
         const { newBet, tokensReceived, newOdds } = result;

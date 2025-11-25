@@ -160,7 +160,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                     clerkId: 'dev-user-clerk-id'
                 }
             }),
-            2000
+            5000
         );
 
         const message = await withTimeout(
@@ -181,7 +181,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                     }
                 }
             }),
-            3000
+            5000
         );
 
         // Handle Notifications (with timeout)
@@ -204,7 +204,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                         });
                     }
                 })(),
-                2000
+                3000
             ).catch(err => console.error('Notification failed:', err)); // Non-blocking
         }
 
