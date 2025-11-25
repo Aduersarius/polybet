@@ -1,6 +1,5 @@
 'use client';
 
-import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface AdminUser {
@@ -16,18 +15,16 @@ interface AdminUser {
 }
 
 export function AdminUserList() {
-    const { user } = useUser();
+    const adminId = 'dev-user'; // Mock admin ID
     const queryClient = useQueryClient();
 
     const { data: users, isLoading } = useQuery({
-        queryKey: ['admin', 'users', user?.id],
+        queryKey: ['admin', 'users', adminId],
         queryFn: async () => {
-            if (!user?.id) return [];
-            const res = await fetch(`/api/admin/users?adminId=${user.id}`);
+            const res = await fetch(`/api/admin/users?adminId=${adminId}`);
             if (!res.ok) throw new Error('Failed to fetch users');
             return res.json() as Promise<AdminUser[]>;
         },
-        enabled: !!user?.id,
     });
 
     const updateUserMutation = useMutation({
@@ -35,7 +32,7 @@ export function AdminUserList() {
             const res = await fetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminId: user?.id, targetUserId, action }),
+                body: JSON.stringify({ adminId, targetUserId, action }),
             });
             if (!res.ok) throw new Error('Failed to update user');
             return res.json();
