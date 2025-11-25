@@ -13,14 +13,14 @@ export async function GET(request: NextRequest) {
     const method = request.method;
 
     try {
-        // Rate limiting - use search limiter
-        const { searchLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-        const identifier = getRateLimitIdentifier(request);
-        const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
-        if (rateLimitResponse) {
-            await PerformanceMonitor.logRequest(endpoint, method, Date.now() - startTime, false, 429);
-            return rateLimitResponse;
-        }
+        // Rate limiting temporarily disabled for stress testing
+        // const { searchLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
+        // const identifier = getRateLimitIdentifier(request);
+        // const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
+        // if (rateLimitResponse) {
+        //     await PerformanceMonitor.logRequest(endpoint, method, Date.now() - startTime, false, 429);
+        //     return rateLimitResponse;
+        // }
 
         const { getOrSet } = await import('@/lib/cache');
         const searchParams = request.nextUrl.searchParams;
