@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActivityList } from './ActivityList';
 import { UserHoverCard } from './UserHoverCard';
@@ -42,22 +42,62 @@ export function EventChat({ eventId }: EventChatProps) {
     const isLoaded = true;
     const queryClient = useQueryClient();
 
-    // Fetch messages
-    const { data: messages = [] } = useQuery<Message[]>({
-        queryKey: ['messages', eventId],
+    // State for manual pagination
+    const [cursor, setCursor] = useState<string | null>(null);
+    const [allMessages, setAllMessages] = useState<Message[]>([]);
+    const [hasMoreMessages, setHasMoreMessages] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+    // Fetch messages with manual pagination
+    const { data: messagesData, isLoading } = useQuery<{
+        messages: Message[];
+        hasMore: boolean;
+        nextCursor: string | null;
+    }>({
+        queryKey: ['messages', eventId, cursor],
         queryFn: async () => {
-            const res = await fetch(`/api/events/${eventId}/messages`);
+            const url = cursor
+                ? `/api/events/${eventId}/messages?cursor=${cursor}`
+                : `/api/events/${eventId}/messages`;
+            const res = await fetch(url);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
     });
+
+    // Update messages when data changes
+    useEffect(() => {
+        if (messagesData) {
+            if (cursor) {
+                // Append new messages for pagination
+                setAllMessages(prev => [...prev, ...messagesData.messages]);
+            } else {
+                // Replace all messages for initial load
+                setAllMessages(messagesData.messages);
+            }
+            setHasMoreMessages(messagesData.hasMore);
+        }
+    }, [messagesData, cursor]);
+
+    const messages: Message[] = allMessages;
+
+    // Load more messages function
+    const loadMoreMessages = async () => {
+        if (!messagesData?.nextCursor || isLoadingMore) return;
+
+        setIsLoadingMore(true);
+        setCursor(messagesData.nextCursor);
+        // The useEffect will handle updating the messages
+        setTimeout(() => setIsLoadingMore(false), 500); // Reset loading state
+    };
 
     // Real-time updates via WebSocket
     useEffect(() => {
         const { socket } = require('@/lib/socket');
 
         function onMessage(data: any) {
-            // Simple strategy: Just refetch the list when a new message comes in
+            // For new messages, reset pagination and reload from beginning
+            setCursor(null);
             queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
         }
 
@@ -98,6 +138,8 @@ export function EventChat({ eventId }: EventChatProps) {
         onSuccess: () => {
             setInputText('');
             setReplyTo(null);
+            // Reset pagination and reload to show new message at top
+            setCursor(null);
             queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
         },
     });
@@ -114,6 +156,7 @@ export function EventChat({ eventId }: EventChatProps) {
         onSuccess: () => {
             setEditingMessageId(null);
             setEditText('');
+            setCursor(null);
             queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
         },
     });
@@ -142,6 +185,7 @@ export function EventChat({ eventId }: EventChatProps) {
             });
         },
         onSuccess: () => {
+            setCursor(null);
             queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
         },
     });
@@ -212,6 +256,13 @@ export function EventChat({ eventId }: EventChatProps) {
     };
 
     const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat');
+
+    // Load more messages function (manual pagination)
+    const handleLoadMore = () => {
+        if (hasMoreMessages && !isLoadingMore && messagesData?.nextCursor) {
+            setCursor(messagesData.nextCursor);
+        }
+    };
 
     const renderMessage = (msg: Message, isReply = false) => {
         const isMe = msg.userId === user?.id;
@@ -413,16 +464,8 @@ export function EventChat({ eventId }: EventChatProps) {
 
             {activeTab === 'chat' ? (
                 <>
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
-                        {rootMessages.length === 0 ? (
-                            <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
-                        ) : (
-                            rootMessages.map(msg => renderMessage(msg))
-                        )}
-                    </div>
-
                     {/* Input Area */}
-                    <div className="relative">
+                    <div className="relative mb-4">
                         {replyTo && (
                             <div className="flex items-center justify-between bg-[#2c2c2c] px-3 py-1.5 rounded-t-lg border-b border-white/5 text-xs text-gray-400">
                                 <span>Replying to <span className="text-[#bb86fc]">@{replyTo.username}</span></span>
@@ -454,6 +497,47 @@ export function EventChat({ eventId }: EventChatProps) {
                                 <div className="w-full text-center py-1 text-sm text-gray-500">Sign in to chat</div>
                             )}
                         </div>
+                    </div>
+
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        {isLoading ? (
+                            <div className="flex justify-center items-center h-40">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#bb86fc]"></div>
+                            </div>
+                        ) : rootMessages.length === 0 ? (
+                            <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
+                        ) : (
+                            <>
+                                {rootMessages.map(msg => renderMessage(msg))}
+
+                                {/* Load More Button */}
+                                {hasMoreMessages && (
+                                    <div className="flex justify-center py-4">
+                                        <button
+                                            onClick={handleLoadMore}
+                                            disabled={isLoadingMore}
+                                            className="bg-[#bb86fc] hover:bg-[#a66ef1] disabled:opacity-50 disabled:cursor-not-allowed text-black font-medium px-4 py-2 rounded text-sm transition-colors"
+                                        >
+                                            {isLoadingMore ? (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black"></div>
+                                                    Loading...
+                                                </div>
+                                            ) : (
+                                                'Load More Messages'
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* End of messages indicator */}
+                                {!hasMoreMessages && messages.length > 10 && (
+                                    <div className="text-center text-gray-500 py-4 text-xs">
+                                        You've reached the beginning of the conversation
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                 </>
             ) : (
