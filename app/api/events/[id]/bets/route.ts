@@ -1,7 +1,11 @@
+```typescript
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { RequestQueue } from '@/lib/queue';
-import { PerformanceMonitor } from '@/lib/monitoring';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 10;
 
 // GET /api/events/[id]/bets - Get recent bets for an event with lazy loading
 export async function GET(
@@ -16,7 +20,6 @@ export async function GET(
         const identifier = getRateLimitIdentifier(request);
         const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
         if (rateLimitResponse) {
-            await PerformanceMonitor.logRequest('bets', 'GET', Date.now() - startTime, false, 429);
             return rateLimitResponse;
         }
 
@@ -26,13 +29,13 @@ export async function GET(
         const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Default 20, max 100
         const cursor = searchParams.get('cursor'); // For pagination
 
-        console.log(`[API] Fetching bets for event: ${eventId}, limit: ${limit}, cursor: ${cursor}`);
+        console.log(`[API] Fetching bets for event: ${ eventId }, limit: ${ limit }, cursor: ${ cursor } `);
 
         // Use request queuing for database operations
         const result = await RequestQueue.enqueue(
-            `bets:${eventId}`,
+            `bets:${ eventId } `,
             async () => {
-                const cacheKey = `event:${eventId}:bets:${limit}:${cursor || 'latest'}`;
+                const cacheKey = `event:${ eventId }: bets:${ limit }:${ cursor || 'latest' } `;
 
                 return await getOrSet(
                     cacheKey,
