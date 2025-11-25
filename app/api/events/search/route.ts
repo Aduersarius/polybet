@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PerformanceMonitor } from '@/lib/monitoring';
-import { RequestQueue } from '@/lib/queue';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,9 +7,6 @@ export const maxDuration = 10;
 
 export async function GET(request: NextRequest) {
     const startTime = Date.now();
-    const url = new URL(request.url);
-    const endpoint = url.pathname;
-    const method = request.method;
 
     try {
         // Rate limiting with IP bypass for 185.72.224.35
@@ -19,7 +14,6 @@ export async function GET(request: NextRequest) {
         const identifier = getRateLimitIdentifier(request);
         const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
         if (rateLimitResponse) {
-            await PerformanceMonitor.logRequest(endpoint, method, Date.now() - startTime, false, 429);
             return rateLimitResponse;
         }
 
@@ -28,73 +22,65 @@ export async function GET(request: NextRequest) {
         const query = searchParams.get('q');
 
         if (!query || query.trim().length === 0) {
-            await PerformanceMonitor.logRequest(endpoint, method, Date.now() - startTime, true, 200);
             return NextResponse.json({ events: [] });
         }
 
-        // Use request queuing for database operations
-        const events = await RequestQueue.enqueue(
+        // Cache search results with enhanced TTL
+        const events = await getOrSet(
             `search:${query.toLowerCase()}`,
             async () => {
-                // Cache search results with enhanced TTL
-                return await getOrSet(
-                    `search:${query.toLowerCase()}`,
-                    async () => {
-                        const { prisma } = await import('@/lib/prisma');
+                const { prisma } = await import('@/lib/prisma');
 
-                        // Temporary fallback: Use indexed contains search while debugging full-text search
-                        const searchPromise = prisma.event.findMany({
-                            where: {
-                                status: 'ACTIVE',
-                                OR: [
-                                    {
-                                        title: {
-                                            contains: query,
-                                            mode: 'insensitive',
-                                        },
-                                    },
-                                    {
-                                        description: {
-                                            contains: query,
-                                            mode: 'insensitive',
-                                        },
-                                    },
-                                    {
-                                        categories: {
-                                            has: query,
-                                        },
-                                    },
-                                ],
+                // Use indexed contains search
+                const searchPromise = prisma.event.findMany({
+                    where: {
+                        status: 'ACTIVE',
+                        OR: [
+                            {
+                                title: {
+                                    contains: query,
+                                    mode: 'insensitive',
+                                },
                             },
-                            select: {
-                                id: true,
-                                title: true,
-                                categories: true,
-                                resolutionDate: true,
-                                imageUrl: true,
+                            {
+                                description: {
+                                    contains: query,
+                                    mode: 'insensitive',
+                                },
                             },
-                            take: 20,
-                            orderBy: {
-                                createdAt: 'desc',
+                            {
+                                categories: {
+                                    has: query,
+                                },
                             },
-                        });
-
-                        // Add timeout for the search query
-                        const timeoutPromise = new Promise<never>((_, reject) => {
-                            setTimeout(() => reject(new Error('Database query timeout')), 8000);
-                        });
-
-                        return await Promise.race([searchPromise, timeoutPromise]);
+                        ],
                     },
-                    { ttl: 300, prefix: 'search' } // Cache for 5 minutes (will be optimized to 30 min)
-                );
-            }
+                    select: {
+                        id: true,
+                        title: true,
+                        categories: true,
+                        resolutionDate: true,
+                        imageUrl: true,
+                    },
+                    take: 20,
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                });
+
+                // Add timeout for the search query
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    setTimeout(() => reject(new Error('Database query timeout')), 8000);
+                });
+
+                return await Promise.race([searchPromise, timeoutPromise]);
+            },
+            { ttl: 300, prefix: 'search' } // Cache for 5 minutes
         );
 
         const queryTime = Date.now() - startTime;
         console.log(`✅ Search "${query}": ${events.length} results in ${queryTime}ms`);
 
-        await PerformanceMonitor.logRequest(endpoint, method, queryTime, true, 200);
         return NextResponse.json({ events });
 
     } catch (error) {
@@ -104,17 +90,10 @@ export async function GET(request: NextRequest) {
         let statusCode = 500;
         let errorMessage = 'Failed to search events';
 
-        if (error instanceof Error) {
-            if (error.message === 'Database query timeout') {
-                statusCode = 504;
-                errorMessage = 'Search query took too long to execute';
-            } else if ((error as any).statusCode === 503) {
-                statusCode = 503;
-                errorMessage = 'Service temporarily unavailable - too many requests';
-            }
+        if (error instanceof Error && error.message === 'Database query timeout') {
+            statusCode = 504;
+            errorMessage = 'Search query took too long to execute';
         }
-
-        await PerformanceMonitor.logRequest(endpoint, method, errorTime, false, statusCode);
 
         return NextResponse.json(
             { error: errorMessage },
