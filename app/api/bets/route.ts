@@ -20,10 +20,24 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // 1. Fetch Event State
-        const event = (await prisma.event.findUnique({
-            where: { id: eventId }
-        })) as any;
+        // 1. Fetch Event State with caching
+        const { getOrSet } = await import('@/lib/cache');
+        const event = await getOrSet(
+            `amm:${eventId}`,
+            async () => {
+                return (await prisma.event.findUnique({
+                    where: { id: eventId },
+                    select: {
+                        id: true,
+                        liquidityParameter: true,
+                        qYes: true,
+                        qNo: true,
+                        status: true,
+                    }
+                })) as any;
+            },
+            { ttl: 300, prefix: 'event' } // Cache AMM state for 5 minutes
+        );
 
         if (!event) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });

@@ -117,7 +117,7 @@ export async function GET(request: Request) {
                     };
                 });
             },
-            { ttl: 120, prefix: 'events' } // Increased from 60s to 120s
+            { ttl: 600, prefix: 'events' } // Increased from 120s to 600s (10 min)
         );
 
         return NextResponse.json(eventsWithStats);
