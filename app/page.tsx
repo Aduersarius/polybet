@@ -385,8 +385,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen relative overflow-hidden">
-      {/* Navbar - Always rendered outside AnimatePresence */}
-      <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+
 
       {/* AnimatePresence removed for instant transition */}
       {!isHydrated || !showMarkets ? (
@@ -395,12 +394,6 @@ export default function Home() {
           className="fixed inset-0 flex items-center justify-center z-10"
         >
           {/* Dark Background with Gradient */}
-
-
-
-
-
-
           {/* Floating Content */}
           <div className="relative z-10 text-center">
             <motion.div
@@ -459,11 +452,9 @@ export default function Home() {
           className="min-h-screen relative text-white z-10"
           suppressHydrationWarning={true}
         >
+          <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
           {/* Markets Background */}
-          <div className="fixed inset-0 z-0">
-
-
-          </div>
+          <div className="fixed inset-0 z-0"></div>
 
           {/* Markets Content */}
           <div className="relative z-10 pt-8 px-4 max-w-7xl mx-auto pb-12">
@@ -550,8 +541,7 @@ export default function Home() {
             }
           </div >
         </motion.div >
-      )
-      }
+      )}
 
       {/* Trading Panel Modal */}
       {selectedEvent && (
