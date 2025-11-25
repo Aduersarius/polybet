@@ -38,81 +38,95 @@ export async function POST(request: Request) {
             ]);
         };
 
-        // 1. Fetch FRESH Event State (no stale cache for AMM)
-        // CRITICAL: Always get latest AMM state to prevent race conditions
-        const event = await withTimeout(
-            prisma.event.findUnique({
-                where: { id: eventId },
-                select: {
-                    id: true,
-                    liquidityParameter: true,
-                    qYes: true,
-                    qNo: true,
-                    status: true,
+        // PHASE 2.5: Use request queuing to serialize bets on the same event
+        // This prevents concurrent AMM state updates and race conditions
+        const { RequestQueue } = await import('@/lib/queue');
+
+        const result = await RequestQueue.enqueue(
+            `bet:${eventId}`, // Queue key per event
+            async () => {
+                // 1. Fetch FRESH Event State (no stale cache for AMM)
+                // CRITICAL: Always get latest AMM state to prevent race conditions
+                const event = await withTimeout(
+                    prisma.event.findUnique({
+                        where: { id: eventId },
+                        select: {
+                            id: true,
+                            liquidityParameter: true,
+                            qYes: true,
+                            qNo: true,
+                            status: true,
+                        }
+                    }),
+                    2000 // 2 second timeout for single record
+                ) as any;
+
+                if (!event) {
+                    throw new Error('Event not found');
                 }
-            }),
-            2000 // 2 second timeout for single record
-        ) as any;
 
-        if (!event) {
-            return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-        }
+                // 2. Run AMM Math
+                const b = event.liquidityParameter || 10000;
+                const currentQYes = event.qYes || 0;
+                const currentQNo = event.qNo || 0;
 
-        // 2. Run AMM Math
-        const b = event.liquidityParameter || 10000;
-        const currentQYes = event.qYes || 0;
-        const currentQNo = event.qNo || 0;
+                // Calculate tokens received for this amount
+                const tokensReceived = calculateTokensForCost(
+                    currentQYes,
+                    currentQNo,
+                    parseFloat(amount),
+                    option as 'YES' | 'NO',
+                    b
+                );
 
-        // Calculate tokens received for this amount
-        const tokensReceived = calculateTokensForCost(
-            currentQYes,
-            currentQNo,
-            parseFloat(amount),
-            option as 'YES' | 'NO',
-            b
+                // Calculate new state
+                const newQYes = option === 'YES' ? currentQYes + tokensReceived : currentQYes;
+                const newQNo = option === 'NO' ? currentQNo + tokensReceived : currentQNo;
+
+                // Calculate new odds
+                const newOdds = calculateLMSROdds(newQYes, newQNo, b);
+
+                // 3. Atomic User Upsert + Bet Transaction
+                // OPTIMIZATION: Use upsert to find-or-create user in 1 query instead of 2-3
+                const [user, updatedEvent, newBet] = await withTimeout(
+                    prisma.$transaction([
+                        prisma.user.upsert({
+                            where: { id: targetUserId },
+                            update: {}, // No updates needed if user exists
+                            create: {
+                                id: targetUserId,
+                                username: targetUserId === 'dev-user' ? 'Dev User' : `User_${targetUserId.slice(-8)}`,
+                                address: targetUserId === 'dev-user' ? '0xDevUser' : `0x${targetUserId}`,
+                                clerkId: targetUserId === 'dev-user' ? 'dev-user-clerk-id' : undefined
+                            }
+                        }),
+                        prisma.event.update({
+                            where: { id: eventId },
+                            data: {
+                                qYes: newQYes,
+                                qNo: newQNo,
+                                yesOdds: newOdds.yesPrice,
+                                noOdds: newOdds.noPrice
+                            }
+                        }),
+                        prisma.bet.create({
+                            data: {
+                                amount: parseFloat(amount),
+                                option,
+                                userId: targetUserId,
+                                eventId,
+                            }
+                        })
+                    ]),
+                    5000 // 5 second timeout for transaction
+                );
+
+                return { user, updatedEvent, newBet, tokensReceived, newOdds };
+            },
+            { timeout: 8000 } // 8 second queue timeout
         );
 
-        // Calculate new state
-        const newQYes = option === 'YES' ? currentQYes + tokensReceived : currentQYes;
-        const newQNo = option === 'NO' ? currentQNo + tokensReceived : currentQNo;
-
-        // Calculate new odds
-        const newOdds = calculateLMSROdds(newQYes, newQNo, b);
-
-        // 3. Atomic User Upsert + Bet Transaction
-        // OPTIMIZATION: Use upsert to find-or-create user in 1 query instead of 2-3
-        const [user, updatedEvent, newBet] = await withTimeout(
-            prisma.$transaction([
-                prisma.user.upsert({
-                    where: { id: targetUserId },
-                    update: {}, // No updates needed if user exists
-                    create: {
-                        id: targetUserId,
-                        username: targetUserId === 'dev-user' ? 'Dev User' : `User_${targetUserId.slice(-8)}`,
-                        address: targetUserId === 'dev-user' ? '0xDevUser' : `0x${targetUserId}`,
-                        clerkId: targetUserId === 'dev-user' ? 'dev-user-clerk-id' : undefined
-                    }
-                }),
-                prisma.event.update({
-                    where: { id: eventId },
-                    data: {
-                        qYes: newQYes,
-                        qNo: newQNo,
-                        yesOdds: newOdds.yesPrice,
-                        noOdds: newOdds.noPrice
-                    }
-                }),
-                prisma.bet.create({
-                    data: {
-                        amount: parseFloat(amount),
-                        option,
-                        userId: targetUserId,
-                        eventId,
-                    }
-                })
-            ]),
-            5000 // 5 second timeout for transaction
-        );
+        const { newBet, tokensReceived, newOdds } = result;
 
         // 4. Publish to Redis for Real-time Updates (non-blocking)
         if (redis) {
@@ -131,31 +145,26 @@ export async function POST(request: Request) {
         const totalTime = Date.now() - startTime;
         console.log(`✅ Trade executed: ${option} $${amount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
 
-        // 5. PHASE 2: Batch cache invalidation + WebSocket publish using Redis pipeline
-        // Single atomic operation instead of sequential calls
-        if (redis) {
-            const pipeline = redis.pipeline();
+        // 5. Minimal cache invalidation + WebSocket publish (non-blocking)
+        // Fire and forget to avoid blocking the response
+        Promise.all([
+            (async () => {
+                if (redis) {
+                    await redis.del(`event:${eventId}`).catch(e => console.error('Cache del failed:', e));
+                    await redis.del(`event:amm:${eventId}`).catch(e => console.error('Cache del failed:', e));
 
-            // Cache invalidation
-            pipeline.del(`event:${eventId}`);
-            pipeline.del(`event:amm:${eventId}`);
+                    const updatePayload = {
+                        eventId,
+                        timestamp: Math.floor(Date.now() / 1000),
+                        yesPrice: newOdds.yesPrice,
+                        volume: parseFloat(amount)
+                    };
+                    await redis.publish('event-updates', JSON.stringify(updatePayload))
+                        .catch(e => console.error('Redis publish failed:', e));
+                }
+            })()
+        ]).catch(err => console.error('Post-bet cleanup failed:', err));
 
-            // WebSocket publish
-            const updatePayload = {
-                eventId,
-                timestamp: Math.floor(Date.now() / 1000),
-                yesPrice: newOdds.yesPrice,
-                volume: parseFloat(amount)
-            };
-            pipeline.publish('event-updates', JSON.stringify(updatePayload));
-
-            // Execute all operations atomically
-            await pipeline.exec().catch(err => console.error('Redis pipeline failed:', err));
-        } else {
-            // Fallback if Redis unavailable
-            const { batchInvalidate } = await import('@/lib/cache');
-            await batchInvalidate([`event:${eventId}`, `amm:${eventId}`], 'event');
-        }
 
         // 6. Return Result
         return NextResponse.json({
