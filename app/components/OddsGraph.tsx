@@ -18,7 +18,9 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const lineSeriesRef = useRef<any>(null);
+    const tintedSeriesRef = useRef<any>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
+    const dataRef = useRef<DataPoint[]>([]);
     const [period, setPeriod] = useState('all');
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState<DataPoint[]>([]);
@@ -86,7 +88,8 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
                     width: 1,
                     color: 'rgba(139, 92, 246, 0.5)',
                     style: 0,
-                    labelBackgroundColor: '#8B5CF6',
+                    labelVisible: false,
+                    visible: false,
                 },
             },
             localization: {
@@ -97,7 +100,17 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
             color: '#8B5CF6',
             lineWidth: 2,
             priceLineVisible: false,
-            lastValueVisible: true,
+            lastValueVisible: false,
+            priceFormat: {
+                type: 'custom',
+                formatter: (price: number) => `${price.toFixed(1)}%`,
+            },
+        });
+        const tintedSeries = chart.addSeries(LineSeries, {
+            color: '#6B7280', // Dark gray for tint
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
             priceFormat: {
                 type: 'custom',
                 formatter: (price: number) => `${price.toFixed(1)}%`,
@@ -105,59 +118,127 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
         });
         chartRef.current = chart;
         lineSeriesRef.current = lineSeries;
+        tintedSeriesRef.current = tintedSeries;
 
-        // Subscribe to crosshair move for custom tooltip
-        chart.subscribeCrosshairMove((param: any) => {
-            if (!tooltipRef.current) return;
+        // Custom mouse move handler for tooltip that follows the line
+        const handleMouseMove = (event: MouseEvent) => {
+            if (!tooltipRef.current || !chartRef.current || !chartContainerRef.current) return;
 
-            if (!param.time || !param.seriesData.get(lineSeries) || !param.point) {
+            const container = chartContainerRef.current;
+            const rect = container.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // Convert mouse X to time
+            const time = chartRef.current.timeScale().coordinateToTime(x);
+            const currentData = dataRef.current;
+            if (!time || currentData.length === 0) {
                 tooltipRef.current.style.display = 'none';
-                // Reset to latest price when not hovering
-                if (data.length > 0) {
-                    setCurrentPrice(data[data.length - 1].yesPrice);
+                if (currentData.length > 0) {
+                    setCurrentPrice(currentData[currentData.length - 1].yesPrice);
                 }
                 return;
             }
 
-            const seriesData = param.seriesData.get(lineSeries);
-            if (seriesData && seriesData.value !== undefined) {
-                // Update current price to hovered value (throttled via rAF)
-                requestAnimationFrame(() => {
-                    setCurrentPrice(seriesData.value / 100);
-                });
-
-                // Direct DOM manipulation for tooltip position (no re-render)
-                const tooltip = tooltipRef.current;
-                const container = chartContainerRef.current;
-                if (tooltip && container) {
-                    const containerWidth = container.clientWidth;
-                    const tooltipWidth = 80; // Approximate width
-
-                    // Position tooltip on the line: use X from mouse, but Y from the data coordinate
-                    const priceY = seriesData.coordinate ?? param.point.y;
-                    const left = Math.min(param.point.x + 10, containerWidth - tooltipWidth);
-                    const top = Math.max(priceY - 20, 10); // Use price Y-coordinate
-
-                    tooltip.style.display = 'block';
-                    tooltip.style.transform = `translate(${left}px, ${top}px)`;
-                    tooltip.textContent = `${seriesData.value.toFixed(1)}%`;
+            // Find closest data point
+            let closestIndex = 0;
+            let minDiff = Math.abs(currentData[0].timestamp - time);
+            for (let i = 1; i < currentData.length; i++) {
+                const diff = Math.abs(currentData[i].timestamp - time);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestIndex = i;
                 }
             }
-        });
+
+            const closestPoint = currentData[closestIndex];
+            const value = closestPoint.yesPrice * 100;
+
+            // Update current price
+            requestAnimationFrame(() => {
+                setCurrentPrice(closestPoint.yesPrice);
+            });
+
+            // Split the line: main series up to this point, tinted series from this point onwards
+            const mainData = currentData.slice(0, closestIndex + 1).map(p => ({
+                time: p.timestamp as any,
+                value: Number((p.yesPrice * 100).toFixed(2)),
+            }));
+            const tintedData = currentData.slice(closestIndex).map(p => ({
+                time: p.timestamp as any,
+                value: Number((p.yesPrice * 100).toFixed(2)),
+            }));
+            if (lineSeriesRef.current) {
+                lineSeriesRef.current.setData(mainData);
+            }
+            if (tintedSeriesRef.current) {
+                tintedSeriesRef.current.setData(tintedData);
+            }
+
+            // Get coordinates for the closest point
+            const xCoord = chartRef.current.timeScale().timeToCoordinate(closestPoint.timestamp);
+            const yCoord = lineSeriesRef.current.priceToCoordinate(value);
+
+            if (xCoord !== null && yCoord !== null) {
+                const tooltip = tooltipRef.current;
+                const containerWidth = container.clientWidth;
+                const tooltipWidth = 80;
+
+                const left = Math.min(xCoord + 10, containerWidth - tooltipWidth);
+                const top = Math.max(yCoord - 20, 10);
+
+                tooltip.style.display = 'block';
+                tooltip.style.transform = `translate(${left}px, ${top}px)`;
+                tooltip.textContent = `${value.toFixed(1)}%`;
+            }
+        };
+
+        const handleMouseLeave = () => {
+            if (tooltipRef.current) {
+                tooltipRef.current.style.display = 'none';
+                const currentData = dataRef.current;
+                if (currentData.length > 0) {
+                    setCurrentPrice(currentData[currentData.length - 1].yesPrice);
+                }
+            }
+            // Reset both series to full data
+            const currentData = dataRef.current;
+            const formatted = currentData.map(p => ({
+                time: p.timestamp as any,
+                value: Number((p.yesPrice * 100).toFixed(2)),
+            }));
+            if (lineSeriesRef.current) {
+                lineSeriesRef.current.setData(formatted);
+            }
+            if (tintedSeriesRef.current) {
+                tintedSeriesRef.current.setData([]);
+            }
+        };
+
+        // Add mouse event listeners to chart container
+        const container = chartContainerRef.current;
+        container.addEventListener('mousemove', handleMouseMove);
+        container.addEventListener('mouseleave', handleMouseLeave);
 
         return () => {
+            if (container) {
+                container.removeEventListener('mousemove', handleMouseMove);
+                container.removeEventListener('mouseleave', handleMouseLeave);
+            }
             chart.remove();
         };
     }, []);
 
     // Update chart data when historical data changes
     useEffect(() => {
-        if (!lineSeriesRef.current) return;
+        dataRef.current = data;
+        if (!lineSeriesRef.current || !tintedSeriesRef.current) return;
         const formatted = data.map(p => ({
             time: p.timestamp as any,
             value: Number((p.yesPrice * 100).toFixed(2)),
         }));
         lineSeriesRef.current.setData(formatted);
+        tintedSeriesRef.current.setData([]); // Initially no tinted part
         // Auto-fit content after data update
         if (chartRef.current) {
             chartRef.current.timeScale().fitContent();

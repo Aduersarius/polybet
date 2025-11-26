@@ -55,8 +55,8 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
                                     {event.title}
                                 </h4>
                                 <div className="flex items-center gap-3 mt-1 text-xs">
-                                    <span className="text-[#03dac6]">Yes {event.yesOdds}%</span>
-                                    <span className="text-[#cf6679]">No {event.noOdds}%</span>
+                                    <span className="text-[#03dac6]">Yes {Number(event.yesOdds).toFixed(2)}%</span>
+                                    <span className="text-[#cf6679]">No {Number(event.noOdds).toFixed(2)}%</span>
                                 </div>
                             </div>
                         </motion.div>
