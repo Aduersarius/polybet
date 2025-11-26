@@ -7,13 +7,14 @@ const errorRate = new Rate('errors');
 
 // Test configuration
 export const options = {
+    vus: 100,  // Maximum VUs for current plan
     stages: [
+        { duration: '10s', target: 25 },  // Ramp up to 25 users
+        { duration: '30s', target: 25 },  // Stay at 25 users
         { duration: '10s', target: 50 },  // Ramp up to 50 users
         { duration: '30s', target: 50 },  // Stay at 50 users
-        { duration: '10s', target: 100 }, // Ramp up to 100 users  
+        { duration: '10s', target: 100 }, // Ramp up to 100 users
         { duration: '30s', target: 100 }, // Stay at 100 users
-        { duration: '10s', target: 200 }, // Ramp up to 200 users
-        { duration: '30s', target: 200 }, // Stay at 200 users
         { duration: '20s', target: 0 },   // Ramp down to 0
     ],
     thresholds: {
@@ -21,6 +22,11 @@ export const options = {
         http_req_failed: ['rate<0.1'],     // Error rate must be below 10%
         errors: ['rate<0.1'],              // Custom error rate below 10%
     },
+    // Enable cloud output for Grafana Cloud visualization
+    cloud: {
+        projectID: __ENV.K6_CLOUD_PROJECT_ID || 5825009,
+        name: 'PolyBet Stress Test with Enhanced Metrics'
+    }
 };
 
 const BASE_URL = __ENV.API_URL || 'https://www.polybet.ru';
