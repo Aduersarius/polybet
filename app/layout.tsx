@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: "PolyBet | Decentralized Betting",
   description: "Bet on anything, pay with crypto.",
   icons: {
-    icon: '/favicon.svg',
+    icon: '/favicon.ico',
   },
 };
 
