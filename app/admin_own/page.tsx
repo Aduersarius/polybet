@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { Navbar } from '../components/Navbar';
 import { AdminEventList } from '../components/admin/AdminEventList';
 import { AdminUserList } from '../components/admin/AdminUserList';
+import { CreateEventModal } from '../components/admin/CreateEventModal';
 
 export default function AdminPage() {
     const [activeTab, setActiveTab] = useState<'events' | 'users'>('events');
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     // Mock admin check (in production, verify via API)
     const isAdmin = true; // For development
@@ -20,6 +22,12 @@ export default function AdminPage() {
                         Admin Dashboard
                     </h1>
                     <div className="flex space-x-2 bg-white/5 p-1 rounded-lg">
+                        <button
+                            onClick={() => setIsCreateModalOpen(true)}
+                            className="px-4 py-2 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors mr-2"
+                        >
+                            + Create Event
+                        </button>
                         <button
                             onClick={() => setActiveTab('events')}
                             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'events'
@@ -45,6 +53,11 @@ export default function AdminPage() {
                     {activeTab === 'events' ? <AdminEventList /> : <AdminUserList />}
                 </div>
             </div>
+
+            <CreateEventModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+            />
         </div>
     );
 }

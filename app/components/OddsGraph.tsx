@@ -2,6 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, LineSeries } from 'lightweight-charts';
+import { motion, useSpring, useTransform } from 'framer-motion';
+
+function AnimatedNumber({ value }: { value: number }) {
+    const spring = useSpring(value, { mass: 0.8, stiffness: 75, damping: 15 });
+    const display = useTransform(spring, (current) => current.toFixed(1));
+
+    useEffect(() => {
+        spring.set(value);
+    }, [value, spring]);
+
+    return <motion.span>{display}</motion.span>;
+}
 
 
 interface OddsGraphProps {
@@ -99,6 +111,7 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
         const lineSeries = chart.addSeries(LineSeries, {
             color: '#8B5CF6',
             lineWidth: 2,
+            lineType: 2, // Curved
             priceLineVisible: false,
             lastValueVisible: false,
             priceFormat: {
@@ -109,6 +122,7 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
         const tintedSeries = chart.addSeries(LineSeries, {
             color: '#6B7280', // Dark gray for tint
             lineWidth: 2,
+            lineType: 2, // Curved
             priceLineVisible: false,
             lastValueVisible: false,
             priceFormat: {
@@ -189,7 +203,7 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
 
                 tooltip.style.display = 'block';
                 tooltip.style.transform = `translate(${left}px, ${top}px)`;
-                tooltip.textContent = `${value.toFixed(1)}%`;
+                tooltip.textContent = `${value.toFixed(1)}% Yes`;
             }
         };
 
@@ -241,7 +255,15 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
         tintedSeriesRef.current.setData([]); // Initially no tinted part
         // Auto-fit content after data update
         if (chartRef.current) {
-            chartRef.current.timeScale().fitContent();
+            // Default to showing the last 60 data points
+            const totalPoints = formatted.length;
+            if (totalPoints > 0) {
+                const from = Math.max(0, totalPoints - 60);
+                const to = totalPoints - 1;
+                chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
+            } else {
+                chartRef.current.timeScale().fitContent();
+            }
         }
     }, [data]);
 
@@ -286,8 +308,8 @@ export function OddsGraph({ eventId }: OddsGraphProps) {
         <div className="material-card p-6">
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <div className="text-3xl font-bold text-purple-400 mb-1 transition-all duration-200">
-                        {(currentPrice * 100).toFixed(1)}% chance
+                    <div className="text-3xl font-bold text-purple-400 mb-1 transition-all duration-200 flex items-center gap-1">
+                        <AnimatedNumber value={currentPrice * 100} />% chance
                     </div>
                 </div>
             </div>

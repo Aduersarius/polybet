@@ -177,7 +177,7 @@ export async function POST(request: Request) {
 
         const { prisma } = await import('@/lib/prisma');
         const body = await request.json();
-        const { title, description, resolutionDate, categories } = body;
+        const { title, description, resolutionDate, categories, imageUrl } = body;
 
         // Basic validation
         if (!title || !description || !resolutionDate) {
@@ -202,6 +202,7 @@ export async function POST(request: Request) {
                 resolutionDate: new Date(resolutionDate),
                 creatorId: user.id,
                 categories: categories ?? [],
+                imageUrl,
             },
             select: {
                 id: true,
