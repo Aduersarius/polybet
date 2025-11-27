@@ -7,6 +7,10 @@ import { Events } from './collections/Events';
 import { Users } from './collections/Users';
 import { Media } from './collections/Media';
 
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob';
+import { Settings } from './globals/Settings';
+import { Analytics } from './globals/Analytics';
+
 const dirname = path.resolve();
 
 export default buildConfig({
@@ -22,7 +26,19 @@ export default buildConfig({
         Media,
     ],
     globals: [
-        // Globals will be imported here
+        Settings,
+        Analytics,
+    ],
+    plugins: [
+        vercelBlobStorage({
+            enabled: true, // Optional, defaults to true
+            // Specify which collections should use Vercel Blob
+            collections: {
+                media: true,
+            },
+            // Token is automatically read from process.env.BLOB_READ_WRITE_TOKEN
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+        }),
     ],
     editor: lexicalEditor({}),
     secret: process.env.PAYLOAD_SECRET || 'your-secret-key-here',
