@@ -9,6 +9,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "./components/TradingPanelModal";
+import { Footer } from "./components/Footer";
 
 interface DbEvent {
   id: string;
@@ -546,6 +547,9 @@ export default function Home() {
               )
             }
           </div >
+
+          {/* Footer */}
+          <Footer />
         </motion.div >
       )}
 

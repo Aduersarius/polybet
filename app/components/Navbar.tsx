@@ -56,7 +56,7 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                     </Link>
 
                     {/* Search */}
-                    <div className="flex-1 max-w-md mx-8 hidden md:block">
+                    <div className="flex-1 ml-10 mr-6 hidden md:block">
                         <SearchBar onSearch={handleSearch} />
                     </div>
 

@@ -8,6 +8,7 @@ import { ProfileHeader } from '@/app/components/user/ProfileHeader';
 import { UserStats } from '@/app/components/user/UserStats';
 import { AchievementsList } from '@/app/components/user/AchievementsList';
 import { ActivityList } from "@/app/components/ActivityList";
+import { Footer } from '@/app/components/Footer';
 
 interface UserData {
     id: string;
@@ -125,6 +126,9 @@ export default function ProfilePage({ params }: { params: Promise<{ address: str
                         </div>
                     </div>
                 ) : null}
+
+                {/* Footer */}
+                <Footer />
             </main>
         </div>
     );
