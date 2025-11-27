@@ -33,7 +33,7 @@ export default buildConfig({
         pool: {
             connectionString: process.env.DATABASE_URL,
         },
-        // push: false, // Temporarily enabled for initial migration
+        push: false, // Disabled locally, will auto-migrate on Vercel
     }),
     cors: [
         process.env.NEXTAUTH_URL || '',
