@@ -85,7 +85,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
     };
 
     return (
-        <div ref={searchRef} className="relative w-full max-w-md">
+        <div ref={searchRef} className="relative w-full">
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -122,8 +122,8 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                     onFocus={() => setIsFocused(true)}
                     placeholder={placeholder}
                     className={`w-full pl-10 pr-10 py-2 bg-[#1e1e1e]/80 backdrop-blur-sm border rounded-lg text-white placeholder-gray-400 focus:outline-none transition-all ${isFocused
-                            ? 'border-[#bb86fc] shadow-lg shadow-[#bb86fc]/20'
-                            : 'border-[#333] hover:border-[#555]'
+                        ? 'border-[#bb86fc] shadow-lg shadow-[#bb86fc]/20'
+                        : 'border-[#333] hover:border-[#555]'
                         }`}
                 />
 
@@ -168,9 +168,9 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                                             </h4>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className={`text-xs px-2 py-0.5 rounded ${result.category === 'CRYPTO' ? 'bg-orange-500/20 text-orange-500' :
-                                                        result.category === 'SPORTS' ? 'bg-blue-500/20 text-blue-500' :
-                                                            result.category === 'POLITICS' ? 'bg-red-500/20 text-red-500' :
-                                                                'bg-purple-500/20 text-purple-500'
+                                                    result.category === 'SPORTS' ? 'bg-blue-500/20 text-blue-500' :
+                                                        result.category === 'POLITICS' ? 'bg-red-500/20 text-red-500' :
+                                                            'bg-purple-500/20 text-purple-500'
                                                     }`}>
                                                     {result.category}
                                                 </span>
