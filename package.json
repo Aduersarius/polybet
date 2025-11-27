@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "prisma generate && next build --webpack",
+    "postbuild": "node migrate-payload.mjs || echo 'Payload migration skipped'",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
