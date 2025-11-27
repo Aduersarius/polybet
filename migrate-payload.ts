@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { getPayload } from 'payload';
-import config from './payload.config.ts';
+import config from './payload.config';
 
 async function migrate() {
     try {
