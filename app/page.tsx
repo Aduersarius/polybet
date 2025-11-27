@@ -389,7 +389,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen relative overflow-hidden">
+    <main className="min-h-screen relative">
 
 
       {/* AnimatePresence removed for instant transition */}

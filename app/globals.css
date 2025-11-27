@@ -11,6 +11,16 @@
   /* Material Purple 200 */
   --secondary: #03dac6;
   /* Material Teal 200 */
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+
+  /* Shadcn Chart Colors */
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
   --error: #cf6679;
   --on-background: #ffffff;
   --on-surface: #ffffff;

@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
+import { withPayload } from '@payloadcms/next/withPayload';
 
 const nextConfig: NextConfig = {
   // Enable compression for better performance
   compress: true,
 
-  // Turbopack configuration
-  turbopack: {},
+  // Disable Turbopack for Payload compatibility
+  // turbopack: {},
 
   // Force webpack instead of turbopack for compatibility
   experimental: {
@@ -38,8 +39,12 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'loremflickr.com',
       },
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+      },
     ],
   },
 };
 
-export default nextConfig;
+export default withPayload(nextConfig);
