@@ -33,7 +33,7 @@ export default buildConfig({
         pool: {
             connectionString: process.env.DATABASE_URL,
         },
-        push: false,
+        // push: false, // Temporarily enabled for initial migration
     }),
     cors: [
         process.env.NEXTAUTH_URL || '',
