@@ -24,7 +24,7 @@ export function Footer() {
                     {/* Right: Social Media Links */}
                     <div className="flex items-center gap-2">
                         <a
-                            href="https://twitter.com/polybet"
+                            href="https://twitter.com/polybet_en"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-400/50 flex items-center justify-center text-gray-400 hover:text-blue-400 transition-all"

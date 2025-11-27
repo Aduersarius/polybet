@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload';
+import { syncUserToPrisma } from '../hooks/syncUserToPrisma';
 
 export const Users: CollectionConfig = {
     slug: 'payload-users',
@@ -6,6 +7,9 @@ export const Users: CollectionConfig = {
     admin: {
         useAsTitle: 'email',
         defaultColumns: ['email', 'username', 'role', 'isAdmin'],
+    },
+    hooks: {
+        afterChange: [syncUserToPrisma],
     },
     access: {
         read: () => true,
