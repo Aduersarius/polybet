@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "prisma generate && next build --webpack",
-    "postbuild": "npx tsx migrate-payload.ts || echo 'Payload migration skipped'",
+    "postbuild": "echo 'Payload migration skipped during build - tables created by Prisma'",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
