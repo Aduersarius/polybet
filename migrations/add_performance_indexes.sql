@@ -3,9 +3,8 @@
 
 -- User indexes
 CREATE INDEX IF NOT EXISTS "User_address_idx" ON "User"("address");
-CREATE INDEX IF NOT EXISTS "User_clerkId_idx" ON "User"("clerkId");
 
--- Event indexes  
+-- Event indexes
 CREATE INDEX IF NOT EXISTS "Event_status_createdAt_idx" ON "Event"("status", "createdAt");
 CREATE INDEX IF NOT EXISTS "Event_categories_idx" ON "Event" USING GIN ("categories");
 CREATE INDEX IF NOT EXISTS "Event_creatorId_idx" ON "Event"("creatorId");

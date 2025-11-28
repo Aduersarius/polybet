@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,22 +11,18 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        // Authentication check
+        const session = await requireAuth(request);
+
         const { id } = await params;
         const body = await request.json();
-        const { address, type } = body; // type: 'LIKE' | 'DISLIKE'
+        const { type } = body; // type: 'LIKE' | 'DISLIKE'
 
-        if (!address || !type) {
-            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+        if (!type) {
+            return NextResponse.json({ error: 'Missing type field' }, { status: 400 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { address },
-            select: { id: true }
-        });
-
-        if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
+        const userId = session.user.id;
 
         const messageId = id;
 
@@ -33,7 +30,7 @@ export async function POST(
         const existingReaction = await prisma.messageReaction.findUnique({
             where: {
                 userId_messageId: {
-                    userId: user.id,
+                    userId,
                     messageId
                 }
             }
@@ -58,7 +55,7 @@ export async function POST(
             // Create new
             await prisma.messageReaction.create({
                 data: {
-                    userId: user.id,
+                    userId,
                     messageId,
                     type
                 }

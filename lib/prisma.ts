@@ -12,18 +12,22 @@ const connectionString = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES
 const pool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    max: 3,  // VERY small pool for serverless (many instances × 3 = manageable)
-    min: 0,  // No minimum - serverless should scale to zero
-    idleTimeoutMillis: 5000,  // Aggressive cleanup (5s)
-    connectionTimeoutMillis: 2000, // Fast timeout (2s)
-    maxUses: 500, // Recycle frequently
-    allowExitOnIdle: true, // Critical for serverless
+    max: 10,  // Increased for stability
+    min: 0,
+    idleTimeoutMillis: 30000,  // 30s
+    connectionTimeoutMillis: 10000, // 10s
+    maxUses: 5000,
+    allowExitOnIdle: true,
 });
 
 const adapter = new PrismaPg(pool);
 
-export const prisma =
+new PrismaClient({ adapter });
+
+const basePrisma =
     globalForPrisma.prisma ||
     new PrismaClient({ adapter });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma;
+
+export const prisma = basePrisma;

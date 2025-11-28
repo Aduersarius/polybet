@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { Events } from './collections/Events';
 import { Users } from './collections/Users';
 import { Media } from './collections/Media';
+import { AppUsers } from './collections/AppUsers';
 
 import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob';
 import { Settings } from './globals/Settings';
@@ -22,6 +23,7 @@ export default buildConfig({
     },
     collections: [
         Users,
+        AppUsers,
         Events,
         Media,
     ],

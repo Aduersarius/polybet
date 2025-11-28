@@ -14,7 +14,6 @@ export const syncUserToPrisma: CollectionAfterChangeHook = async ({ doc, req, op
             avatarUrl: user.avatarUrl?.url || (typeof user.avatarUrl === 'string' ? user.avatarUrl : null),
             isAdmin: user.role === 'admin',
             isBanned: user.isBanned || false,
-            clerkId: user.clerkId || null,
             address: user.address || null,
             // Map social links
             twitter: user.social?.twitter || null,
@@ -24,6 +23,12 @@ export const syncUserToPrisma: CollectionAfterChangeHook = async ({ doc, req, op
         };
 
         if (operation === 'create') {
+            // If prismaId is already set (e.g. synced from Prisma -> Payload), skip creation
+            if (user.prismaId) {
+                console.log('User already has prismaId, skipping sync to Prisma');
+                return doc;
+            }
+
             // Create in Prisma
             const prismaUser = await prisma.user.create({
                 data: userData,

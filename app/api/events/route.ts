@@ -168,13 +168,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const { auth } = await import('@clerk/nextjs/server');
-        const { userId } = await auth();
-
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const { prisma } = await import('@/lib/prisma');
         const body = await request.json();
         const { title, description, resolutionDate, categories, imageUrl } = body;
@@ -184,23 +177,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Get or create user with Clerk ID
-        let user = await prisma.user.findUnique({ where: { clerkId: userId } });
-        if (!user) {
-            user = await prisma.user.create({
-                data: {
-                    clerkId: userId,
-                    // Clerk will provide additional user data if needed
-                }
-            });
-        }
-
         const event = await prisma.event.create({
             data: {
                 title,
                 description,
                 resolutionDate: new Date(resolutionDate),
-                creatorId: user.id,
                 categories: categories ?? [],
                 imageUrl,
             },

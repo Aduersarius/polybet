@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,12 +11,15 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        // Authentication check
+        const session = await requireAuth(request);
+
         const { id } = await params;
         const body = await request.json();
-        const { text, address } = body;
+        const { text } = body;
 
-        if (!text || !address) {
-            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+        if (!text) {
+            return NextResponse.json({ error: 'Missing text field' }, { status: 400 });
         }
 
         // Find the message
@@ -29,7 +33,7 @@ export async function PATCH(
         }
 
         // Verify ownership
-        if (!message.user.address || message.user.address.toLowerCase() !== address.toLowerCase()) {
+        if (message.userId !== session.user.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 
@@ -64,13 +68,10 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = await params;
-        const body = await request.json();
-        const { address } = body;
+        // Authentication check
+        const session = await requireAuth(request);
 
-        if (!address) {
-            return NextResponse.json({ error: 'Missing address' }, { status: 400 });
-        }
+        const { id } = await params;
 
         // Find the message with user and replies
         const message = await prisma.message.findUnique({
@@ -86,7 +87,7 @@ export async function DELETE(
         }
 
         // Verify ownership
-        if (!message.user.address || message.user.address.toLowerCase() !== address.toLowerCase()) {
+        if (message.userId !== session.user.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 
