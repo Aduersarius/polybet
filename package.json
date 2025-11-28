@@ -45,8 +45,8 @@
     "next": "16.0.3",
     "payload": "^3.65.0",
     "pg": "^8.16.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "recharts": "^3.4.1",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.4.0"
