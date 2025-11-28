@@ -1,6 +1,5 @@
 import { buildConfig } from 'payload';
 import { postgresAdapter } from '@payloadcms/db-postgres';
-import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Events } from './collections/Events';
@@ -42,7 +41,6 @@ export default buildConfig({
             token: process.env.BLOB_READ_WRITE_TOKEN,
         }),
     ],
-    editor: lexicalEditor({}),
     secret: process.env.PAYLOAD_SECRET || 'your-secret-key-here',
     typescript: {
         outputFile: path.resolve(dirname, 'payload-types.ts'),
