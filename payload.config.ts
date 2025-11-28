@@ -13,7 +13,7 @@ import { Analytics } from './globals/Analytics';
 
 const dirname = path.resolve();
 
-export default buildConfig({
+const config = buildConfig({
     admin: {
         user: 'payload-users',
         meta: {
@@ -31,15 +31,15 @@ export default buildConfig({
         Analytics,
     ],
     plugins: [
-        vercelBlobStorage({
-            enabled: true, // Optional, defaults to true
-            // Specify which collections should use Vercel Blob
-            collections: {
-                media: true,
-            },
-            // Token is automatically read from process.env.BLOB_READ_WRITE_TOKEN
-            token: process.env.BLOB_READ_WRITE_TOKEN,
-        }),
+        // vercelBlobStorage({
+        //     enabled: true, // Optional, defaults to true
+        //     // Specify which collections should use Vercel Blob
+        //     collections: {
+        //         media: true,
+        //     },
+        //     // Token is automatically read from process.env.BLOB_READ_WRITE_TOKEN
+        //     token: process.env.BLOB_READ_WRITE_TOKEN,
+        // }),
     ],
     secret: process.env.PAYLOAD_SECRET || 'your-secret-key-here',
     typescript: {
@@ -48,15 +48,18 @@ export default buildConfig({
     db: postgresAdapter({
         pool: {
             connectionString: process.env.DATABASE_URL,
+            ssl: false,
         },
-        push: process.env.NODE_ENV === 'production', // Enable in production, disable locally
+        push: false, // Disable push to avoid hanging during build
     }),
-    cors: [
-        process.env.NEXTAUTH_URL || '',
-        'http://localhost:3000',
-    ].filter(Boolean),
-    csrf: [
-        process.env.NEXTAUTH_URL || '',
-        'http://localhost:3000',
-    ].filter(Boolean),
+    // cors: [
+    //     process.env.NEXTAUTH_URL || '',
+    //     'http://localhost:3000',
+    // ].filter(Boolean),
+    // csrf: [
+    //     process.env.NEXTAUTH_URL || '',
+    //     'http://localhost:3000',
+    // ].filter(Boolean),
 });
+
+export default config;
