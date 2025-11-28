@@ -61,7 +61,7 @@
     "postcss": "^8.5.6",
     "prisma": "^7.0.0",
     "tailwindcss": "^3.4.17",
-    "tap": "^15.0.0",
+    "tap": "^21.4.0",
     "tape": "^5.6.3",
     "typescript": "^5",
     "why-is-node-running": "^2.2.0"
