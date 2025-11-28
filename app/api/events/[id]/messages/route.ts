@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
+import { requireAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -117,6 +118,9 @@ export async function GET(
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const startTime = Date.now();
 
+    // Authentication check
+    const session = await requireAuth(req);
+
     // Rate limiting with IP bypass for 185.72.224.35
     const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
     const identifier = getRateLimitIdentifier(req);
@@ -124,11 +128,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (rateLimitResponse) return rateLimitResponse;
 
     try {
-        // Mock auth for dev
-        const userId = 'dev-user';
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const userId = session.user.id;
 
         const { id } = await params;
         const body = await req.json();
@@ -154,10 +154,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 where: { id: userId },
                 update: {}, // No updates if exists
                 create: {
-                    id: 'dev-user',
-                    username: 'Dev User',
-                    address: '0xDevUser',
-                    clerkId: 'dev-user-clerk-id'
+                    id: userId,
+                    username: session.user.name || `User_${userId.slice(-8)}`,
+                    email: session.user.email,
+                    address: `0x${userId.slice(-8)}`
                 }
             }),
             5000

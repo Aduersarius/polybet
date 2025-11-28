@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(
     request: NextRequest,
@@ -29,6 +30,7 @@ export async function GET(
             user = await prisma.user.create({
                 data: {
                     address,
+                    email: `${address}@placeholder.com`, // Required for BetterAuth
                     username: `User ${address.slice(0, 6)}`,
                 },
                 include: {
@@ -66,8 +68,23 @@ export async function PUT(
     { params }: { params: Promise<{ address: string }> }
 ) {
     try {
+        // Authentication check
+        const session = await requireAuth(request);
+
         const paramsData = await params;
         const address = paramsData.address.toLowerCase();
+
+        // Ensure user can only update their own profile
+        // Check if the authenticated user's address matches the requested address
+        const authenticatedUser = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { address: true }
+        });
+
+        if (!authenticatedUser || authenticatedUser.address?.toLowerCase() !== address.toLowerCase()) {
+            return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+        }
+
         const body = await request.json();
         const { username, description, avatarUrl, twitter, discord, telegram, website } = body;
 
@@ -86,6 +103,7 @@ export async function PUT(
             },
             create: {
                 address,
+                email: `${address}@placeholder.com`, // Required for BetterAuth
                 username,
                 description,
                 avatarUrl,

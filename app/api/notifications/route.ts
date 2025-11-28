@@ -1,18 +1,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-
-        if (!userId) {
-            return NextResponse.json({ error: 'User ID required' }, { status: 400 });
-        }
+        // Authentication check
+        const session = await requireAuth(request);
+        const userId = session.user.id;
 
         const notifications = await prisma.notification.findMany({
             where: { userId },
@@ -36,11 +34,24 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
     try {
+        // Authentication check
+        const session = await requireAuth(request);
+
         const body = await request.json();
         const { notificationId } = body;
 
         if (!notificationId) {
             return NextResponse.json({ error: 'Notification ID required' }, { status: 400 });
+        }
+
+        // Ensure user can only update their own notifications
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+            select: { userId: true }
+        });
+
+        if (!notification || notification.userId !== session.user.id) {
+            return NextResponse.json({ error: 'Notification not found or access denied' }, { status: 404 });
         }
 
         await prisma.notification.update({

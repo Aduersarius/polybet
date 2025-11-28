@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { RequestQueue } from '@/lib/queue';
+import { requireAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,9 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const startTime = Date.now();
+
+    // Authentication check
+    await requireAuth(request);
 
     try {
         // Rate limiting

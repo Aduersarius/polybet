@@ -9,6 +9,13 @@ import { UserStats } from '@/app/components/user/UserStats';
 import { AchievementsList } from '@/app/components/user/AchievementsList';
 import { ActivityList } from "@/app/components/ActivityList";
 import { Footer } from '@/app/components/Footer';
+import { createAuthClient } from "better-auth/react";
+
+const authClient = createAuthClient({
+    baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000",
+});
+
+const { useSession } = authClient;
 
 interface UserData {
     id: string;
@@ -26,9 +33,7 @@ interface UserData {
 
 export default function ProfilePage({ params }: { params: Promise<{ address: string }> }) {
     const resolvedParams = use(params);
-    // Mock current user for dev
-    const currentUser = { id: 'dev-user' };
-    const isLoaded = true;
+    const { data: session } = useSession();
 
     const [user, setUser] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -59,9 +64,8 @@ export default function ProfilePage({ params }: { params: Promise<{ address: str
         fetchUser();
     }, [resolvedParams.address]);
 
-    // For Web2, ownership is determined by Clerk user ID matching the profile user ID
-    // Since we're transitioning, we'll check if the current user matches the profile
-    const isOwner = Boolean(currentUser?.id && user?.id === currentUser.id);
+    // Ownership is determined by checking if the current session user ID matches the profile address
+    const isOwner = Boolean((session as any)?.user?.id && (session as any).user.id.toLowerCase() === resolvedParams.address.toLowerCase());
 
     return (
         <div className="min-h-screen bg-black text-white">

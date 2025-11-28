@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS payload_users (
   "avatarUrl" VARCHAR(500),
   "isAdmin" BOOLEAN DEFAULT false,
   "isBanned" BOOLEAN DEFAULT false,
-  "clerkId" VARCHAR(255),
   address VARCHAR(255),
   "prismaId" VARCHAR(255),
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

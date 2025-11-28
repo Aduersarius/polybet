@@ -1,34 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { requireAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Hardcoded admin user IDs for initial security
-const ADMIN_USER_IDS = [
-    'admin_user_id', // Replace with actual admin user IDs from Clerk
-];
-
-async function isAdmin(userId: string) {
-    if (ADMIN_USER_IDS.includes(userId)) return true;
-
-    const user = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: { isAdmin: true }
-    });
-
-    return !!user?.isAdmin;
-}
-
 export async function GET(request: NextRequest) {
     try {
-        const { userId } = await auth();
-
-        if (!userId || !(await isAdmin(userId))) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
+        // Authentication check
+        await requireAuth(request);
         const users = await prisma.user.findMany({
             orderBy: { createdAt: 'desc' },
             include: {
@@ -47,13 +27,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const { userId } = await auth();
+        // Authentication check
+        await requireAuth(request);
         const body = await request.json();
         const { targetUserId, action } = body;
-
-        if (!userId || !(await isAdmin(userId))) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
 
         if (!targetUserId || !['ban', 'unban'].includes(action)) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });

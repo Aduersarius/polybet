@@ -6,9 +6,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
+import { requireAuth } from '@/lib/auth';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
+
+    // Authentication check
+    const session = await requireAuth(request);
 
     // Rate limiting with IP bypass for 185.72.224.35
     const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
@@ -19,14 +23,14 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
-        const { eventId, amount, userId: bodyUserId } = body;
+        const { eventId, amount } = body;
         const option = body.option || body.outcome;
 
         if (!eventId || !option || !amount) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const targetUserId = bodyUserId || 'dev-user';
+        const targetUserId = session.user.id;
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
@@ -95,9 +99,9 @@ export async function POST(request: Request) {
                             update: {}, // No updates needed if user exists
                             create: {
                                 id: targetUserId,
-                                username: targetUserId === 'dev-user' ? 'Dev User' : `User_${targetUserId.slice(-8)}`,
-                                address: targetUserId === 'dev-user' ? '0xDevUser' : `0x${targetUserId}`,
-                                clerkId: targetUserId === 'dev-user' ? 'dev-user-clerk-id' : undefined
+                                username: session.user.name || `User_${targetUserId.slice(-8)}`,
+                                email: session.user.email,
+                                address: `0x${targetUserId.slice(-8)}`
                             }
                         }),
                         prisma.event.update({

@@ -6,6 +6,13 @@ import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
 import { Plus, Wallet } from 'lucide-react';
+import { createAuthClient } from "better-auth/react";
+
+const authClient = createAuthClient({
+    baseURL: "http://localhost:3000",
+});
+
+const { useSession } = authClient;
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -30,6 +37,7 @@ interface NavbarProps {
 
 export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
+    const { data: session } = useSession();
 
     useEffect(() => {
         const handleScroll = () => {
@@ -71,10 +79,27 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
 
                         <NotificationBell />
 
-                        {/* User Profile (Mock) */}
-                        <Link href="/user/dev-user" className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                            DV
-                        </Link>
+                        {/* Authentication */}
+                        {session ? (
+                            <div className="flex items-center gap-2">
+                                <span className="text-white text-sm">{(session as any).user?.name || (session as any).user?.email}</span>
+                                <button
+                                    onClick={() => (authClient as any).signOut()}
+                                    className="px-3 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm transition-colors"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <Link href="/login" className="px-3 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-sm transition-colors">
+                                    Login
+                                </Link>
+                                <Link href="/signup" className="px-3 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm transition-colors">
+                                    Sign Up
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

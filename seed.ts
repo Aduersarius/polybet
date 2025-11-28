@@ -9,6 +9,7 @@ async function main() {
         update: {},
         create: {
             address: '0x0000000000000000000000000000000000000000',
+            email: 'system@polybet.com',
             username: 'System',
         },
     });

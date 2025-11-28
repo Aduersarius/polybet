@@ -93,13 +93,6 @@ export const Users: CollectionConfig = {
         },
         // Clerk/Prisma IDs
         {
-            name: 'clerkId',
-            type: 'text',
-            admin: {
-                readOnly: true,
-            },
-        },
-        {
             name: 'address',
             type: 'text',
             admin: {

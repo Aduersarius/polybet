@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS payload_users (
   social_website VARCHAR(500),
   is_admin BOOLEAN DEFAULT false,
   is_banned BOOLEAN DEFAULT false,
-  clerk_id VARCHAR(255),
   address VARCHAR(255),
   prisma_id VARCHAR(255),
   updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
@@ -150,7 +149,7 @@ CREATE TABLE IF NOT EXISTS payload_locked_documents (
 -- Payload locked documents relationships
 CREATE TABLE IF NOT EXISTS payload_locked_documents_rels (
   id SERIAL PRIMARY KEY,
-  order INTEGER,
+  "order" INTEGER,
   parent_id INTEGER REFERENCES payload_locked_documents(id) ON DELETE CASCADE,
   path VARCHAR(255) NOT NULL,
   users_id INTEGER REFERENCES payload_users(id) ON DELETE CASCADE,

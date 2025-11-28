@@ -29,6 +29,7 @@ export async function POST() {
             user = await prisma.user.create({
                 data: {
                     address: '0x' + Math.random().toString(16).substr(2, 40),
+                    email: 'demo@example.com',
                     username: 'Demo Trader',
                 }
             });
