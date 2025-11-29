@@ -1,5 +1,5 @@
 import { getPayload } from 'payload';
-import config from '../payload.config';
+import config from '@payload-config';
 
 async function createAdmin() {
     const payload = await getPayload({ config });
@@ -19,12 +19,17 @@ async function createAdmin() {
         });
 
         if (existingUsers.docs.length > 0) {
-            console.log('✅ Admin user already exists:', adminEmail);
-            return;
+            console.log('ℹ️  Admin user already exists');
+            console.log('📧 Email:', adminEmail);
+            console.log('');
+            console.log('To reset password, delete the user first:');
+            console.log('npx prisma studio');
+            console.log('(or delete from payload_users table via SQL)');
+            process.exit(0);
         }
 
         // Create admin user
-        const admin = await payload.create({
+        await payload.create({
             collection: 'payload-users',
             data: {
                 email: adminEmail,
@@ -34,12 +39,18 @@ async function createAdmin() {
             },
         });
 
+        console.log('');
         console.log('✅ Admin user created successfully!');
-        console.log('Email:', adminEmail);
-        console.log('Password:', adminPassword);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📧 Email:', adminEmail);
+        console.log('🔑 Password:', adminPassword);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('');
         console.log('⚠️  IMPORTANT: Change this password after first login!');
-    } catch (error) {
-        console.error('❌ Error creating admin user:', error);
+        console.log('🔗 Login at: http://localhost:3000/admin/login');
+        console.log('');
+    } catch (error: any) {
+        console.error('❌ Error:', error.message);
     }
 
     process.exit(0);
