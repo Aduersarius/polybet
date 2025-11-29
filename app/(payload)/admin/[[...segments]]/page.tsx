@@ -1,6 +1,7 @@
 import configPromise from '@payload-config';
 import { RootPage, generatePageMetadata } from '@payloadcms/next/views';
 import { Metadata } from 'next';
+import { importMap } from '../importMap';
 
 type Args = {
     params: Promise<{
@@ -20,7 +21,7 @@ export const generateMetadata = async ({ params, searchParams }: Args): Promise<
 const Page = async ({ params, searchParams }: Args) => {
     const config = await configPromise;
     console.log('Payload config in Page:', config);
-    return RootPage({ config: config as any, params, searchParams, importMap: {} as any }); // Cast to any to bypass type check for now
+    return RootPage({ config: config as any, params, searchParams, importMap: config.admin?.importMap }); // Cast to any to bypass type check for now
 };
 
 export default Page;
