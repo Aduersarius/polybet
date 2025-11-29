@@ -13,15 +13,13 @@ type Args = {
 };
 
 export const generateMetadata = async ({ params, searchParams }: Args): Promise<Metadata> => {
-    const config = await configPromise;
-    console.log('Payload config in generateMetadata:', config);
-    return generatePageMetadata({ config: config as any, params, searchParams });
+    console.log('Payload config promise in generateMetadata:', configPromise);
+    return generatePageMetadata({ config: configPromise, params, searchParams });
 };
 
 const Page = async ({ params, searchParams }: Args) => {
-    const config = await configPromise;
-    console.log('Payload config in Page:', config);
-    return RootPage({ config: config as any, params, searchParams, importMap: config.admin?.importMap }); // Cast to any to bypass type check for now
+    console.log('Payload config promise in Page:', configPromise);
+    return RootPage({ config: configPromise, params, searchParams, importMap: {} }); // Cast to any to bypass type check for now
 };
 
 export default Page;
