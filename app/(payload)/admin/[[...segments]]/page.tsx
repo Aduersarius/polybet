@@ -1,4 +1,4 @@
-import configPromise from '../../../payload.config.ts';
+import configPromise from '@payload-config';
 import { RootPage, generatePageMetadata } from '@payloadcms/next/views';
 import { Metadata } from 'next';
 
