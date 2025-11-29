@@ -17,7 +17,7 @@ export const Users: CollectionConfig = {
         update: ({ req, id }) => {
             if (!req.user) return false;
             if (req.user.role === 'admin') return true;
-            return req.user.id === id; // Users can update themselves
+            return req.user.id === id;
         },
         delete: ({ req }) => !!req.user && req.user.role === 'admin',
     },
