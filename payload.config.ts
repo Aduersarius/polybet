@@ -31,7 +31,7 @@ const config = buildConfig({
         Analytics,
     ],
     plugins: [
-        vercelBlobStorage({
+        ...(process.env.BLOB_READ_WRITE_TOKEN ? [vercelBlobStorage({
             enabled: true, // Optional, defaults to true
             // Specify which collections should use Vercel Blob
             collections: {
@@ -39,7 +39,7 @@ const config = buildConfig({
             },
             // Token is automatically read from process.env.BLOB_READ_WRITE_TOKEN
             token: process.env.BLOB_READ_WRITE_TOKEN,
-        }),
+        })] : []),
     ],
     secret: process.env.PAYLOAD_SECRET || 'your-secret-key-here',
     typescript: {
@@ -48,7 +48,6 @@ const config = buildConfig({
     db: postgresAdapter({
         pool: {
             connectionString: process.env.DATABASE_URL,
-            ssl: false,
         },
         push: false, // Disable push to avoid hanging during build
     }),
@@ -61,5 +60,11 @@ const config = buildConfig({
     //     'http://localhost:3000',
     // ].filter(Boolean),
 });
+
+console.log('Payload config built successfully:', !!config);
+console.log('Payload config type:', typeof config);
+if (!config) {
+    console.error('Payload config is falsy - check environment variables and configuration');
+}
 
 export default config;
