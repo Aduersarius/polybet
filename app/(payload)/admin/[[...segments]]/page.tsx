@@ -19,7 +19,7 @@ export const generateMetadata = async ({ params, searchParams }: Args): Promise<
 
 const Page = async ({ params, searchParams }: Args) => {
     console.log('Payload config promise in Page:', configPromise);
-    return RootPage({ config: configPromise, params, searchParams, importMap: {} }); // Cast to any to bypass type check for now
+    return RootPage({ config: configPromise, params, searchParams, importMap });
 };
 
 export default Page;
