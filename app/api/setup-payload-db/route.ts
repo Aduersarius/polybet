@@ -10,75 +10,55 @@ export async function POST(request: NextRequest) {
     await client.connect();
     console.log('Connected to database');
 
-    // Execute statements one by one to identify the failing one
+    // Create tables and add missing columns
     const statements = [
-      // Create tables first
+      // Create the main missing table that's causing the error
       `CREATE TABLE IF NOT EXISTS "payload_preferences_rels" (
-        "id" SERIAL,
+        "id" SERIAL PRIMARY KEY,
         "order" INTEGER,
         "parent_id" INTEGER NOT NULL,
         "path" VARCHAR(500) NOT NULL,
-        "payload_users_id" INTEGER,
-        PRIMARY KEY ("id")
+        "payload_users_id" INTEGER
       )`,
 
-      `CREATE TABLE IF NOT EXISTS "payload_locked_documents_rels" (
-        "id" SERIAL,
-        "order" INTEGER,
-        "parent_id" INTEGER NOT NULL,
-        "path" VARCHAR(500) NOT NULL,
-        "payload_users_id" INTEGER,
-        "app_users_id" INTEGER,
-        "payload_events_id" INTEGER,
-        "media_id" INTEGER,
-        PRIMARY KEY ("id")
-      )`,
-
-      `CREATE TABLE IF NOT EXISTS "payload_locked_documents" (
-        "id" SERIAL,
-        "global_slug" VARCHAR(100),
-        "updated_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        "created_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY ("id")
-      )`,
-
+      // Create the preferences table if it doesn't exist
       `CREATE TABLE IF NOT EXISTS "payload_preferences" (
-        "id" SERIAL,
+        "id" SERIAL PRIMARY KEY,
         "key" VARCHAR(255),
         "value" JSONB,
         "updated_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        "created_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY ("id")
+        "created_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )`,
 
-      // Add indexes
+      // Create the locked documents table
+      `CREATE TABLE IF NOT EXISTS "payload_locked_documents" (
+        "id" SERIAL PRIMARY KEY,
+        "global_slug" VARCHAR(100),
+        "updated_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        "created_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Create the locked documents relationships table
+      `CREATE TABLE IF NOT EXISTS "payload_locked_documents_rels" (
+        "id" SERIAL PRIMARY KEY,
+        "order" INTEGER,
+        "parent_id" INTEGER NOT NULL,
+        "path" VARCHAR(500) NOT NULL
+      )`,
+
+      // Add missing columns to payload_locked_documents_rels table
+      `ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "payload_users_id" INTEGER`,
+      `ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "app_users_id" INTEGER`,
+      `ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "payload_events_id" INTEGER`,
+      `ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "media_id" INTEGER`,
+
+      // Add basic indexes
       `CREATE INDEX IF NOT EXISTS "payload_preferences_rels_parent_idx" ON "payload_preferences_rels"("parent_id")`,
       `CREATE INDEX IF NOT EXISTS "payload_preferences_rels_path_idx" ON "payload_preferences_rels"("path")`,
-      `CREATE INDEX IF NOT EXISTS "payload_preferences_rels_payload_users_id_idx" ON "payload_preferences_rels"("payload_users_id")`,
-
+      `CREATE INDEX IF NOT EXISTS "payload_preferences_key_idx" ON "payload_preferences"("key")`,
       `CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_parent_idx" ON "payload_locked_documents_rels"("parent_id")`,
       `CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_path_idx" ON "payload_locked_documents_rels"("path")`,
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_payload_users_id_idx" ON "payload_locked_documents_rels"("payload_users_id")`,
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_app_users_id_idx" ON "payload_locked_documents_rels"("app_users_id")`,
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_payload_events_id_idx" ON "payload_locked_documents_rels"("payload_events_id")`,
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_media_id_idx" ON "payload_locked_documents_rels"("media_id")`,
-
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_global_slug_idx" ON "payload_locked_documents"("global_slug")`,
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_updated_at_idx" ON "payload_locked_documents"("updated_at")`,
-      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_created_at_idx" ON "payload_locked_documents"("created_at")`,
-
-      `CREATE INDEX IF NOT EXISTS "payload_preferences_key_idx" ON "payload_preferences"("key")`,
-      `CREATE INDEX IF NOT EXISTS "payload_preferences_updated_at_idx" ON "payload_preferences"("updated_at")`,
-      `CREATE INDEX IF NOT EXISTS "payload_preferences_created_at_idx" ON "payload_preferences"("created_at")`,
-
-      // Add foreign key constraints
-      `ALTER TABLE "payload_preferences_rels"
-       ADD CONSTRAINT IF NOT EXISTS "payload_preferences_rels_parent_id_fk"
-       FOREIGN KEY ("parent_id") REFERENCES "payload_preferences"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
-
-      `ALTER TABLE "payload_locked_documents_rels"
-       ADD CONSTRAINT IF NOT EXISTS "payload_locked_documents_rels_parent_id_fk"
-       FOREIGN KEY ("parent_id") REFERENCES "payload_locked_documents"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+      `CREATE INDEX IF NOT EXISTS "payload_locked_documents_global_slug_idx" ON "payload_locked_documents"("global_slug")`
     ];
 
     // Execute each statement
