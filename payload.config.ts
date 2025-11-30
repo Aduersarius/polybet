@@ -59,6 +59,9 @@ const config = buildConfig({
     //     process.env.NEXTAUTH_URL || '',
     //     'http://localhost:3000',
     // ].filter(Boolean),
+    routes: {
+        api: '/api/payload',
+    },
 });
 
 console.log('Payload config built successfully:', !!config);

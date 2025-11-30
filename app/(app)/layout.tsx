@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
-import "./globals.css";
-import { Providers } from "./providers";
-import { InteractiveParticles } from "./components/InteractiveParticles";
+import "../globals.css";
+import { Providers } from "../providers";
+import { InteractiveParticles } from "../components/InteractiveParticles";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
