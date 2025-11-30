@@ -26,14 +26,14 @@ export function NotificationBell() {
     const queryClient = useQueryClient();
 
     const { data } = useQuery<{ notifications: Notification[], unreadCount: number }>({
-        queryKey: ['notifications', session?.user?.id],
+        queryKey: ['notifications', (session as any)?.user?.id],
         queryFn: async () => {
-            if (!session?.user?.id) return { notifications: [], unreadCount: 0 };
+            if (!(session as any)?.user?.id) return { notifications: [], unreadCount: 0 };
             const res = await fetch('/api/notifications');
             if (!res.ok) throw new Error('Failed to fetch notifications');
             return res.json();
         },
-        enabled: !!session?.user?.id && !isPending,
+        enabled: !!(session as any)?.user?.id && !isPending,
         refetchInterval: 10000, // Poll every 10s
     });
 
