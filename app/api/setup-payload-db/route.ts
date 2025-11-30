@@ -2,19 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Client } from 'pg';
 
 export async function POST(request: NextRequest) {
-    const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-    });
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+  });
 
-    try {
-        await client.connect();
-        console.log('Connected to database');
+  try {
+    await client.connect();
+    console.log('Connected to database');
 
-        // Create all missing Payload tables
-        const createTablesSQL = `
+    // Create all missing Payload tables
+    const createTablesSQL = `
       -- Create payload_preferences_rels table
       CREATE TABLE IF NOT EXISTS "payload_preferences_rels" (
-        "id" SERIAL NOT NULL,
+        "id" SERIAL,
         "order" INTEGER,
         "parent_id" INTEGER NOT NULL,
         "path" VARCHAR(500) NOT NULL,
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
       -- Create payload_locked_documents_rels table
       CREATE TABLE IF NOT EXISTS "payload_locked_documents_rels" (
-        "id" SERIAL NOT NULL,
+        "id" SERIAL,
         "order" INTEGER,
         "parent_id" INTEGER NOT NULL,
         "path" VARCHAR(500) NOT NULL,
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
       -- Create payload_locked_documents table if it doesn't exist
       CREATE TABLE IF NOT EXISTS "payload_locked_documents" (
-        "id" SERIAL NOT NULL,
+        "id" SERIAL,
         "global_slug" VARCHAR(100),
         "updated_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         "created_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
       -- Create payload_preferences table if it doesn't exist
       CREATE TABLE IF NOT EXISTS "payload_preferences" (
-        "id" SERIAL NOT NULL,
+        "id" SERIAL,
         "key" VARCHAR(255),
         "value" JSONB,
         "updated_at" TIMESTAMP(3) WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -84,11 +84,11 @@ export async function POST(request: NextRequest) {
       FOREIGN KEY ("parent_id") REFERENCES "payload_locked_documents"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
     `;
 
-        await client.query(createTablesSQL);
-        console.log('✅ SUCCESS: All Payload tables created!');
+    await client.query(createTablesSQL);
+    console.log('✅ SUCCESS: All Payload tables created!');
 
-        // Verify tables exist
-        const verifyTables = await client.query(`
+    // Verify tables exist
+    const verifyTables = await client.query(`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public'
@@ -96,23 +96,23 @@ export async function POST(request: NextRequest) {
       ORDER BY table_name;
     `);
 
-        const tables = verifyTables.rows.map(row => row.table_name);
-        console.log('📋 Payload tables in database:', tables);
+    const tables = verifyTables.rows.map(row => row.table_name);
+    console.log('📋 Payload tables in database:', tables);
 
-        return NextResponse.json({
-            success: true,
-            message: 'All Payload tables created successfully',
-            tables: tables
-        });
+    return NextResponse.json({
+      success: true,
+      message: 'All Payload tables created successfully',
+      tables: tables
+    });
 
-    } catch (error) {
-        console.error('❌ ERROR:', error);
-        return NextResponse.json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        }, { status: 500 });
-    } finally {
-        await client.end();
-        console.log('Database connection closed');
-    }
+  } catch (error) {
+    console.error('❌ ERROR:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  } finally {
+    await client.end();
+    console.log('Database connection closed');
+  }
 }
