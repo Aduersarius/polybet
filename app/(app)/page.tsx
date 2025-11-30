@@ -1,6 +1,6 @@
 'use client';
-import { Navbar } from "./components/Navbar";
-import { InteractiveParticles } from "./components/InteractiveParticles";
+import { Navbar } from "../components/Navbar";
+import { InteractiveParticles } from "../components/InteractiveParticles";
 
 // ... (inside component)
 <InteractiveParticles variant="simple" />
@@ -8,8 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from '@tanstack/react-query';
-import { TradingPanelModal } from "./components/TradingPanelModal";
-import { Footer } from "./components/Footer";
+import { TradingPanelModal } from "../components/TradingPanelModal";
+import { Footer } from "../components/Footer";
 
 interface DbEvent {
   id: string;
