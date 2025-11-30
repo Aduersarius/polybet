@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS "payload_locked_documents" (
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "payload_locked_documents_rels" (
+CREATE TABLE IF NOT EXISTS "payload_locked_documents__rels" (
     "id" serial PRIMARY KEY,
     "parent_id" integer REFERENCES "payload_locked_documents"("id") ON DELETE CASCADE,
     "path" varchar NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS "payload_preferences" (
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "payload_preferences_rels" (
+CREATE TABLE IF NOT EXISTS "payload_preferences__rels" (
     "id" serial PRIMARY KEY,
     "parent_id" integer REFERENCES "payload_preferences"("id") ON DELETE CASCADE,
     "path" varchar NOT NULL,
@@ -47,17 +47,25 @@ CREATE TABLE IF NOT EXISTS "payload_users" (
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
+-- Add missing columns to existing tables (in case they were created with wrong schema)
+ALTER TABLE "payload_locked_documents__rels" ADD COLUMN IF NOT EXISTS "payload_users_id" integer;
+ALTER TABLE "payload_locked_documents__rels" ADD COLUMN IF NOT EXISTS "app_users_id" integer;
+ALTER TABLE "payload_locked_documents__rels" ADD COLUMN IF NOT EXISTS "payload_events_id" integer;
+ALTER TABLE "payload_locked_documents__rels" ADD COLUMN IF NOT EXISTS "media_id" integer;
+
+ALTER TABLE "payload_preferences__rels" ADD COLUMN IF NOT EXISTS "payload_users_id" integer;
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS "payload_locked_documents_global_slug_idx" ON "payload_locked_documents"("global_slug");
-CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_parent_idx" ON "payload_locked_documents_rels"("parent_id");
-CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_payload_users_idx" ON "payload_locked_documents_rels"("payload_users_id");
-CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_app_users_idx" ON "payload_locked_documents_rels"("app_users_id");
-CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_payload_events_idx" ON "payload_locked_documents_rels"("payload_events_id");
-CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_media_idx" ON "payload_locked_documents_rels"("media_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents__rels_parent_idx" ON "payload_locked_documents__rels"("parent_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents__rels_payload_users_idx" ON "payload_locked_documents__rels"("payload_users_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents__rels_app_users_idx" ON "payload_locked_documents__rels"("app_users_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents__rels_payload_events_idx" ON "payload_locked_documents__rels"("payload_events_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents__rels_media_idx" ON "payload_locked_documents__rels"("media_id");
 
 CREATE INDEX IF NOT EXISTS "payload_preferences_key_idx" ON "payload_preferences"("key");
-CREATE INDEX IF NOT EXISTS "payload_preferences_rels_parent_idx" ON "payload_preferences_rels"("parent_id");
-CREATE INDEX IF NOT EXISTS "payload_preferences_rels_payload_users_idx" ON "payload_preferences_rels"("payload_users_id");
+CREATE INDEX IF NOT EXISTS "payload_preferences__rels_parent_idx" ON "payload_preferences__rels"("parent_id");
+CREATE INDEX IF NOT EXISTS "payload_preferences__rels_payload_users_idx" ON "payload_preferences__rels"("payload_users_id");
 
 -- Insert default admin user (change password hash as needed)
 -- Password hash for 'admin' - you should change this

@@ -1,18 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sql } from '@vercel/postgres';
+import { Client } from 'pg';
 import fs from 'fs';
 import path from 'path';
 
 export async function POST(request: NextRequest) {
+    let client: Client | null = null;
+
     try {
         console.log('Setting up Payload database tables...');
+
+        // Use the same DATABASE_URL that Payload uses
+        const databaseUrl = process.env.DATABASE_URL;
+        if (!databaseUrl) {
+            throw new Error('DATABASE_URL environment variable is not set');
+        }
+
+        // Create PostgreSQL client
+        client = new Client({
+            connectionString: databaseUrl,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        });
+
+        await client.connect();
 
         // Read the SQL file
         const sqlPath = path.join(process.cwd(), 'scripts', 'create-payload-tables.sql');
         const sqlContent = fs.readFileSync(sqlPath, 'utf8');
 
         // Execute the SQL
-        await sql.query(sqlContent);
+        await client.query(sqlContent);
 
         console.log('Payload tables created successfully');
 
@@ -29,5 +45,9 @@ export async function POST(request: NextRequest) {
             },
             { status: 500 }
         );
+    } finally {
+        if (client) {
+            await client.end();
+        }
     }
 }
