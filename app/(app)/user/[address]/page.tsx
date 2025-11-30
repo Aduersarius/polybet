@@ -3,12 +3,12 @@
 import { useEffect, useState, use } from 'react';
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Navbar } from '@/app/components/Navbar';
-import { ProfileHeader } from '@/app/components/user/ProfileHeader';
-import { UserStats } from '@/app/components/user/UserStats';
-import { AchievementsList } from '@/app/components/user/AchievementsList';
-import { ActivityList } from "@/app/components/ActivityList";
-import { Footer } from '@/app/components/Footer';
+import { Navbar } from '../../../components/Navbar';
+import { ProfileHeader } from '../../../components/user/ProfileHeader';
+import { UserStats } from '../../../components/user/UserStats';
+import { AchievementsList } from '../../../components/user/AchievementsList';
+import { ActivityList } from "../../../components/ActivityList";
+import { Footer } from '../../../components/Footer';
 import { createAuthClient } from "better-auth/react";
 
 const authClient = createAuthClient({

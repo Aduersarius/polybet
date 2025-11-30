@@ -12,5 +12,8 @@
             "source": "/api/(.*)",
             "destination": "/api/$1"
         }
-    ]
+    ],
+    "env": {
+        "PAYLOAD_MIGRATE_ON_START": "true"
+    }
 }

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Navbar } from '../components/Navbar';
-import { AdminEventList } from '../components/admin/AdminEventList';
-import { AdminUserList } from '../components/admin/AdminUserList';
-import { CreateEventModal } from '../components/admin/CreateEventModal';
-import { Footer } from '../components/Footer';
+import { Navbar } from '../../components/Navbar';
+import { AdminEventList } from '../../components/admin/AdminEventList';
+import { AdminUserList } from '../../components/admin/AdminUserList';
+import { CreateEventModal } from '../../components/admin/CreateEventModal';
+import { Footer } from '../../components/Footer';
 
 export default function AdminPage() {
     const [activeTab, setActiveTab] = useState<'events' | 'users'>('events');

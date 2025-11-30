@@ -19,6 +19,11 @@ const config = buildConfig({
         meta: {
             titleSuffix: '- PolyBet Admin',
         },
+        livePreview: {
+            url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        },
+        // Disable auto-login to prevent preference loading issues
+        autoLogin: false,
     },
     collections: [
         Users,
@@ -49,7 +54,7 @@ const config = buildConfig({
         pool: {
             connectionString: process.env.DATABASE_URL,
         },
-        push: false, // Disable push to avoid hanging during build
+        push: process.env.NODE_ENV === 'production', // Enable schema push in production
     }),
     // cors: [
     //     process.env.NEXTAUTH_URL || '',
