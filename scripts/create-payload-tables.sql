@@ -47,6 +47,13 @@ CREATE TABLE IF NOT EXISTS "payload_users" (
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
+-- Add missing columns to existing payload_users table
+ALTER TABLE "payload_users" ADD COLUMN IF NOT EXISTS "password" varchar;
+ALTER TABLE "payload_users" ADD COLUMN IF NOT EXISTS "reset_password_token" varchar;
+ALTER TABLE "payload_users" ADD COLUMN IF NOT EXISTS "reset_password_expires" timestamp with time zone;
+ALTER TABLE "payload_users" ADD COLUMN IF NOT EXISTS "login_attempts" integer DEFAULT 0;
+ALTER TABLE "payload_users" ADD COLUMN IF NOT EXISTS "lock_until" timestamp with time zone;
+
 -- Add missing columns to existing tables (in case they were created with wrong schema)
 ALTER TABLE "payload_locked_documents__rels" ADD COLUMN IF NOT EXISTS "payload_users_id" integer;
 ALTER TABLE "payload_locked_documents__rels" ADD COLUMN IF NOT EXISTS "app_users_id" integer;
