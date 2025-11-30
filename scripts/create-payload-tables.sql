@@ -1,4 +1,23 @@
 -- Create Payload CMS core tables
+CREATE TABLE IF NOT EXISTS "payload_locked_documents" (
+    "id" serial PRIMARY KEY,
+    "global_slug" varchar,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "payload_locked_documents_rels" (
+    "id" serial PRIMARY KEY,
+    "parent_id" integer REFERENCES "payload_locked_documents"("id") ON DELETE CASCADE,
+    "path" varchar NOT NULL,
+    "payload_users_id" integer,
+    "app_users_id" integer,
+    "payload_events_id" integer,
+    "media_id" integer,
+    "order" integer,
+    "locale" varchar
+);
+
 CREATE TABLE IF NOT EXISTS "payload_preferences" (
     "id" serial PRIMARY KEY,
     "key" varchar NOT NULL,
@@ -29,6 +48,13 @@ CREATE TABLE IF NOT EXISTS "payload_users" (
 );
 
 -- Create indexes
+CREATE INDEX IF NOT EXISTS "payload_locked_documents_global_slug_idx" ON "payload_locked_documents"("global_slug");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_parent_idx" ON "payload_locked_documents_rels"("parent_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_payload_users_idx" ON "payload_locked_documents_rels"("payload_users_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_app_users_idx" ON "payload_locked_documents_rels"("app_users_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_payload_events_idx" ON "payload_locked_documents_rels"("payload_events_id");
+CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_media_idx" ON "payload_locked_documents_rels"("media_id");
+
 CREATE INDEX IF NOT EXISTS "payload_preferences_key_idx" ON "payload_preferences"("key");
 CREATE INDEX IF NOT EXISTS "payload_preferences_rels_parent_idx" ON "payload_preferences_rels"("parent_id");
 CREATE INDEX IF NOT EXISTS "payload_preferences_rels_payload_users_idx" ON "payload_preferences_rels"("payload_users_id");
