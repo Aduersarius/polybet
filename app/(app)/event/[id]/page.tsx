@@ -1,16 +1,16 @@
 'use client';
-import { Navbar } from '@/app/components/Navbar';
-import { ShareButtons } from '@/app/components/ShareButtons';
-import { EventChat } from '@/app/components/EventChat';
-import { OddsGraph } from '@/app/components/OddsGraph';
-import { SuggestedEvents } from '@/app/components/SuggestedEvents';
-import { TradingPanel } from '@/app/components/TradingPanel';
+import { Navbar } from '../../../components/Navbar';
+import { ShareButtons } from '../../../components/ShareButtons';
+import { EventChat } from '../../../components/EventChat';
+import { OddsGraph } from '../../../components/OddsGraph';
+import { SuggestedEvents } from '../../../components/SuggestedEvents';
+import { TradingPanel } from '../../../components/TradingPanel';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Footer } from '@/app/components/Footer';
+import { Footer } from '../../../components/Footer';
 
 export default function EventPage() {
     const params = useParams();

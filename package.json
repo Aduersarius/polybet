@@ -10,7 +10,8 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
-    "stress": "npx tsx stress-test.ts"
+    "stress": "npx tsx stress-test.ts",
+    "setup-payload": "curl -X POST http://localhost:3000/api/setup-payload"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
