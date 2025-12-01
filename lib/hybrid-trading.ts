@@ -366,11 +366,11 @@ export async function getOrderBook(eventId: string, option: 'YES' | 'NO') {
     }
 
     // Combine real and fake orders, sort them properly
-    const allBids = [...bids, ...fakeBids]
+    const allBids = [...(bids as any[]), ...fakeBids]
         .sort((a, b) => b.price - a.price) // Sort bids descending by price
         .slice(0, 10); // Take top 10
 
-    const allAsks = [...asks, ...fakeAsks]
+    const allAsks = [...(asks as any[]), ...fakeAsks]
         .sort((a, b) => a.price - b.price) // Sort asks ascending by price
         .slice(0, 10); // Take top 10
 
