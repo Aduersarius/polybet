@@ -202,6 +202,58 @@ async function main() {
             resolutionDate: new Date('2025-12-31'),
             creatorId: user.id,
         },
+
+        // MULTIPLE OUTCOME EVENTS
+        {
+            id: 'tech-trillion-race',
+            title: 'Which company will hit $1T market cap first?',
+            description: 'Predict which tech giant will reach the $1 trillion valuation milestone first. This event will resolve when any of the companies reaches this milestone.',
+            categories: ['TECH', 'BUSINESS'],
+            imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
+            resolutionDate: new Date('2026-12-31'),
+            creatorId: user.id,
+            type: 'MULTIPLE',
+            initialLiquidity: 500.0,
+            liquidityParameter: 15000.0,
+        },
+        {
+            id: 'largest-company-june-2025',
+            title: 'Largest company by market cap end of June 2025?',
+            description: 'Which company will have the highest market capitalization at the end of June 2025?',
+            categories: ['BUSINESS', 'FINANCE'],
+            imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
+            resolutionDate: new Date('2025-06-30'),
+            creatorId: user.id,
+            type: 'MULTIPLE',
+            initialLiquidity: 300.0,
+            liquidityParameter: 12000.0,
+        },
+        {
+            id: 'us-presidential-2024',
+            title: 'Who will win the 2024 US Presidential Election?',
+            description: 'Predict the winner of the 2024 United States Presidential Election.',
+            categories: ['POLITICS', 'ELECTIONS'],
+            imageUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&q=80',
+            resolutionDate: new Date('2024-11-05'),
+            creatorId: user.id,
+            type: 'MULTIPLE',
+            initialLiquidity: 600.0,
+            liquidityParameter: 18000.0,
+        },
+
+        // MULTIPLE OUTCOME EVENT
+        {
+            id: 'tech-trillion-race',
+            title: 'Which company will hit $1T market cap first?',
+            description: 'Predict which tech giant will reach the $1 trillion valuation milestone first. This event will resolve when any of the companies reaches this milestone.',
+            categories: ['TECH', 'BUSINESS'],
+            imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
+            resolutionDate: new Date('2026-12-31'),
+            creatorId: user.id,
+            type: 'MULTIPLE',
+            initialLiquidity: 500.0,
+            liquidityParameter: 15000.0,
+        },
     ];
 
     console.log('Creating events...');
@@ -215,11 +267,69 @@ async function main() {
             threeMonthsAgo.getTime() + Math.random() * (oneMonthAgo.getTime() - threeMonthsAgo.getTime())
         );
 
-        await prisma.event.upsert({
-            where: { id: event.id },
-            update: { ...event, ...baseAMMParams, createdAt: randomCreatedAt },
-            create: { ...event, ...baseAMMParams, createdAt: randomCreatedAt },
-        });
+        const eventData = { ...event, ...baseAMMParams, createdAt: randomCreatedAt };
+
+        // Handle multiple outcome events
+        if (event.type === 'MULTIPLE') {
+            const createdEvent = await prisma.event.upsert({
+                where: { id: event.id },
+                update: eventData,
+                create: eventData,
+            });
+
+            // Create outcomes for multiple outcome events
+            let outcomes = [];
+            if (event.id === 'tech-trillion-race') {
+                outcomes = [
+                    { name: 'Apple', probability: 0.25, liquidity: 100.0, color: '#000000' },
+                    { name: 'Nvidia', probability: 0.30, liquidity: 120.0, color: '#76B900' },
+                    { name: 'Google', probability: 0.20, liquidity: 80.0, color: '#4285F4' },
+                    { name: 'Amazon', probability: 0.15, liquidity: 60.0, color: '#FF9900' },
+                    { name: 'Tesla', probability: 0.10, liquidity: 40.0, color: '#CC0000' }
+                ];
+            } else if (event.id === 'largest-company-june-2025') {
+                outcomes = [
+                    { name: 'Microsoft', probability: 0.22, liquidity: 80.0, color: '#00BCF2' },
+                    { name: 'Apple', probability: 0.20, liquidity: 75.0, color: '#000000' },
+                    { name: 'Nvidia', probability: 0.18, liquidity: 70.0, color: '#76B900' },
+                    { name: 'Google', probability: 0.15, liquidity: 60.0, color: '#4285F4' },
+                    { name: 'Amazon', probability: 0.12, liquidity: 50.0, color: '#FF9900' },
+                    { name: 'Meta', probability: 0.08, liquidity: 35.0, color: '#1877F2' },
+                    { name: 'Tesla', probability: 0.05, liquidity: 20.0, color: '#CC0000' }
+                ];
+            } else if (event.id === 'us-presidential-2024') {
+                outcomes = [
+                    { name: 'Donald Trump', probability: 0.48, liquidity: 180.0, color: '#C8102E' },
+                    { name: 'Kamala Harris', probability: 0.45, liquidity: 170.0, color: '#0033A0' },
+                    { name: 'Other', probability: 0.07, liquidity: 30.0, color: '#666666' }
+                ];
+            }
+
+            for (const outcome of outcomes) {
+                await prisma.outcome.upsert({
+                    where: {
+                        eventId_name: {
+                            eventId: createdEvent.id,
+                            name: outcome.name
+                        }
+                    },
+                    update: outcome,
+                    create: {
+                        eventId: createdEvent.id,
+                        ...outcome
+                    }
+                });
+            }
+
+            console.log(`Created outcomes for ${event.title}`);
+        } else {
+            // Regular binary event
+            await prisma.event.upsert({
+                where: { id: event.id },
+                update: eventData,
+                create: eventData,
+            });
+        }
     }
 
     console.log('Creating mock bets...');

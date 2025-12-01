@@ -37,6 +37,7 @@ export async function GET(
                                 address: true,
                             },
                         },
+                        outcomes: true,
                     },
                 });
 
@@ -50,11 +51,6 @@ export async function GET(
                     throw new Error('Event not found');
                 }
 
-                // Get pre-calculated AMM state and volume stats
-                const qYes = (event as any).qYes || 0;
-                const qNo = (event as any).qNo || 0;
-                const b = (event as any).liquidityParameter || 10000.0;
-
                 const bets = await prisma.bet.findMany({
                     where: { eventId: id },
                     select: { amount: true },
@@ -62,42 +58,55 @@ export async function GET(
 
                 const volume = bets.reduce((sum, bet) => sum + bet.amount, 0);
 
-                // Use LMSR to calculate current odds from AMM state
-                let odds;
-                if (qYes === 0 && qNo === 0) {
-                    // No trades yet - use 50/50 as default
-                    odds = {
-                        yesPrice: 0.5,
-                        noPrice: 0.5,
-                        yesOdds: 2.0,
-                        noOdds: 2.0
-                    };
-                } else {
-                    // Calculate odds using actual token positions
-                    const diff = (qNo - qYes) / b;
-                    const yesPrice = 1 / (1 + Math.exp(diff));
-                    const noPrice = 1 - yesPrice;
-
-                    odds = {
-                        yesPrice,
-                        noPrice,
-                        yesOdds: 1 / yesPrice,
-                        noOdds: 1 / noPrice
-                    };
-                }
-
-                const yesOdds = odds.yesPrice; // Return price (probability) instead of odds
-                const noOdds = odds.noPrice;  // Return price (probability) instead of odds
-
-                // Add calculated odds to the response
-                return {
+                let response: any = {
                     ...event,
-                    rules: (event as any).rules, // Explicitly include rules
-                    yesOdds,
-                    noOdds,
+                    rules: (event as any).rules,
                     volume,
                     betCount: bets.length,
                 };
+
+                if ((event as any).type === 'MULTIPLE') {
+                    // For multiple outcomes, calculate odds for each outcome
+                    const outcomesWithOdds = (event as any).outcomes.map((outcome: any) => ({
+                        ...outcome,
+                        price: outcome.probability, // Current market price (probability)
+                        odds: outcome.probability > 0 ? 1 / outcome.probability : 1,
+                    }));
+                    response.outcomes = outcomesWithOdds;
+                } else {
+                    // Binary event logic
+                    const qYes = (event as any).qYes || 0;
+                    const qNo = (event as any).qNo || 0;
+                    const b = (event as any).liquidityParameter || 10000.0;
+
+                    let odds;
+                    if (qYes === 0 && qNo === 0) {
+                        // No trades yet - use 50/50 as default
+                        odds = {
+                            yesPrice: 0.5,
+                            noPrice: 0.5,
+                            yesOdds: 2.0,
+                            noOdds: 2.0
+                        };
+                    } else {
+                        // Calculate odds using actual token positions
+                        const diff = (qNo - qYes) / b;
+                        const yesPrice = 1 / (1 + Math.exp(diff));
+                        const noPrice = 1 - yesPrice;
+
+                        odds = {
+                            yesPrice,
+                            noPrice,
+                            yesOdds: 1 / yesPrice,
+                            noOdds: 1 / noPrice
+                        };
+                    }
+
+                    response.yesOdds = odds.yesPrice;
+                    response.noOdds = odds.noPrice;
+                }
+
+                return response;
             },
             { ttl: 300, prefix: 'event' } // Increased from 60s to 300s (5 min)
         );

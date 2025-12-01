@@ -23,6 +23,13 @@ interface DbEvent {
   betCount?: number;
   yesOdds?: number;
   noOdds?: number;
+  type?: string;
+  outcomes?: Array<{
+    id: string;
+    name: string;
+    probability: number;
+    color?: string;
+  }>;
 }
 
 export default function Home() {
@@ -351,37 +358,75 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Odds Display - Push to bottom */}
-            <div className="flex gap-2 mt-auto">
-              <motion.button
-                onClick={(e) => {
-                  e.preventDefault();
-                  setSelectedEvent(event);
-                  setPreselectedOption('YES');
-                  setTradingModalOpen(true);
-                }}
-                whileHover={{ scale: 1.02, borderColor: 'rgba(34, 197, 94, 0.5)' }}
-                transition={{ duration: 0.2 }}
-                className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-green-500/20 transition-colors"
-              >
-                <div className="text-xs text-green-400 mb-0.5">YES</div>
-                <div className="text-base font-bold text-white">{yesOdds}%</div>
-              </motion.button>
-              <motion.button
-                onClick={(e) => {
-                  e.preventDefault();
-                  setSelectedEvent(event);
-                  setPreselectedOption('NO');
-                  setTradingModalOpen(true);
-                }}
-                whileHover={{ scale: 1.02, borderColor: 'rgba(239, 68, 68, 0.5)' }}
-                transition={{ duration: 0.2 }}
-                className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-red-500/20 transition-colors"
-              >
-                <div className="text-xs text-red-400 mb-0.5">NO</div>
-                <div className="text-base font-bold text-white">{noOdds}%</div>
-              </motion.button>
-            </div>
+            {/* Odds/Outcomes Display - Push to bottom */}
+            {event.type === 'MULTIPLE' && event.outcomes ? (
+              // Multiple outcomes display
+              <div className="mt-auto">
+                <div className="text-xs text-gray-400 mb-2">Top Outcomes</div>
+                <div className="space-y-1">
+                  {event.outcomes.slice(0, 3).map((outcome, idx) => (
+                    <motion.button
+                      key={outcome.id}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        // For multiple outcomes, we'll need to modify the trading modal
+                        // For now, just open the event page
+                        window.location.href = `/event/${event.id}`;
+                      }}
+                      whileHover={{ scale: 1.01 }}
+                      transition={{ duration: 0.2 }}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-left cursor-pointer hover:bg-white/10 transition-colors"
+                      style={{
+                        borderLeftColor: outcome.color || '#666',
+                        borderLeftWidth: '3px'
+                      }}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-white truncate">{outcome.name}</span>
+                        <span className="text-sm font-bold text-white">{Math.round(outcome.probability * 100)}%</span>
+                      </div>
+                    </motion.button>
+                  ))}
+                  {event.outcomes.length > 3 && (
+                    <div className="text-xs text-gray-500 text-center py-1">
+                      +{event.outcomes.length - 3} more outcomes
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              // Binary YES/NO display
+              <div className="flex gap-2 mt-auto">
+                <motion.button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setSelectedEvent(event);
+                    setPreselectedOption('YES');
+                    setTradingModalOpen(true);
+                  }}
+                  whileHover={{ scale: 1.02, borderColor: 'rgba(34, 197, 94, 0.5)' }}
+                  transition={{ duration: 0.2 }}
+                  className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-green-500/20 transition-colors"
+                >
+                  <div className="text-xs text-green-400 mb-0.5">YES</div>
+                  <div className="text-base font-bold text-white">{yesOdds}%</div>
+                </motion.button>
+                <motion.button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setSelectedEvent(event);
+                    setPreselectedOption('NO');
+                    setTradingModalOpen(true);
+                  }}
+                  whileHover={{ scale: 1.02, borderColor: 'rgba(239, 68, 68, 0.5)' }}
+                  transition={{ duration: 0.2 }}
+                  className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-red-500/20 transition-colors"
+                >
+                  <div className="text-xs text-red-400 mb-0.5">NO</div>
+                  <div className="text-base font-bold text-white">{noOdds}%</div>
+                </motion.button>
+              </div>
+            )}
 
           </div>
         </div>

@@ -85,7 +85,7 @@ export const redis = new Proxy({} as Redis, {
         if (!instance) {
             // Return no-op functions for common Redis methods
             if (typeof prop === 'string' && ['get', 'set', 'setex', 'del', 'keys', 'publish', 'subscribe', 'on'].includes(prop)) {
-                return async () => null;
+                return async (...args: any[]) => null;
             }
             return undefined;
         }

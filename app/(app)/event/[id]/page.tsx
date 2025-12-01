@@ -3,8 +3,10 @@ import { Navbar } from '@/app/components/Navbar';
 import { ShareButtons } from '@/app/components/ShareButtons';
 import { EventChat } from '@/app/components/EventChat';
 import { OddsGraph } from '@/app/components/OddsGraph';
+import { OrderBook } from '@/app/components/OrderBook';
 import { SuggestedEvents } from '@/app/components/SuggestedEvents';
 import { TradingPanel } from '@/app/components/TradingPanel';
+import { MultipleTradingPanel } from '@/app/components/MultipleTradingPanel';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -154,6 +156,14 @@ export default function EventPage() {
                                 <div className="space-y-6">
                                     <OddsGraph eventId={event.id} />
 
+                                    {/* Order Book */}
+                                    <OrderBook
+                                        eventId={eventId}
+                                        selectedOption="YES"
+                                        outcomes={event.outcomes || []}
+                                        eventType={event.type || 'BINARY'}
+                                    />
+
                                     {/* Rules Section */}
                                     {event.rules && (
                                         <div className="material-card p-6">
@@ -184,13 +194,22 @@ export default function EventPage() {
                             {/* Right Column - Sticky Trading Panel */}
                             <div className="lg:col-span-1">
                                 <div className="sticky top-32 space-y-6 px-2">
-                                    <TradingPanel
-                                        yesPrice={event.yesOdds}
-                                        noPrice={event.noOdds}
-                                        creationDate={event.createdAt || event.creationDate}
-                                        resolutionDate={event.resolutionDate}
-                                        onTrade={handleTrade}
-                                    />
+                                    {event.type === 'MULTIPLE' ? (
+                                        <MultipleTradingPanel
+                                            outcomes={event.outcomes || []}
+                                            creationDate={event.createdAt || event.creationDate}
+                                            resolutionDate={event.resolutionDate}
+                                            onTrade={handleTrade}
+                                        />
+                                    ) : (
+                                        <TradingPanel
+                                            yesPrice={event.yesOdds}
+                                            noPrice={event.noOdds}
+                                            creationDate={event.createdAt || event.creationDate}
+                                            resolutionDate={event.resolutionDate}
+                                            onTrade={handleTrade}
+                                        />
+                                    )}
                                     <SuggestedEvents category={event.categories && event.categories.length > 0 ? event.categories[0] : 'ALL'} currentEventId={event.id.toString()} />
                                 </div>
                             </div>
