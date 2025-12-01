@@ -3,6 +3,11 @@ import { prisma } from '../lib/prisma';
 
 export const syncUserToPrisma: CollectionAfterChangeHook = async ({ doc, req, operation }) => {
     try {
+        // Skip sync if disabled in context (e.g. during migration)
+        if (req.context?.disableSync) {
+            return doc;
+        }
+
         const user = doc;
 
         // Convert Payload user to Prisma format
