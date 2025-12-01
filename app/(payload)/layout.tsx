@@ -6,7 +6,7 @@ import '@payloadcms/next/css';
 
 export { metadata } from '@payloadcms/next/layouts';
 
-export default function PayloadLayout({ children }: { children: React.ReactNode }) {
+export default async function PayloadLayout({ children }: { children: React.ReactNode }) {
     return (
         <RootLayout
             config={configPromise}
