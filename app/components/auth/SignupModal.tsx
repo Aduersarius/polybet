@@ -46,16 +46,25 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 body: JSON.stringify({ email, password, name: username }),
             });
 
-            const result = await response.json();
+            // Check if response has content
+            const text = await response.text();
+            let result;
 
-            if (!response.ok || result.error) {
-                setError(result.error || 'Signup failed');
+            try {
+                result = text ? JSON.parse(text) : {};
+            } catch {
+                result = {};
+            }
+
+            if (!response.ok) {
+                setError(result.message || result.error || 'Signup failed. Please try again.');
             } else {
                 // Success - close modal and refresh
                 onClose();
                 window.location.reload();
             }
         } catch (err: any) {
+            console.error('Signup error:', err);
             setError(err.message || 'An error occurred');
         } finally {
             setLoading(false);

@@ -32,16 +32,25 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                 body: JSON.stringify({ email, password }),
             });
 
-            const result = await response.json();
+            // Check if response has content
+            const text = await response.text();
+            let result;
 
-            if (!response.ok || result.error) {
-                setError(result.error || 'Login failed');
+            try {
+                result = text ? JSON.parse(text) : {};
+            } catch {
+                result = {};
+            }
+
+            if (!response.ok) {
+                setError(result.message || result.error || 'Login failed. Please check your credentials.');
             } else {
                 // Success - close modal and refresh
                 onClose();
                 window.location.reload();
             }
         } catch (err: any) {
+            console.error('Login error:', err);
             setError(err.message || 'An error occurred');
         } finally {
             setLoading(false);
