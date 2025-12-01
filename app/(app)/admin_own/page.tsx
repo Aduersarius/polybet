@@ -20,7 +20,7 @@ export default function AdminPage() {
         async function checkAdmin() {
             if (isPending) return;
 
-            if (!session?.user) {
+            if (!session || !(session as any)?.user) {
                 // Not logged in - redirect to home
                 router.push('/');
                 return;
@@ -28,7 +28,7 @@ export default function AdminPage() {
 
             try {
                 // Check if user is admin - fetch from API using email or id
-                const userEmail = session.user.email;
+                const userEmail = (session as any).user.email;
                 if (!userEmail) {
                     setIsAdmin(false);
                     return;
