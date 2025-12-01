@@ -6,9 +6,10 @@ import { useEffect, useState } from 'react';
 import { Navbar } from '../../components/Navbar';
 import { Footer } from '../../components/Footer';
 import { motion } from 'framer-motion';
+import { Session, User } from '@/lib/session-types';
 
 export default function ProfilePage() {
-    const { data: session, isPending } = useSession();
+    const { data: session, isPending } = useSession() as { data: Session | null, isPending: boolean };
     const router = useRouter();
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({
@@ -63,7 +64,7 @@ export default function ProfilePage() {
         );
     }
 
-    const user = (session as any).user;
+    const user = session?.user;
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -79,7 +80,7 @@ export default function ProfilePage() {
                                 {formData.image ? (
                                     <img src={formData.image} alt={formData.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    (user.name?.charAt(0) || user.email?.charAt(0)).toUpperCase()
+                                    (user?.name?.charAt(0) || user?.email?.charAt(0) || '?').toUpperCase()
                                 )}
                             </div>
                             {isEditing && (
@@ -113,16 +114,16 @@ export default function ProfilePage() {
                                     />
                                 </div>
                             ) : (
-                                <h1 className="text-3xl font-bold text-white mb-2">{user.name}</h1>
+                                <h1 className="text-3xl font-bold text-white mb-2">{user?.name || 'User'}</h1>
                             )}
 
-                            <p className="text-gray-400 mb-4">{user.email}</p>
+                            <p className="text-gray-400 mb-4">{user?.email || 'No email'}</p>
 
                             <div className="flex flex-wrap justify-center md:justify-start gap-3">
                                 <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-sm border border-blue-500/20">
-                                    Member since {new Date(user.createdAt || Date.now()).toLocaleDateString()}
+                                    Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}
                                 </span>
-                                {user.isAdmin && (
+                                {user?.isAdmin && (
                                     <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-sm border border-purple-500/20">
                                         Administrator
                                     </span>
@@ -170,15 +171,15 @@ export default function ProfilePage() {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-xs text-gray-500 uppercase mb-1">Username</label>
-                                    <div className="text-white">{user.name}</div>
+                                    <div className="text-white">{user?.name || 'N/A'}</div>
                                 </div>
                                 <div>
                                     <label className="block text-xs text-gray-500 uppercase mb-1">Email</label>
-                                    <div className="text-white">{user.email}</div>
+                                    <div className="text-white">{user?.email || 'N/A'}</div>
                                 </div>
                                 <div>
                                     <label className="block text-xs text-gray-500 uppercase mb-1">User ID</label>
-                                    <div className="text-gray-400 text-sm font-mono truncate">{user.id}</div>
+                                    <div className="text-gray-400 text-sm font-mono truncate">{user?.id || 'N/A'}</div>
                                 </div>
                             </div>
 
