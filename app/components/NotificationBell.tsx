@@ -76,7 +76,8 @@ export function NotificationBell() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    if (!session || isPending || !(session as any)?.user?.id) return null;
+    // Temporarily disable notifications to prevent 401 errors
+    return null;
 
     return (
         <div className="relative" ref={dropdownRef}>
