@@ -69,7 +69,7 @@ export async function PUT(
 ) {
     try {
         // Authentication check
-        const session = await requireAuth(request);
+        const user = await requireAuth(request);
 
         const paramsData = await params;
         const address = paramsData.address.toLowerCase();
@@ -77,7 +77,7 @@ export async function PUT(
         // Ensure user can only update their own profile
         // Check if the authenticated user's address matches the requested address
         const authenticatedUser = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: user.id },
             select: { address: true }
         });
 

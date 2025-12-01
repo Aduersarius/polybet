@@ -37,5 +37,5 @@ export async function requireAuth(request: Request) {
             headers: { 'Content-Type': 'application/json' },
         });
     }
-    return session;
+    return session.user;
 }

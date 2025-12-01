@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const startTime = Date.now();
 
     // Authentication check
-    const session = await requireAuth(request);
+    const user = await requireAuth(request);
 
     // Rate limiting with IP bypass for 185.72.224.35
     const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const targetUserId = session.user.id;
+        const targetUserId = user.id;
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
@@ -92,15 +92,15 @@ export async function POST(request: Request) {
 
                 // 3. Atomic User Upsert + Bet Transaction
                 // OPTIMIZATION: Use upsert to find-or-create user in 1 query instead of 2-3
-                const [user, updatedEvent, newBet] = await withTimeout(
+                const [upsertedUser, updatedEvent, newBet] = await withTimeout(
                     prisma.$transaction([
                         prisma.user.upsert({
                             where: { id: targetUserId },
                             update: {}, // No updates needed if user exists
                             create: {
                                 id: targetUserId,
-                                username: session.user.name || `User_${targetUserId.slice(-8)}`,
-                                email: session.user.email,
+                                username: user.name || `User_${targetUserId.slice(-8)}`,
+                                email: user.email,
                                 address: `0x${targetUserId.slice(-8)}`
                             }
                         }),
