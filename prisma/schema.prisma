@@ -11,6 +11,9 @@ model User {
   id            String            @id @default(cuid())
   address       String?           @unique
   username      String?
+  name          String?
+  image         String?
+  emailVerified Boolean?          @default(false)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   achievements  String[]          @default([])
@@ -31,6 +34,8 @@ model User {
   transactions  Transaction[]
   orders        Order[]
   balances      Balance[]
+  accounts      Account[]
+  sessions      Session[]
 
   @@index([address])
 }
@@ -206,184 +211,63 @@ model Trade {
 }
 
 model Balance {
-  id           String   @id @default(cuid())
-  userId       String
-  tokenSymbol  String   // 'TUSD' for base currency, '{outcomeId}' for outcome tokens
-  eventId      String?  // NULL for base currency, event ID for outcome tokens
-  outcomeId    String?  // NULL for base currency, outcome ID for outcome tokens
-  amount       Float    @default(0.0)
-  updatedAt    DateTime @updatedAt
+   id           String   @id @default(cuid())
+   userId       String
+   tokenSymbol  String   // 'TUSD' for base currency, '{outcomeId}' for outcome tokens
+   eventId      String?  // NULL for base currency, event ID for outcome tokens
+   outcomeId    String?  // NULL for base currency, outcome ID for outcome tokens
+   amount       Float    @default(0.0)
+   updatedAt    DateTime @updatedAt
 
-  user         User     @relation(fields: [userId], references: [id])
+   user         User     @relation(fields: [userId], references: [id])
 
-  @@unique([userId, tokenSymbol, eventId, outcomeId])
-  @@index([userId])
+   @@unique([userId, tokenSymbol, eventId, outcomeId])
+   @@index([userId])
 }
 
-model payload_events_v {
-  id                                  Int                                   @id @default(dbgenerated("nextval('_payload_events_v_id_seq'::regclass)"))
-  parent_id                           Int?
-  version_title                       String?                               @db.VarChar(500)
-  version_description                 Json?
-  version_image_url_id                Int?
-  version_resolution_date             DateTime?
-  version_status                      String?                               @db.VarChar(50)
-  version_result                      String?                               @db.VarChar(50)
-  version_is_hidden                   Boolean?
-  version_rules                       String?
-  version_amm_liquidity_parameter     Decimal?                              @db.Decimal
-  version_amm_initial_liquidity       Decimal?                              @db.Decimal
-  version_prisma_id                   String?                               @db.VarChar(255)
-  version__status                     String?                               @db.VarChar(50)
-  updated_at                          DateTime?                             @default(now())
-  created_at                          DateTime?                             @default(now())
-  latest                              Boolean?
-  published_locale                    String?                               @db.VarChar(10)
-  autosave                            Boolean?
-  payload_events                      payload_events?                       @relation(fields: [parent_id], references: [id], onUpdate: NoAction)
-  payload_events_v_version_categories payload_events_v_version_categories[]
+// Better Auth models
+model Account {
+   id                String  @id @default(cuid())
+   accountId         String
+   providerId        String
+   userId            String
+   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("_payload_events_v")
+   accessToken       String?
+   refreshToken      String?
+   idToken           String?
+   accessTokenExpiresAt DateTime?
+   refreshTokenExpiresAt DateTime?
+   scope             String?
+   password          String?
+   createdAt         DateTime @default(now())
+   updatedAt         DateTime @updatedAt
+
+   @@unique([accountId, providerId])
+   @@index([userId])
 }
 
-model payload_events_v_version_categories {
-  order            Int              @map("_order")
-  parent_id        Int              @map("_parent_id")
-  id               Int              @id @default(dbgenerated("nextval('_payload_events_v_version_categories_id_seq'::regclass)"))
-  value            String?          @db.VarChar(100)
-  payload_events_v payload_events_v @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+model Session {
+   id        String   @id @default(cuid())
+   expiresAt DateTime
+   token     String   @unique
+   createdAt DateTime @default(now())
+   updatedAt DateTime @updatedAt
+   ipAddress String?
+   userAgent String?
+   userId    String
+   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("_payload_events_v_version_categories")
+   @@index([userId])
+   @@index([token])
 }
 
-model media {
-  id                            Int                             @id @default(autoincrement())
-  alt                           String?                         @db.VarChar(500)
-  updated_at                    DateTime?                       @default(now())
-  created_at                    DateTime?                       @default(now())
-  url                           String?                         @db.VarChar(1000)
-  thumbnail_u_r_l               String?                         @db.VarChar(1000)
-  filename                      String?                         @db.VarChar(500)
-  mime_type                     String?                         @db.VarChar(100)
-  filesize                      Int?
-  width                         Int?
-  height                        Int?
-  focal_x                       Decimal?                        @db.Decimal
-  focal_y                       Decimal?                        @db.Decimal
-  payload_locked_documents_rels payload_locked_documents_rels[]
+model Verification {
+   id         String   @id @default(cuid())
+   identifier String
+   value      String
+   expiresAt  DateTime
+   createdAt  DateTime @default(now())
+   updatedAt  DateTime @updatedAt
 }
 
-model payload_events {
-  id                            Int                             @id @default(autoincrement())
-  title                         String                          @db.VarChar(500)
-  description                   Json?
-  image_url_id                  Int?
-  resolution_date               DateTime?
-  status                        String?                         @default("ACTIVE") @db.VarChar(50)
-  result                        String?                         @db.VarChar(50)
-  is_hidden                     Boolean?                        @default(false)
-  rules                         String?
-  amm_liquidity_parameter       Decimal?                        @default(100) @db.Decimal
-  amm_initial_liquidity         Decimal?                        @default(100) @db.Decimal
-  prisma_id                     String?                         @db.VarChar(255)
-  updated_at                    DateTime?                       @default(now())
-  created_at                    DateTime?                       @default(now())
-  payload_events_v              payload_events_v[]
-  payload_events_categories     payload_events_categories[]
-  payload_locked_documents_rels payload_locked_documents_rels[]
-
-  @@index([created_at(sort: Desc)])
-  @@index([status])
-}
-
-model payload_events_categories {
-  order          Int            @map("_order")
-  parent_id      Int            @map("_parent_id")
-  id             Int            @id @default(autoincrement())
-  value          String?        @db.VarChar(100)
-  payload_events payload_events @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([parent_id], map: "payload_events_categories_parent_idx")
-}
-
-model payload_locked_documents {
-  id                            Int                             @id @default(autoincrement())
-  global_slug                   String?                         @db.VarChar(255)
-  updated_at                    DateTime?                       @default(now())
-  created_at                    DateTime?                       @default(now())
-  payload_locked_documents_rels payload_locked_documents_rels[]
-}
-
-model payload_locked_documents_rels {
-  id                       Int                       @id @default(autoincrement())
-  order                    Int?
-  parent_id                Int?
-  path                     String                    @db.VarChar(255)
-  users_id                 Int?
-  media_id                 Int?
-  payload_events_id        Int?
-  media                    media?                    @relation(fields: [media_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  payload_locked_documents payload_locked_documents? @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  payload_events           payload_events?           @relation(fields: [payload_events_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  payload_users            payload_users?            @relation(fields: [users_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-}
-
-model payload_migrations {
-  id         Int       @id @default(autoincrement())
-  name       String    @unique @db.VarChar(500)
-  batch      Int?
-  created_at DateTime? @default(now())
-  updated_at DateTime? @default(now())
-}
-
-model payload_preferences {
-  id         Int       @id @default(autoincrement())
-  key        String?   @db.VarChar(500)
-  value      Json?
-  updated_at DateTime? @default(now())
-  created_at DateTime? @default(now())
-
-  @@index([key])
-}
-
-model payload_users {
-  id                            Int                             @id @default(autoincrement())
-  role                          String?                         @default("user") @db.VarChar(255)
-  username                      String?                         @db.VarChar(255)
-  description                   String?
-  avatar_url_id                 Int?
-  social_twitter                String?                         @db.VarChar(500)
-  social_discord                String?                         @db.VarChar(500)
-  social_telegram               String?                         @db.VarChar(500)
-  social_website                String?                         @db.VarChar(500)
-  is_admin                      Boolean?                        @default(false)
-  is_banned                     Boolean?                        @default(false)
-  clerk_id                      String?                         @db.VarChar(255)
-  address                       String?                         @db.VarChar(255)
-  prisma_id                     String?                         @db.VarChar(255)
-  updated_at                    DateTime?                       @default(now())
-  created_at                    DateTime?                       @default(now())
-  email                         String                          @unique @db.VarChar(255)
-  reset_password_token          String?                         @db.VarChar(500)
-  reset_password_expiration     DateTime?
-  salt                          String?
-  hash                          String?
-  login_attempts                Int?                            @default(0)
-  lock_until                    DateTime?
-  payload_locked_documents_rels payload_locked_documents_rels[]
-  payload_users_sessions        payload_users_sessions[]
-
-  @@index([created_at(sort: Desc)])
-  @@index([email])
-}
-
-model payload_users_sessions {
-  order         Int           @map("_order")
-  parent_id     Int           @map("_parent_id")
-  id            String        @id @db.VarChar(255)
-  created_at    DateTime?     @default(now())
-  expires_at    DateTime
-  payload_users payload_users @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([parent_id], map: "payload_users_sessions_parent_idx")
-}
