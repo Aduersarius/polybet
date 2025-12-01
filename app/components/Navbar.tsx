@@ -89,7 +89,6 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                                     {/* Balance Display */}
                                     <div className="hidden md:flex flex-col items-end mr-2">
                                         <span className="text-sm font-bold text-white">$1,250.00</span>
-                                        <span className="text-xs text-green-400">+2.5%</span>
                                     </div>
 
                                     {/* User Profile Dropdown */}
