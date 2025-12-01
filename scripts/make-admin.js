@@ -7,6 +7,7 @@ if (!email) {
     process.exit(1);
 }
 
+
 async function makeAdmin() {
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
