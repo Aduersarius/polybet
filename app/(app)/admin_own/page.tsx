@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
-import { AdminUserList } = '../../components/admin/AdminUserList';
+import { AdminUserList } from '../../components/admin/AdminUserList';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
