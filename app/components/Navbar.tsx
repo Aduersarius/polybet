@@ -85,14 +85,54 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
 
                             {/* Authentication */}
                             {session ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white text-sm">{(session as any).user?.name || (session as any).user?.email}</span>
-                                    <button
-                                        onClick={handleSignOut}
-                                        className="px-3 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm transition-colors"
-                                    >
-                                        Sign Out
-                                    </button>
+                                <div className="flex items-center gap-3">
+                                    {/* Balance Display */}
+                                    <div className="hidden md:flex flex-col items-end mr-2">
+                                        <span className="text-sm font-bold text-white">$1,250.00</span>
+                                        <span className="text-xs text-green-400">+2.5%</span>
+                                    </div>
+
+                                    {/* User Profile Dropdown */}
+                                    <div className="relative group">
+                                        <button className="flex items-center gap-2 focus:outline-none">
+                                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm overflow-hidden border border-white/20">
+                                                {(session as any).user?.image ? (
+                                                    <img src={(session as any).user.image} alt="User" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    (session as any).user?.name?.charAt(0).toUpperCase() || (session as any).user?.email?.charAt(0).toUpperCase()
+                                                )}
+                                            </div>
+                                        </button>
+
+                                        {/* Dropdown Menu */}
+                                        <div className="absolute right-0 mt-2 w-48 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right z-50">
+                                            <div className="p-3 border-b border-white/10">
+                                                <p className="text-sm font-medium text-white truncate">{(session as any).user?.name || 'User'}</p>
+                                                <p className="text-xs text-gray-400 truncate">{(session as any).user?.email}</p>
+                                            </div>
+                                            <div className="py-1">
+                                                <Link href="/profile" className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                                                    Profile
+                                                </Link>
+                                                <Link href="/settings" className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                                                    Settings
+                                                </Link>
+                                                {(session as any).user?.isAdmin && (
+                                                    <Link href="/admin" className="block px-4 py-2 text-sm text-blue-400 hover:bg-white/5 hover:text-blue-300 transition-colors">
+                                                        Admin Panel
+                                                    </Link>
+                                                )}
+                                            </div>
+                                            <div className="border-t border-white/10 py-1">
+                                                <button
+                                                    onClick={handleSignOut}
+                                                    className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 hover:text-red-300 transition-colors"
+                                                >
+                                                    Sign Out
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
