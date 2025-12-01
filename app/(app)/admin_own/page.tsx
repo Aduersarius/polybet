@@ -4,53 +4,53 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
-import { AdminUserList } from '../../components/admin/AdminUserList';
+import { AdminUserList } = '../../components/admin/AdminUserList';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
-import { authClient } from '@/lib/auth-client';
+import { useSession } from '@/lib/auth-client';
 
 export default function AdminPage() {
     const [activeTab, setActiveTab] = useState<'events' | 'users'>('events');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
+    const { data: session, isPending } = useSession();
 
     useEffect(() => {
         async function checkAdmin() {
-            try {
-                const { data: session } = await authClient.getSession();
+            if (isPending) return;
 
-                if (!session?.user) {
-                    // Not logged in - redirect to home
-                    router.push('/');
+            if (!session?.user) {
+                // Not logged in - redirect to home
+                router.push('/');
+                return;
+            }
+
+            try {
+                // Check if user is admin - fetch from API using email or id
+                const userEmail = session.user.email;
+                if (!userEmail) {
+                    setIsAdmin(false);
                     return;
                 }
 
-                // Check if user is admin
-                const userResponse = await fetch(`/api/users/${session.user.email}`);
+                const userResponse = await fetch(`/api/users/${userEmail}`);
                 if (userResponse.ok) {
                     const userData = await userResponse.json();
-                    if (userData.isAdmin) {
-                        setIsAdmin(true);
-                    } else {
-                        setIsAdmin(false);
-                    }
+                    setIsAdmin(userData.isAdmin || false);
                 } else {
                     setIsAdmin(false);
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
                 setIsAdmin(false);
-            } finally {
-                setIsLoading(false);
             }
         }
 
         checkAdmin();
-    }, [router]);
+    }, [session, isPending, router]);
 
-    if (isLoading) {
+    if (isPending || isAdmin === null) {
         return (
             <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
                 <div className="text-gray-400">Loading...</div>
