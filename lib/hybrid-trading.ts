@@ -31,14 +31,14 @@ export interface HybridOrderResult {
 // Update user balance helper
 async function updateBalance(client: any, userId: string, tokenSymbol: string, eventId: string | null, amountDelta: number) {
     const amount = String(amountDelta);
-    
+
     // Insert balance record if it doesn't exist
     await client.query(`
         INSERT INTO "Balance" (userId, tokenSymbol, eventId, amount)
         VALUES ($1, $2, $3, 0.0)
         ON CONFLICT (userId, tokenSymbol, eventId) DO NOTHING;
     `, [userId, tokenSymbol, eventId]);
-    
+
     // Update the balance
     const result = await client.query(`
         UPDATE "Balance" 
@@ -46,7 +46,7 @@ async function updateBalance(client: any, userId: string, tokenSymbol: string, e
         WHERE userId = $1 AND tokenSymbol = $2 AND (eventId = $3 OR (eventId IS NULL AND $3 IS NULL))
         RETURNING amount;
     `, [userId, tokenSymbol, eventId, amount]);
-    
+
     return parseFloat(result.rows[0]?.amount || 0);
 }
 
@@ -62,24 +62,24 @@ async function getAMMState(eventId: string) {
             status: true,
         }
     });
-    
+
     return event;
 }
 
 // Calculate LMSR quote (similar to your code)
 async function calculateLMSRQuote(client: any, eventId: string, option: 'YES' | 'NO', costToSpend: number) {
     const event = await client.query('SELECT liquidityParameter, qYes, qNo FROM "Event" WHERE id = $1', [eventId]);
-    
+
     if (event.rows.length === 0) {
         throw new Error("Event not found");
     }
-    
+
     let b = parseFloat(event.rows[0].liquidityParameter || 10000);
     if (!b || b < 1000) b = 1000; // Minimum threshold
-    
+
     const currentQYes = parseFloat(event.rows[0].qYes || 0);
     const currentQNo = parseFloat(event.rows[0].qNo || 0);
-    
+
     // Calculate tokens for this cost using the existing AMM function
     const tokensReceived = calculateTokensForCost(
         currentQYes,
@@ -88,10 +88,10 @@ async function calculateLMSRQuote(client: any, eventId: string, option: 'YES' | 
         option,
         b
     );
-    
+
     const averagePrice = costToSpend / tokensReceived;
     const payout = tokensReceived * 1.00; // $1 per token at resolution
-    
+
     return {
         shares: tokensReceived,
         avgPrice: averagePrice,
@@ -105,59 +105,59 @@ async function updateAMMOrders(client: any, eventId: string) {
     try {
         const eventRes = await client.query('SELECT liquidityParameter FROM "Event" WHERE id = $1', [eventId]);
         if (eventRes.rows.length === 0) return;
-        
+
         let b = parseFloat(eventRes.rows[0].liquidityParameter || 10000);
         if (!b || b < 1000) b = 1000;
-        
+
         // Cancel existing AMM bot orders
         await client.query(
             `UPDATE "Order" SET status = 'cancelled' 
              WHERE userId = $1 AND eventId = $2 AND status IN ('open', 'partially_filled')`,
             [AMM_BOT_USER_ID, eventId]
         );
-        
+
         // Calculate current AMM prices
         const eventData = await client.query('SELECT qYes, qNo FROM "Event" WHERE id = $1', [eventId]);
         const qYes = parseFloat(eventData.rows[0]?.qYes || 0);
         const qNo = parseFloat(eventData.rows[0]?.qNo || 0);
-        
+
         const diff = (qNo - qYes) / b;
         const yesPrice = 1 / (1 + Math.exp(diff));
         const noPrice = 1 - yesPrice;
-        
+
         // Create new AMM orders with spread
         const yesBuyPrice = Math.max(0.01, (yesPrice - AMM_SPREAD)).toFixed(2);
         const yesSellPrice = Math.min(0.99, (yesPrice + AMM_SPREAD)).toFixed(2);
         const noBuyPrice = Math.max(0.01, (noPrice - AMM_SPREAD)).toFixed(2);
         const noSellPrice = Math.min(0.99, (noPrice + AMM_SPREAD)).toFixed(2);
-        
+
         // Insert AMM orders
         await client.query(
             `INSERT INTO "Order" (userId, eventId, side, option, price, amount, status) 
              VALUES ($1, $2, 'buy', 'YES', $3, $4, 'open')`,
             [AMM_BOT_USER_ID, eventId, yesBuyPrice, AMM_ORDER_SIZE]
         );
-        
+
         await client.query(
             `INSERT INTO "Order" (userId, eventId, side, option, price, amount, status) 
              VALUES ($1, $2, 'sell', 'YES', $3, $4, 'open')`,
             [AMM_BOT_USER_ID, eventId, yesSellPrice, AMM_ORDER_SIZE]
         );
-        
+
         await client.query(
             `INSERT INTO "Order" (userId, eventId, side, option, price, amount, status) 
              VALUES ($1, $2, 'buy', 'NO', $3, $4, 'open')`,
             [AMM_BOT_USER_ID, eventId, noBuyPrice, AMM_ORDER_SIZE]
         );
-        
+
         await client.query(
             `INSERT INTO "Order" (userId, eventId, side, option, price, amount, status) 
              VALUES ($1, $2, 'sell', 'NO', $3, $4, 'open')`,
             [AMM_BOT_USER_ID, eventId, noSellPrice, AMM_ORDER_SIZE]
         );
-        
+
         console.log(`AMM: Updated orders for event ${eventId}`);
-        
+
     } catch (error) {
         console.error("AMM Orders Error:", error);
     }
@@ -218,7 +218,7 @@ export async function placeHybridOrder(
         } else {
             // Market order - trade against AMM with spread earnings
             try {
-                const ammQuote = await calculateLMSRQuote(prisma, eventId, option, amount);
+                const ammQuote = await calculateLMSRQuote(prisma, eventId, option as 'YES' | 'NO', amount);
 
                 if (ammQuote.shares > 0.000001) {
                     // Calculate spread earnings for AMM bot
@@ -332,7 +332,7 @@ export async function getOrderBook(eventId: string, option: 'YES' | 'NO') {
             LIMIT 20
         `
     ]);
-    
+
     // Add dynamic fake orders to simulate market activity
     const minOrders = 8;
     const fakeBids: Array<{ price: number; amount: number }> = [];
