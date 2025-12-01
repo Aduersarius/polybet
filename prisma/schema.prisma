@@ -1,9 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-// Updated for User Profile features
-
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
@@ -12,95 +8,96 @@ datasource db {
 }
 
 model User {
-   id        String   @id @default(cuid())
-   address   String?  @unique // Keep for backward compatibility
-   email     String   @unique
-   username  String?
-   description String?
-   avatarUrl String?
-   achievements String[] @default([])
-   twitter   String?
-   discord   String?
-   telegram  String?
-   website   String?
-   isAdmin   Boolean  @default(false)
-   isBanned  Boolean  @default(false)
-   createdAt DateTime @default(now())
-   updatedAt DateTime @updatedAt
-   emailVerified DateTime?
-   image String?
-   name String?
+  id            String            @id @default(cuid())
+  address       String?           @unique
+  username      String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  achievements  String[]          @default([])
+  avatarUrl     String?
+  description   String?
+  discord       String?
+  isAdmin       Boolean           @default(false)
+  isBanned      Boolean           @default(false)
+  telegram      String?
+  twitter       String?
+  website       String?
+  email         String?           @unique
+  bets          Bet[]
+  createdEvents Event[]
+  messages      Message[]
+  reactions     MessageReaction[]
+  notifications Notification[]
+  transactions  Transaction[]
+  orders        Order[]
+  balances      Balance[]
 
-   bets         Bet[]
-   transactions Transaction[]
-   createdEvents Event[]
-   messages     Message[]
-   reactions    MessageReaction[]
-   notifications Notification[]
-   sessions Session[]
-   accounts Account[]
-
-   @@index([address])
- }
+  @@index([address])
+}
 
 model Event {
-   id             String   @id @default(cuid())
-   title          String
-   description    String
-   categories     String[]  @default([]) // Array of categories: CRYPTO, SPORTS, POLITICS, etc.
-   imageUrl       String?
-   resolutionDate DateTime
-   status         String   @default("ACTIVE") // ACTIVE, RESOLVED, CANCELLED
-   result         String?  // YES, NO, or Option ID
-   isHidden       Boolean  @default(false)
-   rules          String?  @db.Text // Markdown supported rules text
+  id                 String                   @id @default(cuid())
+  title              String
+  description        String
+  categories         String[]                 @default([])
+  imageUrl           String?
+  resolutionDate     DateTime
+  status             String                   @default("ACTIVE")
+  result             String?                  // ID of winning outcome (for multiple) or "YES"/"NO" (for binary)
+  creatorId          String
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  initialLiquidity   Float                    @default(100.0)
+  isHidden           Boolean                  @default(false)
+  liquidityParameter Float                    @default(10000.0) // Increased default for better AMM
+  type               String                   @default("BINARY") // "BINARY" or "MULTIPLE"
+  // Legacy binary fields (still used for backward compatibility)
+  noOdds             Float?
+  qNo                Float                    @default(0.0)
+  qYes               Float                    @default(0.0)
+  rules              String?
+  yesOdds            Float?
+  searchVector       Unsupported("tsvector")?
+  outcomes           Outcome[]
+  bets               Bet[]
+  orders             Order[]
+  trades             Trade[]
+  creator            User                     @relation(fields: [creatorId], references: [id])
 
-   // Full-text search vector for optimized search performance
-   searchVector   Unsupported("tsvector")?
+  @@index([status, createdAt])
+  @@index([categories], type: Gin)
+  @@index([creatorId])
+  @@index([searchVector], type: Gin)
+}
 
-   // AMM Parameters for LMSR
-   liquidityParameter Float    @default(100.0) // b parameter in LMSR
-   qYes              Float    @default(0.0)    // Cumulative YES tokens
-   qNo               Float    @default(0.0)    // Cumulative NO tokens
-   initialLiquidity  Float    @default(100.0) // Initial liquidity amount
+model Outcome {
+  id          String   @id @default(cuid())
+  eventId     String
+  name        String   // e.g., "Apple", "Nvidia", "YES", "NO"
+  probability Float    @default(0.0) // Current market probability (0-1)
+  liquidity   Float    @default(0.0) // q value for LMSR
+  color       String?  // Hex color for UI display
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-   // Cached current odds for performance
-   yesOdds          Float?
-   noOdds           Float?
+  event       Event    @relation(fields: [eventId], references: [id])
+  orders      Order[]
+  trades      Trade[]
 
-   creatorId      String?
-   creator        User?    @relation(fields: [creatorId], references: [id])
-
-   createdAt      DateTime @default(now())
-   updatedAt      DateTime @updatedAt
-
-   bets           Bet[]
-   // messages       Message[]
-
-   @@index([status, createdAt])
-   @@index([categories])
-   @@index([creatorId])
-   @@index([title])
-   @@index([description])
-   @@index([status, resolutionDate])
-   @@index([categories, status])
-   // Full-text search GIN index for fast search queries
-   @@index([searchVector], type: Gin)
+  @@index([eventId])
+  @@unique([eventId, name])
 }
 
 model Bet {
-  id            String   @id @default(cuid())
-  amount        Float
-  option        String   // YES, NO, or custom option
-  priceAtTrade  Float?   // Price of the outcome token at time of trade
-
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id])
-
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  amount       Float
+  option       String
+  userId       String
+  eventId      String
+  createdAt    DateTime @default(now())
+  priceAtTrade Float?
+  event        Event    @relation(fields: [eventId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
 
   @@index([eventId])
   @@index([userId])
@@ -110,36 +107,26 @@ model Bet {
 model Transaction {
   id        String   @id @default(cuid())
   hash      String   @unique
-  type      String   // DEPOSIT, WITHDRAW, BET_PAYOUT
+  type      String
   amount    Float
-  status    String   // PENDING, CONFIRMED, FAILED
-  
+  status    String
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Message {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   text      String
-  
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
   eventId   String
-  // event     Event    @relation(fields: [eventId], references: [id])
-  
-  createdAt DateTime @default(now())
+  createdAt DateTime          @default(now())
   editedAt  DateTime?
-  isDeleted Boolean  @default(false)
-  
-  // Threading
+  isDeleted Boolean           @default(false)
   parentId  String?
-  parent    Message? @relation("Thread", fields: [parentId], references: [id])
-  replies   Message[] @relation("Thread")
-
-  // Reactions
+  parent    Message?          @relation("Thread", fields: [parentId], references: [id])
+  replies   Message[]         @relation("Thread")
+  user      User              @relation(fields: [userId], references: [id])
   reactions MessageReaction[]
 
   @@index([eventId, createdAt])
@@ -149,62 +136,254 @@ model Message {
 
 model MessageReaction {
   id        String   @id @default(cuid())
-  type      String   // LIKE, DISLIKE
-  
+  type      String
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
   messageId String
-  message   Message  @relation(fields: [messageId], references: [id])
-  
   createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
-  @@unique([userId, messageId]) // One reaction per user per message
+  @@unique([userId, messageId])
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  type      String   // REPLY, MENTION, BET_RESULT, FAVORITE_UPDATE
-  message   String
-  resourceId String? // Link to event or message
-  isRead    Boolean  @default(false)
-  
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  type       String
+  message    String
+  resourceId String?
+  isRead     Boolean  @default(false)
+  userId     String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
 }
 
-model Session {
- id           String   @id @default(cuid())
- sessionToken String   @unique
- userId       String
- expires      DateTime
- user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// Order Book Models for Hybrid AMM + Orderbook System
+model Order {
+  id            String    @id @default(cuid())
+  userId        String
+  eventId       String
+  outcomeId     String?   // Reference to specific outcome (for multiple outcomes)
+  option        String?   // Legacy field for binary events: 'YES' or 'NO'
+  side          String    // 'buy' or 'sell'
+  price         Float     // Price per token (0.01 to 0.99)
+  amount        Float     // Total amount to spend
+  amountFilled  Float     @default(0.0) // Amount that has been filled
+  status        String    @default("open") // 'open', 'partially_filled', 'filled', 'cancelled'
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id])
+  event         Event     @relation(fields: [eventId], references: [id])
+  outcome       Outcome?  @relation(fields: [outcomeId], references: [id])
+  trades        Trade[]
+
+  @@index([eventId, side])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
 
-model Account {
- id                String  @id @default(cuid())
- userId            String
- type              String
- provider          String
- providerAccountId String
- refresh_token     String?
- access_token      String?
- expires_at        Int?
- token_type        String?
- scope             String?
- id_token          String?
- session_state     String?
- user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Trade {
+  id               String    @id @default(cuid())
+  eventId          String
+  orderId          String    // Taker order ID
+  makerOrderId     String?   // Maker order ID (if matched against another order)
+  makerUserId      String?   // Maker user ID (if matched against AMM bot or user)
+  outcomeId        String?   // Reference to specific outcome (for multiple outcomes)
+  option           String?   // Legacy field for binary events: 'YES' or 'NO'
+  side             String    // 'buy' or 'sell' from taker perspective
+  price            Float     // Execution price
+  amount           Float     // Amount traded
+  isAmmTrade       Boolean   @default(false) // True if traded against AMM bot
+  createdAt        DateTime  @default(now())
 
- @@unique([provider, providerAccountId])
+  event            Event     @relation(fields: [eventId], references: [id])
+  order            Order     @relation(fields: [orderId], references: [id])
+  outcome          Outcome?  @relation(fields: [outcomeId], references: [id])
+
+  @@index([eventId])
+  @@index([createdAt])
 }
 
-model VerificationToken {
- identifier String
- token      String   @unique
- expires    DateTime
+model Balance {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenSymbol  String   // 'TUSD' for base currency, '{outcomeId}' for outcome tokens
+  eventId      String?  // NULL for base currency, event ID for outcome tokens
+  outcomeId    String?  // NULL for base currency, outcome ID for outcome tokens
+  amount       Float    @default(0.0)
+  updatedAt    DateTime @updatedAt
 
- @@unique([identifier, token])
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, tokenSymbol, eventId, outcomeId])
+  @@index([userId])
+}
+
+model payload_events_v {
+  id                                  Int                                   @id @default(dbgenerated("nextval('_payload_events_v_id_seq'::regclass)"))
+  parent_id                           Int?
+  version_title                       String?                               @db.VarChar(500)
+  version_description                 Json?
+  version_image_url_id                Int?
+  version_resolution_date             DateTime?
+  version_status                      String?                               @db.VarChar(50)
+  version_result                      String?                               @db.VarChar(50)
+  version_is_hidden                   Boolean?
+  version_rules                       String?
+  version_amm_liquidity_parameter     Decimal?                              @db.Decimal
+  version_amm_initial_liquidity       Decimal?                              @db.Decimal
+  version_prisma_id                   String?                               @db.VarChar(255)
+  version__status                     String?                               @db.VarChar(50)
+  updated_at                          DateTime?                             @default(now())
+  created_at                          DateTime?                             @default(now())
+  latest                              Boolean?
+  published_locale                    String?                               @db.VarChar(10)
+  autosave                            Boolean?
+  payload_events                      payload_events?                       @relation(fields: [parent_id], references: [id], onUpdate: NoAction)
+  payload_events_v_version_categories payload_events_v_version_categories[]
+
+  @@map("_payload_events_v")
+}
+
+model payload_events_v_version_categories {
+  order            Int              @map("_order")
+  parent_id        Int              @map("_parent_id")
+  id               Int              @id @default(dbgenerated("nextval('_payload_events_v_version_categories_id_seq'::regclass)"))
+  value            String?          @db.VarChar(100)
+  payload_events_v payload_events_v @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("_payload_events_v_version_categories")
+}
+
+model media {
+  id                            Int                             @id @default(autoincrement())
+  alt                           String?                         @db.VarChar(500)
+  updated_at                    DateTime?                       @default(now())
+  created_at                    DateTime?                       @default(now())
+  url                           String?                         @db.VarChar(1000)
+  thumbnail_u_r_l               String?                         @db.VarChar(1000)
+  filename                      String?                         @db.VarChar(500)
+  mime_type                     String?                         @db.VarChar(100)
+  filesize                      Int?
+  width                         Int?
+  height                        Int?
+  focal_x                       Decimal?                        @db.Decimal
+  focal_y                       Decimal?                        @db.Decimal
+  payload_locked_documents_rels payload_locked_documents_rels[]
+}
+
+model payload_events {
+  id                            Int                             @id @default(autoincrement())
+  title                         String                          @db.VarChar(500)
+  description                   Json?
+  image_url_id                  Int?
+  resolution_date               DateTime?
+  status                        String?                         @default("ACTIVE") @db.VarChar(50)
+  result                        String?                         @db.VarChar(50)
+  is_hidden                     Boolean?                        @default(false)
+  rules                         String?
+  amm_liquidity_parameter       Decimal?                        @default(100) @db.Decimal
+  amm_initial_liquidity         Decimal?                        @default(100) @db.Decimal
+  prisma_id                     String?                         @db.VarChar(255)
+  updated_at                    DateTime?                       @default(now())
+  created_at                    DateTime?                       @default(now())
+  payload_events_v              payload_events_v[]
+  payload_events_categories     payload_events_categories[]
+  payload_locked_documents_rels payload_locked_documents_rels[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([status])
+}
+
+model payload_events_categories {
+  order          Int            @map("_order")
+  parent_id      Int            @map("_parent_id")
+  id             Int            @id @default(autoincrement())
+  value          String?        @db.VarChar(100)
+  payload_events payload_events @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([parent_id], map: "payload_events_categories_parent_idx")
+}
+
+model payload_locked_documents {
+  id                            Int                             @id @default(autoincrement())
+  global_slug                   String?                         @db.VarChar(255)
+  updated_at                    DateTime?                       @default(now())
+  created_at                    DateTime?                       @default(now())
+  payload_locked_documents_rels payload_locked_documents_rels[]
+}
+
+model payload_locked_documents_rels {
+  id                       Int                       @id @default(autoincrement())
+  order                    Int?
+  parent_id                Int?
+  path                     String                    @db.VarChar(255)
+  users_id                 Int?
+  media_id                 Int?
+  payload_events_id        Int?
+  media                    media?                    @relation(fields: [media_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payload_locked_documents payload_locked_documents? @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payload_events           payload_events?           @relation(fields: [payload_events_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payload_users            payload_users?            @relation(fields: [users_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model payload_migrations {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique @db.VarChar(500)
+  batch      Int?
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+}
+
+model payload_preferences {
+  id         Int       @id @default(autoincrement())
+  key        String?   @db.VarChar(500)
+  value      Json?
+  updated_at DateTime? @default(now())
+  created_at DateTime? @default(now())
+
+  @@index([key])
+}
+
+model payload_users {
+  id                            Int                             @id @default(autoincrement())
+  role                          String?                         @default("user") @db.VarChar(255)
+  username                      String?                         @db.VarChar(255)
+  description                   String?
+  avatar_url_id                 Int?
+  social_twitter                String?                         @db.VarChar(500)
+  social_discord                String?                         @db.VarChar(500)
+  social_telegram               String?                         @db.VarChar(500)
+  social_website                String?                         @db.VarChar(500)
+  is_admin                      Boolean?                        @default(false)
+  is_banned                     Boolean?                        @default(false)
+  clerk_id                      String?                         @db.VarChar(255)
+  address                       String?                         @db.VarChar(255)
+  prisma_id                     String?                         @db.VarChar(255)
+  updated_at                    DateTime?                       @default(now())
+  created_at                    DateTime?                       @default(now())
+  email                         String                          @unique @db.VarChar(255)
+  reset_password_token          String?                         @db.VarChar(500)
+  reset_password_expiration     DateTime?
+  salt                          String?
+  hash                          String?
+  login_attempts                Int?                            @default(0)
+  lock_until                    DateTime?
+  payload_locked_documents_rels payload_locked_documents_rels[]
+  payload_users_sessions        payload_users_sessions[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([email])
+}
+
+model payload_users_sessions {
+  order         Int           @map("_order")
+  parent_id     Int           @map("_parent_id")
+  id            String        @id @db.VarChar(255)
+  created_at    DateTime?     @default(now())
+  expires_at    DateTime
+  payload_users payload_users @relation(fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([parent_id], map: "payload_users_sessions_parent_idx")
 }

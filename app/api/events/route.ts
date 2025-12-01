@@ -61,6 +61,18 @@ export async function GET(request: Request) {
                             qYes: true,
                             qNo: true,
                             liquidityParameter: true,
+                            type: true,
+                            outcomes: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    probability: true,
+                                    color: true
+                                },
+                                orderBy: {
+                                    probability: 'desc'
+                                }
+                            },
                             bets: {
                                 select: {
                                     amount: true,
