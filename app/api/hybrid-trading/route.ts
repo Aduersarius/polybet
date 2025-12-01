@@ -29,8 +29,8 @@ export async function POST(request: Request) {
 
         // In production, require authentication
         if (!userId) {
-            const session = await requireAuth(request);
-            sessionUserId = session.user.id;
+            const user = await requireAuth(request);
+            sessionUserId = user.id;
         }
 
         // Validation
@@ -54,14 +54,14 @@ export async function POST(request: Request) {
         }
 
         if (amount <= 0) {
-            return NextResponse.json({ 
-                error: 'Amount must be greater than 0' 
+            return NextResponse.json({
+                error: 'Amount must be greater than 0'
             }, { status: 400 });
         }
 
         if (orderType === 'limit' && (!price || price <= 0 || price >= 1)) {
-            return NextResponse.json({ 
-                error: 'For limit orders, price must be between 0 and 1' 
+            return NextResponse.json({
+                error: 'For limit orders, price must be between 0 and 1'
             }, { status: 400 });
         }
 
@@ -76,8 +76,8 @@ export async function POST(request: Request) {
         );
 
         if (!result.success) {
-            return NextResponse.json({ 
-                error: result.error || 'Order failed' 
+            return NextResponse.json({
+                error: result.error || 'Order failed'
             }, { status: 400 });
         }
 
@@ -101,9 +101,9 @@ export async function POST(request: Request) {
 
             // Update cache invalidation for event data
             await Promise.all([
-                redis.del(`event:${eventId}`).catch(() => {}),
-                redis.del(`event:amm:${eventId}`).catch(() => {}),
-                redis.del(`orderbook:${eventId}:${option}`).catch(() => {})
+                redis.del(`event:${eventId}`).catch(() => { }),
+                redis.del(`event:amm:${eventId}`).catch(() => { }),
+                redis.del(`orderbook:${eventId}:${option}`).catch(() => { })
             ]);
         }
 

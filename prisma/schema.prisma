@@ -26,6 +26,7 @@ model User {
   twitter       String?
   website       String?
   email         String?           @unique
+  password      String?
   bets          Bet[]
   createdEvents Event[]
   messages      Message[]

@@ -119,7 +119,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const startTime = Date.now();
 
     // Authentication check
-    const session = await requireAuth(req);
+    const user = await requireAuth(req);
 
     // Rate limiting with IP bypass for 185.72.224.35
     const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
@@ -128,7 +128,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (rateLimitResponse) return rateLimitResponse;
 
     try {
-        const userId = session.user.id;
+        const userId = user.id;
 
         const { id } = await params;
         const body = await req.json();
@@ -149,14 +149,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         };
 
         // OPTIMIZATION: Use upsert for atomic user find-or-create
-        const user = await withTimeout(
+        const upsertedUser = await withTimeout(
             prisma.user.upsert({
                 where: { id: userId },
                 update: {}, // No updates if exists
                 create: {
                     id: userId,
-                    username: session.user.name || `User_${userId.slice(-8)}`,
-                    email: session.user.email,
+                    username: user.name || `User_${userId.slice(-8)}`,
+                    email: user.email,
                     address: `0x${userId.slice(-8)}`
                 }
             }),

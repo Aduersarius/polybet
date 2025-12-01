@@ -12,7 +12,7 @@ export async function PATCH(
 ) {
     try {
         // Authentication check
-        const session = await requireAuth(request);
+        const user = await requireAuth(request);
 
         const { id } = await params;
         const body = await request.json();
@@ -33,7 +33,7 @@ export async function PATCH(
         }
 
         // Verify ownership
-        if (message.userId !== session.user.id) {
+        if (message.userId !== user.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 
@@ -69,7 +69,7 @@ export async function DELETE(
 ) {
     try {
         // Authentication check
-        const session = await requireAuth(request);
+        const user = await requireAuth(request);
 
         const { id } = await params;
 
@@ -87,7 +87,7 @@ export async function DELETE(
         }
 
         // Verify ownership
-        if (message.userId !== session.user.id) {
+        if (message.userId !== user.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 
