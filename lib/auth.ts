@@ -17,6 +17,7 @@ export const auth = betterAuth({
             name: "name",
             image: "image",
             emailVerified: "emailVerified",
+            isAdmin: "isAdmin",
         },
     },
 });
