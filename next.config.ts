@@ -1,13 +1,9 @@
 import type { NextConfig } from "next";
-import { withPayload } from '@payloadcms/next/withPayload';
 import path from 'path';
 
 const nextConfig: NextConfig = {
   // Enable compression for better performance
   compress: true,
-
-  // Disable Turbopack for Payload compatibility
-  // turbopack: {},
 
   // Force webpack instead of turbopack for compatibility
   experimental: {
@@ -19,7 +15,6 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@react-native-async-storage/async-storage': false,
-      '@payload-config': path.resolve(__dirname, 'payload.config.ts'),
     };
     return config;
   },
@@ -49,4 +44,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPayload(nextConfig);
+export default nextConfig;

@@ -1,18 +1,77 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
+import { authClient } from '@/lib/auth-client';
 
 export default function AdminPage() {
     const [activeTab, setActiveTab] = useState<'events' | 'users'>('events');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const router = useRouter();
 
-    // Mock admin check (in production, verify via API)
-    const isAdmin = true; // For development
+    useEffect(() => {
+        async function checkAdmin() {
+            try {
+                const { data: session } = await authClient.getSession();
+
+                if (!session?.user) {
+                    // Not logged in - redirect to home
+                    router.push('/');
+                    return;
+                }
+
+                // Check if user is admin
+                const userResponse = await fetch(`/api/users/${session.user.email}`);
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    if (userData.isAdmin) {
+                        setIsAdmin(true);
+                    } else {
+                        setIsAdmin(false);
+                    }
+                } else {
+                    setIsAdmin(false);
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                setIsAdmin(false);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        checkAdmin();
+    }, [router]);
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+                <div className="text-gray-400">Loading...</div>
+            </div>
+        );
+    }
+
+    if (isAdmin === false) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white">
+                <Navbar />
+                <div className="flex items-center justify-center min-h-[80vh]">
+                    <div className="text-center">
+                        <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
+                        <p className="text-gray-400">You don't have permission to access this page.</p>
+                    </div>
+                </div>
+                <Footer />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white">
