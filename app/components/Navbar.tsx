@@ -6,13 +6,9 @@ import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
 import { Plus, Wallet } from 'lucide-react';
-import { createAuthClient } from "better-auth/react";
-
-const authClient = createAuthClient({
-    baseURL: "http://localhost:3000",
-});
-
-const { useSession } = authClient;
+import { authClient, useSession } from '@/lib/auth-client';
+import { LoginModal } from './auth/LoginModal';
+import { SignupModal } from './auth/SignupModal';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -37,6 +33,8 @@ interface NavbarProps {
 
 export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
+    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showSignupModal, setShowSignupModal] = useState(false);
     const { data: session } = useSession();
 
     useEffect(() => {
@@ -51,94 +49,125 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
         window.dispatchEvent(new CustomEvent('globalSearch', { detail: { query } }));
     };
 
+    const handleSignOut = async () => {
+        await (authClient as any).signOut();
+        window.location.reload();
+    };
+
     return (
-        <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
-            <div className="max-w-7xl mx-auto px-14 sm:px-8 lg:px-8">
-                <div className="flex items-center justify-between h-16">
-                    {/* Logo */}
-                    <Link href="/" className="flex items-center gap-1 group">
-                        <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-10 w-auto object-contain group-hover:scale-105 transition-transform" />
-                        <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-blue-500 bg-clip-text text-transparent group-hover:from-blue-300 group-hover:via-purple-300 group-hover:to-blue-400 transition-all">
-                            PolyBet
-                        </span>
-                    </Link>
+        <>
+            <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-14 sm:px-8 lg:px-8">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo */}
+                        <Link href="/" className="flex items-center gap-1 group">
+                            <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-10 w-auto object-contain group-hover:scale-105 transition-transform" />
+                            <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-blue-500 bg-clip-text text-transparent group-hover:from-blue-300 group-hover:via-purple-300 group-hover:to-blue-400 transition-all">
+                                PolyBet
+                            </span>
+                        </Link>
 
-                    {/* Search */}
-                    <div className="flex-1 ml-10 mr-6 hidden md:block">
-                        <SearchBar onSearch={handleSearch} />
-                    </div>
+                        {/* Search */}
+                        <div className="flex-1 ml-10 mr-6 hidden md:block">
+                            <SearchBar onSearch={handleSearch} />
+                        </div>
 
-                    {/* Right Side */}
-                    <div className="flex items-center gap-4">
-                        <button
-                            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
-                        >
-                            <Wallet className="w-4 h-4" />
-                            Top Up
-                        </button>
+                        {/* Right Side */}
+                        <div className="flex items-center gap-4">
+                            <button
+                                className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
+                            >
+                                <Wallet className="w-4 h-4" />
+                                Top Up
+                            </button>
 
-                        <NotificationBell />
+                            <NotificationBell />
 
-                        {/* Authentication */}
-                        {session ? (
-                            <div className="flex items-center gap-2">
-                                <span className="text-white text-sm">{(session as any).user?.name || (session as any).user?.email}</span>
-                                <button
-                                    onClick={() => (authClient as any).signOut()}
-                                    className="px-3 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm transition-colors"
-                                >
-                                    Sign Out
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <Link href="/login" className="px-3 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-sm transition-colors">
-                                    Login
-                                </Link>
-                                <Link href="/signup" className="px-3 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm transition-colors">
-                                    Sign Up
-                                </Link>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Bottom Row: Categories - Full Width */}
-            {onCategoryChange && (
-                <div className="w-full bg-black/30 backdrop-blur-sm border-t border-white/5">
-                    <div className="max-w-7xl mx-auto px-4 py-2">
-                        <div className="overflow-x-auto scrollbar-hide">
-                            <div className="flex gap-2 min-w-max justify-center items-center">
-                                {categories.map((cat) => (
+                            {/* Authentication */}
+                            {session ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-white text-sm">{(session as any).user?.name || (session as any).user?.email}</span>
                                     <button
-                                        key={cat.id}
-                                        onClick={() => onCategoryChange(cat.id)}
-                                        className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
-                                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                            : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                                            }`}
+                                        onClick={handleSignOut}
+                                        className="px-3 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm transition-colors"
                                     >
-                                        {cat.label}
+                                        Sign Out
                                     </button>
-                                ))}
-                                <div className="w-px h-6 bg-white/20 mx-2" />
-                                <button
-                                    onClick={() => onCategoryChange('FAVORITES')}
-                                    className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
-                                        ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
-                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                                        }`}
-                                >
-                                    <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                    </svg>
-                                </button>
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setShowLoginModal(true)}
+                                        className="px-3 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-sm transition-colors"
+                                    >
+                                        Login
+                                    </button>
+                                    <button
+                                        onClick={() => setShowSignupModal(true)}
+                                        className="px-3 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm transition-colors"
+                                    >
+                                        Sign Up
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
-            )}
-        </nav>
+
+                {/* Bottom Row: Categories - Full Width */}
+                {onCategoryChange && (
+                    <div className="w-full bg-black/30 backdrop-blur-sm border-t border-white/5">
+                        <div className="max-w-7xl mx-auto px-4 py-2">
+                            <div className="overflow-x-auto scrollbar-hide">
+                                <div className="flex gap-2 min-w-max justify-center items-center">
+                                    {categories.map((cat) => (
+                                        <button
+                                            key={cat.id}
+                                            onClick={() => onCategoryChange(cat.id)}
+                                            className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
+                                                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                                                : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                        >
+                                            {cat.label}
+                                        </button>
+                                    ))}
+                                    <div className="w-px h-6 bg-white/20 mx-2" />
+                                    <button
+                                        onClick={() => onCategoryChange('FAVORITES')}
+                                        className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
+                                            ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
+                                            : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                    >
+                                        <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </nav>
+
+            {/* Auth Modals */}
+            <LoginModal
+                isOpen={showLoginModal}
+                onClose={() => setShowLoginModal(false)}
+                onSwitchToSignup={() => {
+                    setShowLoginModal(false);
+                    setShowSignupModal(true);
+                }}
+            />
+            <SignupModal
+                isOpen={showSignupModal}
+                onClose={() => setShowSignupModal(false)}
+                onSwitchToLogin={() => {
+                    setShowSignupModal(false);
+                    setShowLoginModal(true);
+                }}
+            />
+        </>
     );
 }
