@@ -60,7 +60,10 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
 
     return (
         <>
-            <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+            {/* Extended background for navbar overscroll */}
+            <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/50 backdrop-blur-md pointer-events-none -z-10" />
+
+            <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.5)' }}>
                 <div className="max-w-7xl mx-auto px-14 sm:px-8 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         {/* Logo */}
