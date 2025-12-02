@@ -53,35 +53,35 @@ export default function ProfilePage() {
 
     // Fetch user stats
     const { data: stats } = useQuery<UserStats>({
-        queryKey: ['user-stats', session?.user?.id],
+        queryKey: ['user-stats', (session as any)?.user?.id],
         queryFn: async () => {
             const res = await fetch('/api/user/stats');
             if (!res.ok) throw new Error('Failed to fetch stats');
             return res.json();
         },
-        enabled: !!session?.user
+        enabled: !!(session as any)?.user
     });
 
     // Fetch betting history
     const { data: bets } = useQuery<BetHistory[]>({
-        queryKey: ['user-bets', session?.user?.id],
+        queryKey: ['user-bets', (session as any)?.user?.id],
         queryFn: async () => {
             const res = await fetch('/api/user/bets?limit=10');
             if (!res.ok) throw new Error('Failed to fetch bets');
             return res.json();
         },
-        enabled: !!session?.user
+        enabled: !!(session as any)?.user
     });
 
     // Fetch active positions
     const { data: positions } = useQuery<Position[]>({
-        queryKey: ['user-positions', session?.user?.id],
+        queryKey: ['user-positions', (session as any)?.user?.id],
         queryFn: async () => {
             const res = await fetch('/api/user/positions');
             if (!res.ok) throw new Error('Failed to fetch positions');
             return res.json();
         },
-        enabled: !!session?.user
+        enabled: !!(session as any)?.user
     });
 
     useEffect(() => {
