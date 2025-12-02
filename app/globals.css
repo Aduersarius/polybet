@@ -29,12 +29,18 @@
   --font-sans: var(--font-outfit);
 }
 
+html {
+  background-color: #0a0a0a;
+  min-height: 100%;
+}
+
 body {
   color: var(--on-background);
   background: linear-gradient(to bottom right, #0a0a0a, #0f0520, #0a0a0a);
   background-attachment: fixed;
   font-family: var(--font-sans), sans-serif;
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
 /* Material Flat Utilities */
