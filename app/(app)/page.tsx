@@ -1,9 +1,7 @@
 'use client';
 import { Navbar } from "../components/Navbar";
-import { InteractiveParticles } from "../components/InteractiveParticles";
+import { SparklesCore as Sparks } from "../../components/ui/sparkles";
 
-// ... (inside component)
-<InteractiveParticles variant="simple" />
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -444,7 +442,7 @@ export default function Home() {
           key="landing"
           className="fixed inset-0 flex items-center justify-center z-10"
         >
-          <InteractiveParticles variant="simple" id="particles-landing" />
+          <Sparks id="particles-landing" />
           {/* Dark Background with Gradient */}
           {/* Floating Content */}
           <div className="relative z-10 text-center">

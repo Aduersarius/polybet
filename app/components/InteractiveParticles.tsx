@@ -5,19 +5,19 @@ import Particles, { initParticlesEngine } from '@tsparticles/react';
 import { loadSlim } from '@tsparticles/slim';
 import type { Container, Engine } from '@tsparticles/engine';
 
-interface InteractiveParticlesProps {
+interface SparksProps {
     interactive?: boolean;
     zIndex?: number;
     id?: string;
     variant?: 'default' | 'simple';
 }
 
-export function InteractiveParticles({
+export function Sparks({
     interactive = true,
     zIndex = 0,
     id = "tsparticles",
     variant = 'default'
-}: InteractiveParticlesProps) {
+}: SparksProps) {
     const [init, setInit] = useState(false);
 
     useEffect(() => {
@@ -65,44 +65,75 @@ export function InteractiveParticles({
                 particles: {
                     color: {
                         value: isSimple
-                            ? "#ffffff"
-                            : ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#ffffff"],
+                            ? ["#ffffff", "#ffff88", "#ffaa00"]
+                            : ["#ffffff", "#ffff88", "#ffaa00", "#ff6600", "#ffcc00"],
                     },
                     links: {
                         enable: false,
                     },
+                    life: {
+                        duration: {
+                            sync: false,
+                            value: isSimple ? 1.5 : 2,
+                        },
+                        count: 1,
+                    },
                     move: {
-                        direction: isSimple ? "none" : "top",
+                        direction: "none",
                         enable: true,
                         outModes: {
-                            default: "out",
+                            default: "destroy",
                         },
-                        random: isSimple, // Random movement for simple, straight for default
-                        speed: 0.5,
-                        straight: !isSimple,
+                        random: true,
+                        speed: { min: 1, max: isSimple ? 3 : 5 },
+                        straight: false,
+                        attract: {
+                            enable: false,
+                        },
+                        trail: {
+                            enable: true,
+                            length: 3,
+                            fill: {
+                                color: "#ffffff",
+                            },
+                        },
                     },
                     number: {
                         density: {
                             enable: true,
                         },
-                        value: isSimple ? 100 : 140,
+                        value: isSimple ? 80 : 120,
                     },
                     opacity: {
-                        value: { min: isSimple ? 0.1 : 0.3, max: isSimple ? 0.5 : 0.8 },
+                        value: { min: 0.8, max: 1 },
+                        animation: {
+                            enable: true,
+                            speed: 2,
+                            sync: false,
+                            mode: "decrease",
+                            startValue: "max",
+                            destroy: "min"
+                        }
+                    },
+                    shape: {
+                        type: "star",
+                        options: {
+                            star: {
+                                sides: 5,
+                                inset: 2,
+                            },
+                        },
+                    },
+                    size: {
+                        value: { min: 0.5, max: 2 },
                         animation: {
                             enable: true,
                             speed: 1,
                             sync: false,
-                            mode: "auto",
-                            startValue: "random",
-                            destroy: "none"
-                        }
-                    },
-                    shape: {
-                        type: "circle",
-                    },
-                    size: {
-                        value: { min: 1, max: 3 },
+                            mode: "decrease",
+                            startValue: "max",
+                            destroy: "min"
+                        },
                     },
                     effect: {
                         fill: true,

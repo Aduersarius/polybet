@@ -181,6 +181,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const { prisma } = await import('@/lib/prisma');
+        const { requireAuth } = await import('@/lib/auth');
+
+        // 1. Authentication & Authorization
+        const user = await requireAuth(request as any);
+        if (!user.isAdmin) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+        }
+
         const body = await request.json();
         const { title, description, resolutionDate, categories, imageUrl } = body;
 
@@ -189,6 +197,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        // 2. Create Event with Creator and AMM defaults
         const event = await prisma.event.create({
             data: {
                 title,
@@ -196,6 +205,12 @@ export async function POST(request: Request) {
                 resolutionDate: new Date(resolutionDate),
                 categories: categories ?? [],
                 imageUrl,
+                creatorId: user.id,
+                // Explicitly set AMM defaults (though schema has defaults)
+                liquidityParameter: 100.0,
+                qYes: 0.0,
+                qNo: 0.0,
+                status: 'ACTIVE'
             },
             select: {
                 id: true,
@@ -205,13 +220,14 @@ export async function POST(request: Request) {
                 resolutionDate: true,
                 createdAt: true,
                 imageUrl: true,
+                status: true
             },
         });
 
         return NextResponse.json(event);
-    } catch (error) {
-        console.error(error);
-        return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
+    } catch (error: any) {
+        console.error('Create event error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to create event' }, { status: 500 });
     }
 }
 

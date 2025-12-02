@@ -1,24 +1,86 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+interface Outcome {
+    id?: string;
+    name: string;
+    probability?: number;
+}
 
 interface CreateEventModalProps {
     isOpen: boolean;
     onClose: () => void;
+    event?: {
+        id: string;
+        title: string;
+        description: string;
+        categories: string[];
+        resolutionDate: string;
+        imageUrl: string | null;
+        type: string;
+        isHidden: boolean;
+        outcomes?: Outcome[];
+    } | null;
 }
 
-const CATEGORIES = ['CRYPTO', 'SPORTS', 'POLITICS', 'ECONOMICS', 'TECH', 'OTHER'];
+const CATEGORIES = ['CRYPTO', 'SPORTS', 'POLITICS', 'ECONOMICS', 'TECH', 'FINANCE', 'CULTURE', 'WORLD', 'SCIENCE'];
+const EVENT_TYPES = [
+    { value: 'BINARY', label: 'Binary (YES/NO)', description: 'Simple yes or no outcome' },
+    { value: 'MULTIPLE', label: 'Multiple Choice', description: 'Multiple possible outcomes' },
+];
 
-export function CreateEventModal({ isOpen, onClose }: CreateEventModalProps) {
+export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalProps) {
     const queryClient = useQueryClient();
+    const isEditMode = !!event;
+
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('CRYPTO');
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [eventType, setEventType] = useState('BINARY');
     const [resolutionDate, setResolutionDate] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [saveAsDraft, setSaveAsDraft] = useState(false);
+    const [outcomes, setOutcomes] = useState<Outcome[]>([{ name: 'YES' }, { name: 'NO' }]);
+
+    // Populate form when editing
+    useEffect(() => {
+        if (event) {
+            setTitle(event.title || '');
+            setDescription(event.description || '');
+            setSelectedCategories(event.categories || []);
+            setEventType(event.type || 'BINARY');
+            setResolutionDate(event.resolutionDate || '');
+            setImageUrl(event.imageUrl || '');
+            setSaveAsDraft(event.isHidden || false);
+
+            if (event.outcomes && event.outcomes.length > 0) {
+                setOutcomes(event.outcomes);
+            } else if (event.type === 'BINARY') {
+                setOutcomes([{ name: 'YES' }, { name: 'NO' }]);
+            }
+        } else {
+            // Reset form for create mode
+            setTitle('');
+            setDescription('');
+            setSelectedCategories([]);
+            setEventType('BINARY');
+            setResolutionDate('');
+            setImageUrl('');
+            setSaveAsDraft(false);
+            setOutcomes([{ name: 'YES' }, { name: 'NO' }]);
+        }
+    }, [event]);
+
+    // Update outcomes when event type changes
+    useEffect(() => {
+        if (eventType === 'BINARY' && (!isEditMode || !event)) {
+            setOutcomes([{ name: 'YES' }, { name: 'NO' }]);
+        }
+    }, [eventType, isEditMode, event]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -48,35 +110,72 @@ export function CreateEventModal({ isOpen, onClose }: CreateEventModalProps) {
 
     const createEventMutation = useMutation({
         mutationFn: async (data: any) => {
-            const res = await fetch('/api/events', {
-                method: 'POST',
+            const url = isEditMode ? `/api/events/${event.id}` : '/api/events';
+            const method = isEditMode ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to create event');
+            if (!res.ok) {
+                const error = await res.text();
+                throw new Error(`Failed to ${isEditMode ? 'update' : 'create'} event: ${error}`);
+            }
             return res.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+            queryClient.invalidateQueries({ queryKey: ['events'] });
             onClose();
-            // Reset form
-            setTitle('');
-            setDescription('');
-            setCategory('CRYPTO');
-            setResolutionDate('');
-            setImageUrl('');
         },
+        onError: (error: any) => {
+            alert(error.message || 'Failed to save event');
+        }
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (selectedCategories.length === 0) {
+            alert('Please select at least one category');
+            return;
+        }
+
         createEventMutation.mutate({
             title,
             description,
-            categories: [category],
+            categories: selectedCategories,
+            type: eventType,
             resolutionDate,
             imageUrl,
+            isHidden: saveAsDraft,
+            outcomes: eventType === 'MULTIPLE' ? outcomes.filter(o => o.name.trim()) : undefined,
         });
+    };
+
+    const toggleCategory = (category: string) => {
+        setSelectedCategories(prev =>
+            prev.includes(category)
+                ? prev.filter(c => c !== category)
+                : [...prev, category]
+        );
+    };
+
+    const addOutcome = () => {
+        setOutcomes([...outcomes, { name: '' }]);
+    };
+
+    const updateOutcome = (index: number, name: string) => {
+        const newOutcomes = [...outcomes];
+        newOutcomes[index] = { ...newOutcomes[index], name };
+        setOutcomes(newOutcomes);
+    };
+
+    const removeOutcome = (index: number) => {
+        if (outcomes.length > 2) {
+            setOutcomes(outcomes.filter((_, i) => i !== index));
+        }
     };
 
     return (
@@ -96,97 +195,187 @@ export function CreateEventModal({ isOpen, onClose }: CreateEventModalProps) {
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         className="fixed inset-0 flex items-center justify-center z-[70] p-4"
                     >
-                        <div className="w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                            <h2 className="text-xl font-bold text-white mb-6">Create New Event</h2>
+                        <div className="w-full max-w-3xl bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                            <h2 className="text-2xl font-bold text-white mb-6">
+                                {isEditMode ? 'Edit Event' : 'Create New Event'}
+                            </h2>
 
                             <form onSubmit={handleSubmit} className="space-y-6">
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">Event Image</label>
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-24 h-16 rounded-lg bg-white/10 overflow-hidden border border-white/20">
-                                                {imageUrl ? (
-                                                    <img src={imageUrl} alt="Event" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-2xl">🖼️</div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleFileUpload}
-                                                    className="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
-                                                />
-                                                {uploading && <p className="text-xs text-blue-400 mt-1">Uploading...</p>}
-                                            </div>
+                                {/* Image Upload */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Event Image</label>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-32 h-20 rounded-lg bg-white/10 overflow-hidden border border-white/20">
+                                            {imageUrl ? (
+                                                <img src={imageUrl} alt="Event" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-3xl">🖼️</div>
+                                            )}
                                         </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">Title</label>
-                                        <input
-                                            type="text"
-                                            value={title}
-                                            onChange={(e) => setTitle(e.target.value)}
-                                            required
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                                            placeholder="e.g. Will Bitcoin hit $100k in 2024?"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
-                                        <textarea
-                                            value={description}
-                                            onChange={(e) => setDescription(e.target.value)}
-                                            required
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors h-24 resize-none"
-                                            placeholder="Detailed description of the event..."
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-400 mb-1">Category</label>
-                                            <select
-                                                value={category}
-                                                onChange={(e) => setCategory(e.target.value)}
-                                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                                            >
-                                                {CATEGORIES.map(cat => (
-                                                    <option key={cat} value={cat} className="bg-[#1e1e1e]">{cat}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-400 mb-1">Resolution Date</label>
+                                        <div className="flex-1">
                                             <input
-                                                type="datetime-local"
-                                                value={resolutionDate}
-                                                onChange={(e) => setResolutionDate(e.target.value)}
-                                                required
-                                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleFileUpload}
+                                                className="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
                                             />
+                                            {uploading && <p className="text-xs text-blue-400 mt-1">Uploading...</p>}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3 mt-8 pt-4 border-t border-white/10">
+                                {/* Title */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Title</label>
+                                    <input
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        required
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        placeholder="e.g. Will Bitcoin hit $100k in 2024?"
+                                    />
+                                </div>
+
+                                {/* Description */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Description</label>
+                                    <textarea
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        required
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors h-28 resize-none"
+                                        placeholder="Detailed description of the event..."
+                                    />
+                                </div>
+
+                                {/* Categories - Multi-select */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Categories <span className="text-xs text-gray-500">(Select one or more)</span>
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {CATEGORIES.map(cat => (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                onClick={() => toggleCategory(cat)}
+                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCategories.includes(cat)
+                                                        ? 'bg-blue-600 text-white border-2 border-blue-400'
+                                                        : 'bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Event Type */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Event Type</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {EVENT_TYPES.map(type => (
+                                            <button
+                                                key={type.value}
+                                                type="button"
+                                                onClick={() => setEventType(type.value)}
+                                                className={`p-4 rounded-lg text-left transition-colors border-2 ${eventType === type.value
+                                                        ? 'bg-purple-600/20 border-purple-500 text-white'
+                                                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                <div className="font-medium mb-1">{type.label}</div>
+                                                <div className="text-xs opacity-70">{type.description}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Outcomes Editor - Show default YES/NO for Binary, custom for Multiple */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Outcomes {eventType === 'BINARY' && <span className="text-xs text-gray-500">(Default: YES/NO)</span>}
+                                    </label>
+                                    <div className="space-y-2">
+                                        {outcomes.map((outcome, index) => (
+                                            <div key={index} className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={outcome.name}
+                                                    onChange={(e) => updateOutcome(index, e.target.value)}
+                                                    disabled={eventType === 'BINARY'}
+                                                    placeholder={`Outcome ${index + 1}`}
+                                                    className={`flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors ${eventType === 'BINARY' ? 'opacity-60 cursor-not-allowed' : ''
+                                                        }`}
+                                                />
+                                                {eventType === 'MULTIPLE' && outcomes.length > 2 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeOutcome(index)}
+                                                        className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {eventType === 'MULTIPLE' && (
+                                            <button
+                                                type="button"
+                                                onClick={addOutcome}
+                                                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white transition-colors"
+                                            >
+                                                + Add Outcome
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Resolution Date */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Resolution Date</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={resolutionDate}
+                                        onChange={(e) => setResolutionDate(e.target.value)}
+                                        required
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]"
+                                    />
+                                </div>
+
+                                {/* Save as Draft Toggle */}
+                                <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
+                                    <input
+                                        type="checkbox"
+                                        id="draft-mode"
+                                        checked={saveAsDraft}
+                                        onChange={(e) => setSaveAsDraft(e.target.checked)}
+                                        className="w-5 h-5 rounded border-white/20 bg-white/5 checked:bg-blue-600"
+                                    />
+                                    <label htmlFor="draft-mode" className="flex-1 cursor-pointer">
+                                        <div className="text-sm font-medium text-white">Save as Draft/Preview Mode</div>
+                                        <div className="text-xs text-gray-400">Event will be hidden from public until published</div>
+                                    </label>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-3 pt-4 border-t border-white/10">
                                     <button
                                         type="button"
                                         onClick={onClose}
-                                        className="flex-1 px-4 py-2 rounded-lg font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                                        className="flex-1 px-4 py-3 rounded-lg font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={createEventMutation.isPending || uploading}
-                                        className="flex-1 px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50"
+                                        className="flex-1 px-4 py-3 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50"
                                     >
-                                        {createEventMutation.isPending ? 'Creating...' : 'Create Event'}
+                                        {createEventMutation.isPending
+                                            ? (isEditMode ? 'Updating...' : 'Creating...')
+                                            : (isEditMode ? 'Update Event' : (saveAsDraft ? 'Save as Draft' : 'Publish Event'))}
                                     </button>
                                 </div>
                             </form>
