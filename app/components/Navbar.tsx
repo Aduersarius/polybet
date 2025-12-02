@@ -29,9 +29,13 @@ const categories = [
 interface NavbarProps {
     selectedCategory?: string;
     onCategoryChange?: (categoryId: string) => void;
+    isAdminPage?: boolean;
+    activeAdminView?: string;
+    onAdminViewChange?: (view: string) => void;
+    onCreateEvent?: () => void;
 }
 
-export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarProps) {
+export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage, activeAdminView, onAdminViewChange, onCreateEvent }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
@@ -184,6 +188,52 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange }: NavbarPro
                                         </svg>
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Admin Navigation Row */}
+                {isAdminPage && (
+                    <div className="w-full bg-[#1e1e1e] backdrop-blur-sm border-t border-white/5">
+                        <div className="max-w-7xl mx-auto px-4 py-2">
+                            <div className="flex items-center justify-between">
+                                {/* Left: Title + Tabs */}
+                                <div className="flex items-center gap-6">
+                                    <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                                        Admin
+                                    </h2>
+                                    <div className="flex gap-1">
+                                        {[
+                                            { id: 'events', label: 'Events', icon: '📊' },
+                                            { id: 'users', label: 'Users', icon: '👥' },
+                                            { id: 'statistics', label: 'Statistics', icon: '📈' },
+                                        ].map((item) => (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => onAdminViewChange?.(item.id)}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeAdminView === item.id
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                <span>{item.icon}</span>
+                                                <span>{item.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Right: Action Button */}
+                                {activeAdminView === 'events' && onCreateEvent && (
+                                    <button
+                                        onClick={onCreateEvent}
+                                        className="px-3 py-1.5 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center gap-1.5"
+                                    >
+                                        <span>+</span>
+                                        <span>Create Event</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
