@@ -11,12 +11,6 @@ export async function GET(
 ) {
     const startTime = Date.now();
 
-    // Rate limiting
-    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    const identifier = getRateLimitIdentifier(request);
-    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
-    if (rateLimitResponse) return rateLimitResponse;
-
     try {
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
@@ -51,8 +45,11 @@ export async function GET(
                     throw new Error('Event not found');
                 }
 
-                const bets = await prisma.bet.findMany({
-                    where: { eventId: id },
+                const bets = await (prisma as any).marketActivity.findMany({
+                    where: {
+                        eventId: id,
+                        type: { in: ['BET', 'TRADE'] }
+                    },
                     select: { amount: true },
                 });
 

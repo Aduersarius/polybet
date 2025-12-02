@@ -216,7 +216,7 @@ export async function generateHistoricalOdds(
     const event = await prisma.event.findUnique({
         where: { id: eventId },
         select: { type: true }
-    });
+    }) as any;
 
     if (event?.type === 'MULTIPLE') {
         return generateMultipleHistoricalOdds(eventId, period);
@@ -265,38 +265,39 @@ async function generateBinaryHistoricalOdds(
         bucketSizeMs = Math.max(totalTimeMs / 100, 60 * 1000); // At least 1 minute buckets
     }
 
-    // Fetch ALL bets to replay AMM state correctly
-    const allBets = await prisma.bet.findMany({
+    // Fetch ALL market activities to replay AMM state correctly
+    const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
+            type: 'BET',
             createdAt: { gte: event.createdAt }
         },
         orderBy: { createdAt: 'asc' }
     });
 
-    // Replay AMM state through all bets
+    // Replay AMM state through all activities
     let qYes = 0;
     let qNo = 0;
     const b = event.liquidityParameter || 10000.0;
 
-    // Track state at each bet
+    // Track state at each activity
     const stateHistory: Array<{ time: Date; qYes: number; qNo: number; yesPrice: number; volume: number }> = [];
 
-    for (const bet of allBets) {
-        const tokens = calculateTokensForCost(qYes, qNo, bet.amount, bet.option as 'YES' | 'NO', b);
+    for (const activity of allActivities) {
+        const tokens = calculateTokensForCost(qYes, qNo, activity.amount, activity.option as 'YES' | 'NO', b);
 
-        if (bet.option === 'YES') qYes += tokens;
+        if (activity.option === 'YES') qYes += tokens;
         else qNo += tokens;
 
         const diff = (qNo - qYes) / b;
         const yesPrice = 1 / (1 + Math.exp(diff));
 
         stateHistory.push({
-            time: bet.createdAt,
+            time: activity.createdAt,
             qYes,
             qNo,
             yesPrice,
-            volume: bet.amount
+            volume: activity.amount
         });
     }
 
@@ -417,7 +418,7 @@ async function generateMultipleHistoricalOdds(
     const event = await prisma.event.findUnique({
         where: { id: eventId },
         include: { outcomes: true }
-    });
+    }) as any;
 
     if (!event || event.type !== 'MULTIPLE') return [];
 
@@ -444,10 +445,11 @@ async function generateMultipleHistoricalOdds(
         bucketSizeMs = Math.max(totalTimeMs / 100, 60 * 1000);
     }
 
-    // Fetch all trades for this event
-    const allTrades = await prisma.trade.findMany({
+    // Fetch all market activities for this event
+    const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
+            type: 'TRADE',
             createdAt: { gte: event.createdAt }
         },
         orderBy: { createdAt: 'asc' }
@@ -455,13 +457,13 @@ async function generateMultipleHistoricalOdds(
 
     // Initialize liquidity state for all outcomes
     const outcomeLiquidities = new Map<string, number>();
-    event.outcomes.forEach(outcome => {
+    (event as any).outcomes.forEach((outcome: any) => {
         outcomeLiquidities.set(outcome.id, outcome.liquidity || 0);
     });
 
     const b = event.liquidityParameter || 10000.0;
 
-    // Track state at each trade
+    // Track state at each activity
     const stateHistory: Array<{
         time: Date;
         liquidities: Map<string, number>;
@@ -469,13 +471,13 @@ async function generateMultipleHistoricalOdds(
         volume: number;
     }> = [];
 
-    // Replay trades
-    for (const trade of allTrades) {
+    // Replay activities
+    for (const activity of allActivities) {
         // For AMM trades on multiple outcomes, we need to update liquidity
-        // The trade.amount is the shares bought, and trade.outcomeId is the target
-        if (trade.outcomeId && trade.isAmmTrade) {
-            const currentLiq = outcomeLiquidities.get(trade.outcomeId) || 0;
-            outcomeLiquidities.set(trade.outcomeId, currentLiq + trade.amount);
+        // The activity.amount is the shares bought, and activity.outcomeId is the target
+        if (activity.outcomeId && activity.isAmmInteraction) {
+            const currentLiq = outcomeLiquidities.get(activity.outcomeId) || 0;
+            outcomeLiquidities.set(activity.outcomeId, currentLiq + activity.amount);
         }
 
         // Calculate probabilities using LMSR
@@ -483,10 +485,10 @@ async function generateMultipleHistoricalOdds(
 
         // Store state snapshot
         stateHistory.push({
-            time: trade.createdAt,
+            time: activity.createdAt,
             liquidities: new Map(outcomeLiquidities),
             probabilities: new Map(probabilities),
-            volume: trade.amount * trade.price // Cost of the trade
+            volume: activity.amount * (activity.price || 1) // Cost of the trade
         });
     }
 
@@ -523,7 +525,7 @@ async function generateMultipleHistoricalOdds(
 
     // Initial state (equal probabilities)
     let initialProbabilities = new Map<string, number>();
-    event.outcomes.forEach(outcome => {
+    event.outcomes.forEach((outcome: any) => {
         initialProbabilities.set(outcome.id, 1 / event.outcomes.length);
     });
 
@@ -545,10 +547,10 @@ async function generateMultipleHistoricalOdds(
         const probabilities = lastStateInBucket ? lastStateInBucket.probabilities : initialProbabilities;
 
         // Convert probabilities to outcome array
-        const outcomes = event.outcomes.map(outcome => ({
+        const outcomes = (event as any).outcomes.map((outcome: any) => ({
             id: outcome.id,
             name: outcome.name,
-            probability: probabilities.get(outcome.id) || (1 / event.outcomes.length),
+            probability: probabilities.get(outcome.id) || (1 / (event as any).outcomes.length),
             color: outcome.color || undefined
         }));
 
@@ -577,10 +579,10 @@ async function generateMultipleHistoricalOdds(
         const lastBucketTimestamp = buckets.length > 0 ? buckets[buckets.length - 1].timestamp : 0;
 
         if (lastTimestamp > lastBucketTimestamp) {
-            const outcomes = event.outcomes.map(outcome => ({
+            const outcomes = (event as any).outcomes.map((outcome: any) => ({
                 id: outcome.id,
                 name: outcome.name,
-                probability: lastState.probabilities.get(outcome.id) || (1 / event.outcomes.length),
+                probability: lastState.probabilities.get(outcome.id) || (1 / (event as any).outcomes.length),
                 color: outcome.color || undefined
             }));
 
@@ -595,10 +597,10 @@ async function generateMultipleHistoricalOdds(
 
     // If no trades yet, return current state
     if (buckets.length === 0) {
-        const currentOutcomes = event.outcomes.map(outcome => ({
+        const currentOutcomes = (event as any).outcomes.map((outcome: any) => ({
             id: outcome.id,
             name: outcome.name,
-            probability: outcome.probability || (1 / event.outcomes.length),
+            probability: outcome.probability || (1 / (event as any).outcomes.length),
             color: outcome.color || undefined
         }));
 

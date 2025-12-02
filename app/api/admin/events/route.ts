@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
                     select: { username: true, address: true }
                 },
                 _count: {
-                    select: { bets: true }
+                    select: { marketActivity: true }
                 }
             }
         });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     LineChart,
     Line,
@@ -45,26 +45,32 @@ interface DataPoint {
     outcomes?: OutcomeData[]; // for multiple events
 }
 
-// Custom Tooltip Component
-const CustomTooltip = ({ active, payload, label, isMultiple }: any) => {
-    if (active && payload && payload.length) {
+// Custom Tooltip Component - Polymarket style with individual labels
+const CustomTooltip = ({ active, payload, label, coordinate }: any) => {
+    if (active && payload && payload.length > 0) {
+        const formattedDate = format(new Date(label), 'MMM dd, yyyy h:mm a');
+
         return (
-            <div className="bg-gray-800/95 backdrop-blur-sm px-3 py-2 rounded-lg border border-purple-500/30 text-sm font-medium shadow-xl">
-                <p className="text-gray-400 mb-1 text-xs">{label}</p>
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center gap-2">
+            <div className="relative" style={{ pointerEvents: 'none' }}>
+                {/* Date label at top */}
+                <div className="text-xs text-gray-400 mb-2">
+                    {formattedDate}
+                </div>
+
+                {/* Individual floating labels for each line */}
+                <div className="space-y-1">
+                    {payload.map((entry: any, index: number) => (
                         <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: entry.color }}
-                        />
-                        <span className="text-gray-300">
-                            {entry.name}:
-                        </span>
-                        <span className="text-white font-bold">
-                            {entry.value.toFixed(1)}%
-                        </span>
-                    </div>
-                ))}
+                            key={index}
+                            className="px-2 py-1 rounded text-white text-xs font-bold shadow-lg whitespace-nowrap"
+                            style={{
+                                backgroundColor: entry.color
+                            }}
+                        >
+                            {entry.name} {entry.value?.toFixed(1)}%
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }
@@ -164,45 +170,42 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: Odds
 
     return (
         <div className="material-card p-6">
-            <div className="flex justify-between items-start mb-4">
-                <div>
-                    <div className="text-lg font-bold text-white mb-2">
-                        {isMultiple ? 'Probability Trends' : 'Probability Trend'}
+            {/* Polymarket-style legend at top */}
+            <div className="mb-4">
+                {isMultiple ? (
+                    <div className="flex flex-wrap gap-4 items-center">
+                        {outcomes.map((outcome) => {
+                            const latestData = data[data.length - 1];
+                            const probability = latestData ? Math.round(latestData[outcome.id]) : Math.round(outcome.probability * 100 || 0);
+                            return (
+                                <div key={outcome.id} className="flex items-center gap-2 text-sm">
+                                    <div
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: outcome.color }}
+                                    />
+                                    <span className="text-gray-300">{outcome.name}</span>
+                                    <span className="text-white font-bold">
+                                        {probability}%
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
-                    {isMultiple ? (
-                        <div className="space-y-1">
-                            {outcomes.map((outcome) => {
-                                const latestData = data[data.length - 1];
-                                const probability = latestData ? (latestData[outcome.id] / 100) : (outcome.probability || 0);
-                                return (
-                                    <div key={outcome.id} className="flex items-center justify-between text-sm min-w-[200px]">
-                                        <div className="flex items-center gap-2">
-                                            {outcome.color && (
-                                                <div
-                                                    className="w-3 h-3 rounded-full"
-                                                    style={{ backgroundColor: outcome.color }}
-                                                />
-                                            )}
-                                            <span className="text-gray-300">{outcome.name}</span>
-                                        </div>
-                                        <span className="text-white font-bold">
-                                            <AnimatedNumber value={probability * 100} />%
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
+                ) : (
+                    <div>
+                        <div className="text-lg font-bold text-white mb-2">Probability Trend</div>
                         <div className="text-3xl font-bold text-purple-400 mb-1 transition-all duration-200 flex items-center gap-1">
                             <AnimatedNumber value={currentPrice * 100} />% chance
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             <div className="relative w-full h-[300px] mb-4">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data}>
+                    <LineChart
+                        data={data}
+                    >
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                         <XAxis
                             dataKey="timestamp"
@@ -214,16 +217,19 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: Odds
                             minTickGap={30}
                         />
                         <YAxis
-                            domain={[0, 100]}
+                            domain={['auto', 'auto']}
                             stroke="rgba(255,255,255,0.3)"
                             tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }}
                             tickLine={false}
                             axisLine={false}
                             tickFormatter={(value) => `${value}%`}
+                            padding={{ top: 20, bottom: 20 }}
                         />
                         <Tooltip
-                            content={<CustomTooltip isMultiple={isMultiple} />}
+                            content={<CustomTooltip />}
                             cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+                            animationDuration={0}
+                            isAnimationActive={false}
                         />
 
                         {isMultiple ? (
@@ -238,6 +244,7 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: Odds
                                     dot={false}
                                     activeDot={{ r: 4, strokeWidth: 0 }}
                                     isAnimationActive={false}
+                                    connectNulls
                                 />
                             ))
                         ) : (

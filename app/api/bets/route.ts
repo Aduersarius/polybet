@@ -14,12 +14,6 @@ export async function POST(request: Request) {
     // Authentication check
     const user = await requireAuth(request);
 
-    // Rate limiting with IP bypass for 185.72.224.35
-    const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    const identifier = getRateLimitIdentifier(request);
-    const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
-    if (rateLimitResponse) return rateLimitResponse;
-
     try {
         const body = await request.json();
         // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
@@ -113,12 +107,15 @@ export async function POST(request: Request) {
                                 noOdds: newOdds.noPrice
                             }
                         }),
-                        prisma.bet.create({
+                        (prisma as any).marketActivity.create({
                             data: {
                                 amount: parseFloat(amount),
                                 option,
                                 userId: targetUserId,
                                 eventId,
+                                type: 'BET',
+                                price: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
+                                isAmmInteraction: true
                             }
                         })
                     ]),

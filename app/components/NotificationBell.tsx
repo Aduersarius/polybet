@@ -76,9 +76,6 @@ export function NotificationBell() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Temporarily disable notifications to prevent 401 errors
-    return null;
-
     return (
         <div className="relative" ref={dropdownRef}>
             <button

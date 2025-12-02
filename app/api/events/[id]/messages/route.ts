@@ -11,12 +11,6 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    // Rate limiting with IP bypass for 185.72.224.35
-    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    const identifier = getRateLimitIdentifier(request);
-    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
-    if (rateLimitResponse) return rateLimitResponse;
-
     try {
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
@@ -63,14 +57,14 @@ export async function GET(
                                 username: true,
                                 avatarUrl: true,
                                 address: true,
-                                bets: {
+                                marketActivity: {
                                     where: { eventId: id },
                                     select: {
                                         option: true,
                                         amount: true
                                     }
                                 }
-                            }
+                            } as any
                         },
                         reactions: {
                             include: {
@@ -120,12 +114,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Authentication check
     const user = await requireAuth(req);
-
-    // Rate limiting with IP bypass for 185.72.224.35
-    const { heavyLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    const identifier = getRateLimitIdentifier(req);
-    const rateLimitResponse = await checkRateLimit(heavyLimiter, identifier);
-    if (rateLimitResponse) return rateLimitResponse;
 
     try {
         const userId = user.id;
