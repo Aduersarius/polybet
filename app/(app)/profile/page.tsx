@@ -87,10 +87,10 @@ export default function ProfilePage() {
     useEffect(() => {
         if (!isPending && !session) {
             router.push('/');
-        } else if (session?.user) {
+        } else if ((session as any)?.user) {
             setFormData({
-                name: (session.user as any).name || '',
-                image: (session.user as any).image || '',
+                name: (session as any).user.name || '',
+                image: (session as any).user.image || '',
             });
         }
     }, [session, isPending, router]);
@@ -123,7 +123,7 @@ export default function ProfilePage() {
         );
     }
 
-    const user = session?.user as any;
+    const user = (session as any)?.user;
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white">
