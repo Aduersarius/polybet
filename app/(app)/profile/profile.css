@@ -1,0 +1,11 @@
+.profile-container>div[class*="bg-[#1e1e1e]"] {
+    background-color: #1e1e1e !important;
+}
+
+.profile-stat-card {
+    background-color: #1e1e1e !important;
+}
+
+.profile-section {
+    background-color: #1e1e1e !important;
+}

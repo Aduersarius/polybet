@@ -12,7 +12,7 @@ export async function POST(
 ) {
     try {
         // Authentication check
-        const session = await requireAuth(request);
+        const user = await requireAuth(request);
 
         const { id } = await params;
         const body = await request.json();
@@ -22,7 +22,7 @@ export async function POST(
             return NextResponse.json({ error: 'Missing type field' }, { status: 400 });
         }
 
-        const userId = session.user.id;
+        const userId = user.id;
 
         const messageId = id;
 

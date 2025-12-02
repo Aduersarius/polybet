@@ -278,7 +278,7 @@ async function main() {
             });
 
             // Create outcomes for multiple outcome events
-            let outcomes = [];
+            let outcomes: Array<{ name: string; probability: number; liquidity: number; color: string }> = [];
             if (event.id === 'tech-trillion-race') {
                 outcomes = [
                     { name: 'Apple', probability: 0.25, liquidity: 100.0, color: '#000000' },

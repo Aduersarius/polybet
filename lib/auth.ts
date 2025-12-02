@@ -17,6 +17,7 @@ export const auth = betterAuth({
             name: "name",
             image: "image",
             emailVerified: "emailVerified",
+            isAdmin: "isAdmin",
         },
     },
 });
@@ -37,5 +38,5 @@ export async function requireAuth(request: Request) {
             headers: { 'Content-Type': 'application/json' },
         });
     }
-    return session;
+    return session.user;
 }

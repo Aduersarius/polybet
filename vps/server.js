@@ -19,7 +19,7 @@ const io = new Server(3001, {
 console.log('🚀 WebSocket Server running on port 3001');
 
 // 3. Handle Redis Events
-redis.subscribe('event-updates', 'chat-messages', (err, count) => {
+redis.subscribe('event-updates', 'chat-messages', 'admin-events', (err, count) => {
     if (err) console.error('Failed to subscribe: %s', err.message);
     else console.log(`Subscribed to ${count} Redis channels.`);
 });
@@ -36,6 +36,11 @@ redis.on('message', (channel, message) => {
     else if (channel === 'chat-messages') {
         // Broadcast chat message
         io.emit(`chat-message-${data.eventId}`, data);
+    }
+    else if (channel === 'admin-events') {
+        // Broadcast admin events to all connected admin clients
+        // data.type: 'event-created', 'event-updated', 'user-deleted', 'bet-placed', etc.
+        io.emit(`admin:${data.type}`, data.payload);
     }
 });
 

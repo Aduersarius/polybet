@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
     try {
         // Authentication check
-        const session = await requireAuth(request);
-        const userId = session.user.id;
+        const user = await requireAuth(request);
+        const userId = user.id;
 
         const notifications = await prisma.notification.findMany({
             where: { userId },
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     try {
         // Authentication check
-        const session = await requireAuth(request);
+        const user = await requireAuth(request);
 
         const body = await request.json();
         const { notificationId } = body;
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest) {
             select: { userId: true }
         });
 
-        if (!notification || notification.userId !== session.user.id) {
+        if (!notification || notification.userId !== user.id) {
             return NextResponse.json({ error: 'Notification not found or access denied' }, { status: 404 });
         }
 
