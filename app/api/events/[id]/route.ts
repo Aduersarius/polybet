@@ -66,12 +66,29 @@ export async function GET(
                 };
 
                 if ((event as any).type === 'MULTIPLE') {
-                    // For multiple outcomes, calculate odds for each outcome
-                    const outcomesWithOdds = (event as any).outcomes.map((outcome: any) => ({
-                        ...outcome,
-                        price: outcome.probability, // Current market price (probability)
-                        odds: outcome.probability > 0 ? 1 / outcome.probability : 1,
-                    }));
+                    // For multiple outcomes, calculate probabilities using LMSR
+                    const { calculateMultipleLMSRProbabilities } = await import('@/lib/amm');
+                    const b = (event as any).liquidityParameter || 10000.0;
+
+                    // Create liquidity map from outcomes
+                    const outcomeLiquidities = new Map<string, number>();
+                    (event as any).outcomes.forEach((outcome: any) => {
+                        outcomeLiquidities.set(outcome.id, outcome.liquidity || 0);
+                    });
+
+                    // Calculate current probabilities
+                    const probabilities = calculateMultipleLMSRProbabilities(outcomeLiquidities, b);
+
+                    // Add calculated odds to outcomes
+                    const outcomesWithOdds = (event as any).outcomes.map((outcome: any) => {
+                        const probability = probabilities.get(outcome.id) || outcome.probability || 0.5;
+                        return {
+                            ...outcome,
+                            probability, // Set the probability field for the component
+                            price: probability, // Current market price (probability)
+                            odds: probability > 0 ? 1 / probability : 1,
+                        };
+                    });
                     response.outcomes = outcomesWithOdds;
                 } else {
                     // Binary event logic
@@ -108,7 +125,7 @@ export async function GET(
 
                 return response;
             },
-            { ttl: 300, prefix: 'event' } // Increased from 60s to 300s (5 min)
+            { ttl: 10, prefix: 'event' } // Reduced to 10s for development testing
         );
 
         const queryTime = Date.now() - startTime;

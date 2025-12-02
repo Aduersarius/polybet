@@ -1,6 +1,8 @@
 import { Server, Socket } from 'socket.io';
 import { createServer } from 'http';
 import { prisma } from './prisma';
+import { redis } from './redis';
+import { getOrderBook } from './hybrid-trading';
 
 export interface WSServerConfig {
     port?: number;
@@ -17,7 +19,7 @@ class TradingWebSocketServer {
 
         // Create HTTP server for Socket.IO
         this.httpServer = createServer();
-        
+
         // Initialize Socket.IO server
         this.io = new Server(this.httpServer, {
             cors: {
@@ -50,14 +52,28 @@ class TradingWebSocketServer {
             });
 
             // Handle joining order book updates
-            socket.on('subscribe-orderbook', (data: { eventId: string; option: 'YES' | 'NO' }) => {
-                const room = `orderbook-${data.eventId}-${data.option}`;
+            socket.on('subscribe-orderbook', (data: { eventId: string; option?: 'YES' | 'NO'; outcomeId?: string }) => {
+                let room: string;
+                if (data.outcomeId) {
+                    // Multiple outcome event
+                    room = `orderbook-${data.eventId}-${data.outcomeId}`;
+                } else {
+                    // Binary event
+                    room = `orderbook-${data.eventId}-${data.option}`;
+                }
                 socket.join(room);
                 console.log(`📈 Client ${socket.id} subscribed to orderbook ${room}`);
             });
 
-            socket.on('unsubscribe-orderbook', (data: { eventId: string; option: 'YES' | 'NO' }) => {
-                const room = `orderbook-${data.eventId}-${data.option}`;
+            socket.on('unsubscribe-orderbook', (data: { eventId: string; option?: 'YES' | 'NO'; outcomeId?: string }) => {
+                let room: string;
+                if (data.outcomeId) {
+                    // Multiple outcome event
+                    room = `orderbook-${data.eventId}-${data.outcomeId}`;
+                } else {
+                    // Binary event
+                    room = `orderbook-${data.eventId}-${data.option}`;
+                }
                 socket.leave(room);
                 console.log(`📈 Client ${socket.id} unsubscribed from orderbook ${room}`);
             });
@@ -83,9 +99,49 @@ class TradingWebSocketServer {
     }
 
     private setupDatabaseListeners() {
-        // You can implement database change listeners here
-        // For example, using Prisma events or database triggers
-        // This is a placeholder for real-time data synchronization
+        // Subscribe to Redis channels for real-time updates
+        if (redis) {
+            redis.subscribe('hybrid-trades', (err, count) => {
+                if (err) {
+                    console.error('❌ Failed to subscribe to Redis channel:', err);
+                    return;
+                }
+                console.log(`📡 Subscribed to ${count} Redis channel(s)`);
+            });
+
+            // Handle incoming Redis messages
+            redis.on('message', async (channel, message) => {
+                try {
+                    const data = JSON.parse(message);
+
+                    if (channel === 'hybrid-trades') {
+                        // Broadcast trade updates to event rooms
+                        this.broadcastOddsUpdate(data.eventId, data);
+
+                        // Also broadcast order book updates if applicable
+                        if (data.outcomeId) {
+                            // For multiple outcomes, broadcast to the specific outcome order book
+                            try {
+                                const orderBook = await getOrderBook(data.eventId, data.outcomeId);
+                                this.broadcastOrderbookUpdate(data.eventId, data.outcomeId, orderBook);
+                            } catch (err) {
+                                console.error(`❌ Failed to fetch orderbook for ${data.eventId}/${data.outcomeId}:`, err);
+                            }
+                        } else if (data.option) {
+                            // For binary events
+                            try {
+                                const orderBook = await getOrderBook(data.eventId, data.option);
+                                this.broadcastOrderbookUpdate(data.eventId, data.option, orderBook);
+                            } catch (err) {
+                                console.error(`❌ Failed to fetch orderbook for ${data.eventId}/${data.option}:`, err);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Error processing Redis message:', error);
+                }
+            });
+        }
     }
 
     // Broadcast trade updates to event rooms
@@ -100,11 +156,11 @@ class TradingWebSocketServer {
     }
 
     // Broadcast order book updates
-    public broadcastOrderbookUpdate(eventId: string, option: 'YES' | 'NO', orderbookData: any) {
-        const room = `orderbook-${eventId}-${option}`;
+    public broadcastOrderbookUpdate(eventId: string, optionOrOutcomeId: string, orderbookData: any) {
+        const room = `orderbook-${eventId}-${optionOrOutcomeId}`;
         this.io.to(room).emit('orderbook-update', {
             eventId,
-            option,
+            option: optionOrOutcomeId, // Could be 'YES'/'NO' or outcomeId
             ...orderbookData,
             timestamp: Date.now()
         });

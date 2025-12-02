@@ -102,33 +102,71 @@ export async function POST(request: Request) {
         ];
         break;
 
+      case 'tech-companies-future':
+        eventData = {
+          id: 'tech-companies-2026',
+          title: 'Which tech company will reach $2T market cap first?',
+          description: 'Predict which major tech company will be the first to reach a $2 trillion market capitalization.',
+          categories: ['TECH', 'BUSINESS'],
+          resolutionDate: new Date('2026-12-31'),
+          status: 'ACTIVE',
+          type: 'MULTIPLE',
+          initialLiquidity: 500.0,
+          liquidityParameter: 15000.0,
+          creatorId: 'dev-user',
+        };
+        outcomes = [
+          { name: 'Nvidia', probability: 0.25, liquidity: 100.0, color: '#76B900' },
+          { name: 'Microsoft', probability: 0.25, liquidity: 100.0, color: '#00BCF2' },
+          { name: 'Apple', probability: 0.20, liquidity: 80.0, color: '#000000' },
+          { name: 'Google', probability: 0.15, liquidity: 60.0, color: '#4285F4' },
+          { name: 'Amazon', probability: 0.10, liquidity: 40.0, color: '#FF9900' },
+          { name: 'Tesla', probability: 0.05, liquidity: 20.0, color: '#CC0000' }
+        ];
+        break;
+
       default:
         return NextResponse.json({
           error: 'Unknown event type'
         }, { status: 400 });
     }
 
-    // Create the event
-    const event = await prisma.event.create({
-      data: eventData
+    // Check if event already exists
+    let event = await prisma.event.findUnique({
+      where: { id: eventData.id }
     });
 
-    console.log('Created event:', event.id);
-
-    // Create outcomes
-    for (const outcome of outcomes) {
-      await prisma.outcome.create({
-        data: {
-          eventId: event.id,
-          name: outcome.name,
-          probability: outcome.probability,
-          liquidity: outcome.liquidity,
-          color: outcome.color,
-        }
+    if (!event) {
+      // Create the event
+      event = await prisma.event.create({
+        data: eventData
       });
     }
 
-    console.log('Created outcomes for the event');
+    console.log('Event:', event.id);
+
+    // Check if outcomes already exist
+    const existingOutcomes = await prisma.outcome.findMany({
+      where: { eventId: event.id }
+    });
+
+    if (existingOutcomes.length === 0) {
+      // Create outcomes
+      for (const outcome of outcomes) {
+        await prisma.outcome.create({
+          data: {
+            eventId: event.id,
+            name: outcome.name,
+            probability: outcome.probability,
+            liquidity: outcome.liquidity,
+            color: outcome.color,
+          }
+        });
+      }
+      console.log('Created outcomes for the event');
+    } else {
+      console.log('Outcomes already exist for the event');
+    }
 
     return NextResponse.json({
       success: true,

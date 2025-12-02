@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { resolveMarket } from '@/lib/hybrid-trading';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,20 +40,17 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
         }
 
-        let updateData = {};
+        let updatedEvent;
         if (action === 'toggleHide') {
-            updateData = { isHidden: value };
+            updatedEvent = await prisma.event.update({
+                where: { id: eventId },
+                data: { isHidden: value }
+            });
         } else if (action === 'resolve') {
-            updateData = {
-                status: 'RESOLVED',
-                result: value // 'YES', 'NO', etc.
-            };
+            // Use the new resolution logic that handles payouts and commissions
+            const result = await resolveMarket(eventId, value);
+            return NextResponse.json(result);
         }
-
-        const updatedEvent = await prisma.event.update({
-            where: { id: eventId },
-            data: updateData
-        });
 
         return NextResponse.json(updatedEvent);
     } catch (error) {

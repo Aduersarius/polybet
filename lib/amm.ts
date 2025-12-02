@@ -9,7 +9,7 @@ export interface OddsData {
 }
 
 /**
- * Calculate current odds using LMSR formula
+ * Calculate current odds using LMSR formula for binary events
  * @param qYes - Cumulative YES tokens bought
  * @param qNo - Cumulative NO tokens bought
  * @param b - Liquidity parameter (higher = more liquidity)
@@ -31,6 +31,106 @@ export function calculateLMSROdds(qYes: number, qNo: number, b: number): OddsDat
         yesOdds,
         noOdds,
     };
+}
+
+/**
+ * Calculate probabilities for multiple outcomes using LMSR
+ * @param outcomeLiquidities - Map of outcome IDs to their liquidity values
+ * @param b - Liquidity parameter
+ * @returns Map of outcome IDs to their probabilities
+ */
+export function calculateMultipleLMSRProbabilities(
+    outcomeLiquidities: Map<string, number>,
+    b: number
+): Map<string, number> {
+    const outcomeIds = Array.from(outcomeLiquidities.keys());
+    const probabilities = new Map<string, number>();
+
+    if (outcomeIds.length === 0) return probabilities;
+
+    // Calculate denominator: sum of exp(q_i / b) for all outcomes
+    let denominator = 0;
+    for (const outcomeId of outcomeIds) {
+        const q = outcomeLiquidities.get(outcomeId) || 0;
+        denominator += Math.exp(q / b);
+    }
+
+    // Calculate probability for each outcome: exp(q_i / b) / denominator
+    for (const outcomeId of outcomeIds) {
+        const q = outcomeLiquidities.get(outcomeId) || 0;
+        const probability = Math.exp(q / b) / denominator;
+        probabilities.set(outcomeId, probability);
+    }
+
+    return probabilities;
+}
+
+/**
+ * Calculate cost to buy tokens for multiple outcomes using LMSR
+ * @param outcomeLiquidities - Current liquidity values for all outcomes
+ * @param buyAmounts - Map of outcome IDs to amounts to buy
+ * @param b - Liquidity parameter
+ * @returns Cost in base currency
+ */
+export function calculateMultipleLMSRCost(
+    outcomeLiquidities: Map<string, number>,
+    buyAmounts: Map<string, number>,
+    b: number
+): number {
+    // Current cost: b * ln(sum(exp(q_i / b)))
+    let currentSum = 0;
+    for (const [outcomeId, q] of outcomeLiquidities) {
+        currentSum += Math.exp(q / b);
+    }
+    const currentCost = b * Math.log(currentSum);
+
+    // New cost after buying
+    let newSum = 0;
+    for (const [outcomeId, q] of outcomeLiquidities) {
+        const buyAmount = buyAmounts.get(outcomeId) || 0;
+        newSum += Math.exp((q + buyAmount) / b);
+    }
+    const newCost = b * Math.log(newSum);
+
+    return newCost - currentCost;
+}
+
+/**
+ * Calculate tokens received for a given cost in multiple outcome LMSR
+ * @param outcomeLiquidities - Current liquidity values for all outcomes
+ * @param cost - Amount to spend
+ * @param outcomeId - Which outcome to buy
+ * @param b - Liquidity parameter
+ * @returns Amount of tokens received
+ */
+export function calculateMultipleTokensForCost(
+    outcomeLiquidities: Map<string, number>,
+    cost: number,
+    outcomeId: string,
+    b: number
+): number {
+    // Binary search to find the amount of tokens that costs exactly 'cost'
+    let low = 0;
+    let high = cost * 10; // Upper bound
+    let precision = 0.001;
+
+    while (high - low > precision) {
+        const mid = (low + high) / 2;
+
+        // Create buy amounts map with only the target outcome
+        const buyAmounts = new Map<string, number>();
+        buyAmounts.set(outcomeId, mid);
+
+        const calculatedCost = calculateMultipleLMSRCost(outcomeLiquidities, buyAmounts, b);
+
+        if (calculatedCost < cost) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+
+    return (low + high) / 2;
 }
 
 /**
@@ -109,6 +209,27 @@ import { prisma } from '@/lib/prisma';
  * @returns Array of historical odds data points
  */
 export async function generateHistoricalOdds(
+    eventId: string,
+    period: string
+): Promise<Array<{ timestamp: number; yesPrice: number; volume: number }>> {
+    // Check if this is a multiple outcome event
+    const event = await prisma.event.findUnique({
+        where: { id: eventId },
+        select: { type: true }
+    });
+
+    if (event?.type === 'MULTIPLE') {
+        return generateMultipleHistoricalOdds(eventId, period);
+    }
+
+    // Original binary logic
+    return generateBinaryHistoricalOdds(eventId, period);
+}
+
+/**
+ * Generate historical odds for binary events
+ */
+async function generateBinaryHistoricalOdds(
     eventId: string,
     period: string
 ): Promise<Array<{ timestamp: number; yesPrice: number; volume: number }>> {
@@ -277,6 +398,219 @@ export async function generateHistoricalOdds(
     }
 
     // Ensure data is sorted by timestamp (ascending)
+    buckets.sort((a, b) => a.timestamp - b.timestamp);
+
+    return buckets;
+}
+
+/**
+ * Generate historical odds for multiple outcome events
+ * @param eventId - Event ID
+ * @param period - Time period
+ * @returns Array of historical data points with outcome probabilities over time
+ */
+async function generateMultipleHistoricalOdds(
+    eventId: string,
+    period: string
+): Promise<Array<{ timestamp: number; yesPrice: number; volume: number; outcomes?: Array<{ id: string; name: string; probability: number; color?: string }> }>> {
+    // Fetch event and outcomes
+    const event = await prisma.event.findUnique({
+        where: { id: eventId },
+        include: { outcomes: true }
+    });
+
+    if (!event || event.type !== 'MULTIPLE') return [];
+
+    const now = new Date();
+    const startTime = new Date(event.createdAt);
+    let bucketSizeMs = 0;
+
+    // Determine bucket size based on period (same logic as binary)
+    if (period === '5m') {
+        bucketSizeMs = 5 * 60 * 1000;
+    } else if (period === '1h') {
+        bucketSizeMs = 60 * 60 * 1000;
+    } else if (period === '6h') {
+        bucketSizeMs = 6 * 60 * 60 * 1000;
+    } else if (period === '1d' || period === '24h') {
+        bucketSizeMs = 24 * 60 * 60 * 1000;
+    } else if (period === '1w' || period === '7d') {
+        bucketSizeMs = 7 * 24 * 60 * 60 * 1000;
+    } else if (period === '1m' || period === '30d') {
+        bucketSizeMs = 30 * 24 * 60 * 60 * 1000;
+    } else {
+        // 'all' - adaptive bucket size
+        const totalTimeMs = now.getTime() - event.createdAt.getTime();
+        bucketSizeMs = Math.max(totalTimeMs / 100, 60 * 1000);
+    }
+
+    // Fetch all trades for this event
+    const allTrades = await prisma.trade.findMany({
+        where: {
+            eventId,
+            createdAt: { gte: event.createdAt }
+        },
+        orderBy: { createdAt: 'asc' }
+    });
+
+    // Initialize liquidity state for all outcomes
+    const outcomeLiquidities = new Map<string, number>();
+    event.outcomes.forEach(outcome => {
+        outcomeLiquidities.set(outcome.id, outcome.liquidity || 0);
+    });
+
+    const b = event.liquidityParameter || 10000.0;
+
+    // Track state at each trade
+    const stateHistory: Array<{
+        time: Date;
+        liquidities: Map<string, number>;
+        probabilities: Map<string, number>;
+        volume: number;
+    }> = [];
+
+    // Replay trades
+    for (const trade of allTrades) {
+        // For AMM trades on multiple outcomes, we need to update liquidity
+        // The trade.amount is the shares bought, and trade.outcomeId is the target
+        if (trade.outcomeId && trade.isAmmTrade) {
+            const currentLiq = outcomeLiquidities.get(trade.outcomeId) || 0;
+            outcomeLiquidities.set(trade.outcomeId, currentLiq + trade.amount);
+        }
+
+        // Calculate probabilities using LMSR
+        const probabilities = calculateMultipleLMSRProbabilities(outcomeLiquidities, b);
+
+        // Store state snapshot
+        stateHistory.push({
+            time: trade.createdAt,
+            liquidities: new Map(outcomeLiquidities),
+            probabilities: new Map(probabilities),
+            volume: trade.amount * trade.price // Cost of the trade
+        });
+    }
+
+    // Now aggregate into time buckets
+    const buckets: Array<{
+        timestamp: number;
+        yesPrice: number;
+        volume: number;
+        outcomes?: Array<{ id: string; name: string; probability: number; color?: string }>
+    }> = [];
+
+    let currentBucketStart = startTime.getTime();
+
+    // Align to period boundaries (same as binary)
+    if (period === '5m') {
+        const date = new Date(currentBucketStart);
+        date.setMinutes(Math.floor(date.getMinutes() / 5) * 5, 0, 0);
+        currentBucketStart = date.getTime();
+    } else if (period === '1h') {
+        const date = new Date(currentBucketStart);
+        date.setMinutes(0, 0, 0);
+        currentBucketStart = date.getTime();
+    } else if (period === '6h') {
+        const date = new Date(currentBucketStart);
+        date.setHours(Math.floor(date.getHours() / 6) * 6, 0, 0, 0);
+        currentBucketStart = date.getTime();
+    } else if (period === '1d' || period === '24h') {
+        const date = new Date(currentBucketStart);
+        date.setHours(0, 0, 0, 0);
+        currentBucketStart = date.getTime();
+    }
+
+    let currentBucketEnd = currentBucketStart + bucketSizeMs;
+
+    // Initial state (equal probabilities)
+    let initialProbabilities = new Map<string, number>();
+    event.outcomes.forEach(outcome => {
+        initialProbabilities.set(outcome.id, 1 / event.outcomes.length);
+    });
+
+    // Create buckets
+    while (currentBucketStart <= now.getTime()) {
+        let bucketVolume = 0;
+        let lastStateInBucket: typeof stateHistory[0] | null = null;
+
+        // Find all states in this bucket
+        for (const state of stateHistory) {
+            const stateTime = state.time.getTime();
+            if (stateTime >= currentBucketStart && stateTime < currentBucketEnd) {
+                bucketVolume += state.volume;
+                lastStateInBucket = state;
+            }
+        }
+
+        // Use last state in bucket, or carry forward previous state
+        const probabilities = lastStateInBucket ? lastStateInBucket.probabilities : initialProbabilities;
+
+        // Convert probabilities to outcome array
+        const outcomes = event.outcomes.map(outcome => ({
+            id: outcome.id,
+            name: outcome.name,
+            probability: probabilities.get(outcome.id) || (1 / event.outcomes.length),
+            color: outcome.color || undefined
+        }));
+
+        const roundedTimestamp = Math.floor(currentBucketStart / 1000);
+
+        buckets.push({
+            timestamp: roundedTimestamp,
+            yesPrice: 0.5, // Not used for multiple outcomes
+            volume: bucketVolume,
+            outcomes
+        });
+
+        // Update initial probabilities for next bucket
+        if (lastStateInBucket) {
+            initialProbabilities = lastStateInBucket.probabilities;
+        }
+
+        currentBucketStart = currentBucketEnd;
+        currentBucketEnd = currentBucketStart + bucketSizeMs;
+    }
+
+    // Always include the very latest state
+    if (stateHistory.length > 0) {
+        const lastState = stateHistory[stateHistory.length - 1];
+        const lastTimestamp = Math.floor(lastState.time.getTime() / 1000);
+        const lastBucketTimestamp = buckets.length > 0 ? buckets[buckets.length - 1].timestamp : 0;
+
+        if (lastTimestamp > lastBucketTimestamp) {
+            const outcomes = event.outcomes.map(outcome => ({
+                id: outcome.id,
+                name: outcome.name,
+                probability: lastState.probabilities.get(outcome.id) || (1 / event.outcomes.length),
+                color: outcome.color || undefined
+            }));
+
+            buckets.push({
+                timestamp: lastTimestamp,
+                yesPrice: 0.5,
+                volume: lastState.volume,
+                outcomes
+            });
+        }
+    }
+
+    // If no trades yet, return current state
+    if (buckets.length === 0) {
+        const currentOutcomes = event.outcomes.map(outcome => ({
+            id: outcome.id,
+            name: outcome.name,
+            probability: outcome.probability || (1 / event.outcomes.length),
+            color: outcome.color || undefined
+        }));
+
+        buckets.push({
+            timestamp: Math.floor(now.getTime() / 1000),
+            yesPrice: 0.5,
+            volume: 0,
+            outcomes: currentOutcomes
+        });
+    }
+
+    // Ensure data is sorted
     buckets.sort((a, b) => a.timestamp - b.timestamp);
 
     return buckets;

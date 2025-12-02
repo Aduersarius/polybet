@@ -9,6 +9,25 @@ async function createMultipleEvents() {
     await client.connect();
     console.log('Connected to database');
 
+    // Create dev user if not exists
+    await client.query(`
+      INSERT INTO "User" (id, username, email, "createdAt", "updatedAt")
+      VALUES ('dev-user', 'Dev User', 'dev-user-' || EXTRACT(epoch FROM NOW()) || '@example.com', NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
+    `);
+
+    // Ensure dev user has balance
+    try {
+      await client.query(`
+        INSERT INTO "Balance" ("userId", "tokenSymbol", amount) VALUES ('dev-user', 'TUSD', 10000.0)
+      `);
+    } catch (error) {
+      // Balance might already exist, that's fine
+      console.log('Balance insert skipped (might already exist)');
+    }
+
+    console.log('Dev user created/updated');
+
     // Create multiple outcome events
     await client.query(`
       INSERT INTO "Event" (id, title, description, categories, "resolutionDate", status, "creatorId", "createdAt", "updatedAt", "initialLiquidity", "liquidityParameter", type)
@@ -26,37 +45,37 @@ async function createMultipleEvents() {
 
     // Create outcomes for tech trillion race
     await client.query(`
-      INSERT INTO "Outcome" ("eventId", name, probability, liquidity, color, "createdAt", "updatedAt")
+      INSERT INTO "Outcome" (id, "eventId", name, probability, liquidity, color, "createdAt", "updatedAt")
       VALUES
-      ('tech-trillion-race', 'Apple', 0.25, 100.0, '#000000', NOW(), NOW()),
-      ('tech-trillion-race', 'Nvidia', 0.30, 120.0, '#76B900', NOW(), NOW()),
-      ('tech-trillion-race', 'Google', 0.20, 80.0, '#4285F4', NOW(), NOW()),
-      ('tech-trillion-race', 'Amazon', 0.15, 60.0, '#FF9900', NOW(), NOW()),
-      ('tech-trillion-race', 'Tesla', 0.10, 40.0, '#CC0000', NOW(), NOW())
+      (gen_random_uuid(), 'tech-trillion-race', 'Apple', 0.25, 10000.0, '#000000', NOW(), NOW()),
+      (gen_random_uuid(), 'tech-trillion-race', 'Nvidia', 0.30, 10000.0, '#76B900', NOW(), NOW()),
+      (gen_random_uuid(), 'tech-trillion-race', 'Google', 0.20, 10000.0, '#4285F4', NOW(), NOW()),
+      (gen_random_uuid(), 'tech-trillion-race', 'Amazon', 0.15, 10000.0, '#FF9900', NOW(), NOW()),
+      (gen_random_uuid(), 'tech-trillion-race', 'Tesla', 0.10, 10000.0, '#CC0000', NOW(), NOW())
       ON CONFLICT ("eventId", name) DO NOTHING
     `);
 
     // Create outcomes for largest company June
     await client.query(`
-      INSERT INTO "Outcome" ("eventId", name, probability, liquidity, color, "createdAt", "updatedAt")
+      INSERT INTO "Outcome" (id, "eventId", name, probability, liquidity, color, "createdAt", "updatedAt")
       VALUES
-      ('largest-company-june-2025', 'Microsoft', 0.22, 80.0, '#00BCF2', NOW(), NOW()),
-      ('largest-company-june-2025', 'Apple', 0.20, 75.0, '#000000', NOW(), NOW()),
-      ('largest-company-june-2025', 'Nvidia', 0.18, 70.0, '#76B900', NOW(), NOW()),
-      ('largest-company-june-2025', 'Google', 0.15, 60.0, '#4285F4', NOW(), NOW()),
-      ('largest-company-june-2025', 'Amazon', 0.12, 50.0, '#FF9900', NOW(), NOW()),
-      ('largest-company-june-2025', 'Meta', 0.08, 35.0, '#1877F2', NOW(), NOW()),
-      ('largest-company-june-2025', 'Tesla', 0.05, 20.0, '#CC0000', NOW(), NOW())
+      (gen_random_uuid(), 'largest-company-june-2025', 'Microsoft', 0.22, 10000.0, '#00BCF2', NOW(), NOW()),
+      (gen_random_uuid(), 'largest-company-june-2025', 'Apple', 0.20, 10000.0, '#000000', NOW(), NOW()),
+      (gen_random_uuid(), 'largest-company-june-2025', 'Samsung', 0.18, 10000.0, '#1428A0', NOW(), NOW()),
+      (gen_random_uuid(), 'largest-company-june-2025', 'Google', 0.15, 10000.0, '#4285F4', NOW(), NOW()),
+      (gen_random_uuid(), 'largest-company-june-2025', 'Amazon', 0.12, 10000.0, '#FF9900', NOW(), NOW()),
+      (gen_random_uuid(), 'largest-company-june-2025', 'Meta', 0.08, 10000.0, '#1877F2', NOW(), NOW()),
+      (gen_random_uuid(), 'largest-company-june-2025', 'Tesla', 0.05, 10000.0, '#CC0000', NOW(), NOW())
       ON CONFLICT ("eventId", name) DO NOTHING
     `);
 
     // Create outcomes for US presidential election
     await client.query(`
-      INSERT INTO "Outcome" ("eventId", name, probability, liquidity, color, "createdAt", "updatedAt")
+      INSERT INTO "Outcome" (id, "eventId", name, probability, liquidity, color, "createdAt", "updatedAt")
       VALUES
-      ('us-presidential-2024', 'Donald Trump', 0.48, 180.0, '#C8102E', NOW(), NOW()),
-      ('us-presidential-2024', 'Kamala Harris', 0.45, 170.0, '#0033A0', NOW(), NOW()),
-      ('us-presidential-2024', 'Other', 0.07, 30.0, '#666666', NOW(), NOW())
+      (gen_random_uuid(), 'us-presidential-2024', 'Donald Trump', 0.48, 10000.0, '#C8102E', NOW(), NOW()),
+      (gen_random_uuid(), 'us-presidential-2024', 'Kamala Harris', 0.45, 10000.0, '#0033A0', NOW(), NOW()),
+      (gen_random_uuid(), 'us-presidential-2024', 'Other', 0.07, 10000.0, '#666666', NOW(), NOW())
       ON CONFLICT ("eventId", name) DO NOTHING
     `);
 
