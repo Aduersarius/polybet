@@ -74,3 +74,26 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+
+export async function DELETE(request: NextRequest) {
+    try {
+        // Authentication check
+        await requireAuth(request);
+        const body = await request.json();
+        const { targetUserId } = body;
+
+        if (!targetUserId) {
+            return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+        }
+
+        // Delete the user and all related data (cascading deletes should be handled by Prisma schema)
+        await prisma.user.delete({
+            where: { id: targetUserId }
+        });
+
+        return NextResponse.json({ success: true, message: 'User deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}

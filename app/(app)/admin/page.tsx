@@ -9,6 +9,7 @@ import { AdminStatistics } from '../../components/admin/AdminStatistics';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
+import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 
 type AdminView = 'events' | 'users' | 'statistics';
 
@@ -27,6 +28,10 @@ export default function AdminPage() {
     const [activeView, setActiveView] = useState<AdminView>('events');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
+
+    // Enable WebSocket real-time updates
+    useAdminWebSocket();
+
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
     const router = useRouter();
     const { data: session, isPending } = useSession();
