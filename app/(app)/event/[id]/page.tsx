@@ -11,7 +11,7 @@ import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Footer } from '@/app/components/Footer';
 
 export default function EventPage() {
@@ -35,14 +35,36 @@ export default function EventPage() {
     };
 
     // Fetch event from database
-    const { data: event, isLoading } = useQuery({
-        queryKey: ['event', eventId], // WebSockets handle real-time updates
+    const { data: event, isLoading, refetch } = useQuery({
+        queryKey: ['event', eventId],
         queryFn: async () => {
             const res = await fetch(`/api/events/${eventId}`);
             if (!res.ok) throw new Error('Failed to fetch event');
             return res.json();
         },
     });
+
+    // Real-time updates via WebSocket
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+
+        function onTradeUpdate(update: any) {
+            console.log('Received trade update:', update);
+            if (update.eventId === eventId) {
+                console.log('Refetching event data for', eventId);
+                // Refetch event data to get updated probabilities
+                refetch();
+            }
+        }
+
+        socket.emit('join-event', eventId);
+        socket.on('odds-update', onTradeUpdate);
+
+        return () => {
+            socket.emit('leave-event', eventId);
+            socket.off('odds-update', onTradeUpdate);
+        };
+    }, [eventId, refetch]);
 
     if (isLoading || !event) {
         return (
@@ -154,7 +176,11 @@ export default function EventPage() {
 
                                 {/* Charts Section */}
                                 <div className="space-y-6">
-                                    <OddsGraph eventId={event.id} />
+                                    <OddsGraph
+                                        eventId={event.id}
+                                        eventType={event.type}
+                                        outcomes={event.outcomes}
+                                    />
 
                                     {/* Order Book */}
                                     <OrderBook
@@ -200,6 +226,7 @@ export default function EventPage() {
                                             creationDate={event.createdAt || event.creationDate}
                                             resolutionDate={event.resolutionDate}
                                             onTrade={handleTrade}
+                                            onTradeSuccess={() => refetch()}
                                         />
                                     ) : (
                                         <TradingPanel

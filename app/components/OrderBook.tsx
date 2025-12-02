@@ -23,14 +23,14 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     const isMultiple = eventType === 'MULTIPLE';
     const selectedOption = isMultiple ? selectedOutcomeId : (selectedOutcomeId as 'YES' | 'NO');
 
-    // Fetch order book data
+    // Fetch initial order book data
     useEffect(() => {
         const fetchOrderBook = async () => {
             try {
                 const params = isMultiple
                     ? `eventId=${eventId}&outcomeId=${selectedOutcomeId}`
                     : `eventId=${eventId}&option=${selectedOption}`;
-                const response = await fetch(`/api/hybrid-trading?${params}`);
+                const response = await fetch(`/api/order-book?${params}`);
                 if (response.ok) {
                     const data = await response.json();
                     setOrderBook(data);
@@ -41,8 +41,6 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         };
 
         fetchOrderBook();
-        const interval = setInterval(fetchOrderBook, 2000); // Refresh every 2 seconds for dynamic fake orders
-        return () => clearInterval(interval);
     }, [eventId, selectedOutcomeId, isMultiple, selectedOption]);
 
     // Real-time updates via WebSocket
@@ -51,7 +49,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
 
         function onOrderbookUpdate(update: any) {
             if (update.eventId !== eventId) return;
-            if (isMultiple && update.outcomeId !== selectedOutcomeId) return;
+            if (isMultiple && update.option !== selectedOutcomeId) return;
             if (!isMultiple && update.option !== selectedOption) return;
             setOrderBook({ bids: update.bids, asks: update.asks });
         }

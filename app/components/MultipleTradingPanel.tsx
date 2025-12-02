@@ -19,9 +19,10 @@ interface MultipleTradingPanelProps {
     creationDate?: string;
     resolutionDate?: string;
     onTrade?: (outcomeId: string, amount: number) => void;
+    onTradeSuccess?: () => void;
 }
 
-export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, onTrade }: MultipleTradingPanelProps) {
+export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, onTrade, onTradeSuccess }: MultipleTradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
@@ -32,7 +33,17 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
 
+    // Risk management: maximum bet amount
+    const MAX_BET_AMOUNT = 10000; // $10,000 max bet
+
     const selectedOutcome = outcomes.find(o => o.id === selectedOutcomeId);
+
+    // Update selected outcome when outcomes change
+    useEffect(() => {
+        if (outcomes.length > 0 && !outcomes.find(o => o.id === selectedOutcomeId)) {
+            setSelectedOutcomeId(outcomes[0].id);
+        }
+    }, [outcomes, selectedOutcomeId]);
 
     // Update price when outcome changes
     useEffect(() => {
@@ -80,6 +91,11 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
             setAmount('0');
             if (orderType === 'limit') {
                 setPrice('0');
+            }
+
+            // Notify parent component to refetch data
+            if (onTradeSuccess) {
+                onTradeSuccess();
             }
         },
         onError: (error) => {
@@ -334,6 +350,7 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                         isLoading ||
                         !amount ||
                         parseFloat(amount) <= 0 ||
+                        parseFloat(amount) > MAX_BET_AMOUNT ||
                         !selectedOutcomeId ||
                         (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
                     }
@@ -348,7 +365,9 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                 >
                     {isLoading
                         ? 'Processing...'
-                        : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${selectedOutcome?.name || 'Outcome'} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
+                        : parseFloat(amount) > MAX_BET_AMOUNT
+                            ? `Max bet: $${MAX_BET_AMOUNT.toLocaleString()}`
+                            : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${selectedOutcome?.name || 'Outcome'} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
                     }
                 </button>
 
