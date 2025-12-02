@@ -14,6 +14,7 @@
     "setup-payload": "curl -X POST http://localhost:3000/api/setup-payload"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.208.0",
     "@opentelemetry/resources": "^2.2.0",
@@ -44,15 +45,18 @@
     "graphql": "^16.12.0",
     "ioredis": "^5.8.2",
     "lucide-react": "^0.554.0",
+    "motion": "^12.23.25",
     "next": "16.0.3",
     "payload": "^3.65.0",
     "pg": "^8.16.3",
     "react": "^19.2.0",
+    "react-aria-components": "^1.13.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.5.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "tailwind-variants": "^3.2.2"
   },
   "devDependencies": {
     "@types/node": "^20",
