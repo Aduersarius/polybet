@@ -3,10 +3,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 
-interface Trade {
+interface MarketActivity {
     id: string;
     amount: number;
-    option: 'YES' | 'NO';
+    option: string | null;
+    outcomeId: string | null;
     createdAt: string;
     user: {
         username: string | null;
@@ -20,18 +21,21 @@ interface ActivityListProps {
 }
 
 export function ActivityList({ eventId }: ActivityListProps) {
-    const { data: tradesData, isLoading } = useQuery<{
-        bets: Trade[];
+    const { data: tradesData, isLoading, error } = useQuery<{
+        bets: MarketActivity[];
         hasMore: boolean;
         nextCursor: string | null;
     }>({
         queryKey: ['trades', eventId],
         queryFn: async () => {
             const res = await fetch(`/api/events/${eventId}/bets`);
-            if (!res.ok) throw new Error('Failed to fetch trades');
+            if (!res.ok) {
+                throw new Error('Failed to fetch trades');
+            }
             return res.json();
         },
         refetchInterval: 5000, // Poll every 5 seconds
+        retry: 3, // Retry a few times for transient errors
     });
 
     const trades = tradesData?.bets || [];
@@ -44,6 +48,15 @@ export function ActivityList({ eventId }: ActivityListProps) {
         return (
             <div className="flex justify-center items-center h-40">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#bb86fc]"></div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="text-center text-gray-500 py-10 text-sm">
+                <div className="mb-2">🔄 Loading activity...</div>
+                <div className="text-xs text-gray-600">If this persists, please refresh the page</div>
             </div>
         );
     }

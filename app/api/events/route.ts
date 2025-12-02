@@ -13,12 +13,6 @@ export async function GET(request: Request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Cap at 100
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Rate limiting with IP bypass for 185.72.224.35
-    const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-    const identifier = getRateLimitIdentifier(request);
-    const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
-    if (rateLimitResponse) return rateLimitResponse;
-
     // Production-ready: minimal logging
 
     try {
@@ -32,7 +26,7 @@ export async function GET(request: Request) {
             cacheKey,
             async () => {
                 const { prisma } = await import('@/lib/prisma');
-                const where = category ? { categories: { has: category } } : {};
+                const where = category ? { categories: { has: category }, isHidden: false } : { isHidden: false };
 
                 // Use a single transaction to reduce connection usage
                 const result = await prisma.$transaction(async (tx) => {
@@ -73,12 +67,6 @@ export async function GET(request: Request) {
                                     probability: 'desc'
                                 }
                             },
-                            bets: {
-                                select: {
-                                    amount: true,
-                                    option: true
-                                }
-                            }
                         },
                         take: limit,
                         skip: offset,
@@ -107,8 +95,9 @@ export async function GET(request: Request) {
                 }
 
                 const eventsWithStats = events.map(event => {
-                    const volume = event.bets.reduce((sum: number, bet: any) => sum + bet.amount, 0);
-                    const betCount = event.bets.length;
+                    const activities = (event as any).marketActivity || [];
+                    const volume = activities.reduce((sum: number, activity: any) => sum + activity.amount, 0);
+                    const betCount = activities.length;
 
                     // Use pre-calculated AMM state from the Event model
                     let yesOdds = 0.5;
@@ -135,7 +124,7 @@ export async function GET(request: Request) {
                         noOdds = 1 - yesOdds;
                     }
 
-                    const { bets, qYes: _, qNo: __, liquidityParameter: ___, ...eventData } = event; // Remove bets and AMM state from response
+                    const { marketActivity, qYes: _, qNo: __, liquidityParameter: ___, ...eventData } = event as any; // Remove bets and AMM state from response
                     return {
                         ...eventData,
                         volume,

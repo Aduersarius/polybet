@@ -27,7 +27,7 @@ model User {
   website       String?
   email         String?           @unique
   password      String?
-  bets          Bet[]
+  marketActivity MarketActivity[]
   createdEvents Event[]
   messages      Message[]
   reactions     MessageReaction[]
@@ -65,9 +65,8 @@ model Event {
   yesOdds            Float?
   searchVector       Unsupported("tsvector")?
   outcomes           Outcome[]
-  bets               Bet[]
+  marketActivity     MarketActivity[]
   orders             Order[]
-  trades             Trade[]
   creator            User                     @relation(fields: [creatorId], references: [id])
 
   @@index([status, createdAt])
@@ -88,26 +87,35 @@ model Outcome {
 
   event       Event    @relation(fields: [eventId], references: [id])
   orders      Order[]
-  trades      Trade[]
+  marketActivity MarketActivity[]
 
   @@index([eventId])
   @@unique([eventId, name])
 }
 
-model Bet {
-  id           String   @id @default(cuid())
-  amount       Float
-  option       String
-  userId       String
-  eventId      String
-  createdAt    DateTime @default(now())
-  priceAtTrade Float?
-  event        Event    @relation(fields: [eventId], references: [id])
-  user         User     @relation(fields: [userId], references: [id])
+model MarketActivity {
+  id               String    @id @default(cuid())
+  type             String    // 'BET' | 'TRADE' | 'ORDER_FILL'
+  userId           String
+  eventId          String
+  outcomeId        String?   // For multiple outcomes
+  option           String?   // For binary events
+  side             String?   // For trades
+  amount           Float
+  price            Float?
+  isAmmInteraction Boolean
+  orderId          String?   // Related order
+  createdAt        DateTime  @default(now())
+
+  user             User      @relation(fields: [userId], references: [id])
+  event            Event     @relation(fields: [eventId], references: [id])
+  outcome          Outcome?  @relation(fields: [outcomeId], references: [id])
+  order            Order?    @relation(fields: [orderId], references: [id])
 
   @@index([eventId])
   @@index([userId])
   @@index([createdAt])
+  @@index([orderId])
 }
 
 model Transaction {
@@ -163,7 +171,6 @@ model Notification {
   user       User     @relation(fields: [userId], references: [id])
 }
 
-// Order Book Models for Hybrid AMM + Orderbook System
 model Order {
   id            String    @id @default(cuid())
   userId        String
@@ -181,33 +188,11 @@ model Order {
   user          User      @relation(fields: [userId], references: [id])
   event         Event     @relation(fields: [eventId], references: [id])
   outcome       Outcome?  @relation(fields: [outcomeId], references: [id])
-  trades        Trade[]
+  marketActivity MarketActivity[]
 
   @@index([eventId, side])
   @@index([userId])
   @@index([status])
-  @@index([createdAt])
-}
-
-model Trade {
-  id               String    @id @default(cuid())
-  eventId          String
-  orderId          String    // Taker order ID
-  makerOrderId     String?   // Maker order ID (if matched against another order)
-  makerUserId      String?   // Maker user ID (if matched against AMM bot or user)
-  outcomeId        String?   // Reference to specific outcome (for multiple outcomes)
-  option           String?   // Legacy field for binary events: 'YES' or 'NO'
-  side             String    // 'buy' or 'sell' from taker perspective
-  price            Float     // Execution price
-  amount           Float     // Amount traded
-  isAmmTrade       Boolean   @default(false) // True if traded against AMM bot
-  createdAt        DateTime  @default(now())
-
-  event            Event     @relation(fields: [eventId], references: [id])
-  order            Order     @relation(fields: [orderId], references: [id])
-  outcome          Outcome?  @relation(fields: [outcomeId], references: [id])
-
-  @@index([eventId])
   @@index([createdAt])
 }
 
@@ -271,4 +256,3 @@ model Verification {
    createdAt  DateTime @default(now())
    updatedAt  DateTime @updatedAt
 }
-

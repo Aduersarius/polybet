@@ -9,14 +9,6 @@ export async function GET(request: NextRequest) {
     const startTime = Date.now();
 
     try {
-        // Rate limiting with IP bypass for 185.72.224.35
-        const { searchLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-        const identifier = getRateLimitIdentifier(request);
-        const rateLimitResponse = await checkRateLimit(searchLimiter, identifier);
-        if (rateLimitResponse) {
-            return rateLimitResponse;
-        }
-
         const { getOrSet } = await import('@/lib/cache');
         const searchParams = request.nextUrl.searchParams;
         const query = searchParams.get('q');

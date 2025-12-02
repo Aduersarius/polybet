@@ -22,16 +22,18 @@ export async function GET(request: NextRequest) {
 
         // Get betting statistics
         const [totalBets, activeBets, resolvedBets] = await Promise.all([
-            prisma.bet.count({ where: { userId } }),
-            prisma.bet.count({
+            (prisma as any).marketActivity.count({ where: { userId, type: { in: ['BET', 'TRADE'] } } }),
+            (prisma as any).marketActivity.count({
                 where: {
                     userId,
+                    type: { in: ['BET', 'TRADE'] },
                     event: { status: 'ACTIVE' }
                 }
             }),
-            prisma.bet.findMany({
+            (prisma as any).marketActivity.findMany({
                 where: {
                     userId,
+                    type: { in: ['BET', 'TRADE'] },
                     event: { status: 'RESOLVED' }
                 },
                 include: {
@@ -48,8 +50,8 @@ export async function GET(request: NextRequest) {
         const wonBets = resolvedBets.filter(bet => bet.option === bet.event.result).length;
 
         // Calculate P&L (simplified - would need more complex logic for actual trades)
-        const allBets = await prisma.bet.findMany({
-            where: { userId },
+        const allBets = await (prisma as any).marketActivity.findMany({
+            where: { userId, type: { in: ['BET', 'TRADE'] } },
             include: { event: true }
         });
 

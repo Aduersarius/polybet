@@ -38,20 +38,21 @@ export async function GET(request: NextRequest) {
                             }
                         }
                     }
-                });
+                }) as any;
 
                 if (!event) return null;
 
                 // Get user's bets for this event/outcome to calculate avg price
-                const bets = await prisma.bet.findMany({
+                const bets = await (prisma as any).marketActivity.findMany({
                     where: {
                         userId,
                         eventId: balance.eventId!,
-                        option: event.outcomes[0]?.name
+                        option: event.outcomes[0]?.name,
+                        type: { in: ['BET', 'TRADE'] }
                     },
                     select: {
                         amount: true,
-                        priceAtTrade: true
+                        price: true
                     }
                 });
 

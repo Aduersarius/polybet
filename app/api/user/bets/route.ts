@@ -13,8 +13,11 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '20');
 
-        const bets = await prisma.bet.findMany({
-            where: { userId },
+        const bets = await (prisma as any).marketActivity.findMany({
+            where: {
+                userId,
+                type: { in: ['BET', 'TRADE'] }
+            },
             include: {
                 event: {
                     select: {

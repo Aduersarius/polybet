@@ -184,13 +184,16 @@ export async function placeHybridOrder(
     price?: number
 ): Promise<HybridOrderResult> {
     try {
-        const event = await prisma.event.findUnique({ where: { id: eventId } });
+        const event = await prisma.event.findUnique({
+            where: { id: eventId },
+            include: { outcomes: true }
+        }) as any;
         if (!event || event.status !== 'ACTIVE') throw new Error("Event not open");
 
         // 1. Limit Order Logic (Simplified placeholder)
         if (price) {
             const isMultiple = event.type === 'MULTIPLE';
-            const order = await prisma.order.create({
+            const order = await (prisma as any).order.create({
                 data: {
                     userId,
                     eventId,
@@ -235,7 +238,7 @@ export async function placeHybridOrder(
         const currentEvent = await prisma.event.findUnique({
             where: { id: eventId },
             include: { outcomes: true }
-        });
+        }) as any;
 
         if (!currentEvent) throw new Error("Event not found");
 
@@ -325,7 +328,7 @@ export async function placeHybridOrder(
 
             // 3. Record Trade
             // For AMM trades, we need to create a placeholder order since orderId is required
-            const placeholderOrder = await tx.order.create({
+            const placeholderOrder = await (tx as any).order.create({
                 data: {
                     userId: AMM_BOT_USER_ID,
                     eventId,
@@ -339,17 +342,18 @@ export async function placeHybridOrder(
                 }
             });
 
-            const trade = await tx.trade.create({
+            const marketActivity = await (tx as any).marketActivity.create({
                 data: {
+                    type: 'TRADE',
+                    userId: AMM_BOT_USER_ID,
                     eventId,
-                    orderId: placeholderOrder.id,
-                    makerUserId: AMM_BOT_USER_ID,
                     outcomeId: event.type === 'MULTIPLE' ? option : undefined,
-                    side,
                     option: event.type === 'MULTIPLE' ? undefined : option,
-                    price: quote.avgPrice,
+                    side,
                     amount: quote.shares,
-                    isAmmTrade: true
+                    price: quote.avgPrice,
+                    isAmmInteraction: true,
+                    orderId: placeholderOrder.id
                 }
             });
 
@@ -358,7 +362,7 @@ export async function placeHybridOrder(
 
             return {
                 success: true,
-                orderId: trade.id,
+                orderId: marketActivity.id,
                 totalFilled: quote.shares,
                 averagePrice: quote.avgPrice
             };
@@ -378,7 +382,7 @@ export async function getOrderBook(eventId: string, option: string) {
     const event = await prisma.event.findUnique({
         where: { id: eventId },
         include: { outcomes: true }
-    });
+    }) as any;
 
     let currentProb = 0.5;
 
@@ -477,7 +481,7 @@ export async function resolveMarket(eventId: string, winningOutcomeId: string) {
     const event = await prisma.event.findUnique({
         where: { id: eventId },
         include: { outcomes: true }
-    });
+    }) as any;
 
     if (!event) throw new Error("Event not found");
     if (event.status === 'RESOLVED') throw new Error("Event already resolved");

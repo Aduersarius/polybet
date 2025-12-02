@@ -14,18 +14,11 @@ export async function GET(
 ) {
     const startTime = Date.now();
 
-    // Authentication check
-    await requireAuth(request);
+    // Note: This endpoint is public for viewing event activity
+    // Authentication is not required for reading public bet data
+    // await requireAuth(request); // Removed for public access
 
     try {
-        // Rate limiting
-        const { apiLimiter, getRateLimitIdentifier, checkRateLimit } = await import('@/lib/ratelimit');
-        const identifier = getRateLimitIdentifier(request);
-        const rateLimitResponse = await checkRateLimit(apiLimiter, identifier);
-        if (rateLimitResponse) {
-            return rateLimitResponse;
-        }
-
         const { getOrSet } = await import('@/lib/cache');
         const { id: eventId } = await params;
         const { searchParams } = new URL(request.url);
@@ -47,8 +40,11 @@ export async function GET(
                             whereClause.createdAt = { lt: new Date(cursor) };
                         }
 
-                        const bets = await prisma.bet.findMany({
-                            where: whereClause,
+                        const bets = await (prisma as any).marketActivity.findMany({
+                            where: {
+                                ...whereClause,
+                                type: { in: ['BET', 'TRADE'] }
+                            },
                             orderBy: { createdAt: 'desc' },
                             take: limit + 1,
                             include: {

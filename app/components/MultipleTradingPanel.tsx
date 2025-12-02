@@ -38,6 +38,9 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
 
     const selectedOutcome = outcomes.find(o => o.id === selectedOutcomeId);
 
+    // State for real-time outcome probabilities
+    const [liveOutcomes, setLiveOutcomes] = useState<Outcome[]>(outcomes);
+
     // Update selected outcome when outcomes change
     useEffect(() => {
         if (outcomes.length > 0 && !outcomes.find(o => o.id === selectedOutcomeId)) {
@@ -52,8 +55,50 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
         }
     }, [selectedOutcome, orderType]);
 
+    // Real-time updates via WebSocket for multiple outcomes
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+
+        function onOddsUpdate(update: any) {
+            if (update.eventId !== eventId) return;
+
+            // Update outcomes with real-time probabilities
+            setLiveOutcomes(prevOutcomes => {
+                if (update.outcomes) {
+                    return prevOutcomes.map(outcome => {
+                        const updatedOutcome = update.outcomes.find((u: any) => u.id === outcome.id);
+                        if (updatedOutcome) {
+                            return {
+                                ...outcome,
+                                probability: updatedOutcome.probability,
+                                price: updatedOutcome.probability, // price = probability for AMM
+                                odds: updatedOutcome.probability > 0 ? 1 / updatedOutcome.probability : 1
+                            };
+                        }
+                        return outcome;
+                    });
+                }
+                return prevOutcomes;
+            });
+        }
+
+        // Join event room for updates
+        socket.emit('join-event', eventId);
+
+        socket.on(`odds-update-${eventId}`, onOddsUpdate);
+
+        return () => {
+            socket.emit('leave-event', eventId);
+            socket.off(`odds-update-${eventId}`, onOddsUpdate);
+        };
+    }, [eventId]);
+
+    // Use live outcomes for display
+    const currentOutcomes = liveOutcomes.length > 0 ? liveOutcomes : outcomes;
+    const currentSelectedOutcome = currentOutcomes.find(o => o.id === selectedOutcomeId);
+
     const currentAmount = parseFloat(amount) || 0;
-    const currentPrice = orderType === 'limit' && price ? parseFloat(price) : (selectedOutcome?.price || 0);
+    const currentPrice = orderType === 'limit' && price ? parseFloat(price) : (currentSelectedOutcome?.price || 0);
     const potentialPayout = currentAmount * (1 / currentPrice);
     const potentialProfit = potentialPayout - currentAmount;
 
@@ -209,15 +254,14 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                 <div className="space-y-2">
                     <div className="text-sm text-gray-400">Select Outcome</div>
                     <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                        {outcomes.map((outcome) => (
+                        {currentOutcomes.map((outcome) => (
                             <button
                                 key={outcome.id}
                                 onClick={() => setSelectedOutcomeId(outcome.id)}
-                                className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
-                                    selectedOutcomeId === outcome.id
-                                        ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                }`}
+                                className={`flex items-center justify-between p-3 rounded-lg border transition-all ${selectedOutcomeId === outcome.id
+                                    ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
+                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    }`}
                             >
                                 <div className="flex items-center gap-3">
                                     {outcome.color && (
@@ -252,7 +296,7 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                     </div>
 
                     {/* Payout Display */}
-                    {currentAmount > 0 && selectedOutcome && (
+                    {currentAmount > 0 && currentSelectedOutcome && (
                         <div className="bg-white/5 rounded-lg p-3 border border-white/10">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-gray-400">You will win:</span>
@@ -295,21 +339,19 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 onClick={() => setOrderType('market')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${
-                                    orderType === 'market'
-                                        ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                }`}
+                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'market'
+                                    ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
+                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    }`}
                             >
                                 Market
                             </button>
                             <button
                                 onClick={() => setOrderType('limit')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${
-                                    orderType === 'limit'
-                                        ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                }`}
+                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'limit'
+                                    ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
+                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    }`}
                             >
                                 Limit
                             </button>
@@ -337,7 +379,7 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                                 />
                             </div>
                             <div className="text-xs text-gray-500">
-                                Current market price: ${(selectedOutcome?.price.toFixed(2) || '0.00')}
+                                Current market price: ${(currentSelectedOutcome?.price.toFixed(2) || '0.00')}
                             </div>
                         </div>
                     )}
@@ -367,7 +409,7 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                         ? 'Processing...'
                         : parseFloat(amount) > MAX_BET_AMOUNT
                             ? `Max bet: $${MAX_BET_AMOUNT.toLocaleString()}`
-                            : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${selectedOutcome?.name || 'Outcome'} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
+                            : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${currentSelectedOutcome?.name || 'Outcome'} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
                     }
                 </button>
 
@@ -381,10 +423,10 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                         {lastTrade.orderType === 'limit' ? (
                             <>
                                 <p className="text-green-400 text-sm font-medium">
-                                    Limit order placed! {selectedTab === 'buy' ? 'Buy' : 'Sell'} {lastTrade.orderAmount?.toFixed(2)} {selectedOutcome?.name} tokens at ${(lastTrade.orderPrice! * 100).toFixed(2)}
+                                    Limit order placed! {selectedTab === 'buy' ? 'Buy' : 'Sell'} {lastTrade.orderAmount?.toFixed(2)} {currentSelectedOutcome?.name} tokens at ${(lastTrade.orderPrice! * 100).toFixed(2)}
                                 </p>
                                 <p className="text-green-300 text-xs mt-1">
-                                    If {selectedOutcome?.name} wins, you'll receive ${(lastTrade.orderAmount! * (selectedOutcome ? 1 / lastTrade.orderPrice! : 1)).toFixed(2)} total
+                                    If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.orderAmount! * (currentSelectedOutcome ? 1 / lastTrade.orderPrice! : 1)).toFixed(2)} total
                                 </p>
                                 <p className="text-green-300 text-xs">
                                     Order ID: {lastTrade.orderId}
@@ -393,10 +435,10 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                         ) : (
                             <>
                                 <p className="text-green-400 text-sm font-medium">
-                                    Trade successful! You bought {lastTrade.tokens.toFixed(2)} {selectedOutcome?.name} tokens
+                                    Trade successful! You bought {lastTrade.tokens.toFixed(2)} {currentSelectedOutcome?.name} tokens
                                 </p>
                                 <p className="text-green-300 text-xs mt-1">
-                                    If {selectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (selectedOutcome ? selectedOutcome.odds : 1)).toFixed(2)} total
+                                    If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (currentSelectedOutcome ? currentSelectedOutcome.odds : 1)).toFixed(2)} total
                                 </p>
                             </>
                         )}

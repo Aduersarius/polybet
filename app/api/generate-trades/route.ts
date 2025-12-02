@@ -9,8 +9,8 @@ export async function POST() {
         console.log('Starting trade regeneration...');
         const startTime = Date.now();
 
-        // 1. Clear existing bets and reset events
-        await prisma.bet.deleteMany({});
+        // 1. Clear existing market activity and reset events
+        await (prisma as any).marketActivity.deleteMany({});
         await prisma.event.updateMany({
             data: {
                 qYes: 0,
@@ -98,7 +98,14 @@ export async function POST() {
             const chunkSize = 1000;
             for (let i = 0; i < trades.length; i += chunkSize) {
                 const chunk = trades.slice(i, i + chunkSize);
-                await prisma.bet.createMany({ data: chunk });
+                await (prisma as any).marketActivity.createMany({
+                    data: chunk.map(trade => ({
+                        ...trade,
+                        type: 'BET',
+                        price: trade.priceAtTrade,
+                        isAmmInteraction: true
+                    }))
+                });
             }
 
             // Update event with final state
