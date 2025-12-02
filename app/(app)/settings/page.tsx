@@ -12,7 +12,7 @@ import { Camera, Save, X, Upload, User, Mail, FileText, Shield } from 'lucide-re
 export default function SettingsPage() {
     const { data: session } = useSession();
     const router = useRouter();
-    const user = session?.user as any;
+    const user = (session as any)?.user;
 
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
