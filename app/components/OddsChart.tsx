@@ -19,10 +19,18 @@ interface OddsChartProps {
     eventId: string;
 }
 
+interface OutcomeData {
+    id: string;
+    name: string;
+    probability: number;
+    color?: string;
+}
+
 interface DataPoint {
     timestamp: number;
     yesPrice: number;
     volume: number;
+    outcomes?: OutcomeData[];
 }
 
 function AnimatedNumber({ value }: { value: number }) {
@@ -89,16 +97,60 @@ export function OddsChart({ eventId }: OddsChartProps) {
         };
     }, [eventId]);
 
-    // Format data for Recharts
-    const chartData = useMemo(() => {
-        return data.map((d) => ({
-            ...d,
-            formattedTime: new Date(d.timestamp * 1000).toLocaleTimeString(),
-            value: d.yesPrice * 100, // Convert to percentage
-        }));
+    // Check if this is a multiple outcome event
+    const isMultipleOutcomes = useMemo(() => {
+        return data.length > 0 && data[0].outcomes && data[0].outcomes.length > 0;
     }, [data]);
 
-    const displayPrice = (hoveredPrice !== null ? hoveredPrice : currentPrice || 0) * 100;
+    // Get outcomes for multiple events
+    const outcomes = useMemo(() => {
+        return data.length > 0 ? data[0].outcomes || [] : [];
+    }, [data]);
+
+    // Color palette for outcomes
+    const outcomeColors = useMemo(() => {
+        const colors = ['#8B5CF6', '#EF4444', '#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#84CC16'];
+        return outcomes.map((outcome, index) => outcome.color || colors[index % colors.length]);
+    }, [outcomes]);
+
+    // Format data for Recharts
+    const chartData = useMemo(() => {
+        if (isMultipleOutcomes) {
+            return data.map((d) => {
+                const baseData: any = {
+                    ...d,
+                    formattedTime: new Date(d.timestamp * 1000).toLocaleTimeString(),
+                };
+                // Add probability fields for each outcome
+                if (d.outcomes) {
+                    d.outcomes.forEach((outcome) => {
+                        baseData[`outcome_${outcome.id}`] = outcome.probability * 100;
+                    });
+                }
+                return baseData;
+            });
+        } else {
+            return data.map((d) => ({
+                ...d,
+                formattedTime: new Date(d.timestamp * 1000).toLocaleTimeString(),
+                value: d.yesPrice * 100, // Convert to percentage
+            }));
+        }
+    }, [data, isMultipleOutcomes]);
+
+    // For multiple outcomes, find the leading outcome's probability
+    const getLeadingProbability = (price: number | null, outcomes?: OutcomeData[]) => {
+        if (outcomes && outcomes.length > 0) {
+            const maxProb = Math.max(...outcomes.map(o => o.probability));
+            return maxProb * 100;
+        }
+        return (price || 0) * 100;
+    };
+
+    const displayPrice = getLeadingProbability(
+        hoveredPrice !== null ? hoveredPrice : currentPrice,
+        data.length > 0 ? data[data.length - 1].outcomes : undefined
+    );
 
     // Safely determine if we should show the Brush
     const shouldShowBrush = useMemo(() => {
@@ -108,10 +160,7 @@ export function OddsChart({ eventId }: OddsChartProps) {
         const allValid = chartData.every(d =>
             d.timestamp &&
             typeof d.timestamp === 'number' &&
-            !isNaN(d.timestamp) &&
-            d.value !== null &&
-            d.value !== undefined &&
-            !isNaN(d.value)
+            !isNaN(d.timestamp)
         );
 
         if (!allValid) return false;
@@ -172,7 +221,7 @@ export function OddsChart({ eventId }: OddsChartProps) {
         const dataPoint = payload[0].payload;
 
         // Validate that we have valid data
-        if (!dataPoint.timestamp || dataPoint.value == null) {
+        if (!dataPoint.timestamp) {
             return null;
         }
 
@@ -181,12 +230,30 @@ export function OddsChart({ eventId }: OddsChartProps) {
                 <div className="mb-1 text-sm font-medium text-gray-400">
                     {format(new Date(dataPoint.timestamp * 1000), period === '1d' || period === '1w' ? 'MMM d, h:mm a' : 'h:mm a')}
                 </div>
-                <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-purple-500" />
-                    <span className="text-lg font-bold text-white">
-                        {dataPoint.value.toFixed(1)}% Yes
-                    </span>
-                </div>
+                {isMultipleOutcomes ? (
+                    // Multiple outcomes tooltip
+                    <div className="space-y-1">
+                        {dataPoint.outcomes?.map((outcome: OutcomeData, index: number) => (
+                            <div key={outcome.id} className="flex items-center gap-2">
+                                <div
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: outcome.color || `hsl(${index * 360 / (dataPoint.outcomes?.length || 1)}, 70%, 50%)` }}
+                                />
+                                <span className="text-sm font-medium text-white">
+                                    {outcome.name}: {(dataPoint[`outcome_${outcome.id}`] || 0).toFixed(1)}%
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    // Binary tooltip
+                    <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-purple-500" />
+                        <span className="text-lg font-bold text-white">
+                            {dataPoint.value.toFixed(1)}% Yes
+                        </span>
+                    </div>
+                )}
             </div>
         );
     };
@@ -196,7 +263,7 @@ export function OddsChart({ eventId }: OddsChartProps) {
             <div className="mb-6 flex items-start justify-between">
                 <div>
                     <div className="mb-1 text-3xl font-bold text-purple-400 transition-all duration-200 flex items-center gap-1">
-                        <AnimatedNumber value={displayPrice} />% <span className="text-lg text-gray-500">chance</span>
+                        <AnimatedNumber value={displayPrice} />% <span className="text-lg text-gray-500">{isMultipleOutcomes ? 'leading' : 'chance'}</span>
                     </div>
 
                 </div>
@@ -243,18 +310,42 @@ export function OddsChart({ eventId }: OddsChartProps) {
                             margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
                         >
                             <defs>
-                                <linearGradient id="colorValue" x1="0%" y1="0" x2="100%" y2="0">
-                                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                                    <stop offset={`${gradientOffset}%`} stopColor="#8B5CF6" stopOpacity={0.3} />
-                                    <stop offset={`${gradientOffset}%`} stopColor="#6B7280" stopOpacity={0.15} />
-                                    <stop offset="100%" stopColor="#6B7280" stopOpacity={0.15} />
-                                </linearGradient>
-                                <linearGradient id="strokeGradient" x1="0%" y1="0" x2="100%" y2="0">
-                                    <stop offset="0%" stopColor="#8B5CF6" />
-                                    <stop offset={`${gradientOffset}%`} stopColor="#8B5CF6" />
-                                    <stop offset={`${gradientOffset}%`} stopColor="#6B7280" />
-                                    <stop offset="100%" stopColor="#6B7280" />
-                                </linearGradient>
+                                {isMultipleOutcomes ? (
+                                    outcomes.map((outcome, index) => {
+                                        const color = outcomeColors[index];
+                                        return (
+                                            <g key={outcome.id}>
+                                                <linearGradient id={`colorValue_${outcome.id}`} x1="0%" y1="0" x2="100%" y2="0">
+                                                    <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                                                    <stop offset={`${gradientOffset}%`} stopColor={color} stopOpacity={0.3} />
+                                                    <stop offset={`${gradientOffset}%`} stopColor="#6B7280" stopOpacity={0.15} />
+                                                    <stop offset="100%" stopColor="#6B7280" stopOpacity={0.15} />
+                                                </linearGradient>
+                                                <linearGradient id={`strokeGradient_${outcome.id}`} x1="0%" y1="0" x2="100%" y2="0">
+                                                    <stop offset="0%" stopColor={color} />
+                                                    <stop offset={`${gradientOffset}%`} stopColor={color} />
+                                                    <stop offset={`${gradientOffset}%`} stopColor="#6B7280" />
+                                                    <stop offset="100%" stopColor="#6B7280" />
+                                                </linearGradient>
+                                            </g>
+                                        );
+                                    })
+                                ) : (
+                                    <>
+                                        <linearGradient id="colorValue" x1="0%" y1="0" x2="100%" y2="0">
+                                            <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                                            <stop offset={`${gradientOffset}%`} stopColor="#8B5CF6" stopOpacity={0.3} />
+                                            <stop offset={`${gradientOffset}%`} stopColor="#6B7280" stopOpacity={0.15} />
+                                            <stop offset="100%" stopColor="#6B7280" stopOpacity={0.15} />
+                                        </linearGradient>
+                                        <linearGradient id="strokeGradient" x1="0%" y1="0" x2="100%" y2="0">
+                                            <stop offset="0%" stopColor="#8B5CF6" />
+                                            <stop offset={`${gradientOffset}%`} stopColor="#8B5CF6" />
+                                            <stop offset={`${gradientOffset}%`} stopColor="#6B7280" />
+                                            <stop offset="100%" stopColor="#6B7280" />
+                                        </linearGradient>
+                                    </>
+                                )}
                             </defs>
                             <CartesianGrid
                                 vertical={true}
@@ -335,17 +426,34 @@ export function OddsChart({ eventId }: OddsChartProps) {
                                 animationEasing="linear"
                                 position={{ y: 0 }}
                             />
-                            <Area
-                                type="monotone"
-                                dataKey="value"
-                                stroke="url(#strokeGradient)"
-                                strokeWidth={3}
-                                fillOpacity={1}
-                                fill="url(#colorValue)"
-                                animationDuration={500}
-                                activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
-                                isAnimationActive={false}
-                            />
+                            {isMultipleOutcomes ? (
+                                outcomes.map((outcome, index) => (
+                                    <Area
+                                        key={outcome.id}
+                                        type="monotone"
+                                        dataKey={`outcome_${outcome.id}`}
+                                        stroke={`url(#strokeGradient_${outcome.id})`}
+                                        strokeWidth={2}
+                                        fillOpacity={0.6}
+                                        fill={`url(#colorValue_${outcome.id})`}
+                                        animationDuration={500}
+                                        activeDot={{ r: 4, strokeWidth: 0, fill: outcomeColors[index] }}
+                                        isAnimationActive={false}
+                                    />
+                                ))
+                            ) : (
+                                <Area
+                                    type="monotone"
+                                    dataKey="value"
+                                    stroke="url(#strokeGradient)"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorValue)"
+                                    animationDuration={500}
+                                    activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
+                                    isAnimationActive={false}
+                                />
+                            )}
                             {shouldShowBrush && brushEndIndex > 0 && (
                                 <Brush
                                     dataKey="timestamp"
