@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
             take: limit
         });
 
-        const formattedBets = bets.map(bet => ({
+        const formattedBets = bets.map((bet: any) => ({
             id: bet.id,
             eventTitle: bet.event.title,
             amount: bet.amount,

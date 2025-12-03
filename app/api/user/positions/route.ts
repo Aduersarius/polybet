@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
                     }
                 });
 
-                const totalCost = bets.reduce((sum, bet) => sum + bet.amount, 0);
+                const totalCost = bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
                 const totalShares = balance.amount;
                 const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
                 const currentPrice = event.outcomes[0]?.probability || 0.5;

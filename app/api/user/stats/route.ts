@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         ]);
 
         // Calculate won bets by comparing option with event result
-        const wonBets = resolvedBets.filter(bet => bet.option === bet.event.result).length;
+        const wonBets = resolvedBets.filter((bet: any) => bet.option === bet.event.result).length;
 
         // Calculate P&L (simplified - would need more complex logic for actual trades)
         const allBets = await (prisma as any).marketActivity.findMany({
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         let totalProfit = 0;
         let totalVolume = 0;
 
-        allBets.forEach(bet => {
+        allBets.forEach((bet: any) => {
             totalVolume += bet.amount;
             if (bet.event.status === 'RESOLVED') {
                 if (bet.option === bet.event.result) {

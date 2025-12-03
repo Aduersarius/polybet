@@ -20,7 +20,6 @@ export async function GET(
         let user = await prisma.user.findUnique({
             where: { address },
             include: {
-                bets: true,
                 createdEvents: true,
             },
         });
@@ -34,15 +33,14 @@ export async function GET(
                     username: `User ${address.slice(0, 6)}`,
                 },
                 include: {
-                    bets: true,
                     createdEvents: true,
                 },
             });
         }
 
         // Calculate stats
-        const totalBets = user.bets.length;
-        const totalVolume = user.bets.reduce((acc, bet) => acc + bet.amount, 0);
+        const totalBets = 0; // Placeholder - bets not included
+        const totalVolume = 0; // Placeholder - bets not included
         // Win rate calculation would go here if we had bet outcomes
         const winRate = 0; // Placeholder
 
