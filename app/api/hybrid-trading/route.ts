@@ -151,6 +151,7 @@ export async function POST(request: Request) {
             orderType: orderType,
             amount: parseFloat(amount),
             price: orderType === 'limit' ? parseFloat(price) : undefined,
+            warning: result.warning,
         });
 
     } catch (error) {

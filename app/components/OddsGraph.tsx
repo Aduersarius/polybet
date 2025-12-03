@@ -203,7 +203,6 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [], curren
                     </div>
                 ) : (
                     <div>
-                        <div className="text-lg font-bold text-white mb-2">Probability Trend</div>
                         <div className="text-3xl font-bold text-purple-400 mb-1 transition-all duration-200 flex items-center gap-1">
                             <AnimatedNumber value={currentPrice * 100} />% chance
                         </div>
@@ -284,18 +283,17 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [], curren
                 )}
             </div>
 
-            <div className="flex gap-2 justify-between items-center mt-2">
-                <div className="flex gap-2">
-                    {['5m', '1h', '6h', '1d', 'all'].map(p => (
-                        <button
-                            key={p}
-                            onClick={() => setPeriod(p)}
-                            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${period === p ? 'bg-purple-500/20 text-purple-400' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
-                        >
-                            {p.toUpperCase()}
-                        </button>
-                    ))}
-                </div>
+            {/* Period selector buttons */}
+            <div className="flex gap-2 mt-2 ml-12">
+                {['5m', '1h', '6h', '1d', 'all'].map(p => (
+                    <button
+                        key={p}
+                        onClick={() => setPeriod(p)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${period === p ? 'bg-purple-500/20 text-purple-400' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+                    >
+                        {p.toUpperCase()}
+                    </button>
+                ))}
             </div>
         </div>
     );

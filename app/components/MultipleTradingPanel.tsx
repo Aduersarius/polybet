@@ -123,7 +123,14 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                 throw new Error(error.error || 'Trade failed');
             }
 
-            const result = await res.json();
+            return await res.json();
+        },
+        onSuccess: (result) => {
+            if (result.warning) {
+                // Display user-friendly notification for risk concern
+                alert(`Trade Warning: ${result.warning}`);
+            }
+
             setLastTrade({
                 tokens: result.totalFilled,
                 price: result.averagePrice,
@@ -145,7 +152,13 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
         },
         onError: (error) => {
             console.error('Trade error:', error);
-            alert(error instanceof Error ? error.message : 'Failed to place trade');
+            const message = error instanceof Error ? error.message : 'Failed to place trade';
+            if (message.startsWith('Risk Check Failed')) {
+                // Show user-friendly notification for risk check failures
+                alert(`Trade Warning: ${message.replace('Risk Check Failed: ', '')}. The trade was not executed to protect your position.`);
+            } else {
+                alert(message);
+            }
         },
         onSettled: () => {
             setIsLoading(false);

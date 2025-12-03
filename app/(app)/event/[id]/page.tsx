@@ -1,7 +1,6 @@
 'use client';
 import { Navbar } from '@/app/components/Navbar';
-import { ShareButtons } from '@/app/components/ShareButtons';
-import { EventCountdown } from '@/app/components/EventCountdown';
+import { CompactEventPanel } from '@/app/components/CompactEventPanel';
 import { EventChat } from '@/app/components/EventChat';
 import { OddsGraph } from '@/app/components/OddsGraph';
 import { OrderBook } from '@/app/components/OrderBook';
@@ -14,6 +13,33 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+
+function getCategoryImage(categories: string[]): string {
+    if (!categories || categories.length === 0) return '/events/crypto.png';
+
+    const categoryMap: { [key: string]: string } = {
+        'CRYPTO': '/events/crypto.png',
+        'SPORTS': '/events/sports.png',
+        'POLITICS': '/events/politics.png',
+        'ENTERTAINMENT': '/events/entertainment.png',
+        'TECH': '/events/crypto.png', // Use crypto for tech
+        'SCIENCE': '/events/crypto.png', // Use crypto for science
+        'FINANCE': '/events/crypto.png', // Use crypto for finance
+        'CULTURE': '/events/entertainment.png', // Use entertainment for culture
+        'ECONOMY': '/events/crypto.png', // Use crypto for economy
+        'ELECTIONS': '/events/politics.png', // Use politics for elections
+        'BUSINESS': '/events/crypto.png', // Use crypto for business
+        'WORLD': '/events/politics.png', // Use politics for world
+    };
+
+    for (const category of categories) {
+        if (categoryMap[category]) {
+            return categoryMap[category];
+        }
+    }
+
+    return '/events/crypto.png'; // Default fallback
+}
 
 export default function EventPage() {
     const params = useParams();
@@ -106,69 +132,55 @@ export default function EventPage() {
                                 <div className="overflow-y-auto no-scrollbar h-full pb-6 pr-2 pt-4">
                                     <div className="space-y-6">
                                         {/* Header Section - With Image on Right */}
-                                        <div className="flex gap-6">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    {/* Display all categories as badges */}
-                                                    {event.categories && event.categories.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {event.categories.map((cat: string, idx: number) => (
-                                                                <motion.span
-                                                                    key={idx}
-                                                                    whileHover={{ scale: 1.05 }}
-                                                                    className="px-3 py-1 bg-gradient-to-r from-[#bb86fc] via-[#a66ef1] to-[#9965f4] rounded-full text-xs font-bold shadow-lg shadow-[#bb86fc]/20 backdrop-blur-sm"
-                                                                >
-                                                                    {cat}
-                                                                </motion.span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center gap-2 text-xs text-gray-400 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                                                        <svg className="w-3 h-3 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
-                                                        Ends {new Date(event.resolutionDate).toLocaleDateString()}
+                                        <div className="relative">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                {/* Display all categories as badges */}
+                                                {event.categories && event.categories.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {event.categories.map((cat: string, idx: number) => (
+                                                            <motion.span
+                                                                key={idx}
+                                                                whileHover={{ scale: 1.05 }}
+                                                                className="px-3 py-1 bg-gradient-to-r from-[#bb86fc] via-[#a66ef1] to-[#9965f4] rounded-full text-xs font-bold shadow-lg shadow-[#bb86fc]/20 backdrop-blur-sm"
+                                                            >
+                                                                {cat}
+                                                            </motion.span>
+                                                        ))}
                                                     </div>
+                                                )}
+                                                <div className="flex items-center gap-2 text-xs text-gray-400 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                                                    <svg className="w-3 h-3 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Ends {new Date(event.resolutionDate).toLocaleDateString()}
                                                 </div>
+                                            </div>
 
-                                                <div className="flex items-baseline gap-3 mb-3">
+                                            <div className="relative mb-4">
+                                                <div className="flex items-center gap-3 mb-3">
                                                     <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent leading-tight drop-shadow-lg">
                                                         {event.title}
                                                     </h1>
                                                 </div>
-                                                <p className="text-gray-400 text-sm mb-4 leading-relaxed">{event.description}</p>
-
-                                                <div className="flex items-center gap-4">
-                                                    <ShareButtons eventTitle={event.title} eventId={event.id.toString()} />
-                                                    <div className="flex items-center gap-2 text-sm bg-[#1e1e1e]/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                                                        <svg className="w-4 h-4 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                                        </svg>
-                                                        <span className="text-gray-500">Volume:</span>
-                                                        <span className="text-[#03dac6] font-bold">
-                                                            {event.volume
-                                                                ? event.volume >= 1000000
-                                                                    ? `$${(event.volume / 1000000).toFixed(2)}m`
-                                                                    : event.volume >= 1000
-                                                                        ? `$${(event.volume / 1000).toFixed(1)}k`
-                                                                        : `$${Math.round(event.volume)}`
-                                                                : '$0'}
-                                                        </span>
-                                                    </div>
-                                                    <EventCountdown creationDate={event.createdAt} resolutionDate={event.resolutionDate} />
-                                                </div>
+                                                <p className="text-gray-400 text-sm leading-relaxed">{event.description}</p>
                                             </div>
 
-                                            {/* Event Image */}
-                                            <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden border border-white/10 shadow-2xl relative group">
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10" />
+                                            <div className="w-24 h-24 rounded-lg overflow-hidden border border-white/10 shadow-lg absolute top-0 right-0">
                                                 <img
-                                                    src={event.imageUrl || `https://loremflickr.com/800/800?random=${event.id}`}
+                                                    src={event.imageUrl || getCategoryImage(event.categories)}
                                                     alt={event.title}
-                                                    className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+                                                    className="w-full h-full object-cover"
                                                 />
                                             </div>
                                         </div>
+
+                                        <CompactEventPanel
+                                            eventTitle={event.title}
+                                            eventId={event.id.toString()}
+                                            volume={event.volume}
+                                            creationDate={event.createdAt}
+                                            resolutionDate={event.resolutionDate}
+                                        />
 
                                         {/* Chart Section */}
                                         <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-1 shadow-2xl overflow-hidden">
