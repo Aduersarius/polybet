@@ -40,7 +40,7 @@ export function EventCountdown({ creationDate, resolutionDate }: EventCountdownP
     if (!countdown) return null;
 
     return (
-        <div className="flex items-center gap-2 text-sm bg-[#1e1e1e]/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
+        <div className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg">
             <svg className="w-4 h-4 text-[#bb86fc]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

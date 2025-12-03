@@ -261,12 +261,6 @@ export function OddsChart({ eventId }: OddsChartProps) {
     return (
         <div className="material-card p-6">
             <div className="mb-6 flex items-start justify-between">
-                <div>
-                    <div className="mb-1 text-3xl font-bold text-purple-400 transition-all duration-200 flex items-center gap-1">
-                        <AnimatedNumber value={displayPrice} />% <span className="text-lg text-gray-500">{isMultipleOutcomes ? 'leading' : 'chance'}</span>
-                    </div>
-
-                </div>
 
                 {/* Period Selectors */}
                 <div className="flex gap-1 rounded-lg bg-white/5 p-1">

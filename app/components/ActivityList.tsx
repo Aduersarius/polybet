@@ -1,7 +1,9 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useEffect } from 'react';
+import { socket } from '@/lib/socket';
 
 interface MarketActivity {
     id: string;
@@ -21,6 +23,8 @@ interface ActivityListProps {
 }
 
 export function ActivityList({ eventId }: ActivityListProps) {
+    const queryClient = useQueryClient();
+
     const { data: tradesData, isLoading, error } = useQuery<{
         bets: MarketActivity[];
         hasMore: boolean;
@@ -38,9 +42,25 @@ export function ActivityList({ eventId }: ActivityListProps) {
         retry: 3, // Retry a few times for transient errors
     });
 
+    // Real-time updates via WebSocket
+    useEffect(() => {
+        const handleOddsUpdate = (update: any) => {
+            if (update.eventId === eventId) {
+                queryClient.invalidateQueries({ queryKey: ['trades', eventId] });
+            }
+        };
+
+        socket.on('odds-update', handleOddsUpdate);
+
+        return () => {
+            socket.off('odds-update', handleOddsUpdate);
+        };
+    }, [eventId, queryClient]);
+
     const trades = tradesData?.bets || [];
 
-    const formatAddress = (addr: string) => {
+    const formatAddress = (addr: string | null) => {
+        if (!addr) return 'Unknown';
         return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
     };
 
@@ -84,7 +104,7 @@ export function ActivityList({ eventId }: ActivityListProps) {
                                     />
                                 ) : (
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                                        {(trade.user.username?.[0] || trade.user.address.slice(2, 3)).toUpperCase()}
+                                        {(trade.user.username?.[0] || (trade.user.address ? trade.user.address.slice(2, 3) : '?')).toUpperCase()}
                                     </div>
                                 )}
                                 <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#1e1e1e] text-[8px] font-bold ${trade.option === 'YES' ? 'bg-[#03dac6] text-black' : 'bg-[#cf6679] text-white'

@@ -22,6 +22,7 @@ export interface HybridOrderResult {
     totalFilled: number;
     averagePrice: number;
     error?: string;
+    warning?: string;
 }
 
 // --- HELPER: AMM Math (Standard LMSR) ---
@@ -282,8 +283,9 @@ export async function placeHybridOrder(
             predictedProb
         );
 
+        let warning: string | undefined;
         if (!riskCheck.allowed) {
-            throw new Error(`Risk Check Failed: ${riskCheck.reason}`);
+            warning = riskCheck.reason;
         }
 
         // --- END RISK MANAGEMENT ---
@@ -380,7 +382,8 @@ export async function placeHybridOrder(
                         success: true,
                         orderId: marketActivity.id,
                         totalFilled: quote.shares,
-                        averagePrice: quote.avgPrice
+                        averagePrice: quote.avgPrice,
+                        warning
                     };
                 }, {
                     maxWait: 5000,
