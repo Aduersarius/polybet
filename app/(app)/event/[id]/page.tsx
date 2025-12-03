@@ -2,7 +2,7 @@
 import { Navbar } from '@/app/components/Navbar';
 import { CompactEventPanel } from '@/app/components/CompactEventPanel';
 import { EventChat } from '@/app/components/EventChat';
-import { OddsGraph } from '@/app/components/OddsGraph';
+import { NewPolymarketChart } from '@/app/components/OddsChart';
 import { OrderBook } from '@/app/components/OrderBook';
 import { SuggestedEvents } from '@/app/components/SuggestedEvents';
 import { TradingPanel } from '@/app/components/TradingPanel';
@@ -46,6 +46,7 @@ export default function EventPage() {
     const router = useRouter();
     const eventId = params.id as string;
     const [selectedCategory, setSelectedCategory] = useState('ALL');
+    const [liveEvent, setLiveEvent] = useState<any>(null);
 
     const handleCategoryChange = (categoryId: string) => {
         setSelectedCategory(categoryId);
@@ -71,6 +72,13 @@ export default function EventPage() {
         },
     });
 
+    // Initialize live event data
+    useEffect(() => {
+        if (event) {
+            setLiveEvent(event);
+        }
+    }, [event]);
+
     // Real-time updates via WebSocket
     useEffect(() => {
         const { socket } = require('@/lib/socket');
@@ -78,9 +86,12 @@ export default function EventPage() {
         function onTradeUpdate(update: any) {
             console.log('Received trade update:', update);
             if (update.eventId === eventId) {
-                console.log('Refetching event data for', eventId);
-                // Refetch event data to get updated probabilities
-                refetch();
+                console.log('Updating live event data for', eventId);
+                // Update live event data with new odds/outcomes
+                const { eventId: _, ...updateData } = update;
+                if (liveEvent) {
+                    setLiveEvent({ ...liveEvent, ...updateData });
+                }
             }
         }
 
@@ -91,9 +102,9 @@ export default function EventPage() {
             socket.emit('leave-event', eventId);
             socket.off('odds-update', onTradeUpdate);
         };
-    }, [eventId, refetch]);
+    }, [eventId]);
 
-    if (isLoading || !event) {
+    if (isLoading || !liveEvent) {
         return (
             <main className="min-h-screen text-white relative overflow-hidden">
                 <Navbar />
@@ -135,9 +146,9 @@ export default function EventPage() {
                                         <div className="relative">
                                             <div className="flex items-center gap-3 mb-3">
                                                 {/* Display all categories as badges */}
-                                                {event.categories && event.categories.length > 0 && (
+                                                {liveEvent.categories && liveEvent.categories.length > 0 && (
                                                     <div className="flex flex-wrap gap-2">
-                                                        {event.categories.map((cat: string, idx: number) => (
+                                                        {liveEvent.categories.map((cat: string, idx: number) => (
                                                             <motion.span
                                                                 key={idx}
                                                                 whileHover={{ scale: 1.05 }}
@@ -152,42 +163,45 @@ export default function EventPage() {
                                                     <svg className="w-3 h-3 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
-                                                    Ends {new Date(event.resolutionDate).toLocaleDateString()}
+                                                    Ends {new Date(liveEvent.resolutionDate).toLocaleDateString()}
                                                 </div>
                                             </div>
 
                                             <div className="relative mb-4">
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent leading-tight drop-shadow-lg">
-                                                        {event.title}
+                                                        {liveEvent.title}
                                                     </h1>
                                                 </div>
-                                                <p className="text-gray-400 text-sm leading-relaxed">{event.description}</p>
+                                                <p className="text-gray-400 text-sm leading-relaxed">{liveEvent.description}</p>
                                             </div>
 
                                             <div className="w-24 h-24 rounded-lg overflow-hidden border border-white/10 shadow-lg absolute top-0 right-0">
                                                 <img
-                                                    src={event.imageUrl || getCategoryImage(event.categories)}
-                                                    alt={event.title}
+                                                    src={liveEvent.imageUrl || getCategoryImage(liveEvent.categories)}
+                                                    alt={liveEvent.title}
                                                     className="w-full h-full object-cover"
                                                 />
                                             </div>
                                         </div>
 
                                         <CompactEventPanel
-                                            eventTitle={event.title}
-                                            eventId={event.id.toString()}
-                                            volume={event.volume}
-                                            creationDate={event.createdAt}
-                                            resolutionDate={event.resolutionDate}
+                                            eventTitle={liveEvent.title}
+                                            eventId={liveEvent.id.toString()}
+                                            volume={liveEvent.volume}
+                                            creationDate={liveEvent.createdAt}
+                                            resolutionDate={liveEvent.resolutionDate}
                                         />
 
                                         {/* Chart Section */}
-                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-1 shadow-2xl overflow-hidden">
-                                            <div className="h-[400px] w-full">
-                                                <OddsGraph
+                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                            <div className="h-[500px] w-full">
+                                                <NewPolymarketChart
                                                     eventId={eventId.toString()}
-                                                    currentYesPrice={event.yesOdds}
+                                                    eventType={liveEvent.type}
+                                                    outcomes={liveEvent.outcomes || []}
+                                                    liveOutcomes={liveEvent.outcomes || []}
+                                                    currentYesPrice={liveEvent.yesOdds}
                                                 />
                                             </div>
                                         </div>
@@ -219,24 +233,24 @@ export default function EventPage() {
                                 {/* Right Column - Scrollable */}
                                 <div className="overflow-y-auto no-scrollbar h-full pb-6 pl-2 pt-4">
                                     <div className="space-y-6">
-                                        {event.type === 'MULTIPLE' ? (
+                                        {liveEvent.type === 'MULTIPLE' ? (
                                             <MultipleTradingPanel
-                                                outcomes={event.outcomes || []}
-                                                creationDate={event.createdAt || event.creationDate}
-                                                resolutionDate={event.resolutionDate}
+                                                outcomes={liveEvent.outcomes || []}
+                                                liveOutcomes={liveEvent.outcomes || []}
+                                                creationDate={liveEvent.createdAt || liveEvent.creationDate}
+                                                resolutionDate={liveEvent.resolutionDate}
                                                 onTrade={handleTrade}
-                                                onTradeSuccess={() => refetch()}
                                             />
                                         ) : (
                                             <TradingPanel
-                                                yesPrice={event.yesOdds}
-                                                noPrice={event.noOdds}
-                                                creationDate={event.createdAt || event.creationDate}
-                                                resolutionDate={event.resolutionDate}
+                                                yesPrice={liveEvent.yesOdds}
+                                                noPrice={liveEvent.noOdds}
+                                                creationDate={liveEvent.createdAt || liveEvent.creationDate}
+                                                resolutionDate={liveEvent.resolutionDate}
                                                 onTrade={handleTrade}
                                             />
                                         )}
-                                        <SuggestedEvents category={event.categories && event.categories.length > 0 ? event.categories[0] : 'ALL'} currentEventId={event.id.toString()} />
+                                        <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />
                                     </div>
                                 </div>
                             </div>

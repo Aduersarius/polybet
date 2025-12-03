@@ -16,13 +16,14 @@ interface Outcome {
 
 interface MultipleTradingPanelProps {
     outcomes: Outcome[];
+    liveOutcomes?: Outcome[];
     creationDate?: string;
     resolutionDate?: string;
     onTrade?: (outcomeId: string, amount: number) => void;
     onTradeSuccess?: () => void;
 }
 
-export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, onTrade, onTradeSuccess }: MultipleTradingPanelProps) {
+export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, resolutionDate, onTrade, onTradeSuccess }: MultipleTradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
@@ -38,8 +39,8 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
 
     const selectedOutcome = outcomes.find(o => o.id === selectedOutcomeId);
 
-    // State for real-time outcome probabilities
-    const [liveOutcomes, setLiveOutcomes] = useState<Outcome[]>(outcomes);
+    // Use live outcomes from props, fallback to static outcomes
+    const effectiveOutcomes = liveOutcomes || outcomes;
 
     // Update selected outcome when outcomes change
     useEffect(() => {
@@ -55,46 +56,9 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
         }
     }, [selectedOutcome, orderType]);
 
-    // Real-time updates via WebSocket for multiple outcomes
-    useEffect(() => {
-        const { socket } = require('@/lib/socket');
 
-        function onOddsUpdate(update: any) {
-            if (update.eventId !== eventId) return;
-
-            // Update outcomes with real-time probabilities
-            setLiveOutcomes(prevOutcomes => {
-                if (update.outcomes) {
-                    return prevOutcomes.map(outcome => {
-                        const updatedOutcome = update.outcomes.find((u: any) => u.id === outcome.id);
-                        if (updatedOutcome) {
-                            return {
-                                ...outcome,
-                                probability: updatedOutcome.probability,
-                                price: updatedOutcome.probability, // price = probability for AMM
-                                odds: updatedOutcome.probability > 0 ? 1 / updatedOutcome.probability : 1
-                            };
-                        }
-                        return outcome;
-                    });
-                }
-                return prevOutcomes;
-            });
-        }
-
-        // Join event room for updates
-        socket.emit('join-event', eventId);
-
-        socket.on(`odds-update-${eventId}`, onOddsUpdate);
-
-        return () => {
-            socket.emit('leave-event', eventId);
-            socket.off(`odds-update-${eventId}`, onOddsUpdate);
-        };
-    }, [eventId]);
-
-    // Use live outcomes for display
-    const currentOutcomes = liveOutcomes.length > 0 ? liveOutcomes : outcomes;
+    // Use live outcomes for display, fallback to static outcomes
+    const currentOutcomes = effectiveOutcomes;
     const currentSelectedOutcome = currentOutcomes.find(o => o.id === selectedOutcomeId);
 
     const currentAmount = parseFloat(amount) || 0;
