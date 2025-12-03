@@ -269,7 +269,7 @@ async function generateBinaryHistoricalOdds(
     const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
-            type: 'BET',
+            type: 'TRADE',
             createdAt: { gte: event.createdAt }
         },
         orderBy: { createdAt: 'asc' }
@@ -346,6 +346,7 @@ async function generateBinaryHistoricalOdds(
             break;
         }
     }
+
 
     // Create buckets
     while (currentBucketStart <= now.getTime()) {
@@ -529,6 +530,9 @@ async function generateMultipleHistoricalOdds(
         initialProbabilities.set(outcome.id, 1 / event.outcomes.length);
     });
 
+    // Get first outcome ID for yesPrice
+    const firstOutcomeId = (event as any).outcomes[0].id;
+
     // Create buckets
     while (currentBucketStart <= now.getTime()) {
         let bucketVolume = 0;
@@ -558,7 +562,7 @@ async function generateMultipleHistoricalOdds(
 
         buckets.push({
             timestamp: roundedTimestamp,
-            yesPrice: 0.5, // Not used for multiple outcomes
+            yesPrice: probabilities.get(firstOutcomeId) || (1 / (event as any).outcomes.length), // Use first outcome probability
             volume: bucketVolume,
             outcomes
         });
@@ -588,7 +592,7 @@ async function generateMultipleHistoricalOdds(
 
             buckets.push({
                 timestamp: lastTimestamp,
-                yesPrice: 0.5,
+                yesPrice: lastState.probabilities.get(firstOutcomeId) || (1 / (event as any).outcomes.length),
                 volume: lastState.volume,
                 outcomes
             });
@@ -606,7 +610,7 @@ async function generateMultipleHistoricalOdds(
 
         buckets.push({
             timestamp: Math.floor(now.getTime() / 1000),
-            yesPrice: 0.5,
+            yesPrice: currentOutcomes[0].probability,
             volume: 0,
             outcomes: currentOutcomes
         });
