@@ -26,21 +26,23 @@ export async function POST(request: Request) {
 
         console.log('API received:', { eventId, side, option, outcomeId, amount, userId });
 
-        // For development, use userId from body if provided, otherwise use dev user
-        let sessionUserId = userId || 'cminhk477000002s8jld69y1f'; 
-
-        // In production, require authentication
-        if (!userId) {
-            const session = await requireAuth(request);
-            if (!session) {
-                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        // Get authenticated user
+        let sessionUserId: string;
+        try {
+            const user = await requireAuth(request);
+            sessionUserId = user.id;
+            console.log('Authenticated User ID:', sessionUserId);
+        } catch (error) {
+            // If requireAuth throws, it returns a 401 Response
+            if (error instanceof Response) {
+                return error;
             }
-            sessionUserId = session.user.id;
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         // Validation
         const targetOption = option || outcomeId; // Unified target
-        
+
         if (!eventId || !side || !targetOption || !amount) {
             return NextResponse.json({
                 error: 'Missing required fields: eventId, side, option/outcomeId, amount'
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
         }
 
         // Risk management: maximum bet amount
-        const MAX_BET_AMOUNT = 10000; 
+        const MAX_BET_AMOUNT = 10000;
         if (amount > MAX_BET_AMOUNT) {
             return NextResponse.json({ error: `Maximum bet amount is $${MAX_BET_AMOUNT.toLocaleString()}` }, { status: 400 });
         }
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
             sessionUserId,
             eventId,
             side as 'buy' | 'sell',
-            targetOption, 
+            targetOption,
             parseFloat(amount),
             orderType === 'limit' ? parseFloat(price) : undefined
         );
@@ -120,9 +122,9 @@ export async function POST(request: Request) {
                     const probYes = Math.exp(qYes / b) / sumExp;
                     const probNo = Math.exp(qNo / b) / sumExp;
 
-                    updatePayload.probs = { 
-                        YES: probYes, 
-                        NO: probNo 
+                    updatePayload.probs = {
+                        YES: probYes,
+                        NO: probNo
                     };
                 }
             }
@@ -133,9 +135,9 @@ export async function POST(request: Request) {
             // Invalidate Caches
             const cacheKey = outcomeId ? `orderbook:${eventId}:${outcomeId}` : `orderbook:${eventId}:${option}`;
             await Promise.all([
-                redis.del(`event:${eventId}`).catch(() => {}),
-                redis.del(`event:amm:${eventId}`).catch(() => {}),
-                redis.del(cacheKey).catch(() => {})
+                redis.del(`event:${eventId}`).catch(() => { }),
+                redis.del(`event:amm:${eventId}`).catch(() => { }),
+                redis.del(cacheKey).catch(() => { })
             ]);
         }
 
@@ -145,7 +147,7 @@ export async function POST(request: Request) {
             totalFilled: result.totalFilled,
             averagePrice: result.averagePrice,
             trades: result.trades,
-            newOdds: {}, 
+            newOdds: {},
             orderType: orderType,
             amount: parseFloat(amount),
             price: orderType === 'limit' ? parseFloat(price) : undefined,

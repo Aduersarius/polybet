@@ -173,34 +173,23 @@ export default function EventPage() {
                                         {/* Chart Section */}
                                         <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-1 shadow-2xl overflow-hidden">
                                             <div className="h-[400px] w-full">
-                                                <OddsGraph eventId={eventId.toString()} />
+                                                <OddsGraph
+                                                    eventId={eventId.toString()}
+                                                    currentYesPrice={event.yesOdds}
+                                                />
                                             </div>
                                         </div>
 
-                                        {/* Order Book & Activity */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-4 shadow-2xl h-[400px] flex flex-col">
-                                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                                    <svg className="w-5 h-5 text-[#bb86fc]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                                    </svg>
-                                                    Order Book
-                                                </h3>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <OrderBook eventId={eventId.toString()} />
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-4 shadow-2xl h-[400px] flex flex-col">
-                                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                                    <svg className="w-5 h-5 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    Recent Activity
-                                                </h3>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <ActivityList eventId={eventId.toString()} />
-                                                </div>
+                                        {/* Order Book */}
+                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-4 shadow-2xl h-[400px] flex flex-col">
+                                            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                                <svg className="w-5 h-5 text-[#bb86fc]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                                </svg>
+                                                Order Book
+                                            </h3>
+                                            <div className="flex-1 overflow-hidden">
+                                                <OrderBook eventId={eventId.toString()} />
                                             </div>
                                         </div>
 
