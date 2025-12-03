@@ -104,13 +104,13 @@ export class CryptoService {
 
         // Estimate gas for transfer
         // Standard ERC20 transfer is ~65,000 gas
-        const gasLimit = 100000n;
+        const gasLimit = BigInt(100000);
         const feeData = await this.provider.getFeeData();
         const gasPrice = feeData.gasPrice || ethers.parseUnits('30', 'gwei');
         const gasCost = gasLimit * gasPrice;
 
         // Add a buffer (2x) to be safe
-        const requiredMatic = gasCost * 2n;
+        const requiredMatic = gasCost * BigInt(2);
 
         if (maticBalance < requiredMatic) {
             console.log(`Top-up needed for ${addr.address}. Has ${ethers.formatEther(maticBalance)}, needs ${ethers.formatEther(requiredMatic)}`);
@@ -120,7 +120,7 @@ export class CryptoService {
                 const tx = await masterWallet.sendTransaction({
                     to: addr.address,
                     value: requiredMatic - maticBalance, // Top up difference
-                    gasLimit: 21000n
+                    gasLimit: BigInt(21000)
                 });
                 await tx.wait();
                 console.log(`Topped up gas. Hash: ${tx.hash}`);
