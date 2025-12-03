@@ -10,6 +10,8 @@ import { authClient, useSession } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
+import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
+import { WithdrawModal } from '@/components/wallet/WithdrawModal';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -40,18 +42,20 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [scrolled, setScrolled] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
+    const [showDepositModal, setShowDepositModal] = useState(false);
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [balance, setBalance] = useState<number>(0);
     const { data: session } = useSession();
 
-    const { data: stats } = useQuery({
-        queryKey: ['userStats'],
-        queryFn: async () => {
-            const res = await fetch('/api/user/stats');
-            if (!res.ok) return null;
-            return res.json();
-        },
-        enabled: !!session,
-        refetchInterval: 5000 // Refresh every 5 seconds
-    });
+    // Fetch balance when user logs in
+    useEffect(() => {
+        if ((session as any)?.user) {
+            fetch('/api/balance')
+                .then(res => res.json())
+                .then(data => setBalance(data.balance))
+                .catch(err => console.error('Failed to fetch balance:', err));
+        }
+    }, [session]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -93,12 +97,24 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
 
                         {/* Right Side */}
                         <div className="flex items-center gap-4">
-                            <button
-                                className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
-                            >
-                                <Wallet className="w-4 h-4" />
-                                Top Up
-                            </button>
+                            {session && (
+                                <>
+                                    <button
+                                        onClick={() => setShowDepositModal(true)}
+                                        className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
+                                    >
+                                        <Wallet className="w-4 h-4" />
+                                        Deposit
+                                    </button>
+                                    <button
+                                        onClick={() => setShowWithdrawModal(true)}
+                                        className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-sm font-medium transition-colors border border-blue-500/20"
+                                    >
+                                        <Wallet className="w-4 h-4" />
+                                        Withdraw
+                                    </button>
+                                </>
+                            )}
 
                             <NotificationBell />
 
@@ -107,13 +123,11 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <div className="flex items-center gap-3">
                                     {/* Balance Display */}
                                     <div className="hidden md:flex flex-col items-end mr-2">
-                                        <span className="text-sm font-bold text-white">
-                                            ${stats?.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                                        </span>
-                                    </div>
+                                        <span className="text-sm font-bold text-white">${balance.toFixed(2)}</span>
+                                    </div >
 
                                     {/* User Profile Dropdown */}
-                                    <div className="relative group">
+                                    < div className="relative group" >
                                         <button className="flex items-center gap-2 focus:outline-none">
                                             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm overflow-hidden border border-white/20">
                                                 {(session as any).user?.image ? (
@@ -152,8 +166,8 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 </button>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    </div >
+                                </div >
                             ) : (
                                 <div className="flex items-center gap-2">
                                     <button
@@ -169,96 +183,101 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         Sign Up
                                     </button>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                            )
+                            }
+                        </div >
+                    </div >
+                </div >
 
                 {/* Bottom Row: Categories - Full Width */}
-                {onCategoryChange && (
-                    <div className="w-full bg-black/30 backdrop-blur-sm border-t border-white/5">
-                        <div className="max-w-7xl mx-auto px-4 py-2">
-                            <div className="overflow-x-auto scrollbar-hide">
-                                <div className="flex gap-2 min-w-max justify-center items-center">
-                                    {categories.map((cat) => (
+                {
+                    onCategoryChange && (
+                        <div className="w-full bg-black/30 backdrop-blur-sm border-t border-white/5">
+                            <div className="max-w-7xl mx-auto px-4 py-2">
+                                <div className="overflow-x-auto scrollbar-hide">
+                                    <div className="flex gap-2 min-w-max justify-center items-center">
+                                        {categories.map((cat) => (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => onCategoryChange(cat.id)}
+                                                className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
+                                                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                                                    : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                {cat.label}
+                                            </button>
+                                        ))}
+                                        <div className="w-px h-6 bg-white/20 mx-2" />
                                         <button
-                                            key={cat.id}
-                                            onClick={() => onCategoryChange(cat.id)}
-                                            className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
-                                                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                                            onClick={() => onCategoryChange('FAVORITES')}
+                                            className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
+                                                ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
                                                 : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
                                                 }`}
                                         >
-                                            {cat.label}
+                                            <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                            </svg>
                                         </button>
-                                    ))}
-                                    <div className="w-px h-6 bg-white/20 mx-2" />
-                                    <button
-                                        onClick={() => onCategoryChange('FAVORITES')}
-                                        className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
-                                            ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
-                                            : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                                            }`}
-                                    >
-                                        <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Admin Navigation Row */}
-                {isAdminPage && (
-                    <div className="w-full bg-[#1e1e1e] backdrop-blur-sm border-t border-white/5">
-                        <div className="max-w-7xl mx-auto px-4 py-2">
-                            <div className="flex items-center justify-between">
-                                {/* Left: Title + Tabs */}
-                                <div className="flex items-center gap-6">
-                                    <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-                                        Admin
-                                    </h2>
-                                    <div className="flex gap-1">
-                                        {[
-                                            { id: 'events', label: 'Events', icon: '📊' },
-                                            { id: 'users', label: 'Users', icon: '👥' },
-                                            { id: 'statistics', label: 'Statistics', icon: '📈' },
-                                        ].map((item) => (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => onAdminViewChange?.(item.id)}
-                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeAdminView === item.id
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                            >
-                                                <span>{item.icon}</span>
-                                                <span>{item.label}</span>
-                                            </button>
-                                        ))}
                                     </div>
                                 </div>
-
-                                {/* Right: Action Button */}
-                                {activeAdminView === 'events' && onCreateEvent && (
-                                    <button
-                                        onClick={onCreateEvent}
-                                        className="px-3 py-1.5 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center gap-1.5"
-                                    >
-                                        <span>+</span>
-                                        <span>Create Event</span>
-                                    </button>
-                                )}
                             </div>
                         </div>
-                    </div>
-                )}
-            </nav>
+                    )
+                }
+
+                {/* Admin Navigation Row */}
+                {
+                    isAdminPage && (
+                        <div className="w-full bg-[#1e1e1e] backdrop-blur-sm border-t border-white/5">
+                            <div className="max-w-7xl mx-auto px-4 py-2">
+                                <div className="flex items-center justify-between">
+                                    {/* Left: Title + Tabs */}
+                                    <div className="flex items-center gap-6">
+                                        <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                                            Admin
+                                        </h2>
+                                        <div className="flex gap-1">
+                                            {[
+                                                { id: 'events', label: 'Events', icon: '📊' },
+                                                { id: 'users', label: 'Users', icon: '👥' },
+                                                { id: 'statistics', label: 'Statistics', icon: '📈' },
+                                            ].map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    onClick={() => onAdminViewChange?.(item.id)}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeAdminView === item.id
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                >
+                                                    <span>{item.icon}</span>
+                                                    <span>{item.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Action Button */}
+                                    {activeAdminView === 'events' && onCreateEvent && (
+                                        <button
+                                            onClick={onCreateEvent}
+                                            className="px-3 py-1.5 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center gap-1.5"
+                                        >
+                                            <span>+</span>
+                                            <span>Create Event</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+            </nav >
 
             {/* Auth Modals */}
-            <LoginModal
+            < LoginModal
                 isOpen={showLoginModal}
                 onClose={() => setShowLoginModal(false)}
                 onSwitchToSignup={() => {
@@ -266,12 +285,32 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                     setShowSignupModal(true);
                 }}
             />
-            <SignupModal
+            < SignupModal
                 isOpen={showSignupModal}
                 onClose={() => setShowSignupModal(false)}
                 onSwitchToLogin={() => {
                     setShowSignupModal(false);
                     setShowLoginModal(true);
+                }}
+            />
+            < EnhancedDepositModal
+                isOpen={showDepositModal}
+                onClose={() => setShowDepositModal(false)}
+                onBalanceUpdate={() => {
+                    // Refresh balance
+                    fetch('/api/balance')
+                        .then(res => res.json())
+                        .then(data => setBalance(data.balance));
+                }}
+            />
+            < WithdrawModal
+                isOpen={showWithdrawModal}
+                onClose={() => setShowWithdrawModal(false)}
+                onSuccess={() => {
+                    // Refresh balance
+                    fetch('/api/balance')
+                        .then(res => res.json())
+                        .then(data => setBalance(data.balance));
                 }}
             />
         </>
