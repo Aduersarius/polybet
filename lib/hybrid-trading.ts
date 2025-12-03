@@ -366,6 +366,9 @@ export async function placeHybridOrder(
                 totalFilled: quote.shares,
                 averagePrice: quote.avgPrice
             };
+        }, {
+            maxWait: 5000,
+            timeout: 20000
         });
 
     } catch (error) {
