@@ -39,7 +39,7 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
                     <Link key={event.id} href={`/event/${event.id}`} className="block group">
                         <motion.div
                             whileHover={{ x: 5 }}
-                            className="bg-white/5 border border-white/10 rounded-lg p-3 hover:bg-white/10 transition-colors flex gap-3 items-center"
+                            className="bg-[#1e1e1e] border border-white/10 rounded-lg p-3 hover:bg-[#2a2a2a] transition-colors flex gap-3 items-center"
                         >
                             <div className="w-12 h-12 rounded bg-gray-800 shrink-0 overflow-hidden">
                                 {event.imageUrl ? (
