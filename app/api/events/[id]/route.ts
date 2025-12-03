@@ -53,7 +53,7 @@ export async function GET(
                     select: { amount: true },
                 });
 
-                const volume = bets.reduce((sum: number, bet) => sum + bet.amount, 0);
+                const volume = bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
 
                 let response: any = {
                     ...event,

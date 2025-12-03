@@ -14,7 +14,6 @@ export async function GET(
         const user = await prisma.user.findUnique({
             where: { address },
             include: {
-                bets: true,
                 transactions: true
             }
         });
@@ -24,7 +23,7 @@ export async function GET(
         }
 
         // Calculate stats
-        const totalVolume = user.bets.reduce((sum, bet) => sum + bet.amount, 0);
+        const totalVolume = 0; // Placeholder - bets not included
 
         const totalInvested = totalVolume;
         const totalPayouts = user.transactions
@@ -35,7 +34,7 @@ export async function GET(
 
         // Mock positions value for now as it requires complex AMM calc for all open bets
         // In a real app, we'd fetch current price for each bet's event
-        const positionsValue = user.bets.length * 10; // Placeholder
+        const positionsValue = 0; // Placeholder
 
         return NextResponse.json({
             username: user.username,
@@ -45,7 +44,7 @@ export async function GET(
                 volume: totalVolume,
                 profit: profit,
                 positions: positionsValue,
-                betCount: user.bets.length
+                betCount: 0
             }
         });
     } catch (error) {

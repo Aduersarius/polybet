@@ -306,7 +306,7 @@ async function main() {
             }
 
             for (const outcome of outcomes) {
-                await prisma.outcome.upsert({
+                await (prisma as any).outcome.upsert({
                     where: {
                         eventId_name: {
                             eventId: createdEvent.id,
@@ -395,8 +395,9 @@ async function main() {
                 else qNo += tokens;
 
                 batchPromises.push(
-                    prisma.bet.create({
+                    (prisma as any).marketActivity.create({
                         data: {
+                            type: 'BET',
                             amount,
                             option: outcome,
                             userId: user.id,
