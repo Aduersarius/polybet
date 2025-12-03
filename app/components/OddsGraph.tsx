@@ -29,6 +29,7 @@ interface OddsGraphProps {
     eventId: string;
     eventType?: string;
     outcomes?: OutcomeData[];
+    currentYesPrice?: number; // Add current odds from event data
 }
 
 interface OutcomeData {
@@ -77,11 +78,12 @@ const CustomTooltip = ({ active, payload, label, coordinate }: any) => {
     return null;
 };
 
-export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: OddsGraphProps) {
+export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [], currentYesPrice }: OddsGraphProps) {
     const [period, setPeriod] = useState('all');
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState<any[]>([]);
-    const [currentPrice, setCurrentPrice] = useState(0);
+    const [currentPrice, setCurrentPrice] = useState(currentYesPrice || 0.5); // Use prop or default to 50%
+
     const isMultiple = eventType === 'MULTIPLE';
 
     // Fetch historical data when period or event changes
@@ -113,10 +115,9 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: Odds
 
                 setData(transformedData);
 
-                // Set initial current price from latest data
-                if (rawData.length > 0) {
-                    setCurrentPrice(rawData[rawData.length - 1].yesPrice);
-                }
+                // Note: We don't set currentPrice from historical data anymore
+                // The current price should come from the currentYesPrice prop
+                // Historical data is only used for charting
             } catch (e) {
                 console.error('Failed to fetch odds history', e);
                 setData([]);
@@ -127,11 +128,20 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: Odds
         fetchData();
     }, [eventId, period, isMultiple]);
 
+    // Update currentPrice if prop changes
+    useEffect(() => {
+        if (currentYesPrice !== undefined) {
+            setCurrentPrice(currentYesPrice);
+        }
+    }, [currentYesPrice]);
+
+
     // Real‑time updates via WebSocket
     useEffect(() => {
         const { socket } = require('@/lib/socket');
         const handler = (update: any) => {
             if (update.eventId !== eventId) return;
+
 
             setData(prev => {
                 const newItem: any = {
@@ -149,7 +159,7 @@ export function OddsGraph({ eventId, eventType = 'BINARY', outcomes = [] }: Odds
                     setCurrentPrice(update.yesPrice);
                 }
 
-                // Keep only last N points to avoid performance issues if needed, 
+                // Keep only last N points to avoid performance issues if needed,
                 // but for now just append
                 return [...prev, newItem];
             });

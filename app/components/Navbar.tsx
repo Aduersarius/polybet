@@ -9,6 +9,7 @@ import { Plus, Wallet } from 'lucide-react';
 import { authClient, useSession } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
+import { useQuery } from '@tanstack/react-query';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -40,6 +41,17 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
     const { data: session } = useSession();
+
+    const { data: stats } = useQuery({
+        queryKey: ['userStats'],
+        queryFn: async () => {
+            const res = await fetch('/api/user/stats');
+            if (!res.ok) return null;
+            return res.json();
+        },
+        enabled: !!session,
+        refetchInterval: 5000 // Refresh every 5 seconds
+    });
 
     useEffect(() => {
         const handleScroll = () => {
@@ -95,7 +107,9 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <div className="flex items-center gap-3">
                                     {/* Balance Display */}
                                     <div className="hidden md:flex flex-col items-end mr-2">
-                                        <span className="text-sm font-bold text-white">$1,250.00</span>
+                                        <span className="text-sm font-bold text-white">
+                                            ${stats?.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                        </span>
                                     </div>
 
                                     {/* User Profile Dropdown */}

@@ -96,7 +96,7 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                     amount: parseFloat(amount),
                     price: orderType === 'limit' ? parseFloat(price) : undefined,
                     orderType,
-                    userId: "dev-user", // Hardcoded for dev
+                    // Removed hardcoded userId - let API use session auth
                 }),
             });
 

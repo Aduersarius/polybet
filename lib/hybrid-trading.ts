@@ -345,7 +345,7 @@ export async function placeHybridOrder(
             const marketActivity = await (tx as any).marketActivity.create({
                 data: {
                     type: 'TRADE',
-                    userId: AMM_BOT_USER_ID,
+                    userId: userId, // Use the actual user's ID
                     eventId,
                     outcomeId: event.type === 'MULTIPLE' ? option : undefined,
                     option: event.type === 'MULTIPLE' ? undefined : option,

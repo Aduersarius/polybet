@@ -114,7 +114,7 @@ export function MultipleTradingPanel({ outcomes, creationDate, resolutionDate, o
                     amount: parseFloat(amount),
                     price: orderType === 'limit' ? parseFloat(price) : undefined,
                     orderType,
-                    userId: "dev-user",
+                    // Removed hardcoded userId - let API use session auth
                 }),
             });
 

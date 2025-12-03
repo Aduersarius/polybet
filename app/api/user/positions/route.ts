@@ -30,24 +30,28 @@ export async function GET(request: NextRequest) {
                     select: {
                         title: true,
                         status: true,
-                        outcomes: {
-                            where: { id: balance.outcomeId! },
+                        outcomes: balance.outcomeId ? {
+                            where: { id: balance.outcomeId },
                             select: {
                                 name: true,
                                 probability: true
                             }
-                        }
+                        } : undefined
                     }
                 }) as any;
 
                 if (!event) return null;
+
+                const outcomeName = event.outcomes?.[0]?.name ||
+                    (balance.tokenSymbol.startsWith('YES') ? 'YES' :
+                        balance.tokenSymbol.startsWith('NO') ? 'NO' : 'Unknown');
 
                 // Get user's bets for this event/outcome to calculate avg price
                 const bets = await (prisma as any).marketActivity.findMany({
                     where: {
                         userId,
                         eventId: balance.eventId!,
-                        option: event.outcomes[0]?.name,
+                        option: outcomeName,
                         type: { in: ['BET', 'TRADE'] }
                     },
                     select: {
@@ -59,14 +63,14 @@ export async function GET(request: NextRequest) {
                 const totalCost = bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
                 const totalShares = balance.amount;
                 const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
-                const currentPrice = event.outcomes[0]?.probability || 0.5;
+                const currentPrice = event.outcomes?.[0]?.probability || 0.5; // TODO: Fetch binary prob if needed
                 const currentValue = totalShares * currentPrice;
                 const unrealizedPnL = currentValue - totalCost;
 
                 return {
                     eventId: balance.eventId!,
                     eventTitle: event.title,
-                    option: event.outcomes[0]?.name || 'Unknown',
+                    option: outcomeName,
                     shares: totalShares,
                     avgPrice,
                     currentPrice,
