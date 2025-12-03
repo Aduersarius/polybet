@@ -15,8 +15,11 @@ export async function GET(req: NextRequest) {
         const userId = session.user.id;
 
         // Check if user has made any bets
-        const betCount = await prisma.bet.count({
-            where: { userId }
+        const betCount = await prisma.marketActivity.count({
+            where: {
+                userId,
+                type: { in: ['BET', 'TRADE'] }
+            }
         });
 
         if (betCount === 0) {
