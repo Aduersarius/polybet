@@ -138,41 +138,6 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
         tradeMutation.mutate();
     };
 
-    // Real-time countdown state
-    const [countdown, setCountdown] = useState<{
-        days: number;
-        hours: number;
-        minutes: number;
-        seconds: number;
-        isExpired: boolean;
-    } | null>(null);
-
-    // Calculate and update countdown every second
-    useEffect(() => {
-        if (!creationDate || !resolutionDate) return;
-
-        const updateCountdown = () => {
-            const now = Date.now();
-            const resolution = new Date(resolutionDate).getTime();
-            const remaining = Math.max(0, resolution - now);
-
-            const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-
-            setCountdown({ days, hours, minutes, seconds, isExpired: remaining <= 0 });
-        };
-
-        // Update immediately
-        updateCountdown();
-
-        // Update every second
-        const interval = setInterval(updateCountdown, 1000);
-
-        return () => clearInterval(interval);
-    }, [creationDate, resolutionDate]);
-
     return (
         <div className="bg-[#1e1e1e] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
             {/* Header Tabs */}
@@ -204,43 +169,6 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                     )}
                 </button>
             </div>
-
-            {/* Countdown Timer */}
-            {countdown && (
-                <div className="px-4 py-3 bg-gradient-to-r from-gray-800/50 to-gray-900/50 border-b border-white/5">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="text-xs text-gray-400 font-medium">Event Ends In</span>
-                        </div>
-
-                        {countdown.isExpired ? (
-                            <span className="text-red-400 font-mono text-sm font-bold">ENDED</span>
-                        ) : (
-                            <div className="flex items-center gap-1 font-mono text-sm">
-                                {countdown.days > 0 && (
-                                    <span className="px-2 py-1 bg-gray-700 rounded text-green-400">
-                                        {countdown.days}d
-                                    </span>
-                                )}
-                                {(countdown.days > 0 || countdown.hours > 0) && (
-                                    <span className="px-2 py-1 bg-gray-700 rounded text-green-400">
-                                        {countdown.hours}h
-                                    </span>
-                                )}
-                                <span className="px-2 py-1 bg-gray-700 rounded text-green-400">
-                                    {countdown.minutes}m
-                                </span>
-                                <span className="px-2 py-1 bg-gray-700 rounded text-green-400 font-bold">
-                                    {countdown.seconds}s
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
             <div className="p-4 space-y-4">
                 {/* Outcome Selector */}
@@ -328,21 +256,19 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 onClick={() => setOrderType('market')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${
-                                    orderType === 'market'
-                                        ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                }`}
+                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'market'
+                                    ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
+                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    }`}
                             >
                                 Market
                             </button>
                             <button
                                 onClick={() => setOrderType('limit')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${
-                                    orderType === 'limit'
-                                        ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                }`}
+                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'limit'
+                                    ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
+                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    }`}
                             >
                                 Limit
                             </button>
@@ -381,8 +307,8 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                 <button
                     onClick={handleTrade}
                     disabled={
-                        isLoading || 
-                        !amount || 
+                        isLoading ||
+                        !amount ||
                         parseFloat(amount) <= 0 ||
                         (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
                     }
@@ -391,8 +317,8 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                         : 'bg-[#cf6679] hover:bg-[#b85868] shadow-[#cf6679]/20'
                         }`}
                 >
-                    {isLoading 
-                        ? 'Processing...' 
+                    {isLoading
+                        ? 'Processing...'
                         : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${selectedOption} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
                     }
                 </button>
