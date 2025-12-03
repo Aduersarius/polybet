@@ -28,59 +28,32 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
 
-    // Local state for real-time prices
-    const [liveYesPrice, setLiveYesPrice] = useState(yesPrice);
-    const [liveNoPrice, setLiveNoPrice] = useState(noPrice);
-
-    // Update local state if props change (e.g. parent refetch)
+    // Set default limit price to current market price
     useEffect(() => {
-        setLiveYesPrice(yesPrice);
-        setLiveNoPrice(noPrice);
-        // Set default limit price to current market price
         if (orderType === 'limit' && selectedOption === 'YES') {
-            setPrice(liveYesPrice.toFixed(2));
+            setPrice(yesPrice.toFixed(2));
         } else if (orderType === 'limit' && selectedOption === 'NO') {
-            setPrice(liveNoPrice.toFixed(2));
+            setPrice(noPrice.toFixed(2));
         }
-    }, [yesPrice, noPrice, orderType, selectedOption, liveYesPrice, liveNoPrice]);
+    }, [yesPrice, noPrice, orderType, selectedOption]);
 
 
-    // Real-time updates via WebSocket
-    useEffect(() => {
-        const { socket } = require('@/lib/socket');
-
-        function onOddsUpdate(update: any) {
-            if (update.eventId !== eventId) return;
-            setLiveYesPrice(update.yesPrice);
-            setLiveNoPrice(1 - update.yesPrice);
-        }
-
-        // Join event room for updates
-        socket.emit('join-event', eventId);
-
-        socket.on(`odds-update-${eventId}`, onOddsUpdate);
-
-        return () => {
-            socket.emit('leave-event', eventId);
-            socket.off(`odds-update-${eventId}`, onOddsUpdate);
-        };
-    }, [eventId]);
 
     // Prices are probabilities (0-1), convert to percentages
     // Handle edge cases and ensure valid probabilities
-    const safeYesPrice = Math.max(0, Math.min(1, liveYesPrice || 0.5));
-    const safeNoPrice = Math.max(0, Math.min(1, liveNoPrice || 0.5));
+    const safeYesPrice = Math.max(0, Math.min(1, yesPrice || 0.5));
+    const safeNoPrice = Math.max(0, Math.min(1, noPrice || 0.5));
 
     const yesProbability = Math.round(safeYesPrice * 100);
     const noProbability = Math.round(safeNoPrice * 100);
 
     // Calculate odds from prices (decimal odds = 1 / price)
-    const yesOdds = liveYesPrice > 0 ? (1 / liveYesPrice) : 1;
-    const noOdds = liveNoPrice > 0 ? (1 / liveNoPrice) : 1;
+    const yesOdds = yesPrice > 0 ? (1 / yesPrice) : 1;
+    const noOdds = noPrice > 0 ? (1 / noPrice) : 1;
 
     // Calculate potential payout for current amount
     const currentAmount = parseFloat(amount) || 0;
-    const currentPrice = orderType === 'limit' && price ? parseFloat(price) : (selectedOption === 'YES' ? liveYesPrice : liveNoPrice);
+    const currentPrice = orderType === 'limit' && price ? parseFloat(price) : (selectedOption === 'YES' ? yesPrice : noPrice);
     const potentialPayout = currentAmount * (1 / currentPrice); // Odds = 1 / price
     const potentialProfit = potentialPayout - currentAmount;
 
@@ -296,7 +269,7 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                                 />
                             </div>
                             <div className="text-xs text-gray-500">
-                                Current market price: ${(selectedOption === 'YES' ? liveYesPrice : liveNoPrice).toFixed(2)}
+                                Current market price: ${(selectedOption === 'YES' ? yesPrice : noPrice).toFixed(2)}
                             </div>
                         </div>
                     )}
