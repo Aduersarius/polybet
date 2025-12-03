@@ -269,8 +269,7 @@ async function generateBinaryHistoricalOdds(
     const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
-            type: 'TRADE',
-            createdAt: { gte: event.createdAt }
+            type: 'TRADE'
         },
         orderBy: { createdAt: 'asc' }
     });
@@ -450,16 +449,18 @@ async function generateMultipleHistoricalOdds(
     const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
-            type: 'TRADE',
-            createdAt: { gte: event.createdAt }
+            type: 'TRADE'
         },
         orderBy: { createdAt: 'asc' }
     });
 
     // Initialize liquidity state for all outcomes
     const outcomeLiquidities = new Map<string, number>();
-    (event as any).outcomes.forEach((outcome: any) => {
-        outcomeLiquidities.set(outcome.id, outcome.liquidity || 0);
+    // Sort outcomes to ensure deterministic order
+    const sortedOutcomes = [...(event as any).outcomes].sort((a: any, b: any) => a.id.localeCompare(b.id));
+
+    sortedOutcomes.forEach((outcome: any) => {
+        outcomeLiquidities.set(outcome.id, 0); // Start at 0 and replay history
     });
 
     const b = event.liquidityParameter || 10000.0;
@@ -524,11 +525,12 @@ async function generateMultipleHistoricalOdds(
 
     let currentBucketEnd = currentBucketStart + bucketSizeMs;
 
-    // Initial state (equal probabilities)
-    let initialProbabilities = new Map<string, number>();
+    // Initial state - calculate from current DB liquidity
+    const initialLiquidities = new Map<string, number>();
     event.outcomes.forEach((outcome: any) => {
-        initialProbabilities.set(outcome.id, 1 / event.outcomes.length);
+        initialLiquidities.set(outcome.id, outcome.liquidity || 0);
     });
+    let initialProbabilities = calculateMultipleLMSRProbabilities(initialLiquidities, b);
 
     // Get first outcome ID for yesPrice
     const firstOutcomeId = (event as any).outcomes[0].id;
@@ -599,12 +601,20 @@ async function generateMultipleHistoricalOdds(
         }
     }
 
-    // If no trades yet, return current state
+    // If no trades yet, return current state (calculate from DB liquidity)
     if (buckets.length === 0) {
+        // Calculate current probabilities from DB liquidity values
+        const currentLiquidities = new Map<string, number>();
+        (event as any).outcomes.forEach((outcome: any) => {
+            currentLiquidities.set(outcome.id, outcome.liquidity || 0);
+        });
+
+        const currentProbabilities = calculateMultipleLMSRProbabilities(currentLiquidities, b);
+
         const currentOutcomes = (event as any).outcomes.map((outcome: any) => ({
             id: outcome.id,
             name: outcome.name,
-            probability: outcome.probability || (1 / (event as any).outcomes.length),
+            probability: currentProbabilities.get(outcome.id) || outcome.probability || (1 / (event as any).outcomes.length),
             color: outcome.color || undefined
         }));
 
