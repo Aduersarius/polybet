@@ -176,21 +176,19 @@ export function NewPolymarketChart({
         ];
     }, [chartData, isMultipleOutcomes, coloredOutcomes]);
 
-    // Get current values for legend - use latest historical data point
+    // Get current values for legend - use outcomes prop (same as trading panel)
     const currentValues = useMemo(() => {
-        if (isMultipleOutcomes && data.length > 0) {
-            // Use the latest historical data point for the legend
-            const latestDataPoint = data[data.length - 1];
+        if (isMultipleOutcomes) {
+            // Use the outcomes prop directly (same source as trading panel)
             const values: any = {};
             coloredOutcomes.forEach((outcome) => {
-                const outcomeData = latestDataPoint.outcomes?.find((o) => o.id === outcome.id);
-                values[`outcome_${outcome.id}`] = (outcomeData?.probability || 0) * 100;
+                values[`outcome_${outcome.id}`] = (outcome.probability || 0) * 100;
             });
-            console.log('📈 Chart legend values (latest historical):', values);
+            console.log('📈 Chart legend values (from outcomes prop):', values);
             return values;
         }
         return {};
-    }, [data, coloredOutcomes, isMultipleOutcomes]);
+    }, [coloredOutcomes, isMultipleOutcomes]);
 
     // Custom Tooltip - Individual per line, no timestamp
     const CustomTooltip = ({ active, payload }: any) => {
