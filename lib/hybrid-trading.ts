@@ -112,7 +112,9 @@ async function updateOutcomeProbabilities(prisma: any, eventId: string) {
     const sumExp = outcomeLiquidities.reduce((sum, q) => sum + Math.exp(q / b), 0);
 
     if (event.type === 'MULTIPLE') {
-        for (const outcome of event.outcomes) {
+        // Sort outcomes by ID to ensure consistent lock ordering and prevent deadlocks
+        const sortedOutcomes = event.outcomes.sort((a: any, b: any) => a.id.localeCompare(b.id));
+        for (const outcome of sortedOutcomes) {
             const prob = Math.exp((outcome.liquidity || 0) / b) / sumExp;
             await prisma.outcome.update({
                 where: { id: outcome.id },
@@ -289,93 +291,139 @@ export async function placeHybridOrder(
         // Apply spread (Price impact is already in quote.avgPrice, spread is extra fee)
         const effectivePrice = quote.avgPrice * (1 + AMM_SPREAD);
 
-        // DB Transaction to ensure atomicity
-        return await prisma.$transaction(async (tx: any) => {
+        // DB Transaction to ensure atomicity with deadlock retry
+        const maxRetries = 3;
+        let lastError: any;
 
-            // 1. Update Liquidity State (CRITICAL for price movement)
-            // By incrementing the liquidity (q) for the bought outcome, 
-            // the probability exp(q/b) / sum(...) increases for this outcome.
-            if (event.type === 'MULTIPLE') {
-                await tx.outcome.update({
-                    where: { id: option },
-                    data: { liquidity: { increment: quote.shares } }
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`[TRADE] Starting transaction attempt ${attempt}/${maxRetries} for user ${userId}, event ${eventId}, option ${option}, side ${side}, amount ${amount}`);
+                const result = await prisma.$transaction(async (tx: any) => {
+                    console.log(`[TRADE] Transaction started for ${eventId}:${option}`);
+
+                    // 1. Update Liquidity State (CRITICAL for price movement)
+                    // By incrementing the liquidity (q) for the bought outcome,
+                    // the probability exp(q/b) / sum(...) increases for this outcome.
+                    if (event.type === 'MULTIPLE') {
+                        console.log(`[TRADE] Updating outcome ${option} liquidity by ${quote.shares}`);
+                        await tx.outcome.update({
+                            where: { id: option },
+                            data: { liquidity: { increment: quote.shares } }
+                        });
+                    } else {
+                        const updateData = option === 'YES'
+                            ? { qYes: { increment: quote.shares } }
+                            : { qNo: { increment: quote.shares } };
+                        console.log(`[TRADE] Updating event ${eventId} ${option} by ${quote.shares}`);
+                        await tx.event.update({ where: { id: eventId }, data: updateData });
+                    }
+
+                    // 2. Transfers
+                    const tokenSymbol = event.type === 'MULTIPLE' ? option : `${option}_${eventId}`;
+                    console.log(`[TRADE] Token symbol: ${tokenSymbol}`);
+
+                    // User gets Shares
+                    await updateBalance(tx, userId, tokenSymbol, eventId, quote.shares);
+                    // User pays Full Amount (Cost + Spread)
+                    await updateBalance(tx, userId, 'TUSD', null, -amount);
+
+                    // AMM Bot (Counterparty)
+                    // Bot sells shares (negative balance for bot)
+                    await updateBalance(tx, AMM_BOT_USER_ID, tokenSymbol, eventId, -quote.shares);
+
+                    // Bot gets Cost (to cover the risk)
+                    await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, costToSpend);
+
+                    // Bot gets Spread (Profit) - We can book this separately or just add to TUSD
+                    // Here we just add the remaining amount (which is the spread) to the bot
+                    await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, spreadAmount);
+
+                    // 3. Record Trade
+                    // For AMM trades, we need to create a placeholder order since orderId is required
+                    console.log(`[TRADE] Creating placeholder order`);
+                    const placeholderOrder = await (tx as any).order.create({
+                        data: {
+                            userId: AMM_BOT_USER_ID,
+                            eventId,
+                            outcomeId: event.type === 'MULTIPLE' ? option : null,
+                            side: side === 'buy' ? 'sell' : 'buy', // Opposite side (AMM is counterparty)
+                            option: event.type === 'MULTIPLE' ? null : option,
+                            price: quote.avgPrice,
+                            amount: quote.shares,
+                            amountFilled: quote.shares,
+                            status: 'filled'
+                        }
+                    });
+
+                    console.log(`[TRADE] Creating market activity`);
+                    const marketActivity = await (tx as any).marketActivity.create({
+                        data: {
+                            type: 'TRADE',
+                            userId: userId, // Use the actual user's ID
+                            eventId,
+                            outcomeId: event.type === 'MULTIPLE' ? option : undefined,
+                            option: event.type === 'MULTIPLE' ? undefined : option,
+                            side,
+                            amount: quote.shares,
+                            price: quote.avgPrice,
+                            isAmmInteraction: true,
+                            orderId: placeholderOrder.id
+                        }
+                    });
+
+                    // 4. Update Probabilities (So next quote is more expensive)
+                    console.log(`[TRADE] Updating probabilities`);
+                    await updateOutcomeProbabilities(tx, eventId);
+
+                    console.log(`[TRADE] Transaction completed successfully on attempt ${attempt}`);
+                    return {
+                        success: true,
+                        orderId: marketActivity.id,
+                        totalFilled: quote.shares,
+                        averagePrice: quote.avgPrice
+                    };
+                }, {
+                    maxWait: 5000,
+                    timeout: 20000
                 });
-            } else {
-                const updateData = option === 'YES'
-                    ? { qYes: { increment: quote.shares } }
-                    : { qNo: { increment: quote.shares } };
-                await tx.event.update({ where: { id: eventId }, data: updateData });
+
+                return result;
+
+            } catch (error) {
+                lastError = error;
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                const isDeadlock = errorMessage.toLowerCase().includes('deadlock');
+
+                if (isDeadlock && attempt < maxRetries) {
+                    const delay = Math.pow(2, attempt) * 100; // Exponential backoff: 200ms, 400ms, 800ms
+                    console.warn(`[DEADLOCK] Attempt ${attempt} failed, retrying in ${delay}ms for user ${userId}, event ${eventId}, option ${option}`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                // If not a deadlock or max retries reached, re-throw
+                throw error;
             }
+        }
 
-            // 2. Transfers
-            const tokenSymbol = event.type === 'MULTIPLE' ? option : `${option}_${eventId}`;
-
-            // User gets Shares
-            await updateBalance(tx, userId, tokenSymbol, eventId, quote.shares);
-            // User pays Full Amount (Cost + Spread)
-            await updateBalance(tx, userId, 'TUSD', null, -amount);
-
-            // AMM Bot (Counterparty)
-            // Bot sells shares (negative balance for bot)
-            await updateBalance(tx, AMM_BOT_USER_ID, tokenSymbol, eventId, -quote.shares);
-
-            // Bot gets Cost (to cover the risk)
-            await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, costToSpend);
-
-            // Bot gets Spread (Profit) - We can book this separately or just add to TUSD
-            // Here we just add the remaining amount (which is the spread) to the bot
-            await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, spreadAmount);
-
-            // 3. Record Trade
-            // For AMM trades, we need to create a placeholder order since orderId is required
-            const placeholderOrder = await (tx as any).order.create({
-                data: {
-                    userId: AMM_BOT_USER_ID,
-                    eventId,
-                    outcomeId: event.type === 'MULTIPLE' ? option : null,
-                    side: side === 'buy' ? 'sell' : 'buy', // Opposite side (AMM is counterparty)
-                    option: event.type === 'MULTIPLE' ? null : option,
-                    price: quote.avgPrice,
-                    amount: quote.shares,
-                    amountFilled: quote.shares,
-                    status: 'filled'
-                }
-            });
-
-            const marketActivity = await (tx as any).marketActivity.create({
-                data: {
-                    type: 'TRADE',
-                    userId: userId, // Use the actual user's ID
-                    eventId,
-                    outcomeId: event.type === 'MULTIPLE' ? option : undefined,
-                    option: event.type === 'MULTIPLE' ? undefined : option,
-                    side,
-                    amount: quote.shares,
-                    price: quote.avgPrice,
-                    isAmmInteraction: true,
-                    orderId: placeholderOrder.id
-                }
-            });
-
-            // 4. Update Probabilities (So next quote is more expensive)
-            await updateOutcomeProbabilities(tx, eventId);
-
-            return {
-                success: true,
-                orderId: marketActivity.id,
-                totalFilled: quote.shares,
-                averagePrice: quote.avgPrice
-            };
-        }, {
-            maxWait: 5000,
-            timeout: 20000
-        });
+        // If we get here, all retries failed
+        throw lastError;
 
     } catch (error) {
-        console.error('Trading error:', error);
-        console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
-        console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
-        return { success: false, error: error instanceof Error ? error.message : 'Trade failed', totalFilled: 0, averagePrice: 0 };
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const isDeadlock = errorMessage.toLowerCase().includes('deadlock');
+
+        if (isDeadlock) {
+            console.error(`[DEADLOCK] Detected deadlock for user ${userId}, event ${eventId}, option ${option}, side ${side}, amount ${amount}`);
+            console.error('Deadlock error details:', errorMessage);
+            console.error('Deadlock stack:', error instanceof Error ? error.stack : 'No stack');
+        } else {
+            console.error('Trading error:', error);
+            console.error('Error details:', errorMessage);
+            console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
+        }
+
+        return { success: false, error: errorMessage, totalFilled: 0, averagePrice: 0 };
     }
 }
 
