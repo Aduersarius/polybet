@@ -33,12 +33,7 @@ export async function GET(request: NextRequest) {
                 where,
                 orderBy: { createdAt: 'desc' },
                 skip,
-                take: limit,
-                include: {
-                    _count: {
-                        select: { bets: true, createdEvents: true }
-                    }
-                }
+                take: limit
             }),
             prisma.user.count({ where })
         ]);
