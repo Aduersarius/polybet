@@ -58,7 +58,7 @@ model Event {
   updatedAt          DateTime                 @updatedAt
   initialLiquidity   Float                    @default(100.0)
   isHidden           Boolean                  @default(false)
-  liquidityParameter Float                    @default(10000.0) // Increased default for better AMM
+  liquidityParameter Float                    @default(20000.0) // Higher for stability with low users
   type               String                   @default("BINARY") // "BINARY" or "MULTIPLE"
   // Legacy binary fields (still used for backward compatibility)
   noOdds             Float?
