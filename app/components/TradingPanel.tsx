@@ -28,22 +28,22 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
 
-    // Fetch user balance for the selected outcome
-    const { data: userBalance } = useQuery({
-        queryKey: ['user-balance', eventId, selectedOption],
+    // Fetch user balances
+    const { data: balanceData } = useQuery({
+        queryKey: ['user-balances'],
         queryFn: async () => {
             const response = await fetch('/api/balance');
-            if (!response.ok) return { shares: 0 };
-            const balances = await response.json();
-            // Find balance for the selected outcome
-            const tokenSymbol = `${selectedOption}_${eventId}`;
-            const balance = balances.find((b: any) => b.tokenSymbol === tokenSymbol);
-            return { shares: balance?.amount || 0 };
+            if (!response.ok) return { balances: [] };
+            return await response.json();
         },
-        enabled: !!eventId && selectedTab === 'sell'
+        enabled: selectedTab === 'sell'
     });
 
-    const availableShares = userBalance?.shares || 0;
+    // Find balance for the selected outcome
+    const selectedOutcomeBalance = balanceData?.balances?.find((b: any) =>
+        b.tokenSymbol === `${selectedOption}_${eventId}`
+    );
+    const availableShares = selectedOutcomeBalance?.amount || 0;
 
     // Set default limit price to current market price
     useEffect(() => {
