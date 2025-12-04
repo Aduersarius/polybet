@@ -3,6 +3,35 @@ const crypto = require('crypto');
 
 const DATABASE_URL = "postgresql://polybet_user:Baltim0r@188.137.178.118:5432/polybet?sslmode=disable";
 
+// LMSR calculation functions
+function calculateLMSRCost(currentQYes, currentQNo, buyQYes, buyQNo, b) {
+    const currentCost = b * Math.log(Math.exp(currentQYes / b) + Math.exp(currentQNo / b));
+    const newCost = b * Math.log(Math.exp((currentQYes + buyQYes) / b) + Math.exp((currentQNo + buyQNo) / b));
+    return newCost - currentCost;
+}
+
+function calculateTokensForCost(currentQYes, currentQNo, cost, outcome, b) {
+    let low = 0;
+    let high = cost * 10; // Upper bound
+    let precision = 0.001;
+
+    while (high - low > precision) {
+        const mid = (low + high) / 2;
+        const buyQYes = outcome === 'YES' ? mid : 0;
+        const buyQNo = outcome === 'NO' ? mid : 0;
+
+        const calculatedCost = calculateLMSRCost(currentQYes, currentQNo, buyQYes, buyQNo, b);
+
+        if (calculatedCost < cost) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+
+    return (low + high) / 2;
+}
+
 async function main() {
     const client = new Client({ connectionString: DATABASE_URL });
 
@@ -11,7 +40,7 @@ async function main() {
         console.log('Connected to database');
 
         // Retrieve all events
-        const eventsQuery = `SELECT id, "createdAt", "resolutionDate" FROM "Event"`;
+        const eventsQuery = `SELECT id, "createdAt", "resolutionDate", type FROM "Event"`;
         const eventsResult = await client.query(eventsQuery);
         const events = eventsResult.rows;
         console.log(`Retrieved ${events.length} events`);
@@ -34,7 +63,8 @@ async function main() {
             console.log(`Generating ${numOrders} orders for event ${event.id}`);
 
             // Generate random trend parameters per event
-            const k = (Math.random() - 0.5) * 4; // random direction and strength, -2 to 2
+            const k = (Math.random() - 0.5) * 8; // random direction and strength, -4 to 4
+            const bias = Math.random(); // bias for binary events, 0 to 1 probability of yes
             const trendMax = Math.max(1, Math.exp(k));
 
             // Generate timestamps with trend and seasonality
@@ -65,7 +95,7 @@ async function main() {
                         hourlyMult = 1 + (peak1 + peak2) * 0.5;
                     }
                     // add random noise
-                    const noise = (Math.random() - 0.5) * 0.4; // -0.2 to 0.2
+                    const noise = (Math.random() - 0.5) * 0.8; // -0.4 to 0.4
                     const totalSeasonality = dailyMult * weeklyMult * monthlyMult * hourlyMult * (1 + noise);
                     const pdf = Math.exp(k * t) * totalSeasonality;
                     if (Math.random() * maxPDF < pdf) {
@@ -92,7 +122,7 @@ async function main() {
 
                 if (outcomes.length === 0) {
                     // Binary event
-                    option = Math.random() < 0.5 ? 'yes' : 'no';
+                    option = Math.random() < bias ? 'yes' : 'no';
                 } else {
                     // Multiple outcome event
                     const randomOutcome = outcomes[Math.floor(Math.random() * outcomes.length)];
@@ -126,7 +156,7 @@ async function main() {
 
                 const activity = {
                     id: crypto.randomUUID(),
-                    type: 'TRADE',
+                    type: 'BET',
                     userId,
                     eventId,
                     outcomeId,
@@ -164,6 +194,38 @@ async function main() {
 
         console.log(`Total orders inserted: ${totalOrdersInserted}`);
         console.log(`Total activities inserted: ${totalActivitiesInserted}`);
+
+        // Update qYes and qNo for binary events based on accumulated trades
+        console.log('Updating qYes and qNo for binary events...');
+        for (const event of events) {
+            if (event.type === 'BINARY') {
+                // Query all market activities for this event
+                const activitiesQuery = `SELECT "option", amount FROM "MarketActivity" WHERE "eventId" = $1 AND type IN ('BET', 'TRADE') AND "option" IS NOT NULL ORDER BY "createdAt" ASC`;
+                const activitiesResult = await client.query(activitiesQuery, [event.id]);
+                const activities = activitiesResult.rows;
+
+                let qYes = 0;
+                let qNo = 0;
+                const b = 10000.0; // default liquidity parameter
+
+                for (const activity of activities) {
+                    const normalizedOption = activity.option.toUpperCase();
+                    if (normalizedOption === 'YES' || normalizedOption === 'NO') {
+                        const tokens = calculateTokensForCost(qYes, qNo, activity.amount, normalizedOption, b);
+                        if (normalizedOption === 'YES') {
+                            qYes += tokens;
+                        } else {
+                            qNo += tokens;
+                        }
+                    }
+                }
+
+                // Update the event
+                const updateQuery = `UPDATE "Event" SET "qYes" = $1, "qNo" = $2 WHERE id = $3`;
+                await client.query(updateQuery, [qYes, qNo, event.id]);
+                console.log(`Updated event ${event.id}: qYes=${qYes.toFixed(2)}, qNo=${qNo.toFixed(2)}`);
+            }
+        }
 
     } catch (error) {
         console.error('Error:', error);

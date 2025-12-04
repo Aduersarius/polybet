@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { generateHistoricalOdds, calculateMultipleLMSRProbabilities } from '../lib/amm';
+import { generateHistoricalOdds } from '../lib/amm-server';
+import { calculateMultipleLMSRProbabilities } from '../lib/amm';
 
 async function main() {
     // 1. Find a MULTIPLE event with some liquidity/trades

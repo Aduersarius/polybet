@@ -13,17 +13,6 @@ import { useQuery } from '@tanstack/react-query';
 import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
 import { PositionsDropdown } from './PositionsDropdown';
 
-const categories = [
-    { id: 'ALL', label: 'All' },
-    { id: 'TRENDING', label: 'Trending' },
-    { id: 'NEW', label: 'New' },
-    { id: 'Crypto', label: 'Crypto' },
-    { id: 'Politics', label: 'Politics' },
-    { id: 'Sports', label: 'Sports' },
-    { id: 'Business', label: 'Business' },
-    { id: 'Science', label: 'Science' },
-    { id: 'Pop Culture', label: 'Pop Culture' },
-];
 
 interface NavbarProps {
     selectedCategory?: string;
@@ -34,12 +23,33 @@ interface NavbarProps {
     onCreateEvent?: () => void;
 }
 
+interface Category {
+    id: string;
+    label: string;
+}
+
 export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage, activeAdminView, onAdminViewChange, onCreateEvent }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [balance, setBalance] = useState<number>(0);
+    const categories: Category[] = [
+        { id: 'ALL', label: 'All' },
+        { id: 'TRENDING', label: 'Trending' },
+        { id: 'NEW', label: 'New' },
+        { id: 'BUSINESS', label: 'Business' },
+        { id: 'CRYPTO', label: 'Crypto' },
+        { id: 'CULTURE', label: 'Culture' },
+        { id: 'ECONOMY', label: 'Economy' },
+        { id: 'ELECTIONS', label: 'Elections' },
+        { id: 'FINANCE', label: 'Finance' },
+        { id: 'POLITICS', label: 'Politics' },
+        { id: 'SCIENCE', label: 'Science' },
+        { id: 'SPORTS', label: 'Sports' },
+        { id: 'TECH', label: 'Tech' },
+        { id: 'WORLD', label: 'World' },
+    ];
     const { data: session } = useSession();
 
     // Fetch balance when user logs in
@@ -59,6 +69,7 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
 
     const handleSearch = (query: string) => {
         window.dispatchEvent(new CustomEvent('globalSearch', { detail: { query } }));
@@ -104,8 +115,8 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     <PositionsDropdown />
                                 </>
                             )}
-
                             <NotificationBell />
+
 
                             {/* Authentication */}
                             {session ? (
@@ -184,20 +195,22 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                         <div className="w-full bg-black/30 backdrop-blur-sm border-t border-white/5">
                             <div className="max-w-7xl mx-auto px-4 py-2">
                                 <div className="overflow-x-auto scrollbar-hide">
-                                    <div className="flex gap-2 min-w-max justify-center items-center">
-                                        {categories.map((cat) => (
-                                            <button
-                                                key={cat.id}
-                                                onClick={() => onCategoryChange(cat.id)}
-                                                className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
-                                                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                                    : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                            >
-                                                {cat.label}
-                                            </button>
-                                        ))}
-                                        <div className="w-px h-6 bg-white/20 mx-2" />
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex gap-2 min-w-max">
+                                            {categories.map((cat) => (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => onCategoryChange(cat.id)}
+                                                    className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
+                                                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                >
+                                                    {cat.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="h-6 w-px bg-white/20"></div>
                                         <button
                                             onClick={() => onCategoryChange('FAVORITES')}
                                             className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'

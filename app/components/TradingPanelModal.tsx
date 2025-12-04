@@ -9,8 +9,6 @@ interface TradingPanelModalProps {
     onClose: () => void;
     eventId: string;
     eventTitle: string;
-    yesPrice: number;
-    noPrice: number;
     creationDate?: string;
     resolutionDate?: string;
     preselectedOption?: 'YES' | 'NO';
@@ -21,8 +19,6 @@ export function TradingPanelModal({
     onClose,
     eventId,
     eventTitle,
-    yesPrice,
-    noPrice,
     creationDate,
     resolutionDate,
     preselectedOption
@@ -74,8 +70,6 @@ export function TradingPanelModal({
                             {/* Trading Panel Content */}
                             <div className="p-4 overflow-y-auto">
                                 <TradingPanel
-                                    yesPrice={yesPrice}
-                                    noPrice={noPrice}
                                     creationDate={creationDate}
                                     resolutionDate={resolutionDate}
                                     onTrade={handleTrade}

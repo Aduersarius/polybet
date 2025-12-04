@@ -123,7 +123,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     <div className="max-h-32 overflow-y-auto">
                         {orderBook.asks.slice(0, 8).map((ask, index) => (
                             <motion.div
-                                key={`${ask.price}-${ask.amount}`}
+                                key={index}
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.05, duration: 0.3 }}
@@ -159,7 +159,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     <div className="max-h-32 overflow-y-auto">
                         {orderBook.bids.slice(0, 8).map((bid, index) => (
                             <motion.div
-                                key={`${bid.price}-${bid.amount}`}
+                                key={index}
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.05, duration: 0.3 }}

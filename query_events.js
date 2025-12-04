@@ -10,7 +10,7 @@ async function main() {
         console.log('Connected to database');
 
         // Query all rows from Event table
-        const query = `SELECT id, title, "createdAt", "resolutionDate" FROM "Event"`;
+        const query = `SELECT id, title, type, "qYes", "qNo", "yesOdds", "noOdds", "createdAt", "resolutionDate" FROM "Event"`;
         const result = await client.query(query);
 
         const events = result.rows;
@@ -18,7 +18,7 @@ async function main() {
 
         console.log('Events:');
         events.forEach(event => {
-            console.log(`ID: ${event.id}, Title: ${event.title}, Created At: ${event.createdAt}, Resolution Date: ${event.resolutionDate}`);
+            console.log(`ID: ${event.id}, Title: ${event.title}, Type: ${event.type}, qYes: ${event.qYes}, qNo: ${event.qNo}, yesOdds: ${event.yesOdds}, noOdds: ${event.noOdds}, Created At: ${event.createdAt}, Resolution Date: ${event.resolutionDate}`);
         });
 
     } catch (error) {

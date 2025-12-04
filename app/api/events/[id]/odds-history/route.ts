@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateHistoricalOdds } from '@/lib/amm';
+import { generateHistoricalOdds } from '@/lib/amm-server';
 
 export async function GET(
     request: NextRequest,
