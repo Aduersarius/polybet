@@ -14,18 +14,26 @@ export async function GET(req: NextRequest) {
 
         const userId = session.user.id;
 
-        // Get user's TUSD balance (base currency)
-        const balance = await prisma.balance.findFirst({
+        // Get all user's balances (including outcome tokens)
+        const balances = await prisma.balance.findMany({
             where: {
                 userId,
-                tokenSymbol: 'TUSD',
-                eventId: null,
-                outcomeId: null
+                amount: { gt: 0 } // Only return balances with positive amounts
+            },
+            select: {
+                tokenSymbol: true,
+                eventId: true,
+                outcomeId: true,
+                amount: true
             }
         });
 
+        // Also include TUSD balance for backward compatibility
+        const tusdBalance = balances.find(b => b.tokenSymbol === 'TUSD' && !b.eventId && !b.outcomeId);
+
         return NextResponse.json({
-            balance: balance?.amount || 0
+            balance: tusdBalance?.amount || 0,
+            balances: balances
         });
     } catch (error) {
         console.error('Error fetching balance:', error);

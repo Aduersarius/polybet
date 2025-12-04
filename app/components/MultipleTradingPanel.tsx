@@ -35,17 +35,19 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
 
     // Fetch user balances for all outcomes in this event
-    const { data: userBalances } = useQuery({
+    const { data: balanceData } = useQuery({
         queryKey: ['user-balances', eventId],
         queryFn: async () => {
             const response = await fetch('/api/balance');
-            if (!response.ok) return [];
-            const balances = await response.json();
-            // Filter balances for this event's outcomes
-            return balances.filter((b: any) => b.eventId === eventId && b.tokenSymbol !== 'TUSD');
+            if (!response.ok) return { balances: [] };
+            return await response.json();
         },
         enabled: !!eventId && selectedTab === 'sell'
     });
+
+    const userBalances = balanceData?.balances?.filter((b: any) =>
+        b.eventId === eventId && b.tokenSymbol !== 'TUSD'
+    ) || [];
 
     // Risk management: maximum bet amount
     const MAX_BET_AMOUNT = 10000; // $10,000 max bet
