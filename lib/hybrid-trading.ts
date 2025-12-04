@@ -8,7 +8,8 @@ const TREASURY_USER_ID = 'cminhk477000002s8jld69y1f'; // Using AMM bot/Treasury 
 const AMM_BOT_USER_ID = 'cminhk477000002s8jld69y1f';
 const AMM_LIQUIDITY_USD = 100000;
 const AMM_ORDER_SIZE = 10000;
-const AMM_SPREAD = 0.02;
+// Reduced spread for low user count to encourage trading
+const AMM_SPREAD = 0.01; // 1% instead of 2%
 
 export interface HybridOrderResult {
     success: boolean;
@@ -275,6 +276,7 @@ export async function placeHybridOrder(
 
         // Validate Risk
         const riskCheck = await RiskManager.validateTrade(
+            userId,
             eventId,
             amount,
             side,
@@ -291,7 +293,9 @@ export async function placeHybridOrder(
         // --- END RISK MANAGEMENT ---
 
         // Apply spread (Price impact is already in quote.avgPrice, spread is extra fee)
-        const effectivePrice = quote.avgPrice * (1 + AMM_SPREAD);
+        const effectivePrice = side === 'buy'
+            ? quote.avgPrice * (1 + AMM_SPREAD)
+            : quote.avgPrice * (1 - AMM_SPREAD);
 
         // DB Transaction to ensure atomicity with deadlock retry
         const maxRetries = 3;
@@ -304,19 +308,20 @@ export async function placeHybridOrder(
                     console.log(`[TRADE] Transaction started for ${eventId}:${option}`);
 
                     // 1. Update Liquidity State (CRITICAL for price movement)
-                    // By incrementing the liquidity (q) for the bought outcome,
-                    // the probability exp(q/b) / sum(...) increases for this outcome.
+                    // For buy: increment liquidity (probability increases)
+                    // For sell: decrement liquidity (probability decreases)
+                    const liquidityDelta = side === 'buy' ? quote.shares : -quote.shares;
                     if (event.type === 'MULTIPLE') {
-                        console.log(`[TRADE] Updating outcome ${option} liquidity by ${quote.shares}`);
+                        console.log(`[TRADE] Updating outcome ${option} liquidity by ${liquidityDelta}`);
                         await tx.outcome.update({
                             where: { id: option },
-                            data: { liquidity: { increment: quote.shares } }
+                            data: { liquidity: { increment: liquidityDelta } }
                         });
                     } else {
                         const updateData = option === 'YES'
-                            ? { qYes: { increment: quote.shares } }
-                            : { qNo: { increment: quote.shares } };
-                        console.log(`[TRADE] Updating event ${eventId} ${option} by ${quote.shares}`);
+                            ? { qYes: { increment: liquidityDelta } }
+                            : { qNo: { increment: liquidityDelta } };
+                        console.log(`[TRADE] Updating event ${eventId} ${option} by ${liquidityDelta}`);
                         await tx.event.update({ where: { id: eventId }, data: updateData });
                     }
 
@@ -324,21 +329,21 @@ export async function placeHybridOrder(
                     const tokenSymbol = event.type === 'MULTIPLE' ? option : `${option}_${eventId}`;
                     console.log(`[TRADE] Token symbol: ${tokenSymbol}`);
 
-                    // User gets Shares
-                    await updateBalance(tx, userId, tokenSymbol, eventId, quote.shares);
-                    // User pays Full Amount (Cost + Spread)
-                    await updateBalance(tx, userId, 'TUSD', null, -amount);
+                    // User shares delta: + for buy, - for sell
+                    const userSharesDelta = side === 'buy' ? quote.shares : -quote.shares;
+                    // User TUSD delta: -amount for buy, +amount for sell
+                    const userTusdDelta = side === 'buy' ? -amount : amount;
 
-                    // AMM Bot (Counterparty)
-                    // Bot sells shares (negative balance for bot)
-                    await updateBalance(tx, AMM_BOT_USER_ID, tokenSymbol, eventId, -quote.shares);
+                    // AMM shares delta: opposite of user
+                    const ammSharesDelta = -userSharesDelta;
+                    // AMM TUSD delta: for buy gets costToSpend + spread, for sell pays costToSpend - spread
+                    const ammTusdDelta = side === 'buy' ? (costToSpend + spreadAmount) : -(costToSpend - spreadAmount);
 
-                    // Bot gets Cost (to cover the risk)
-                    await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, costToSpend);
+                    await updateBalance(tx, userId, tokenSymbol, eventId, userSharesDelta);
+                    await updateBalance(tx, userId, 'TUSD', null, userTusdDelta);
 
-                    // Bot gets Spread (Profit) - We can book this separately or just add to TUSD
-                    // Here we just add the remaining amount (which is the spread) to the bot
-                    await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, spreadAmount);
+                    await updateBalance(tx, AMM_BOT_USER_ID, tokenSymbol, eventId, ammSharesDelta);
+                    await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, ammTusdDelta);
 
                     // 3. Record Trade
                     // For AMM trades, we need to create a placeholder order since orderId is required
@@ -483,7 +488,7 @@ export async function getOrderBook(eventId: string, option: string) {
     ]);
 
     // 3. Generate dynamic fake orders around the REAL market price
-    const minOrders = 8;
+    // Increased for low user count to simulate activity
     const fakeBids: Array<{ price: number; amount: number }> = [];
     const fakeAsks: Array<{ price: number; amount: number }> = [];
 
@@ -498,18 +503,18 @@ export async function getOrderBook(eventId: string, option: string) {
     const basePrice = currentProb;
     const spread = 0.08; // 8% visual spread
 
-    // Generate fake bids (buy orders) BELOW market price
-    for (let i = 1; i <= 5; i++) {
+    // Generate more fake bids (buy orders) BELOW market price
+    for (let i = 1; i <= 8; i++) {
         const variation = seededRandom(timeSeed + i) * 0.02 - 0.01;
-        const price = Math.max(0.01, basePrice - (i * spread / 5) + variation);
+        const price = Math.max(0.01, basePrice - (i * spread / 8) + variation);
         const amount = Math.floor(seededRandom(timeSeed + i + 100) * 80 + 20);
         fakeBids.push({ price, amount });
     }
 
-    // Generate fake asks (sell orders) ABOVE market price
-    for (let i = 1; i <= 5; i++) {
+    // Generate more fake asks (sell orders) ABOVE market price
+    for (let i = 1; i <= 8; i++) {
         const variation = seededRandom(timeSeed + i + 200) * 0.02 - 0.01;
-        const price = Math.min(0.99, basePrice + (i * spread / 5) + variation);
+        const price = Math.min(0.99, basePrice + (i * spread / 8) + variation);
         const amount = Math.floor(seededRandom(timeSeed + i + 300) * 80 + 20);
         fakeAsks.push({ price, amount });
     }
