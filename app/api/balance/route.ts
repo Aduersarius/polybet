@@ -8,11 +8,15 @@ export async function GET(req: NextRequest) {
             headers: req.headers
         });
 
+        console.log('Balance API - Session:', session?.user?.id ? 'authenticated' : 'not authenticated');
+
         if (!session?.user?.id) {
-            return NextResponse.json({ balance: 0 });
+            console.log('Balance API - No session, returning empty balances');
+            return NextResponse.json({ balance: 0, balances: [] });
         }
 
         const userId = session.user.id;
+        console.log('Balance API - Fetching balances for user:', userId);
 
         // Get all user's balances (including outcome tokens)
         const balances = await prisma.balance.findMany({
@@ -28,6 +32,8 @@ export async function GET(req: NextRequest) {
             }
         });
 
+        console.log('Balance API - Found balances:', balances.length, balances.map(b => `${b.tokenSymbol}: ${b.amount}`));
+
         // Also include TUSD balance for backward compatibility
         const tusdBalance = balances.find(b => b.tokenSymbol === 'TUSD' && !b.eventId && !b.outcomeId);
 
@@ -37,6 +43,6 @@ export async function GET(req: NextRequest) {
         });
     } catch (error) {
         console.error('Error fetching balance:', error);
-        return NextResponse.json({ balance: 0 });
+        return NextResponse.json({ balance: 0, balances: [] });
     }
 }
