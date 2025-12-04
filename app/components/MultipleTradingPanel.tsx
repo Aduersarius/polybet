@@ -29,7 +29,7 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || '');
     const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-    const [amount, setAmount] = useState<string>('0');
+    const [amount, setAmount] = useState<string>('');
     const [price, setPrice] = useState<string>('0');
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);

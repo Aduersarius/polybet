@@ -18,7 +18,7 @@ interface OrderBookProps {
 
 export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY' }: OrderBookProps) {
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || 'YES');
-    const [orderBook, setOrderBook] = useState<{ bids: Array<{price: number, amount: number}>, asks: Array<{price: number, amount: number}> }>({ bids: [], asks: [] });
+    const [orderBook, setOrderBook] = useState<{ bids: Array<{ price: number, amount: number }>, asks: Array<{ price: number, amount: number }> }>({ bids: [], asks: [] });
 
     const isMultiple = eventType === 'MULTIPLE';
     const selectedOption = isMultiple ? selectedOutcomeId : (selectedOutcomeId as 'YES' | 'NO');
@@ -68,9 +68,8 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     }, [eventId, selectedOutcomeId, isMultiple, selectedOption]);
 
     return (
-        <div className="material-card p-6">
-            <div className="flex items-center justify-between mb-4">
-                <div className="text-sm text-gray-400">Order Book</div>
+        <div className="h-full flex flex-col">
+            <div className="flex items-center justify-end mb-2">
                 <div className="flex bg-white/5 rounded-lg border border-white/10 p-1 overflow-x-auto max-w-xs">
                     {isMultiple ? (
                         outcomes.map((outcome) => (
@@ -79,11 +78,10 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                                 onClick={() => setSelectedOutcomeId(outcome.id)}
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                className={`px-2 py-1 text-xs font-medium rounded transition-all whitespace-nowrap ${
-                                    selectedOutcomeId === outcome.id
-                                        ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30 shadow-lg shadow-[#bb86fc]/20'
-                                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
-                                }`}
+                                className={`px-2 py-1 text-xs font-medium rounded transition-all whitespace-nowrap ${selectedOutcomeId === outcome.id
+                                    ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30 shadow-lg shadow-[#bb86fc]/20'
+                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                                    }`}
                             >
                                 {outcome.name}
                             </motion.button>
@@ -94,11 +92,10 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                                 onClick={() => setSelectedOutcomeId('YES')}
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-all ${
-                                    selectedOutcomeId === 'YES'
-                                        ? 'bg-[#03dac6]/20 text-[#03dac6] border border-[#03dac6]/30 shadow-lg shadow-[#03dac6]/20'
-                                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
-                                }`}
+                                className={`px-3 py-1 text-xs font-medium rounded transition-all ${selectedOutcomeId === 'YES'
+                                    ? 'bg-[#03dac6]/20 text-[#03dac6] border border-[#03dac6]/30 shadow-lg shadow-[#03dac6]/20'
+                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                                    }`}
                             >
                                 YES
                             </motion.button>
@@ -106,11 +103,10 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                                 onClick={() => setSelectedOutcomeId('NO')}
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-all ${
-                                    selectedOutcomeId === 'NO'
-                                        ? 'bg-[#cf6679]/20 text-[#cf6679] border border-[#cf6679]/30 shadow-lg shadow-[#cf6679]/20'
-                                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
-                                }`}
+                                className={`px-3 py-1 text-xs font-medium rounded transition-all ${selectedOutcomeId === 'NO'
+                                    ? 'bg-[#cf6679]/20 text-[#cf6679] border border-[#cf6679]/30 shadow-lg shadow-[#cf6679]/20'
+                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                                    }`}
                             >
                                 NO
                             </motion.button>

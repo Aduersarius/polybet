@@ -19,7 +19,7 @@ const io = new Server(3001, {
 console.log('🚀 WebSocket Server running on port 3001');
 
 // 3. Handle Redis Events
-redis.subscribe('event-updates', 'chat-messages', 'admin-events', (err, count) => {
+redis.subscribe('event-updates', 'chat-messages', 'admin-events', 'user-updates', (err, count) => {
     if (err) console.error('Failed to subscribe: %s', err.message);
     else console.log(`Subscribed to ${count} Redis channels.`);
 });
@@ -42,11 +42,32 @@ redis.on('message', (channel, message) => {
         // data.type: 'event-created', 'event-updated', 'user-deleted', 'bet-placed', etc.
         io.emit(`admin:${data.type}`, data.payload);
     }
+    else if (channel === 'user-updates') {
+        // Broadcast to specific user room
+        // data: { userId: '...', type: '...', payload: ... }
+        if (data.userId) {
+            io.to(`user:${data.userId}`).emit('user-update', data);
+        }
+    }
 });
 
 // 4. Handle Client Connections
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
+
+    socket.on('join-user-room', (userId) => {
+        if (userId) {
+            console.log(`Socket ${socket.id} joining user room: user:${userId}`);
+            socket.join(`user:${userId}`);
+        }
+    });
+
+    socket.on('leave-user-room', (userId) => {
+        if (userId) {
+            console.log(`Socket ${socket.id} leaving user room: user:${userId}`);
+            socket.leave(`user:${userId}`);
+        }
+    });
 
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);

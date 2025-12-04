@@ -23,26 +23,46 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>('YES');
     const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-    const [amount, setAmount] = useState<string>('0');
+    const [amount, setAmount] = useState<string>('');
     const [price, setPrice] = useState<string>('0');
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
 
-    // Fetch user balances
-    const { data: balanceData } = useQuery({
-        queryKey: ['user-balances'],
+    // Fetch user balances - fetch when sell tab is selected
+    const { data: balanceData, refetch: refetchBalances } = useQuery({
+        queryKey: ['user-balances', eventId],
         queryFn: async () => {
             const response = await fetch('/api/balance');
             if (!response.ok) return { balances: [] };
             return await response.json();
         },
-        enabled: selectedTab === 'sell'
+        enabled: selectedTab === 'sell',
+        staleTime: 0,
     });
 
+    // Refetch when switching to sell tab
+    useEffect(() => {
+        if (selectedTab === 'sell') {
+            refetchBalances();
+        }
+    }, [selectedTab, refetchBalances]);
+
     // Find balance for the selected outcome
-    const selectedOutcomeBalance = balanceData?.balances?.find((b: any) =>
-        b.tokenSymbol === `${selectedOption}_${eventId}`
+    // For binary events, tokenSymbol is `YES_${eventId}` or `NO_${eventId}`
+    const expectedTokenSymbol = `${selectedOption}_${eventId}`;
+
+    // Try both matching strategies
+    let selectedOutcomeBalance = balanceData?.balances?.find((b: any) =>
+        b.tokenSymbol === expectedTokenSymbol && b.eventId === eventId
     );
+
+    // Fallback: match by eventId and tokenSymbol starting with selectedOption
+    if (!selectedOutcomeBalance) {
+        selectedOutcomeBalance = balanceData?.balances?.find((b: any) =>
+            b.eventId === eventId && b.tokenSymbol?.startsWith(selectedOption)
+        );
+    }
+
     const availableShares = selectedOutcomeBalance?.amount || 0;
 
     // Set default limit price to current market price
@@ -199,7 +219,7 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
                         <span className="text-white font-medium">
                             {selectedTab === 'buy'
                                 ? `$${currentAmount.toFixed(2)}`
-                                : `${currentAmount.toFixed(2)} shares`
+                                : <><span className="text-gray-400 font-normal">Max:</span> {availableShares.toFixed(2)} shares</>
                             }
                         </span>
                     </div>
