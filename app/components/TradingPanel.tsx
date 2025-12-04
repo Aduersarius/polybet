@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { socket } from '@/lib/socket';
+import { calculateLMSROdds } from '@/lib/amm';
 
 interface TradingPanelProps {
-    yesPrice: number;  // Actually the price/probability (0-1)
-    noPrice: number;   // Actually the price/probability (0-1)
     creationDate?: string;
     resolutionDate?: string;
     onTrade?: (type: 'YES' | 'NO', amount: number) => void;
 }
 
-export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, onTrade }: TradingPanelProps) {
+export function TradingPanel({ creationDate, resolutionDate, onTrade }: TradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
     // Mock user for dev
@@ -27,6 +27,8 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
     const [price, setPrice] = useState<string>('0');
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
+    const [yesPrice, setYesPrice] = useState<number>(0.5);
+    const [noPrice, setNoPrice] = useState<number>(0.5);
 
     // Fetch user balances - fetch when sell tab is selected
     const { data: balanceData, refetch: refetchBalances } = useQuery({
@@ -40,12 +42,33 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
         staleTime: 0,
     });
 
+    // Fetch event data for initial odds calculation
+    const { data: eventData } = useQuery({
+        queryKey: ['event', eventId],
+        queryFn: async () => {
+            const response = await fetch(`/api/events/${eventId}`);
+            if (!response.ok) throw new Error('Failed to fetch event');
+            return await response.json();
+        },
+        staleTime: 30000, // 30 seconds
+    });
+
     // Refetch when switching to sell tab
     useEffect(() => {
         if (selectedTab === 'sell') {
             refetchBalances();
         }
     }, [selectedTab, refetchBalances]);
+
+    // Calculate initial prices from event data on mount
+    useEffect(() => {
+        if (eventData && eventData.qYes !== undefined && eventData.qNo !== undefined) {
+            const b = eventData.liquidityParameter || 10000.0;
+            const odds = calculateLMSROdds(eventData.qYes, eventData.qNo, b);
+            setYesPrice(odds.yesPrice);
+            setNoPrice(odds.noPrice);
+        }
+    }, [eventData]);
 
     // Find balance for the selected outcome
     // For binary events, tokenSymbol is `YES_${eventId}` or `NO_${eventId}`
@@ -73,6 +96,25 @@ export function TradingPanel({ yesPrice, noPrice, creationDate, resolutionDate, 
             setPrice(noPrice.toFixed(2));
         }
     }, [yesPrice, noPrice, orderType, selectedOption]);
+
+    // Real-time odds updates via WebSocket
+    useEffect(() => {
+        const handler = (update: any) => {
+            if (update.eventId !== eventId) return;
+
+            if (update.yesPrice !== undefined) {
+                setYesPrice(update.yesPrice);
+            }
+            if (update.noPrice !== undefined) {
+                setNoPrice(update.noPrice);
+            }
+        };
+
+        socket.on(`odds-update-${eventId}`, handler);
+        return () => {
+            socket.off(`odds-update-${eventId}`, handler);
+        };
+    }, [eventId]);
 
 
 

@@ -1,13 +1,13 @@
 'use client';
 import { Navbar } from "../components/Navbar";
 import { SparklesCore as Sparks } from "../../components/ui/sparkles";
+import { Footer } from "../components/Footer";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
-import { Footer } from "../components/Footer";
 
 interface DbEvent {
   id: string;
@@ -32,6 +32,7 @@ interface DbEvent {
 
 export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+  console.log('selectedCategory state initialized to:', selectedCategory);
   const [timeHorizon, setTimeHorizon] = useState<'all' | '1d' | '1w' | '1m'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'volume_high' | 'volume_low' | 'liquidity_high' | 'ending_soon'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,23 +73,58 @@ export default function Home() {
     return () => window.removeEventListener('globalSearch', handleGlobalSearch as EventListener);
   }, []);
 
-  // Save selectedCategory to sessionStorage
+  // Log selectedCategory changes
+  useEffect(() => {
+    console.log('selectedCategory changed to:', selectedCategory);
+  }, [selectedCategory]);
+
+  // Save selectedCategory to localStorage with sessionStorage fallback
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('selectedCategory', selectedCategory);
+      try {
+        localStorage.setItem('selectedCategory', selectedCategory);
+        console.log('Saved selectedCategory to localStorage:', selectedCategory);
+      } catch (e) {
+        console.log('localStorage not available, trying sessionStorage:', e);
+        try {
+          sessionStorage.setItem('selectedCategory', selectedCategory);
+          console.log('Saved selectedCategory to sessionStorage:', selectedCategory);
+        } catch (e2) {
+          console.log('sessionStorage also not available:', e2);
+        }
+      }
     }
   }, [selectedCategory]);
 
   // Check for category query param and restore scroll on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      console.log('Restoration useEffect running on mount');
       const urlParams = new URLSearchParams(window.location.search);
       const category = urlParams.get('category');
+      console.log('URL category param:', category);
       if (category) {
+        console.log('Setting selectedCategory from URL:', category);
         setSelectedCategory(category);
       } else {
-        const saved = sessionStorage.getItem('selectedCategory');
-        if (saved) setSelectedCategory(saved);
+        let saved = null;
+        try {
+          saved = localStorage.getItem('selectedCategory');
+          console.log('Restored selectedCategory from localStorage:', saved);
+        } catch (e) {
+          console.log('localStorage not available, trying sessionStorage:', e);
+          try {
+            saved = sessionStorage.getItem('selectedCategory');
+            console.log('Restored selectedCategory from sessionStorage:', saved);
+          } catch (e2) {
+            console.log('sessionStorage also not available:', e2);
+          }
+        }
+        if (saved) {
+          setSelectedCategory(saved);
+        } else {
+          console.log('No saved category, using default ALL');
+        }
       }
       // Restore scroll position
       const scrollPos = sessionStorage.getItem('scrollPos');
@@ -102,14 +138,22 @@ export default function Home() {
   }, []);
 
 
+  // Fetch user's favorites for filtering
+  const { data: userFavorites } = useQuery({
+    queryKey: ['user-favorites'],
+    queryFn: async () => {
+      const res = await fetch('/api/user/favorites');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    },
+  });
+
   const { activeEvents, endedEvents } = useMemo(() => {
     let filtered = events;
 
     // Client-side filters that can't be done on API
-    if (selectedCategory === 'FAVORITES') {
-      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-      filtered = events.filter((e: DbEvent) => favorites.includes(e.id));
-    }
+    // Note: FAVORITES filtering is handled by the API, not client-side
 
     // Apply search filter (client-side for now)
     if (searchQuery.trim()) {
@@ -151,11 +195,23 @@ export default function Home() {
   const EventCard = ({ event, isEnded = false }: { event: DbEvent, isEnded?: boolean }) => {
     const [isFavorite, setIsFavorite] = useState(false);
 
-    // Initialize favorite state from localStorage
+    // Fetch user's favorites
+    const { data: userFavorites, refetch: refetchFavorites } = useQuery({
+      queryKey: ['user-favorites'],
+      queryFn: async () => {
+        const res = await fetch('/api/user/favorites');
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.data || [];
+      },
+    });
+
+    // Update favorite state when userFavorites changes
     useEffect(() => {
-      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-      setIsFavorite(favorites.includes(event.id));
-    }, [event.id]);
+      if (userFavorites) {
+        setIsFavorite(userFavorites.some((fav: any) => fav.id === event.id));
+      }
+    }, [userFavorites, event.id]);
 
     // Real-time odds state
     const [liveYesOdds, setLiveYesOdds] = useState(event.yesOdds);
@@ -228,13 +284,37 @@ export default function Home() {
     }
     // Otherwise keep 50/50 default
 
-    const toggleFavorite = (e: React.MouseEvent) => {
+    const toggleFavorite = async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-      const newFavorites = isFavorite ? favorites.filter((id: string) => id !== event.id) : [...favorites, event.id];
-      localStorage.setItem('favorites', JSON.stringify(newFavorites));
-      setIsFavorite(!isFavorite);
+
+      try {
+        if (isFavorite) {
+          // Remove from favorites
+          const res = await fetch(`/api/user/favorites?eventId=${event.id}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            setIsFavorite(false);
+            refetchFavorites(); // Refresh the favorites list
+          }
+        } else {
+          // Add to favorites
+          const res = await fetch('/api/user/favorites', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ eventId: event.id }),
+          });
+          if (res.ok) {
+            setIsFavorite(true);
+            refetchFavorites(); // Refresh the favorites list
+          }
+        }
+      } catch (error) {
+        console.error('Error toggling favorite:', error);
+      }
     };
 
     return (
@@ -405,140 +485,139 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen relative">
+    <main className="flex flex-col relative">
 
+      <div className="flex-grow">
+        <motion.div
+          key="markets"
+          className="min-h-screen relative text-white z-10"
+        >
+          <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+          {/* Markets Background */}
+          <div className="fixed inset-0 z-0"></div>
 
-      <motion.div
-        key="markets"
-        className="min-h-screen relative text-white z-10"
-      >
-        <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
-        {/* Markets Background */}
-        <div className="fixed inset-0 z-0"></div>
+          {/* Markets Content */}
+          <div className="relative z-10 pt-8 px-4 max-w-7xl mx-auto pb-12">
 
-        {/* Markets Content */}
-        <div className="relative z-10 pt-8 px-4 max-w-7xl mx-auto pb-12">
+            {/* Sort Options */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="relative mb-8"
+            >
+              <div className="flex items-center gap-4">
+                <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
+                  {selectedCategory === 'FAVORITES' ? 'My Favorites' :
+                    selectedCategory === 'ALL' ? 'All Markets' :
+                      selectedCategory === 'NEW' ? 'New Markets' :
+                        selectedCategory === 'TRENDING' ? 'Trending Markets' :
+                          `${selectedCategory} Markets`}
+                  <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
+                </h2>
+              </div>
 
-          {/* Sort Options */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="relative mb-8"
-          >
-            <div className="flex items-center gap-4">
-              <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
-                {selectedCategory === 'FAVORITES' ? 'My Favorites' :
-                  selectedCategory === 'ALL' ? 'All Markets' :
-                    selectedCategory === 'NEW' ? 'New Markets' :
-                      selectedCategory === 'TRENDING' ? 'Trending Markets' :
-                        `${selectedCategory} Markets`}
-                <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
-              </h2>
-            </div>
-
-            {/* Filters - Floating Right */}
-            <div className="absolute right-0 top-0 flex items-center gap-3">
-              {/* Time Horizon Filter */}
-              <div className="flex bg-white/5 rounded-lg border border-white/10 p-1">
-                {[
-                  { key: 'all', label: 'All' },
-                  { key: '1d', label: '1D' },
-                  { key: '1w', label: '1W' },
-                  { key: '1m', label: '1M' }
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
-                    className={`px-2 py-1 text-xs font-medium rounded transition-all ${
-                      timeHorizon === option.key
+              {/* Filters - Floating Right */}
+              <div className="absolute right-0 top-0 flex items-center gap-3">
+                {/* Time Horizon Filter */}
+                <div className="flex bg-white/5 rounded-lg border border-white/10 p-1">
+                  {[
+                    { key: 'all', label: 'All' },
+                    { key: '1d', label: '1D' },
+                    { key: '1w', label: '1W' },
+                    { key: '1m', label: '1M' }
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
+                      className={`px-2 py-1 text-xs font-medium rounded transition-all ${timeHorizon === option.key
                         ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30'
                         : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sort Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                  className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                  {sortBy === 'newest' ? 'Newest' :
-                   sortBy === 'volume_high' ? 'Volume ↑' :
-                   sortBy === 'volume_low' ? 'Volume ↓' :
-                   sortBy === 'liquidity_high' ? 'Liquidity ↑' :
-                   sortBy === 'ending_soon' ? 'Ending Soon' : 'Newest'}
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {sortDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-40 material-card rounded-lg shadow-xl z-10 overflow-hidden">
-                    {[
-                      { key: 'newest', label: 'Newest' },
-                      { key: 'volume_high', label: 'Volume (High)' },
-                      { key: 'volume_low', label: 'Volume (Low)' },
-                      { key: 'liquidity_high', label: 'Liquidity (High)' },
-                      { key: 'ending_soon', label: 'Ending Soon' }
-                    ].map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => {
-                          setSortBy(option.key as typeof sortBy);
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option.key
-                          ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
-                          : 'text-gray-300 hover:bg-white/5'
-                          }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
-            {activeEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
-          </div>
-
-          {/* Ended Markets Section */}
-          {
-            endedEvents.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
-                  Ended Markets
-                  <div className="h-px bg-gray-800 flex-1" />
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  {endedEvents.map((event) => (
-                    <EventCard key={event.id} event={event} isEnded={true} />
+                        }`}
+                    >
+                      {option.label}
+                    </button>
                   ))}
                 </div>
-              </motion.div>
-            )
-          }
-        </div >
 
-        {/* Footer */}
-        <Footer />
-      </motion.div >
+                {/* Sort Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                    className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                    </svg>
+                    {sortBy === 'newest' ? 'Newest' :
+                      sortBy === 'volume_high' ? 'Volume ↑' :
+                        sortBy === 'volume_low' ? 'Volume ↓' :
+                          sortBy === 'liquidity_high' ? 'Liquidity ↑' :
+                            sortBy === 'ending_soon' ? 'Ending Soon' : 'Newest'}
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {sortDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-40 material-card rounded-lg shadow-xl z-10 overflow-hidden">
+                      {[
+                        { key: 'newest', label: 'Newest' },
+                        { key: 'volume_high', label: 'Volume (High)' },
+                        { key: 'volume_low', label: 'Volume (Low)' },
+                        { key: 'liquidity_high', label: 'Liquidity (High)' },
+                        { key: 'ending_soon', label: 'Ending Soon' }
+                      ].map((option) => (
+                        <button
+                          key={option.key}
+                          onClick={() => {
+                            setSortBy(option.key as typeof sortBy);
+                            setSortDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option.key
+                            ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
+                            : 'text-gray-300 hover:bg-white/5'
+                            }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+              {activeEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </div>
+
+            {/* Ended Markets Section */}
+            {
+              endedEvents.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
+                    Ended Markets
+                    <div className="h-px bg-gray-800 flex-1" />
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    {endedEvents.map((event) => (
+                      <EventCard key={event.id} event={event} isEnded={true} />
+                    ))}
+                  </div>
+                </motion.div>
+              )
+            }
+          </div >
+        </motion.div >
+      </div>
+
+      <Footer />
 
       {/* Trading Panel Modal */}
       {selectedEvent && (
@@ -547,8 +626,6 @@ export default function Home() {
           onClose={() => setTradingModalOpen(false)}
           eventId={selectedEvent.id}
           eventTitle={selectedEvent.title}
-          yesPrice={selectedEvent.yesOdds ? (selectedEvent.yesOdds > 1 ? selectedEvent.yesOdds / 100 : selectedEvent.yesOdds) : 0.5}
-          noPrice={selectedEvent.noOdds ? (selectedEvent.noOdds > 1 ? selectedEvent.noOdds / 100 : selectedEvent.noOdds) : 0.5}
           creationDate={selectedEvent.createdAt}
           resolutionDate={selectedEvent.resolutionDate}
           preselectedOption={preselectedOption}

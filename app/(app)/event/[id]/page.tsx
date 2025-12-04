@@ -45,21 +45,17 @@ export default function EventPage() {
     const params = useParams();
     const router = useRouter();
     const eventId = params.id as string;
-    const [selectedCategory, setSelectedCategory] = useState('ALL');
     const [liveEvent, setLiveEvent] = useState<any>(null);
-
-    const handleCategoryChange = (categoryId: string) => {
-        setSelectedCategory(categoryId);
-        // Save scroll position
-        sessionStorage.setItem('scrollPos', window.scrollY.toString());
-        // Navigate to home with category filter
-        router.push(`/?category=${categoryId}#markets`);
-    };
+    const [selectedCategory, setSelectedCategory] = useState('ALL');
 
     const handleTrade = () => {
         // Trading panel will handle the API call
         // WebSocket will automatically update odds in real-time
         // No manual refetch needed!
+    };
+
+    const handleCategoryChange = (category: string) => {
+        router.push(`/?category=${category}`);
     };
 
     // Fetch event from database
@@ -78,6 +74,25 @@ export default function EventPage() {
             setLiveEvent(event);
         }
     }, [event]);
+
+    // Initialize selectedCategory from storage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            let saved = null;
+            try {
+                saved = localStorage.getItem('selectedCategory');
+            } catch (e) {
+                try {
+                    saved = sessionStorage.getItem('selectedCategory');
+                } catch (e2) {
+                    // Storage not available
+                }
+            }
+            if (saved) {
+                setSelectedCategory(saved);
+            }
+        }
+    }, []);
 
     // Real-time updates via WebSocket
     useEffect(() => {
@@ -107,7 +122,7 @@ export default function EventPage() {
     if (isLoading || !liveEvent) {
         return (
             <main className="min-h-screen text-white relative overflow-hidden">
-                <Navbar />
+                <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
                 <div className="flex items-center justify-center min-h-screen">
                     <div className="text-center">
                         <div className="w-16 h-16 border-4 border-[#bb86fc] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -193,18 +208,22 @@ export default function EventPage() {
                                             resolutionDate={liveEvent.resolutionDate}
                                         />
 
-                                        {/* Chart Section */}
-                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
-                                            <div className="h-[500px] w-full">
-                                                <NewPolymarketChart
-                                                    eventId={eventId.toString()}
-                                                    eventType={liveEvent.type}
-                                                    outcomes={liveEvent.outcomes || []}
-                                                    liveOutcomes={liveEvent.outcomes || []}
-                                                    currentYesPrice={liveEvent.yesOdds}
-                                                />
-                                            </div>
-                                        </div>
+                                        {(liveEvent.type === 'BINARY' || liveEvent.type === 'MULTIPLE') && (
+                                            <>
+                                                {/* Chart Section */}
+                                                <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                                    <div className="h-[500px] w-full">
+                                                        <NewPolymarketChart
+                                                            eventId={eventId.toString()}
+                                                            eventType={liveEvent.type}
+                                                            outcomes={liveEvent.outcomes || []}
+                                                            liveOutcomes={liveEvent.outcomes || []}
+                                                            currentYesPrice={liveEvent.yesOdds}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
 
                                         {/* Order Book */}
                                         <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-4 shadow-2xl h-[400px] flex flex-col">
@@ -237,8 +256,6 @@ export default function EventPage() {
                                             />
                                         ) : (
                                             <TradingPanel
-                                                yesPrice={liveEvent.yesOdds}
-                                                noPrice={liveEvent.noOdds}
                                                 creationDate={liveEvent.createdAt || liveEvent.creationDate}
                                                 resolutionDate={liveEvent.resolutionDate}
                                                 onTrade={handleTrade}

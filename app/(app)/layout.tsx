@@ -25,15 +25,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={outfit.variable} suppressHydrationWarning>
-      <body suppressHydrationWarning>
-        <Providers>
-          <Sparks id="tsparticlesfullpage" background="transparent" minSize={0.6} maxSize={1.4} particleDensity={100} className="w-full h-full" particleColor="#FFFFFF" />
-          {children}
-        </Providers>
-        <Analytics />
-        <SpeedInsights />
-      </body>
-    </html>
+    <>
+      <Providers>
+        <Sparks id="tsparticlesfullpage" background="transparent" minSize={0.6} maxSize={1.4} particleDensity={100} className="w-full h-full" particleColor="#FFFFFF" />
+        {children}
+      </Providers>
+      <Analytics />
+      <SpeedInsights />
+    </>
   );
 }

@@ -40,6 +40,7 @@ model User {
   depositAddresses DepositAddress[]
   deposits         Deposit[]
   withdrawals      Withdrawal[]
+  favorites        UserFavorite[]
 
   @@index([address])
 }
@@ -70,6 +71,7 @@ model Event {
   outcomes           Outcome[]
   marketActivity     MarketActivity[]
   orders             Order[]
+  favorites          UserFavorite[]
   creator            User                     @relation(fields: [creatorId], references: [id])
 
   @@index([status, createdAt])
@@ -305,4 +307,18 @@ model Withdrawal {
 
   @@index([userId])
   @@index([status])
+}
+
+model UserFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
 }
