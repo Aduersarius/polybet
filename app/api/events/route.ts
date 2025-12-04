@@ -10,6 +10,8 @@ export async function GET(request: Request) {
     const startTime = Date.now();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
+    const timeHorizon = searchParams.get('timeHorizon') || 'all'; // 'all', '1d', '1w', '1m'
+    const sortBy = searchParams.get('sortBy') || 'newest'; // 'newest', 'volume_high', 'volume_low', 'liquidity_high', 'ending_soon'
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Cap at 100
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -17,16 +19,42 @@ export async function GET(request: Request) {
 
     try {
         const { getOrSet } = await import('@/lib/cache');
-        const cacheKey = category
-            ? `all:${category}:${limit}:${offset}`
-            : `all:${limit}:${offset}`;
+        const cacheKey = `${category || 'all'}:${timeHorizon}:${sortBy}:${limit}:${offset}`;
 
         // Use Redis caching with 600s TTL (10 minutes)
         const result = await getOrSet(
             cacheKey,
             async () => {
                 const { prisma } = await import('@/lib/prisma');
-                const where = category ? { categories: { has: category }, isHidden: false } : { isHidden: false };
+                const { categorizeEvent, getAllCategories } = await import('@/lib/category-filters');
+
+                // Build where clause
+                let where: any = { isHidden: false, status: 'ACTIVE' };
+
+                // Category filtering
+                if (category && category !== 'ALL') {
+                    if (getAllCategories().includes(category)) {
+                        // Use keyword-based filtering for our defined categories
+                        where.OR = [
+                            { categories: { has: category } }, // Legacy category field
+                            // We'll filter by keywords in JavaScript after fetching
+                        ];
+                    } else {
+                        // Legacy category filtering
+                        where.categories = { has: category };
+                    }
+                }
+
+                // Time horizon filtering
+                const now = new Date();
+                if (timeHorizon === '1d') {
+                    where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 24 * 60 * 60 * 1000) };
+                } else if (timeHorizon === '1w') {
+                    where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) };
+                } else if (timeHorizon === '1m') {
+                    where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) };
+                }
+                // 'all' doesn't add any time filtering
 
                 // Use a single transaction to reduce connection usage
                 const result = await prisma.$transaction(async (tx) => {
@@ -38,16 +66,26 @@ export async function GET(request: Request) {
                         }
                     });
 
+                    // Build orderBy based on sortBy parameter
+                    let orderBy: any = { createdAt: 'desc' }; // default
+                    if (sortBy === 'newest') {
+                        orderBy = { createdAt: 'desc' };
+                    } else if (sortBy === 'ending_soon') {
+                        orderBy = { resolutionDate: 'asc' };
+                    }
+                    // For volume and liquidity sorting, we'll sort in JavaScript after calculating stats
+
                     // Get events with bets
                     const events = await tx.event.findMany({
                         where: {
                             ...where,
                             status: 'ACTIVE'
                         },
-                        orderBy: { createdAt: 'desc' },
+                        orderBy,
                         select: {
                             id: true,
                             title: true,
+                            description: true,
                             categories: true,
                             resolutionDate: true,
                             imageUrl: true,
@@ -61,14 +99,15 @@ export async function GET(request: Request) {
                                     id: true,
                                     name: true,
                                     probability: true,
-                                    color: true
+                                    color: true,
+                                    liquidity: true
                                 },
                                 orderBy: {
                                     probability: 'desc'
                                 }
                             },
                         },
-                        take: limit,
+                        take: limit * 2, // Fetch more to allow for keyword filtering
                         skip: offset,
                     });
 
@@ -94,10 +133,19 @@ export async function GET(request: Request) {
                     console.warn('Braintrust logging failed:', logError);
                 }
 
-                const eventsWithStats = events.map(event => {
+                // Process events with stats and filtering
+                let eventsWithStats = events.map(event => {
                     const activities = (event as any).marketActivity || [];
                     const volume = activities.reduce((sum: number, activity: any) => sum + activity.amount, 0);
                     const betCount = activities.length;
+
+                    // Calculate liquidity (total tokens in the market)
+                    let liquidity = 0;
+                    if (event.type === 'MULTIPLE') {
+                        liquidity = event.outcomes?.reduce((sum: number, outcome: any) => sum + (outcome.liquidity || 0), 0) || 0;
+                    } else {
+                        liquidity = (event.qYes || 0) + (event.qNo || 0);
+                    }
 
                     // Use pre-calculated AMM state from the Event model
                     let yesOdds = 0.5;
@@ -129,10 +177,31 @@ export async function GET(request: Request) {
                         ...eventData,
                         volume,
                         betCount,
+                        liquidity,
                         yesOdds,
                         noOdds
                     };
                 });
+
+                // Apply keyword-based category filtering if needed
+                if (category && getAllCategories().includes(category)) {
+                    eventsWithStats = eventsWithStats.filter(event => {
+                        const detectedCategories = categorizeEvent(event.title, event.description || '');
+                        return detectedCategories.includes(category);
+                    });
+                }
+
+                // Apply volume/liquidity sorting
+                if (sortBy === 'volume_high') {
+                    eventsWithStats.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+                } else if (sortBy === 'volume_low') {
+                    eventsWithStats.sort((a, b) => (a.volume || 0) - (b.volume || 0));
+                } else if (sortBy === 'liquidity_high') {
+                    eventsWithStats.sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
+                }
+
+                // Apply limit after filtering and sorting
+                eventsWithStats = eventsWithStats.slice(0, limit);
 
                 return {
                     data: eventsWithStats,

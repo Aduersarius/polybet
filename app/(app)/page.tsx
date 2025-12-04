@@ -32,7 +32,8 @@ interface DbEvent {
 
 export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [sortBy, setSortBy] = useState<'volume' | 'ending' | 'newest'>('volume');
+  const [timeHorizon, setTimeHorizon] = useState<'all' | '1d' | '1w' | '1m'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'volume_high' | 'volume_low' | 'liquidity_high' | 'ending_soon'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
@@ -43,9 +44,15 @@ export default function Home() {
 
   // Fetch events from database
   const { data: eventsData, isLoading, error } = useQuery({
-    queryKey: ['events'],
+    queryKey: ['events', selectedCategory, timeHorizon, sortBy],
     queryFn: async () => {
-      const res = await fetch('/api/events');
+      const params = new URLSearchParams({
+        category: selectedCategory,
+        timeHorizon,
+        sortBy,
+        limit: '50' // Fetch more for better filtering
+      });
+      const res = await fetch(`/api/events?${params}`);
       if (!res.ok) throw new Error('Failed to fetch events');
       const data = await res.json();
       // Handle both array (legacy) and paginated response (new)
@@ -98,23 +105,13 @@ export default function Home() {
   const { activeEvents, endedEvents } = useMemo(() => {
     let filtered = events;
 
-    // Filter by category
-    if (selectedCategory === 'ALL') {
-      filtered = events;
-    } else if (selectedCategory === 'TRENDING') {
-      // Show events with most activity (for now, just show all sorted by creation)
-      filtered = events;
-    } else if (selectedCategory === 'NEW') {
-      // Show newest events
-      filtered = events;
-    } else if (selectedCategory === 'FAVORITES') {
+    // Client-side filters that can't be done on API
+    if (selectedCategory === 'FAVORITES') {
       const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
       filtered = events.filter((e: DbEvent) => favorites.includes(e.id));
-    } else {
-      filtered = events.filter((e: DbEvent) => (e as any).categories && (e as any).categories.includes(selectedCategory));
     }
 
-    // Apply search filter
+    // Apply search filter (client-side for now)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((e: DbEvent) =>
@@ -123,21 +120,13 @@ export default function Home() {
       );
     }
 
-    const sorted = filtered.sort((a: DbEvent, b: DbEvent) => {
-      if (selectedCategory === 'NEW') {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-      if (sortBy === 'volume') return 0; // Volume not available yet
-      if (sortBy === 'ending') return new Date(a.resolutionDate).getTime() - new Date(b.resolutionDate).getTime();
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); // newest
-    });
-
+    // API already handles category, time horizon, and sorting
     const now = new Date();
     return {
-      activeEvents: sorted.filter((e: DbEvent) => new Date(e.resolutionDate) > now),
-      endedEvents: sorted.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
+      activeEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) > now),
+      endedEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
     };
-  }, [selectedCategory, sortBy, searchQuery, events]);
+  }, [selectedCategory, searchQuery, events]);
 
   const getTimeRemaining = (endDate: Date) => {
     const now = new Date();
@@ -448,39 +437,74 @@ export default function Home() {
               </h2>
             </div>
 
-            {/* Sort Dropdown - Floating Right */}
-            <div className="absolute right-0 top-0">
-              <button
-                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                </svg>
-                {sortBy === 'volume' ? 'Volume' : sortBy === 'ending' ? 'Ending' : 'Newest'}
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {sortDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-32 material-card rounded-lg shadow-xl z-10 overflow-hidden">
-                  {['volume', 'ending', 'newest'].map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => {
-                        setSortBy(option as 'volume' | 'ending' | 'newest');
-                        setSortDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option
-                        ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
-                        : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                    >
-                      {option === 'volume' ? 'Volume' : option === 'ending' ? 'Ending' : 'Newest'}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Filters - Floating Right */}
+            <div className="absolute right-0 top-0 flex items-center gap-3">
+              {/* Time Horizon Filter */}
+              <div className="flex bg-white/5 rounded-lg border border-white/10 p-1">
+                {[
+                  { key: 'all', label: 'All' },
+                  { key: '1d', label: '1D' },
+                  { key: '1w', label: '1W' },
+                  { key: '1m', label: '1M' }
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
+                    className={`px-2 py-1 text-xs font-medium rounded transition-all ${
+                      timeHorizon === option.key
+                        ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30'
+                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sort Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                  className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  </svg>
+                  {sortBy === 'newest' ? 'Newest' :
+                   sortBy === 'volume_high' ? 'Volume ↑' :
+                   sortBy === 'volume_low' ? 'Volume ↓' :
+                   sortBy === 'liquidity_high' ? 'Liquidity ↑' :
+                   sortBy === 'ending_soon' ? 'Ending Soon' : 'Newest'}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {sortDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-40 material-card rounded-lg shadow-xl z-10 overflow-hidden">
+                    {[
+                      { key: 'newest', label: 'Newest' },
+                      { key: 'volume_high', label: 'Volume (High)' },
+                      { key: 'volume_low', label: 'Volume (Low)' },
+                      { key: 'liquidity_high', label: 'Liquidity (High)' },
+                      { key: 'ending_soon', label: 'Ending Soon' }
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        onClick={() => {
+                          setSortBy(option.key as typeof sortBy);
+                          setSortDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option.key
+                          ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
+                          : 'text-gray-300 hover:bg-white/5'
+                          }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
 
