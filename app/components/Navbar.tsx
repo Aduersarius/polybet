@@ -17,16 +17,12 @@ const categories = [
     { id: 'ALL', label: 'All' },
     { id: 'TRENDING', label: 'Trending' },
     { id: 'NEW', label: 'New' },
-    { id: 'CRYPTO', label: 'Crypto' },
-    { id: 'SPORTS', label: 'Sports' },
-    { id: 'POLITICS', label: 'Politics' },
-    { id: 'FINANCE', label: 'Finance' },
-    { id: 'TECH', label: 'Tech' },
-    { id: 'CULTURE', label: 'Culture' },
-    { id: 'WORLD', label: 'World' },
-    { id: 'ECONOMY', label: 'Economy' },
-    { id: 'ELECTIONS', label: 'Elections' },
-    { id: 'SCIENCE', label: 'Science' },
+    { id: 'Crypto', label: 'Crypto' },
+    { id: 'Politics', label: 'Politics' },
+    { id: 'Sports', label: 'Sports' },
+    { id: 'Business', label: 'Business' },
+    { id: 'Science', label: 'Science' },
+    { id: 'Pop Culture', label: 'Pop Culture' },
 ];
 
 interface NavbarProps {
