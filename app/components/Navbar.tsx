@@ -11,7 +11,7 @@ import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
 import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
-import { WithdrawModal } from '@/components/wallet/WithdrawModal';
+import { PositionsDropdown } from './PositionsDropdown';
 
 const categories = [
     { id: 'ALL', label: 'All' },
@@ -43,7 +43,6 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
     const [showDepositModal, setShowDepositModal] = useState(false);
-    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
     const [balance, setBalance] = useState<number>(0);
     const { data: session } = useSession();
 
@@ -106,13 +105,7 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         <Wallet className="w-4 h-4" />
                                         Deposit
                                     </button>
-                                    <button
-                                        onClick={() => setShowWithdrawModal(true)}
-                                        className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-sm font-medium transition-colors border border-blue-500/20"
-                                    >
-                                        <Wallet className="w-4 h-4" />
-                                        Withdraw
-                                    </button>
+                                    <PositionsDropdown />
                                 </>
                             )}
 
@@ -297,16 +290,6 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 isOpen={showDepositModal}
                 onClose={() => setShowDepositModal(false)}
                 onBalanceUpdate={() => {
-                    // Refresh balance
-                    fetch('/api/balance')
-                        .then(res => res.json())
-                        .then(data => setBalance(data.balance));
-                }}
-            />
-            < WithdrawModal
-                isOpen={showWithdrawModal}
-                onClose={() => setShowWithdrawModal(false)}
-                onSuccess={() => {
                     // Refresh balance
                     fetch('/api/balance')
                         .then(res => res.json())

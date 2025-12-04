@@ -132,6 +132,19 @@ export async function POST(request: Request) {
             // Publish to Redis for WebSocket broadcasting
             await redis.publish('hybrid-trades', JSON.stringify(updatePayload));
 
+            // Publish user-specific update
+            await redis.publish('user-updates', JSON.stringify({
+                userId: sessionUserId,
+                type: 'POSITION_UPDATE',
+                payload: {
+                    eventId,
+                    timestamp: Date.now(),
+                    side,
+                    amount: result.totalFilled,
+                    price: result.averagePrice
+                }
+            }));
+
             // Invalidate Caches
             const cacheKey = outcomeId ? `orderbook:${eventId}:${outcomeId}` : `orderbook:${eventId}:${option}`;
             await Promise.all([

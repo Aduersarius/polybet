@@ -176,9 +176,9 @@ export function AdminStatistics() {
             new Date(u.createdAt) < thirtyDaysAgo && (u._count.bets > 0 || u._count.createdEvents > 0)
         ).length;
 
-        const retentionRate1d = Math.round((dau / mau) * 100); // Simplified 1-day retention
-        const retentionRate7d = Math.round((wau / mau) * 100); // Simplified 7-day retention
-        const retentionRate30d = retainedUsers > 0 ? Math.round((retainedUsers / (totalUsers - newUsersThisMonth)) * 100) : 0;
+        const retentionRate1d = mau > 0 ? Math.round((dau / mau) * 100) : 0; // Simplified 1-day retention
+        const retentionRate7d = mau > 0 ? Math.round((wau / mau) * 100) : 0; // Simplified 7-day retention
+        const retentionRate30d = retainedUsers > 0 && (totalUsers - newUsersThisMonth) > 0 ? Math.round((retainedUsers / (totalUsers - newUsersThisMonth)) * 100) : 0;
 
         // Revenue metrics (mock data since we don't have actual revenue)
         const payingUsers = usersWithBets; // Assume users with bets are paying users
@@ -193,7 +193,7 @@ export function AdminStatistics() {
             e.status === 'RESOLVED' && e.resolutionDate && new Date(e.resolutionDate) >= thirtyDaysAgo
         ).length;
 
-        const churnRate = Math.round(((totalUsers - activeUsers) / totalUsers) * 100);
+        const churnRate = totalUsers > 0 ? Math.round(((totalUsers - activeUsers) / totalUsers) * 100) : 0;
         const growthRate = totalUsers > 0 ? Math.round((recentUsers / totalUsers) * 100) : 0;
 
         // Conversion metrics
@@ -254,13 +254,13 @@ export function AdminStatistics() {
             eventTypes: Object.entries(eventTypes).map(([name, count]) => ({
                 name: name === 'BINARY' ? 'Binary' : 'Multiple Choice',
                 count,
-                percentage: Math.round((count / totalEvents) * 100)
+                percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0
             })),
             // Product health metrics
             productHealth: {
-                userRetention: Math.round((activeUsers / totalUsers) * 100),
-                marketLiquidity: Math.round((totalEventBets / totalEvents) * 100) / 100,
-                creatorRatio: Math.round((usersWithEvents / totalUsers) * 100),
+                userRetention: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0,
+                marketLiquidity: totalEvents > 0 ? Math.round((totalEventBets / totalEvents) * 100) / 100 : 0,
+                creatorRatio: totalUsers > 0 ? Math.round((usersWithEvents / totalUsers) * 100) : 0,
                 eventSuccessRate: totalEvents > 0 ? Math.round((resolvedEvents / totalEvents) * 100) : 0,
                 recentGrowth: {
                     users: recentUsers,
@@ -761,7 +761,7 @@ export function AdminStatistics() {
                                 data={[
                                     { name: 'Active Bettors', value: stats.users.betEngagementRate, color: '#10b981' },
                                     { name: 'Creators', value: stats.users.creatorEngagementRate, color: '#f59e0b' },
-                                    { name: 'Power Users', value: Math.round((stats.users.powerUsers / stats.users.total) * 100), color: '#8b5cf6' },
+                                    { name: 'Power Users', value: stats.users.total > 0 ? Math.round((stats.users.powerUsers / stats.users.total) * 100) : 0, color: '#8b5cf6' },
                                     { name: 'Inactive', value: 100 - stats.users.betEngagementRate, color: '#6b7280' },
                                 ]}
                                 cx="50%"
@@ -951,7 +951,7 @@ export function AdminStatistics() {
                                             <div
                                                 className="bg-blue-500 h-2 rounded-full"
                                                 style={{
-                                                    width: `${(cat.count / Math.max(...stats.categories.map(c => c.count))) * 100}%`
+                                                    width: `${Math.max(...stats.categories.map(c => c.count)) > 0 ? (cat.count / Math.max(...stats.categories.map(c => c.count))) * 100 : 0}%`
                                                 }}
                                             ></div>
                                         </div>

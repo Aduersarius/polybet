@@ -30,28 +30,51 @@ export async function GET(request: NextRequest) {
                     select: {
                         title: true,
                         status: true,
-                        outcomes: balance.outcomeId ? {
-                            where: { id: balance.outcomeId },
-                            select: {
-                                name: true,
-                                probability: true
-                            }
-                        } : undefined
+                        type: true
                     }
                 }) as any;
 
                 if (!event) return null;
 
-                const outcomeName = event.outcomes?.[0]?.name ||
-                    (balance.tokenSymbol.startsWith('YES') ? 'YES' :
-                        balance.tokenSymbol.startsWith('NO') ? 'NO' : 'Unknown');
+                // Determine outcome name
+                let outcomeName = 'Unknown';
+                let currentPrice = 0.5;
+
+                if (balance.outcomeId) {
+                    // Multiple outcome event - fetch outcome directly
+                    const outcome = await prisma.outcome.findUnique({
+                        where: { id: balance.outcomeId },
+                        select: { name: true, probability: true }
+                    });
+                    if (outcome) {
+                        outcomeName = outcome.name;
+                        currentPrice = outcome.probability || 0.5;
+                    }
+                } else if (event.type === 'MULTIPLE' && balance.tokenSymbol) {
+                    // Try to find outcome by tokenSymbol (which might be the outcomeId)
+                    const outcome = await prisma.outcome.findUnique({
+                        where: { id: balance.tokenSymbol },
+                        select: { name: true, probability: true }
+                    });
+                    if (outcome) {
+                        outcomeName = outcome.name;
+                        currentPrice = outcome.probability || 0.5;
+                    }
+                } else {
+                    // Binary event - use tokenSymbol
+                    outcomeName = balance.tokenSymbol.startsWith('YES') ? 'YES' :
+                        balance.tokenSymbol.startsWith('NO') ? 'NO' : 'Unknown';
+                }
 
                 // Get user's bets for this event/outcome to calculate avg price
                 const bets = await (prisma as any).marketActivity.findMany({
                     where: {
                         userId,
                         eventId: balance.eventId!,
-                        option: outcomeName,
+                        OR: [
+                            { option: outcomeName },
+                            { outcomeId: balance.outcomeId }
+                        ],
                         type: { in: ['BET', 'TRADE'] }
                     },
                     select: {
@@ -63,7 +86,6 @@ export async function GET(request: NextRequest) {
                 const totalCost = bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
                 const totalShares = balance.amount;
                 const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
-                const currentPrice = event.outcomes?.[0]?.probability || 0.5; // TODO: Fetch binary prob if needed
                 const currentValue = totalShares * currentPrice;
                 const unrealizedPnL = currentValue - totalCost;
 

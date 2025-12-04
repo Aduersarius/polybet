@@ -398,6 +398,28 @@ async function generateBinaryHistoricalOdds(
         }
     }
 
+    // ALWAYS add current state from DB as the final point
+    // This ensures the chart ends at the same values as the legend/trading panel
+    const currentQYes = event.qYes || 0;
+    const currentQNo = event.qNo || 0;
+    const currentDiff = (currentQNo - currentQYes) / b;
+    const currentYesPrice = 1 / (1 + Math.exp(currentDiff));
+
+    const currentTimestamp = Math.floor(now.getTime() / 1000);
+    const lastBucketTimestamp = buckets.length > 0 ? buckets[buckets.length - 1].timestamp : 0;
+
+    // Only add if it's later than the last bucket
+    if (currentTimestamp > lastBucketTimestamp) {
+        buckets.push({
+            timestamp: currentTimestamp,
+            yesPrice: currentYesPrice,
+            volume: 0
+        });
+    } else if (buckets.length > 0) {
+        // Update the last bucket to have the current probability
+        buckets[buckets.length - 1].yesPrice = currentYesPrice;
+    }
+
     // Ensure data is sorted by timestamp (ascending)
     buckets.sort((a, b) => a.timestamp - b.timestamp);
 
@@ -601,29 +623,38 @@ async function generateMultipleHistoricalOdds(
         }
     }
 
-    // If no trades yet, return current state (calculate from DB liquidity)
-    if (buckets.length === 0) {
-        // Calculate current probabilities from DB liquidity values
-        const currentLiquidities = new Map<string, number>();
-        (event as any).outcomes.forEach((outcome: any) => {
-            currentLiquidities.set(outcome.id, outcome.liquidity || 0);
-        });
+    // ALWAYS add current state from DB as the final point
+    // This ensures the chart ends at the same values as the legend/trading panel
+    const currentLiquidities = new Map<string, number>();
+    (event as any).outcomes.forEach((outcome: any) => {
+        currentLiquidities.set(outcome.id, outcome.liquidity || 0);
+    });
 
-        const currentProbabilities = calculateMultipleLMSRProbabilities(currentLiquidities, b);
+    const currentProbabilities = calculateMultipleLMSRProbabilities(currentLiquidities, b);
 
-        const currentOutcomes = (event as any).outcomes.map((outcome: any) => ({
-            id: outcome.id,
-            name: outcome.name,
-            probability: currentProbabilities.get(outcome.id) || outcome.probability || (1 / (event as any).outcomes.length),
-            color: outcome.color || undefined
-        }));
+    const currentOutcomes = (event as any).outcomes.map((outcome: any) => ({
+        id: outcome.id,
+        name: outcome.name,
+        // Use DB probability directly if liquidity is 0 (fallback for initial state)
+        probability: currentProbabilities.get(outcome.id) || outcome.probability || (1 / (event as any).outcomes.length),
+        color: outcome.color || undefined
+    }));
 
+    const currentTimestamp = Math.floor(now.getTime() / 1000);
+    const lastBucketTimestamp = buckets.length > 0 ? buckets[buckets.length - 1].timestamp : 0;
+
+    // Only add if it's later than the last bucket
+    if (currentTimestamp > lastBucketTimestamp) {
         buckets.push({
-            timestamp: Math.floor(now.getTime() / 1000),
+            timestamp: currentTimestamp,
             yesPrice: currentOutcomes[0].probability,
             volume: 0,
             outcomes: currentOutcomes
         });
+    } else if (buckets.length > 0) {
+        // Update the last bucket to have the current probabilities
+        buckets[buckets.length - 1].outcomes = currentOutcomes;
+        buckets[buckets.length - 1].yesPrice = currentOutcomes[0].probability;
     }
 
     // Ensure data is sorted

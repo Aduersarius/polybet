@@ -13,7 +13,7 @@ interface AdminUser {
     isBanned: boolean;
     isAdmin: boolean;
     _count: {
-        bets: number;
+        marketActivity: number;
         createdEvents: number;
     };
     createdAt: string;
@@ -131,7 +131,7 @@ export function AdminUserList() {
                             <th className="px-4 py-3">User</th>
                             <th className="px-4 py-3">Email</th>
                             <th className="px-4 py-3">Events</th>
-                            <th className="px-4 py-3">Bets</th>
+                            <th className="px-4 py-3">Activity</th>
                             <th className="px-4 py-3">Joined</th>
                             <th className="px-4 py-3">Admin</th>
                             <th className="px-4 py-3">Status</th>
@@ -158,7 +158,7 @@ export function AdminUserList() {
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-blue-400">
-                                        {user._count.bets}
+                                        {user._count.marketActivity}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 text-xs">
@@ -255,8 +255,8 @@ export function AdminUserList() {
                                 <p className="text-white">{selectedUser._count.createdEvents}</p>
                             </div>
                             <div>
-                                <span className="text-gray-400">Total Bets:</span>
-                                <p className="text-white">{selectedUser._count.bets}</p>
+                                <span className="text-gray-400">Total Activity:</span>
+                                <p className="text-white">{selectedUser._count.marketActivity}</p>
                             </div>
                         </div>
                     </div>
