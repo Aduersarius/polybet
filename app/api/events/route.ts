@@ -38,7 +38,7 @@ export async function GET(request: Request) {
                         }
                     });
 
-                    // Get events with bets
+                    // Get events
                     const events = await tx.event.findMany({
                         where: {
                             ...where,
@@ -72,10 +72,37 @@ export async function GET(request: Request) {
                         skip: offset,
                     });
 
-                    return { events, totalCount };
+                    // Get aggregations for volume and betCount
+                    const eventIds = events.map(e => e.id);
+
+                    // Volume includes both BET and TRADE
+                    const volumeAggregations = await tx.marketActivity.groupBy({
+                        by: ['eventId'],
+                        where: {
+                            eventId: { in: eventIds },
+                            type: { in: ['BET', 'TRADE'] }
+                        },
+                        _sum: { amount: true }
+                    });
+
+                    // Bet count only includes BET
+                    const betCountAggregations = await tx.marketActivity.groupBy({
+                        by: ['eventId'],
+                        where: {
+                            eventId: { in: eventIds },
+                            type: 'BET'
+                        },
+                        _count: true
+                    });
+
+                    return { events, totalCount, volumeAggregations, betCountAggregations };
                 });
 
-                const { events, totalCount } = result;
+                const { events, totalCount, volumeAggregations, betCountAggregations } = result;
+
+                // Create maps of eventId to volume and betCount
+                const volumeMap = new Map(volumeAggregations.map(agg => [agg.eventId, agg._sum.amount || 0]));
+                const betCountMap = new Map(betCountAggregations.map(agg => [agg.eventId, agg._count]));
 
                 const queryTime = Date.now() - startTime;
 
@@ -95,9 +122,8 @@ export async function GET(request: Request) {
                 }
 
                 const eventsWithStats = events.map(event => {
-                    const activities = (event as any).marketActivity || [];
-                    const volume = activities.reduce((sum: number, activity: any) => sum + activity.amount, 0);
-                    const betCount = activities.length;
+                    const volume = volumeMap.get(event.id) || 0;
+                    const betCount = betCountMap.get(event.id) || 0;
 
                     // Use pre-calculated AMM state from the Event model
                     let yesOdds = 0.5;

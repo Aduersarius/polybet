@@ -269,7 +269,7 @@ async function generateBinaryHistoricalOdds(
     const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
-            type: 'TRADE'
+            type: { in: ['BET', 'TRADE'] }
         },
         orderBy: { createdAt: 'asc' }
     });
@@ -283,9 +283,10 @@ async function generateBinaryHistoricalOdds(
     const stateHistory: Array<{ time: Date; qYes: number; qNo: number; yesPrice: number; volume: number }> = [];
 
     for (const activity of allActivities) {
-        const tokens = calculateTokensForCost(qYes, qNo, activity.amount, activity.option as 'YES' | 'NO', b);
+        const normalizedOption = activity.option.toUpperCase() as 'YES' | 'NO';
+        const tokens = calculateTokensForCost(qYes, qNo, activity.amount, normalizedOption, b);
 
-        if (activity.option === 'YES') qYes += tokens;
+        if (normalizedOption === 'YES') qYes += tokens;
         else qNo += tokens;
 
         const diff = (qNo - qYes) / b;
@@ -471,7 +472,7 @@ async function generateMultipleHistoricalOdds(
     const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
-            type: 'TRADE'
+            type: { in: ['BET', 'TRADE'] }
         },
         orderBy: { createdAt: 'asc' }
     });
