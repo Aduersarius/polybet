@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 interface Outcome {
     id: string;
@@ -34,6 +34,19 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
 
+    // Fetch user balances for all outcomes in this event
+    const { data: userBalances } = useQuery({
+        queryKey: ['user-balances', eventId],
+        queryFn: async () => {
+            const response = await fetch('/api/balance');
+            if (!response.ok) return [];
+            const balances = await response.json();
+            // Filter balances for this event's outcomes
+            return balances.filter((b: any) => b.eventId === eventId && b.tokenSymbol !== 'TUSD');
+        },
+        enabled: !!eventId && selectedTab === 'sell'
+    });
+
     // Risk management: maximum bet amount
     const MAX_BET_AMOUNT = 10000; // $10,000 max bet
 
@@ -61,10 +74,20 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
     const currentOutcomes = effectiveOutcomes;
     const currentSelectedOutcome = currentOutcomes.find(o => o.id === selectedOutcomeId);
 
+    // Get user's balance for the selected outcome
+    const selectedOutcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === selectedOutcomeId)?.amount || 0;
+
     const currentAmount = parseFloat(amount) || 0;
     const currentPrice = orderType === 'limit' && price ? parseFloat(price) : (currentSelectedOutcome?.price || 0);
-    const potentialPayout = currentAmount * (1 / currentPrice);
-    const potentialProfit = potentialPayout - currentAmount;
+
+    // For buy: payout = shares received
+    // For sell: payout = USD received
+    const potentialPayout = selectedTab === 'buy'
+        ? currentAmount * (1 / currentPrice) // Shares received
+        : currentAmount * currentPrice; // USD received
+
+    // Profit calculation (only meaningful for buy orders)
+    const potentialProfit = selectedTab === 'buy' ? potentialPayout - currentAmount : 0;
 
     const tradeMutation = useMutation({
         mutationFn: async () => {
@@ -164,43 +187,60 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                 <div className="space-y-2">
                     <div className="text-sm text-gray-400">Select Outcome</div>
                     <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                        {currentOutcomes.map((outcome) => (
-                            <button
-                                key={outcome.id}
-                                onClick={() => setSelectedOutcomeId(outcome.id)}
-                                className={`flex items-center justify-between p-3 rounded-lg border transition-all ${selectedOutcomeId === outcome.id
-                                    ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
-                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    {outcome.color && (
-                                        <div
-                                            className="w-3 h-3 rounded-full"
-                                            style={{ backgroundColor: outcome.color }}
-                                        />
-                                    )}
-                                    <span className="font-medium">{outcome.name}</span>
-                                </div>
-                                <span className="text-xs opacity-80">{Math.round(outcome.probability * 100)}%</span>
-                            </button>
-                        ))}
+                        {currentOutcomes.map((outcome) => {
+                            const outcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === outcome.id)?.amount || 0;
+                            return (
+                                <button
+                                    key={outcome.id}
+                                    onClick={() => setSelectedOutcomeId(outcome.id)}
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${selectedOutcomeId === outcome.id
+                                        ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
+                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        {outcome.color && (
+                                            <div
+                                                className="w-3 h-3 rounded-full"
+                                                style={{ backgroundColor: outcome.color }}
+                                            />
+                                        )}
+                                        <div className="flex flex-col items-start">
+                                            <span className="font-medium">{outcome.name}</span>
+                                            {selectedTab === 'sell' && (
+                                                <span className="text-xs opacity-60">
+                                                    {outcomeBalance.toFixed(2)} shares owned
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <span className="text-xs opacity-80">{Math.round(outcome.probability * 100)}%</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                {/* Amount Input */}
+                {/* Amount/Shares Input */}
                 <div className="space-y-2">
                     <div className="flex justify-between text-sm text-gray-400">
-                        <span>Amount</span>
-                        <span className="text-white font-medium">${currentAmount.toFixed(2)}</span>
+                        <span>{selectedTab === 'buy' ? 'Amount' : 'Shares'}</span>
+                        <span className="text-white font-medium">
+                            {selectedTab === 'buy'
+                                ? `$${currentAmount.toFixed(2)}`
+                                : `${currentAmount.toFixed(2)} shares`
+                            }
+                        </span>
                     </div>
                     <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        {selectedTab === 'buy' && (
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        )}
                         <input
                             type="number"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium"
+                            className={`w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium`}
                             placeholder="0"
                         />
                     </div>
@@ -209,35 +249,66 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                     {currentAmount > 0 && currentSelectedOutcome && (
                         <div className="bg-white/5 rounded-lg p-3 border border-white/10">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-400">You will win:</span>
-                                <span className="text-white font-bold">${potentialPayout.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
-                                <span>Profit:</span>
-                                <span className={`font-medium ${potentialProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    ${potentialProfit.toFixed(2)}
+                                <span className="text-gray-400">
+                                    {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
+                                </span>
+                                <span className="text-white font-bold">
+                                    {selectedTab === 'buy'
+                                        ? `${potentialPayout.toFixed(2)} shares`
+                                        : `$${potentialPayout.toFixed(2)}`
+                                    }
                                 </span>
                             </div>
+                            {selectedTab === 'buy' && (
+                                <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                                    <span>If {currentSelectedOutcome.name} wins:</span>
+                                    <span className="font-medium text-green-400">
+                                        ${(potentialPayout * currentSelectedOutcome.odds).toFixed(2)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     <div className="flex gap-2">
-                        {['+1', '+20', '+100', 'Max'].map((val) => (
-                            <button
-                                key={val}
-                                onClick={() => {
-                                    if (val === 'Max') {
-                                        setAmount('1000');
-                                    } else {
-                                        const increment = parseFloat(val.replace('+', ''));
-                                        setAmount((parseFloat(amount) || 0 + increment).toString());
-                                    }
-                                }}
-                                className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
-                            >
-                                {val}
-                            </button>
-                        ))}
+                        {selectedTab === 'buy' ? (
+                            // Buy presets: USD amounts
+                            ['+1', '+20', '+100', 'Max'].map((val) => (
+                                <button
+                                    key={val}
+                                    onClick={() => {
+                                        if (val === 'Max') {
+                                            setAmount('1000');
+                                        } else {
+                                            const increment = parseFloat(val.replace('+', ''));
+                                            setAmount((parseFloat(amount) || 0 + increment).toString());
+                                        }
+                                    }}
+                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                >
+                                    {val}
+                                </button>
+                            ))
+                        ) : (
+                            // Sell presets: percentage of selected outcome's shares
+                            ['25%', '50%', 'ALL'].map((val) => (
+                                <button
+                                    key={val}
+                                    onClick={() => {
+                                        if (val === 'ALL') {
+                                            setAmount(selectedOutcomeBalance.toString());
+                                        } else {
+                                            const percentage = parseFloat(val.replace('%', '')) / 100;
+                                            setAmount((selectedOutcomeBalance * percentage).toString());
+                                        }
+                                    }}
+                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                    disabled={selectedOutcomeBalance === 0}
+                                >
+                                    {val}
+                                </button>
+                            ))
+                        )}
                     </div>
 
                     {/* Order Type Selection */}
@@ -345,11 +416,17 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                         ) : (
                             <>
                                 <p className="text-green-400 text-sm font-medium">
-                                    Trade successful! You bought {lastTrade.tokens.toFixed(2)} {currentSelectedOutcome?.name} tokens
+                                    Trade successful! You {selectedTab === 'buy' ? 'bought' : 'sold'} {lastTrade.tokens.toFixed(2)} {currentSelectedOutcome?.name} tokens
                                 </p>
-                                <p className="text-green-300 text-xs mt-1">
-                                    If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (currentSelectedOutcome ? currentSelectedOutcome.odds : 1)).toFixed(2)} total
-                                </p>
+                                {selectedTab === 'buy' ? (
+                                    <p className="text-green-300 text-xs mt-1">
+                                        If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (currentSelectedOutcome ? currentSelectedOutcome.odds : 1)).toFixed(2)} total
+                                    </p>
+                                ) : (
+                                    <p className="text-green-300 text-xs mt-1">
+                                        You received ${(lastTrade.tokens * lastTrade.price).toFixed(2)} USD
+                                    </p>
+                                )}
                             </>
                         )}
                     </motion.div>
