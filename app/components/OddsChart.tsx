@@ -107,6 +107,30 @@ export function NewPolymarketChart({
         fetchData();
     }, [eventId, period]);
 
+    // Real-time updates via WebSocket
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+        const isMultiple = eventType === 'MULTIPLE' && (liveOutcomes || outcomes) && (liveOutcomes || outcomes).length > 0;
+        const handler = (update: any) => {
+            if (update.eventId !== eventId) return;
+
+            setData(prev => {
+                const newDataPoint: DataPoint = {
+                    timestamp: update.timestamp,
+                    ...(isMultiple ? { outcomes: update.outcomes } : { yesPrice: update.yesPrice })
+                };
+
+                // Append new data point
+                return [...prev, newDataPoint];
+            });
+        };
+
+        socket.on(`odds-update-${eventId}`, handler);
+        return () => {
+            socket.off(`odds-update-${eventId}`, handler);
+        };
+    }, [eventId, eventType, liveOutcomes, outcomes]);
+
 
     // Use live outcomes if available, fallback to static outcomes
     const effectiveOutcomes = liveOutcomes || outcomes;
