@@ -11,12 +11,22 @@ export async function GET(
     try {
         const { address } = await params;
 
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
             where: { address },
             include: {
                 transactions: true
             }
         });
+
+        if (!user) {
+            // Try by ID
+            user = await prisma.user.findUnique({
+                where: { id: address },
+                include: {
+                    transactions: true
+                }
+            });
+        }
 
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });

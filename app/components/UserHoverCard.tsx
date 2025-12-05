@@ -1,10 +1,10 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface UserHoverCardProps {
     address: string;
@@ -26,7 +26,7 @@ interface UserStats {
 
 export function UserHoverCard({ address, children, className = '' }: UserHoverCardProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const [coords, setCoords] = useState<{ x: number; y: number; placement: 'top' | 'bottom' }>({ x: 0, y: 0, placement: 'top' });
+    const [coords, setCoords] = useState<{ x: number; y: number; placement: 'top' | 'bottom'; arrowX: number }>({ x: 0, y: 0, placement: 'top', arrowX: 150 });
     const triggerRef = useRef<HTMLDivElement>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [mounted, setMounted] = useState(false);
@@ -50,17 +50,27 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         if (triggerRef.current) {
             const rect = triggerRef.current.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const cardWidth = 300;
+            const triggerCenter = rect.left + rect.width / 2;
+
+            let left = triggerCenter - cardWidth / 2;
+
+            // Clamp to viewport with padding
+            if (left < 10) left = 10;
+            if (left + cardWidth > viewportWidth - 10) left = viewportWidth - cardWidth - 10;
+
+            const arrowX = triggerCenter - left;
+
             const viewportHeight = window.innerHeight;
             const spaceAbove = rect.top;
-            // const spaceBelow = viewportHeight - rect.bottom;
-
-            // Prefer top, but flip if not enough space (need ~200px)
             const showBelow = spaceAbove < 220;
 
             setCoords({
-                x: rect.left + rect.width / 2,
-                y: showBelow ? rect.bottom + 12 : rect.top - 12, // Increased gap slightly
-                placement: showBelow ? 'bottom' : 'top'
+                x: left,
+                y: showBelow ? rect.bottom + 12 : rect.top - 12,
+                placement: showBelow ? 'bottom' : 'top',
+                arrowX
             });
         }
         setIsOpen(true);
@@ -104,20 +114,17 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                             initial={{
                                 opacity: 0,
                                 scale: 0.95,
-                                x: "-50%",
-                                y: coords.placement === 'top' ? "-90%" : 10
+                                y: coords.placement === 'top' ? -10 : 10
                             }}
                             animate={{
                                 opacity: 1,
                                 scale: 1,
-                                x: "-50%",
                                 y: coords.placement === 'top' ? "-100%" : 0
                             }}
                             exit={{
                                 opacity: 0,
                                 scale: 0.95,
-                                x: "-50%",
-                                y: coords.placement === 'top' ? "-90%" : 10
+                                y: coords.placement === 'top' ? -10 : 10
                             }}
                             transition={{ duration: 0.2 }}
                             style={{
@@ -139,17 +146,12 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                                     <>
                                         {/* Header */}
                                         <div className="flex items-center gap-3 mb-4">
-                                            {user.avatarUrl ? (
-                                                <img
-                                                    src={user.avatarUrl}
-                                                    alt={user.username || 'User'}
-                                                    className="w-12 h-12 rounded-full object-cover border-2 border-white/10"
-                                                />
-                                            ) : (
-                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-lg font-bold text-white border-2 border-white/10">
+                                            <Avatar className="w-12 h-12 border-2 border-white/10">
+                                                <AvatarImage src={user.avatarUrl || undefined} />
+                                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg">
                                                     {(user.username?.[0] || address.slice(2, 3)).toUpperCase()}
-                                                </div>
-                                            )}
+                                                </AvatarFallback>
+                                            </Avatar>
                                             <div>
                                                 <h3 className="font-bold text-white text-lg leading-tight">
                                                     {user.username || formatAddress(address)}
@@ -191,7 +193,8 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
 
                             {/* Arrow */}
                             <div
-                                className={`absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1e293b] rotate-45 ${coords.placement === 'top'
+                                style={{ left: coords.arrowX }}
+                                className={`absolute -translate-x-1/2 w-3 h-3 bg-[#1e293b] rotate-45 ${coords.placement === 'top'
                                     ? 'bottom-[-6px] border-r border-b border-white/10'
                                     : 'top-[-6px] border-l border-t border-white/10'
                                     }`}

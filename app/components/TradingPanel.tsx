@@ -11,9 +11,10 @@ interface TradingPanelProps {
     creationDate?: string;
     resolutionDate?: string;
     onTrade?: (type: 'YES' | 'NO', amount: number) => void;
+    tradeIntent?: { side: 'buy' | 'sell', price: number, amount: number, outcomeId?: string } | null;
 }
 
-export function TradingPanel({ creationDate, resolutionDate, onTrade }: TradingPanelProps) {
+export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeIntent }: TradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
     // Mock user for dev
@@ -41,6 +42,19 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade }: TradingP
         enabled: selectedTab === 'sell',
         staleTime: 0,
     });
+
+    // Auto-fill from trade intent (Order Book click)
+    useEffect(() => {
+        if (tradeIntent) {
+            setSelectedTab(tradeIntent.side);
+            setOrderType('limit');
+            setPrice(tradeIntent.price.toFixed(2));
+            setAmount(tradeIntent.amount.toString());
+            if (tradeIntent.outcomeId === 'YES' || tradeIntent.outcomeId === 'NO') {
+                setSelectedOption(tradeIntent.outcomeId);
+            }
+        }
+    }, [tradeIntent]);
 
     // Fetch event data for initial odds calculation
     const { data: eventData } = useQuery({
@@ -90,12 +104,17 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade }: TradingP
 
     // Set default limit price to current market price
     useEffect(() => {
-        if (orderType === 'limit' && selectedOption === 'YES') {
-            setPrice(yesPrice.toFixed(2));
-        } else if (orderType === 'limit' && selectedOption === 'NO') {
-            setPrice(noPrice.toFixed(2));
+        if (orderType === 'limit') {
+            // Only set default if price is 0 or empty, to avoid overwriting user input or tradeIntent
+            if (!price || price === '0') {
+                if (selectedOption === 'YES') {
+                    setPrice(yesPrice.toFixed(2));
+                } else if (selectedOption === 'NO') {
+                    setPrice(noPrice.toFixed(2));
+                }
+            }
         }
-    }, [yesPrice, noPrice, orderType, selectedOption]);
+    }, [orderType, selectedOption, yesPrice, noPrice]); // Removed price dependency to avoid loop
 
     // Real-time odds updates via WebSocket
     useEffect(() => {

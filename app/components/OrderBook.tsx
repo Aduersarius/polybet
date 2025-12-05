@@ -14,9 +14,15 @@ interface OrderBookProps {
     selectedOption?: 'YES' | 'NO';
     outcomes?: Outcome[];
     eventType?: string;
+    onOrderSelect?: (intent: {
+        side: 'buy' | 'sell';
+        price: number;
+        amount: number;
+        outcomeId?: string; // For multiple
+    }) => void;
 }
 
-export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY' }: OrderBookProps) {
+export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', onOrderSelect }: OrderBookProps) {
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || 'YES');
     const [orderBook, setOrderBook] = useState<{ bids: Array<{ price: number, amount: number }>, asks: Array<{ price: number, amount: number }> }>({ bids: [], asks: [] });
 
@@ -119,23 +125,32 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
             <div className="flex-1 flex min-h-0 divide-x divide-white/5">
                 {/* Asks (Sell) */}
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className="px-3 py-2 border-b border-white/5 bg-red-500/[0.05] flex justify-between items-center">
-                        <span className="text-[10px] font-medium text-red-400">Asks</span>
+                    <div className="px-3 py-2 border-b border-white/5 bg-[#CF6679]/10 flex justify-between items-center">
+                        <span className="text-[10px] font-medium text-[#CF6679]">Asks</span>
                         <span className="text-[10px] text-gray-500">Price / Amt</span>
                     </div>
-                    <div className="flex-1 overflow-y-auto scrollbar-none space-y-[1px] p-1">
+                    <div className="flex-1 flex flex-col min-h-0 scrollbar-none space-y-[1px]">
                         <AnimatePresence initial={false}>
                             {orderBook.asks.map((ask, index) => (
-                                <div key={`ask-${index}`} className="relative group flex items-center justify-between px-2 py-1 rounded h-7">
+                                <div
+                                    key={`ask-${index}`}
+                                    className="relative group flex items-center justify-between px-2 py-1 rounded flex-1 cursor-pointer hover:bg-white/5 transition-colors"
+                                    onClick={() => onOrderSelect?.({
+                                        side: 'buy', // Buying safely takes an ask
+                                        price: ask.price,
+                                        amount: ask.amount,
+                                        outcomeId: selectedOutcomeId
+                                    })}
+                                >
                                     {/* Depth Bar */}
                                     <div
-                                        className="absolute right-0 top-0 bottom-0 bg-red-500/10 rounded-l transition-all duration-300"
+                                        className="absolute right-0 top-0 bottom-0 bg-[#CF6679]/15 rounded-l transition-all duration-300 pointer-events-none"
                                         style={{ width: `${(ask.amount / (maxAsk || 1)) * 100}%` }}
                                     />
-                                    <span className="relative z-10 font-mono text-xs text-red-400 font-medium">
+                                    <span className="relative z-10 font-mono text-xs text-[#CF6679] font-medium pointer-events-none">
                                         {(ask.price * 100).toFixed(1)}¢
                                     </span>
-                                    <span className="relative z-10 font-mono text-xs text-gray-400">
+                                    <span className="relative z-10 font-mono text-xs text-gray-400 pointer-events-none">
                                         {ask.amount.toFixed(0)}
                                     </span>
                                 </div>
@@ -149,23 +164,32 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
 
                 {/* Bids (Buy) */}
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className="px-3 py-2 border-b border-white/5 bg-green-500/[0.05] flex justify-between items-center">
+                    <div className="px-3 py-2 border-b border-white/5 bg-[#10B981]/10 flex justify-between items-center">
                         <span className="text-[10px] text-gray-500">Amt / Price</span>
-                        <span className="text-[10px] font-medium text-green-400">Bids</span>
+                        <span className="text-[10px] font-medium text-[#10B981]">Bids</span>
                     </div>
-                    <div className="flex-1 overflow-y-auto scrollbar-none space-y-[1px] p-1">
+                    <div className="flex-1 flex flex-col min-h-0 scrollbar-none space-y-[1px]">
                         <AnimatePresence initial={false}>
                             {orderBook.bids.map((bid, index) => (
-                                <div key={`bid-${index}`} className="relative group flex items-center justify-between px-2 py-1 rounded h-7">
+                                <div
+                                    key={`bid-${index}`}
+                                    className="relative group flex items-center justify-between px-2 py-1 rounded flex-1 cursor-pointer hover:bg-white/5 transition-colors"
+                                    onClick={() => onOrderSelect?.({
+                                        side: 'sell', // Selling safely matches a bid
+                                        price: bid.price,
+                                        amount: bid.amount,
+                                        outcomeId: selectedOutcomeId
+                                    })}
+                                >
                                     {/* Depth Bar */}
                                     <div
-                                        className="absolute left-0 top-0 bottom-0 bg-green-500/10 rounded-r transition-all duration-300"
+                                        className="absolute left-0 top-0 bottom-0 bg-[#10B981]/15 rounded-r transition-all duration-300 pointer-events-none"
                                         style={{ width: `${(bid.amount / (maxBid || 1)) * 100}%` }}
                                     />
-                                    <span className="relative z-10 font-mono text-xs text-gray-400">
+                                    <span className="relative z-10 font-mono text-xs text-gray-400 pointer-events-none">
                                         {bid.amount.toFixed(0)}
                                     </span>
-                                    <span className="relative z-10 font-mono text-xs text-green-400 font-medium">
+                                    <span className="relative z-10 font-mono text-xs text-[#10B981] font-medium pointer-events-none">
                                         {(bid.price * 100).toFixed(1)}¢
                                     </span>
                                 </div>

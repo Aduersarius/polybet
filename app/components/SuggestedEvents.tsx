@@ -54,9 +54,15 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
                                 <h4 className="text-sm font-medium text-gray-200 truncate group-hover:text-white transition-colors">
                                     {event.title}
                                 </h4>
-                                <div className="flex items-center gap-3 mt-1 text-xs">
-                                    <span className="text-[#03dac6]">Yes {Number(event.yesOdds).toFixed(2)}%</span>
-                                    <span className="text-[#cf6679]">No {Number(event.noOdds).toFixed(2)}%</span>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#03dac6]/10 border border-[#03dac6]/20">
+                                        <span className="text-[10px] font-bold text-[#03dac6]">YES</span>
+                                        <span className="text-[10px] font-mono text-[#03dac6]">{(Number(event.yesOdds) * 100).toFixed(0)}%</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#cf6679]/10 border border-[#cf6679]/20">
+                                        <span className="text-[10px] font-bold text-[#cf6679]">NO</span>
+                                        <span className="text-[10px] font-mono text-[#cf6679]">{(Number(event.noOdds) * 100).toFixed(0)}%</span>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>

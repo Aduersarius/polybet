@@ -21,9 +21,10 @@ interface MultipleTradingPanelProps {
     resolutionDate?: string;
     onTrade?: (outcomeId: string, amount: number) => void;
     onTradeSuccess?: () => void;
+    tradeIntent?: { side: 'buy' | 'sell', price: number, amount: number, outcomeId?: string } | null;
 }
 
-export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, resolutionDate, onTrade, onTradeSuccess }: MultipleTradingPanelProps) {
+export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, resolutionDate, onTrade, onTradeSuccess, tradeIntent }: MultipleTradingPanelProps) {
     const params = useParams();
     const eventId = params.id as string;
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
@@ -48,6 +49,19 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
     const userBalances = balanceData?.balances?.filter((b: any) =>
         b.eventId === eventId && b.tokenSymbol !== 'TUSD'
     ) || [];
+
+    // Auto-fill from trade intent (Order Book click)
+    useEffect(() => {
+        if (tradeIntent) {
+            setSelectedTab(tradeIntent.side);
+            setOrderType('limit');
+            setPrice(tradeIntent.price.toFixed(2));
+            setAmount(tradeIntent.amount.toString());
+            if (tradeIntent.outcomeId) {
+                setSelectedOutcomeId(tradeIntent.outcomeId);
+            }
+        }
+    }, [tradeIntent]);
 
     // Risk management: maximum bet amount
     const MAX_BET_AMOUNT = 10000; // $10,000 max bet

@@ -2,8 +2,17 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { socket } from '@/lib/socket';
+import { UserHoverCard } from './UserHoverCard';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationNext,
+    PaginationPrevious,
+} from '@/components/ui/pagination';
 
 interface MarketActivity {
     id: string;
@@ -24,28 +33,34 @@ interface ActivityListProps {
 
 export function ActivityList({ eventId }: ActivityListProps) {
     const queryClient = useQueryClient();
+    const [cursor, setCursor] = useState<string | null>(null);
+    const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([]);
 
     const { data: tradesData, isLoading, error } = useQuery<{
         bets: MarketActivity[];
         hasMore: boolean;
         nextCursor: string | null;
     }>({
-        queryKey: ['trades', eventId],
+        queryKey: ['trades', eventId, cursor],
         queryFn: async () => {
-            const res = await fetch(`/api/events/${eventId}/bets`);
+            const url = cursor
+                ? `/api/events/${eventId}/bets?cursor=${cursor}&limit=10`
+                : `/api/events/${eventId}/bets?limit=10`;
+            const res = await fetch(url);
             if (!res.ok) {
                 throw new Error('Failed to fetch trades');
             }
             return res.json();
         },
-        refetchInterval: 5000, // Poll every 5 seconds
-        retry: 3, // Retry a few times for transient errors
+        // Only poll on the first page to avoid shifting data while paginating
+        refetchInterval: cursor ? false : 5000,
+        retry: 3,
     });
 
-    // Real-time updates via WebSocket
+    // Real-time updates via WebSocket (only invalidate if on first page)
     useEffect(() => {
         const handleOddsUpdate = (update: any) => {
-            if (update.eventId === eventId) {
+            if (update.eventId === eventId && !cursor) {
                 queryClient.invalidateQueries({ queryKey: ['trades', eventId] });
             }
         };
@@ -55,7 +70,7 @@ export function ActivityList({ eventId }: ActivityListProps) {
         return () => {
             socket.off('odds-update', handleOddsUpdate);
         };
-    }, [eventId, queryClient]);
+    }, [eventId, queryClient, cursor]);
 
     const trades = tradesData?.bets || [];
 
@@ -63,6 +78,24 @@ export function ActivityList({ eventId }: ActivityListProps) {
         if (!addr) return 'Unknown';
         return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
     };
+
+    const handleNext = () => {
+        if (tradesData?.nextCursor) {
+            setCursorHistory(prev => [...prev, cursor]);
+            setCursor(tradesData.nextCursor);
+        }
+    };
+
+    const handlePrev = () => {
+        if (cursorHistory.length > 0) {
+            const prevCursor = cursorHistory[cursorHistory.length - 1];
+            setCursorHistory(prev => prev.slice(0, -1));
+            setCursor(prevCursor);
+        }
+    };
+
+    const hasPrev = cursorHistory.length > 0;
+    const hasNext = !!tradesData?.hasMore;
 
     if (isLoading) {
         return (
@@ -91,68 +124,81 @@ export function ActivityList({ eventId }: ActivityListProps) {
 
     return (
         <div className="flex flex-col h-full min-h-[400px]">
-            <div className="flex-1 overflow-y-auto space-y-1 pr-2 custom-scrollbar max-h-[400px]">
+            <div className="flex-1 space-y-0.5">
                 {trades.map((trade) => (
-                    <div key={trade.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group border-b border-white/5 last:border-0">
-                        <div className="flex items-center gap-3">
-                            <div className="relative">
-                                {trade.user.avatarUrl ? (
-                                    <img
-                                        src={trade.user.avatarUrl}
-                                        alt="Avatar"
-                                        className="w-8 h-8 rounded-full object-cover border border-white/10"
-                                    />
-                                ) : (
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                                        {(trade.user.username?.[0] || (trade.user.address ? trade.user.address.slice(2, 3) : '?')).toUpperCase()}
+                    <div key={trade.id} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors group">
+                        <div className="flex items-center gap-2">
+                            <UserHoverCard address={trade.user.address}>
+                                <div className="relative cursor-pointer">
+                                    <Avatar className="w-8 h-8 border border-white/10">
+                                        <AvatarImage src={trade.user.avatarUrl || undefined} />
+                                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">
+                                            {(trade.user.username?.[0] || (trade.user.address ? trade.user.address.slice(2, 3) : '?')).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center border border-[#1e1e1e] text-[8px] font-bold ${trade.option === 'YES' ? 'bg-[#03dac6] text-black' : 'bg-[#cf6679] text-white'}`}>
+                                        {trade.option === 'YES' ? 'Y' : 'N'}
                                     </div>
-                                )}
-                                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#1e1e1e] text-[8px] font-bold ${trade.option === 'YES' ? 'bg-[#03dac6] text-black' : 'bg-[#cf6679] text-white'
-                                    }`}>
-                                    {trade.option === 'YES' ? 'Y' : 'N'}
                                 </div>
-                            </div>
+                            </UserHoverCard>
 
                             <div className="flex flex-col">
                                 <div className="flex items-center gap-1.5">
-                                    <a href={`/user/${trade.user.address}`} className="text-sm font-medium text-gray-200 hover:text-[#bb86fc] hover:underline transition-colors">
-                                        {trade.user.username || formatAddress(trade.user.address)}
-                                    </a>
-                                    <span className="text-xs text-gray-500">bought</span>
-                                    <span className={`text-sm font-bold ${trade.option === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'
-                                        }`}>
+                                    <UserHoverCard address={trade.user.address}>
+                                        <a className="text-xs font-bold text-gray-200 hover:text-[#bb86fc] hover:underline transition-colors cursor-pointer">
+                                            {trade.user.username || formatAddress(trade.user.address)}
+                                        </a>
+                                    </UserHoverCard>
+                                    <span className="text-[10px] text-gray-500">bought</span>
+                                    <span className={`text-xs font-bold ${trade.option === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
                                         {trade.option}
                                     </span>
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-[10px] text-gray-400">
                                     ${trade.amount.toFixed(2)}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="text-xs text-gray-500 font-mono">
+                        <div className="text-[10px] text-gray-600 font-mono">
                             {formatDistanceToNow(new Date(trade.createdAt), { addSuffix: true }).replace('about ', '')}
                         </div>
                     </div>
                 ))}
             </div>
 
-            <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: rgba(255, 255, 255, 0.05);
-                    border-radius: 3px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: rgba(255, 255, 255, 0.1);
-                    border-radius: 3px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: rgba(255, 255, 255, 0.2);
-                }
-            `}</style>
+            {/* Pagination Controls */}
+            <div className="border-t border-white/10 pt-2 mt-2">
+                <Pagination>
+                    <PaginationContent>
+                        <PaginationItem>
+                            <PaginationPrevious
+                                href="#"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (hasPrev) handlePrev();
+                                }}
+                                className={!hasPrev ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                            />
+                        </PaginationItem>
+                        <PaginationItem>
+                            <span className="text-[10px] text-gray-500 px-2">
+                                {trades.length} trades
+                            </span>
+                        </PaginationItem>
+                        <PaginationItem>
+                            <PaginationNext
+                                href="#"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (hasNext) handleNext();
+                                }}
+                                className={!hasNext ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                            />
+                        </PaginationItem>
+                    </PaginationContent>
+                </Pagination>
+            </div>
         </div>
     );
 }
