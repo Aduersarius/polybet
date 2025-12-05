@@ -47,6 +47,12 @@ export default function EventPage() {
     const eventId = params.id as string;
     const [liveEvent, setLiveEvent] = useState<any>(null);
     const [selectedCategory, setSelectedCategory] = useState('ALL');
+    const [tradeIntent, setTradeIntent] = useState<{
+        side: 'buy' | 'sell';
+        price: number;
+        amount: number;
+        outcomeId?: string; // specific outcome for multiple
+    } | null>(null);
 
     const handleTrade = () => {
         // Trading panel will handle the API call
@@ -225,11 +231,13 @@ export default function EventPage() {
                                             </>
                                         )}
 
-                                        {/* Order Book */}
-                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-4 shadow-2xl h-[400px] flex flex-col">
-                                            <div className="flex-1 overflow-hidden">
-                                                <OrderBook eventId={eventId.toString()} />
-                                            </div>
+                                        <div className="h-[400px] w-full mt-6">
+                                            <OrderBook
+                                                eventId={eventId.toString()}
+                                                outcomes={liveEvent.outcomes}
+                                                eventType={liveEvent.type}
+                                                onOrderSelect={setTradeIntent}
+                                            />
                                         </div>
 
                                         {/* Comments Section */}
@@ -253,12 +261,14 @@ export default function EventPage() {
                                                 creationDate={liveEvent.createdAt || liveEvent.creationDate}
                                                 resolutionDate={liveEvent.resolutionDate}
                                                 onTrade={handleTrade}
+                                                tradeIntent={tradeIntent}
                                             />
                                         ) : (
                                             <TradingPanel
                                                 creationDate={liveEvent.createdAt || liveEvent.creationDate}
                                                 resolutionDate={liveEvent.resolutionDate}
                                                 onTrade={handleTrade}
+                                                tradeIntent={tradeIntent}
                                             />
                                         )}
                                         <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />

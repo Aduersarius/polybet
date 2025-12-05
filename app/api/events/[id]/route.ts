@@ -50,10 +50,11 @@ export async function GET(
                         eventId: id,
                         type: { in: ['BET', 'TRADE'] }
                     },
-                    select: { amount: true },
+                    select: { amount: true, price: true },
                 });
 
-                const volume = bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
+                const volume = bets.reduce((sum: number, bet: { amount: number, price: number | null }) =>
+                    sum + (bet.amount * (bet.price ?? 1)), 0);
 
                 let response: any = {
                     ...event,

@@ -504,6 +504,7 @@ export async function getOrderBook(eventId: string, option: string) {
     const spread = 0.08; // 8% visual spread
 
     // Generate more fake bids (buy orders) BELOW market price
+    // Generate more fake bids (buy orders) BELOW market price
     for (let i = 1; i <= 8; i++) {
         const variation = seededRandom(timeSeed + i) * 0.02 - 0.01;
         const price = Math.max(0.01, basePrice - (i * spread / 8) + variation);
@@ -511,6 +512,7 @@ export async function getOrderBook(eventId: string, option: string) {
         fakeBids.push({ price, amount });
     }
 
+    // Generate more fake asks (sell orders) ABOVE market price
     // Generate more fake asks (sell orders) ABOVE market price
     for (let i = 1; i <= 8; i++) {
         const variation = seededRandom(timeSeed + i + 200) * 0.02 - 0.01;
@@ -522,11 +524,11 @@ export async function getOrderBook(eventId: string, option: string) {
     // Combine real and fake orders, sort them properly
     const allBids = [...(bids as any[]), ...fakeBids]
         .sort((a, b) => b.price - a.price)
-        .slice(0, 10);
+        .slice(0, 8);
 
     const allAsks = [...(asks as any[]), ...fakeAsks]
         .sort((a, b) => a.price - b.price)
-        .slice(0, 10);
+        .slice(0, 8);
 
     return {
         bids: allBids,
