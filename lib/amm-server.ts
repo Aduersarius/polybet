@@ -42,32 +42,47 @@ async function generateBinaryHistoricalOdds(
 
     if (!event) return [];
 
-    // All periods show FULL history from event creation to now
-    // Period only controls the granularity (bucket size)
+    // Determine requested duration
     const now = new Date();
-    const startTime = new Date(event.createdAt);
-    let bucketSizeMs = 0; // in milliseconds
+    let durationMs = 0;
 
-    // Determine bucket size based on period
-    if (period === '5m') {
-        bucketSizeMs = 5 * 60 * 1000; // 5 minutes per bucket
-    } else if (period === '1h') {
-        bucketSizeMs = 60 * 60 * 1000; // 1 hour per bucket
-    } else if (period === '6h') {
-        bucketSizeMs = 6 * 60 * 60 * 1000; // 6 hours per bucket
-    } else if (period === '1d' || period === '24h') {
-        bucketSizeMs = 24 * 60 * 60 * 1000; // 1 day per bucket
-    } else if (period === '1w' || period === '7d') {
-        bucketSizeMs = 7 * 24 * 60 * 60 * 1000; // 1 week per bucket
-    } else if (period === '1m' || period === '30d') {
-        bucketSizeMs = 30 * 24 * 60 * 60 * 1000; // 1 month per bucket
+    if (period === '6h') {
+        durationMs = 6 * 60 * 60 * 1000;
+    } else if (period === '1d') {
+        durationMs = 24 * 60 * 60 * 1000;
+    } else if (period === '1w') {
+        durationMs = 7 * 24 * 60 * 60 * 1000;
+    } else if (period === '1m') {
+        durationMs = 30 * 24 * 60 * 60 * 1000;
+    } else if (period === '3m') {
+        durationMs = 90 * 24 * 60 * 60 * 1000;
     } else {
-        // 'all' - adaptive bucket size for ~100 points
-        const totalTimeMs = now.getTime() - event.createdAt.getTime();
-        bucketSizeMs = Math.max(totalTimeMs / 100, 60 * 1000); // At least 1 minute buckets
+        // 'all' or unmatched - use full history
+        durationMs = now.getTime() - event.createdAt.getTime();
+    }
+
+    // Ensure we don't go before event creation
+    const eventAgeMs = now.getTime() - event.createdAt.getTime();
+    const effectiveDuration = Math.min(durationMs, eventAgeMs);
+
+    // Set bucket size to get approx 200 points for the VIEW range
+    // but not smaller than 1 minute to avoid excessive processing
+    // IMPORTANT: Use effectiveDuration to ensure we get enough points even if the event is young
+    // e.g. viewing '1m' for a 1-day old event should still give 200 points for that day
+    const targetPoints = 200;
+    let bucketSizeMs = Math.max(Math.floor(effectiveDuration / targetPoints), 60 * 1000);
+
+    // Determines where the chart data STARTS
+    // For specific periods (e.g. 1d), we want the chart to start 24h ago
+    // even if the event is older. 
+    // If event is younger than period, start at creation.
+    let startTime = new Date(now.getTime() - durationMs);
+    if (startTime.getTime() < event.createdAt.getTime()) {
+        startTime = new Date(event.createdAt);
     }
 
     // Fetch ALL market activities to replay AMM state correctly
+    // We MUST replay from the beginning to get correct qYes/qNo values
     const allActivities = await (prisma as any).marketActivity.findMany({
         where: {
             eventId,
@@ -106,41 +121,17 @@ async function generateBinaryHistoricalOdds(
     // Now aggregate into time buckets
     const buckets: Array<{ timestamp: number; yesPrice: number; volume: number }> = [];
 
-    // Round the start time to the nearest period boundary
-    let currentBucketStart = startTime.getTime();
-
-    // Align to period boundaries
-    if (period === '5m') {
-        // Round down to nearest 5 minutes
-        const date = new Date(currentBucketStart);
-        date.setMinutes(Math.floor(date.getMinutes() / 5) * 5, 0, 0);
-        currentBucketStart = date.getTime();
-    } else if (period === '1h') {
-        // Round down to nearest hour
-        const date = new Date(currentBucketStart);
-        date.setMinutes(0, 0, 0);
-        currentBucketStart = date.getTime();
-    } else if (period === '6h') {
-        // Round down to nearest 6 hours (0, 6, 12, 18)
-        const date = new Date(currentBucketStart);
-        date.setHours(Math.floor(date.getHours() / 6) * 6, 0, 0, 0);
-        currentBucketStart = date.getTime();
-    } else if (period === '1d' || period === '24h') {
-        // Round down to start of day (midnight)
-        const date = new Date(currentBucketStart);
-        date.setHours(0, 0, 0, 0);
-        currentBucketStart = date.getTime();
-    }
-
+    // Align start time to bucket boundary for clean charts
+    let currentBucketStart = Math.floor(startTime.getTime() / bucketSizeMs) * bucketSizeMs;
     let currentBucketEnd = currentBucketStart + bucketSizeMs;
 
-    // Find the initial state (last state before startTime)
+    // Find the initial state (last state before currentBucketStart)
     let initialQYes = 0;
     let initialQNo = 0;
     let initialYesPrice = 0.5;
 
     for (const state of stateHistory) {
-        if (state.time.getTime() < startTime.getTime()) {
+        if (state.time.getTime() < currentBucketStart) {
             initialQYes = state.qYes;
             initialQNo = state.qNo;
             initialYesPrice = state.yesPrice;
@@ -154,6 +145,7 @@ async function generateBinaryHistoricalOdds(
     while (currentBucketStart <= now.getTime()) {
         let bucketVolume = 0;
         let lastStateInBucket: typeof stateHistory[0] | null = null;
+        let hasActivity = false;
 
         // Find all states in this bucket
         for (const state of stateHistory) {
@@ -161,6 +153,7 @@ async function generateBinaryHistoricalOdds(
             if (stateTime >= currentBucketStart && stateTime < currentBucketEnd) {
                 bucketVolume += state.volume;
                 lastStateInBucket = state;
+                hasActivity = true;
             }
         }
 
@@ -248,26 +241,36 @@ async function generateMultipleHistoricalOdds(
     if (!event || event.type !== 'MULTIPLE') return [];
 
     const now = new Date();
-    const startTime = new Date(event.createdAt);
-    let bucketSizeMs = 0;
+    // Determine requested duration
+    let durationMs = 0;
 
-    // Determine bucket size based on period (same logic as binary)
-    if (period === '5m') {
-        bucketSizeMs = 5 * 60 * 1000;
-    } else if (period === '1h') {
-        bucketSizeMs = 60 * 60 * 1000;
-    } else if (period === '6h') {
-        bucketSizeMs = 6 * 60 * 60 * 1000;
-    } else if (period === '1d' || period === '24h') {
-        bucketSizeMs = 24 * 60 * 60 * 1000;
-    } else if (period === '1w' || period === '7d') {
-        bucketSizeMs = 7 * 24 * 60 * 60 * 1000;
-    } else if (period === '1m' || period === '30d') {
-        bucketSizeMs = 30 * 24 * 60 * 60 * 1000;
+    if (period === '6h') {
+        durationMs = 6 * 60 * 60 * 1000;
+    } else if (period === '1d') {
+        durationMs = 24 * 60 * 60 * 1000;
+    } else if (period === '1w') {
+        durationMs = 7 * 24 * 60 * 60 * 1000;
+    } else if (period === '1m') {
+        durationMs = 30 * 24 * 60 * 60 * 1000;
+    } else if (period === '3m') {
+        durationMs = 90 * 24 * 60 * 60 * 1000;
     } else {
-        // 'all' - adaptive bucket size
-        const totalTimeMs = now.getTime() - event.createdAt.getTime();
-        bucketSizeMs = Math.max(totalTimeMs / 100, 60 * 1000);
+        // 'all' or unmatched - use full history
+        durationMs = now.getTime() - event.createdAt.getTime();
+    }
+
+    // Ensure we don't go before event creation
+    const eventAgeMs = now.getTime() - event.createdAt.getTime();
+    const effectiveDuration = Math.min(durationMs, eventAgeMs);
+
+    const targetPoints = 200;
+    // Use effectiveDuration for bucket size to ensure enough points (200) even for young events
+    let bucketSizeMs = Math.max(Math.floor(effectiveDuration / targetPoints), 60 * 1000);
+
+    // Determine start time
+    let startTime = new Date(now.getTime() - durationMs);
+    if (startTime.getTime() < event.createdAt.getTime()) {
+        startTime = new Date(event.createdAt);
     }
 
     // Fetch all market activities for this event
@@ -328,34 +331,28 @@ async function generateMultipleHistoricalOdds(
         outcomes?: Array<{ id: string; name: string; probability: number; color?: string }>
     }> = [];
 
-    let currentBucketStart = startTime.getTime();
-
-    // Align to period boundaries (same as binary)
-    if (period === '5m') {
-        const date = new Date(currentBucketStart);
-        date.setMinutes(Math.floor(date.getMinutes() / 5) * 5, 0, 0);
-        currentBucketStart = date.getTime();
-    } else if (period === '1h') {
-        const date = new Date(currentBucketStart);
-        date.setMinutes(0, 0, 0);
-        currentBucketStart = date.getTime();
-    } else if (period === '6h') {
-        const date = new Date(currentBucketStart);
-        date.setHours(Math.floor(date.getHours() / 6) * 6, 0, 0, 0);
-        currentBucketStart = date.getTime();
-    } else if (period === '1d' || period === '24h') {
-        const date = new Date(currentBucketStart);
-        date.setHours(0, 0, 0, 0);
-        currentBucketStart = date.getTime();
-    }
-
+    let currentBucketStart = Math.floor(startTime.getTime() / bucketSizeMs) * bucketSizeMs;
     let currentBucketEnd = currentBucketStart + bucketSizeMs;
 
-    // Initial state - use probabilities from DB outcomes
+    // Initial state calculation for start time
+    // We need to replay history up to currentBucketStart to find correct initial probabilities
+
+    // Start with default/initial probabilities (1/N)
+    // CRITICAL FIX: Do NOT use outcome.probability from DB as it is the CURRENT probability
+    // We strictly use 1/N because the AMM replay starts with 0 liquidity (equal probs)
     let initialProbabilities = new Map<string, number>();
     event.outcomes.forEach((outcome: any) => {
-        initialProbabilities.set(outcome.id, outcome.probability || (1 / event.outcomes.length));
+        initialProbabilities.set(outcome.id, 1 / event.outcomes.length);
     });
+
+    // Advance to currentBucketStart
+    for (const state of stateHistory) {
+        if (state.time.getTime() < currentBucketStart) {
+            initialProbabilities = state.probabilities;
+        } else {
+            break;
+        }
+    }
 
     // Get first outcome ID for yesPrice
     const firstOutcomeId = (event as any).outcomes[0].id;
