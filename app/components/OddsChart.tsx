@@ -509,7 +509,10 @@ export function NewPolymarketChart({
     };
 
     return (
-        <div className="relative h-full w-full bg-[#1e1e1e]">
+        <div
+            className="relative h-full w-full bg-[#1e1e1e] select-none cursor-crosshair outline-none ring-0 focus:outline-none active:outline-none"
+            onMouseDown={(e) => e.preventDefault()}
+        >
             {/* Full-size Chart */}
             <div className="absolute inset-0">
                 {isLoading && data.length === 0 ? (
