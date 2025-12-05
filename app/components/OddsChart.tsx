@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
     Area,
     AreaChart,
@@ -39,7 +39,7 @@ interface DataPoint {
 // PolyBet color palette from page elements
 const OUTCOME_COLORS = [
     '#BB86FC', // Primary purple
-    '#03DAC6', // Cyan/Teal  
+    '#03DAC6', // Cyan/Teal
     '#CF6679', // Pink/Red
     '#8B5CF6', // Secondary purple
     '#10B981', // Green
@@ -131,7 +131,6 @@ export function NewPolymarketChart({
         };
     }, [eventId, eventType, liveOutcomes, outcomes]);
 
-
     // Use live outcomes if available, fallback to static outcomes
     const effectiveOutcomes = liveOutcomes || outcomes;
 
@@ -156,8 +155,8 @@ export function NewPolymarketChart({
                 };
                 // Add probability fields for each outcome
                 coloredOutcomes.forEach((outcome) => {
-                    const outcomeData = d.outcomes?.find((o) => o.id === outcome.id);
-                    baseData[`outcome_${outcome.id}`] = (outcomeData?.probability || 0) * 100;
+                    const outcomeMatch = d.outcomes?.find((o) => o.id === outcome.id);
+                    baseData[`outcome_${outcome.id}`] = (outcomeMatch?.probability || 0) * 100;
                 });
                 return baseData;
             });
@@ -215,8 +214,9 @@ export function NewPolymarketChart({
         return {};
     }, [chartData, coloredOutcomes, isMultipleOutcomes]);
 
-    // Custom Tooltip - Individual per line, no timestamp
-    const CustomTooltip = ({ active, payload }: any) => {
+
+    // Enhanced Tooltip with Datetime
+    const EnhancedTooltipWithDatetime = ({ active, payload }: any) => {
         if (!active || !payload || !payload.length) return null;
 
         // Show only the first payload item (the line being hovered)
@@ -239,6 +239,24 @@ export function NewPolymarketChart({
             }
         }
 
+        // Format timestamp based on the current period
+        const formatTimestamp = (timestamp: number) => {
+            const date = new Date(timestamp * 1000);
+
+            if (period === '1h' || period === '6h') {
+                return format(date, 'h:mm a');
+            } else if (period === '1d') {
+                return format(date, 'ha');
+            } else if (period === '1w') {
+                return format(date, 'MMM d, h a');
+            } else if (period === '1m') {
+                return format(date, 'MMM d');
+            } else {
+                // Default format for 'all' or unknown periods
+                return format(date, 'MMM d, yyyy h:mm a');
+            }
+        };
+
         return (
             <div className="rounded-lg border border-white/20 bg-[#1e1e1e]/95 px-2 py-1 shadow-2xl backdrop-blur-md">
                 <div className="flex items-center gap-2">
@@ -253,55 +271,10 @@ export function NewPolymarketChart({
                         {outcomeValue.toFixed(1)}%
                     </span>
                 </div>
+                <div className="mt-1 text-xs text-gray-300">
+                    {formatTimestamp(dataPoint.timestamp)}
+                </div>
             </div>
-        );
-    };
-
-    // Custom Cursor with Datetime Label
-    const CustomCursor = (props: any) => {
-        const { points, width, height } = props;
-        if (!points || points.length === 0) return null;
-
-        const { x, payload } = points[0];
-        if (!payload || !payload.timestamp) return null;
-
-        return (
-            <g>
-                {/* Vertical line */}
-                <line
-                    x1={x}
-                    y1={0}
-                    x2={x}
-                    y2={height}
-                    stroke="rgba(255,255,255,0.2)"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                />
-                {/* Datetime label at top */}
-                <g transform={`translate(${x}, -10)`}>
-                    <rect
-                        x={-50}
-                        y={-18}
-                        width={100}
-                        height={20}
-                        rx={4}
-                        fill="#1e1e1e"
-                        opacity={0.95}
-                        stroke="rgba(255,255,255,0.2)"
-                        strokeWidth={1}
-                    />
-                    <text
-                        x={0}
-                        y={-4}
-                        textAnchor="middle"
-                        fill="#9CA3AF"
-                        fontSize={10}
-                        fontWeight={500}
-                    >
-                        {format(new Date(payload.timestamp * 1000), 'MMM d, h:mm a')}
-                    </text>
-                </g>
-            </g>
         );
     };
 
@@ -340,6 +313,7 @@ export function NewPolymarketChart({
                     })}
                 </div>
             );
+
         }
 
         return (
@@ -355,6 +329,7 @@ export function NewPolymarketChart({
         );
     };
 
+
     return (
         <div className="flex h-full flex-col bg-[#1e1e1e] p-6">
             {/* Header with Legend and Time */}
@@ -366,7 +341,7 @@ export function NewPolymarketChart({
             </div>
 
             {/* Chart */}
-            <div className="flex-1">
+            <div className="w-full h-full flex-1 min-h-0">
                 {isLoading && data.length === 0 ? (
                     <div className="flex h-full w-full items-center justify-center">
                         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#BB86FC]" />
@@ -446,11 +421,10 @@ export function NewPolymarketChart({
                             />
 
                             <Tooltip
-                                content={<CustomTooltip />}
-                                cursor={<CustomCursor />}
+                                content={<EnhancedTooltipWithDatetime />}
+                                cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
                                 isAnimationActive={false}
                                 animationDuration={0}
-                                shared={false}
                             />
 
                             {isMultipleOutcomes ? (
