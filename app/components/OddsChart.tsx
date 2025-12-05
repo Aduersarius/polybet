@@ -11,7 +11,7 @@ import {
     ResponsiveContainer,
     ReferenceLine,
 } from 'recharts';
-import { format } from 'date-fns';
+import { format, startOfDay, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Code, Settings } from 'lucide-react';
 
@@ -220,6 +220,33 @@ export function NewPolymarketChart({
         }
         return {};
     }, [chartData, coloredOutcomes, isMultipleOutcomes]);
+
+    // Calculate fixed daily ticks for longer periods to ensure even distribution
+    const customTicks = useMemo(() => {
+        if (!chartData || chartData.length === 0) return undefined;
+        // Only use custom daily ticks for periods > 1d
+        if (['1w', '1m', '3m', 'all'].includes(period)) {
+            const minTime = chartData[0].timestamp * 1000;
+            const maxTime = chartData[chartData.length - 1].timestamp * 1000;
+            const ticks: number[] = [];
+
+            // Start from the beginning of the first day
+            let current = startOfDay(new Date(minTime));
+
+            // If the first tick is way before data start, maybe skip it? 
+            // But usually nice to have grid align. 
+            // Let's just generate all daily midnights in range
+            while (current.getTime() <= maxTime) {
+                const ts = current.getTime();
+                if (ts >= minTime) {
+                    ticks.push(ts / 1000);
+                }
+                current = addDays(current, 1);
+            }
+            return ticks.length > 0 ? ticks : undefined;
+        }
+        return undefined;
+    }, [chartData, period]);
 
     // Custom Timeline Tick for X-Axis (dots and labels above the line)
     const CustomTimelineTick = (props: any) => {
@@ -568,11 +595,12 @@ export function NewPolymarketChart({
                                 type="number"
                                 domain={['dataMin', 'dataMax']}
                                 tick={<CustomTimelineTick />}
+                                ticks={customTicks}
                                 tickLine={false}
                                 axisLine={{ stroke: '#3B4048', strokeWidth: 2 }}
                                 height={45}
                                 tickMargin={0}
-                                minTickGap={50}
+                                interval="preserveStartEnd"
                             />
 
                             <YAxis
