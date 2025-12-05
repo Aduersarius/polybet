@@ -195,7 +195,7 @@ export function EventChat({ eventId }: EventChatProps) {
                             />
                             <Button
                                 onClick={handleSend}
-                                disabled={!inputText.trim() || sendMessageMutation.isPending}
+                                isDisabled={!inputText.trim() || sendMessageMutation.isPending}
                                 className="bg-[#bb86fc] text-black hover:bg-[#a66ef1] h-8 px-4"
                                 size="sm"
                             >
