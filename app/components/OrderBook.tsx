@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Outcome {
     id: string;
@@ -68,145 +67,113 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         };
     }, [eventId, selectedOutcomeId, isMultiple, selectedOption]);
 
+    const maxAsk = useMemo(() => Math.max(...orderBook.asks.map(a => a.amount), 0), [orderBook.asks]);
+    const maxBid = useMemo(() => Math.max(...orderBook.bids.map(b => b.amount), 0), [orderBook.bids]);
+
     return (
-        <div className="h-full flex flex-col">
-            <div className="flex items-center justify-end mb-2">
-                <div className="flex bg-white/5 rounded-lg border border-white/10 p-1 overflow-x-auto max-w-xs">
+        <div className="flex flex-col h-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/5 select-none">
+            {/* Header */}
+            <div className="flex items-center justify-between p-3 border-b border-white/5 bg-white/[0.02]">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Order Book</h3>
+                {/* Outcome Selector */}
+                <div className="flex bg-black/20 rounded-lg p-0.5">
                     {isMultiple ? (
                         outcomes.map((outcome) => (
-                            <motion.button
+                            <button
                                 key={outcome.id}
                                 onClick={() => setSelectedOutcomeId(outcome.id)}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className={`px-2 py-1 text-xs font-medium rounded transition-all whitespace-nowrap ${selectedOutcomeId === outcome.id
-                                    ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30 shadow-lg shadow-[#bb86fc]/20'
-                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                                className={`px-2 py-1 text-[10px] font-medium rounded transition-all whitespace-nowrap ${selectedOutcomeId === outcome.id
+                                    ? 'bg-[#bb86fc]/20 text-[#bb86fc] shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-300'
                                     }`}
                             >
                                 {outcome.name}
-                            </motion.button>
+                            </button>
                         ))
                     ) : (
                         <>
-                            <motion.button
+                            <button
                                 onClick={() => setSelectedOutcomeId('YES')}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-all ${selectedOutcomeId === 'YES'
-                                    ? 'bg-[#03dac6]/20 text-[#03dac6] border border-[#03dac6]/30 shadow-lg shadow-[#03dac6]/20'
-                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                                className={`px-3 py-1 text-[10px] font-medium rounded transition-all ${selectedOutcomeId === 'YES'
+                                    ? 'bg-[#03dac6]/20 text-[#03dac6] shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-300'
                                     }`}
                             >
                                 YES
-                            </motion.button>
-                            <motion.button
+                            </button>
+                            <button
                                 onClick={() => setSelectedOutcomeId('NO')}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-all ${selectedOutcomeId === 'NO'
-                                    ? 'bg-[#cf6679]/20 text-[#cf6679] border border-[#cf6679]/30 shadow-lg shadow-[#cf6679]/20'
-                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                                className={`px-3 py-1 text-[10px] font-medium rounded transition-all ${selectedOutcomeId === 'NO'
+                                    ? 'bg-[#cf6679]/20 text-[#cf6679] shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-300'
                                     }`}
                             >
                                 NO
-                            </motion.button>
+                            </button>
                         </>
                     )}
                 </div>
             </div>
-            <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden flex flex-row">
-                {/* Asks (Sell Orders) */}
-                <div className="flex-1 border-r border-white/10">
-                    <div className="px-3 py-2 bg-red-500/10">
-                        <div className="text-xs text-red-400 font-medium">Asks (Sell)</div>
+
+            {/* Content */}
+            <div className="flex-1 flex min-h-0 divide-x divide-white/5">
+                {/* Asks (Sell) */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    <div className="px-3 py-2 border-b border-white/5 bg-red-500/[0.05] flex justify-between items-center">
+                        <span className="text-[10px] font-medium text-red-400">Asks</span>
+                        <span className="text-[10px] text-gray-500">Price / Amt</span>
                     </div>
-                    <div className="flex flex-row h-64">
-                        <div className="flex-1 overflow-y-auto">
-                            {orderBook.asks.slice(0, 8).map((ask, index) => (
-                                <motion.div
-                                    key={index}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.05, duration: 0.3 }}
-                                    className="flex flex-col items-center px-3 py-1 text-xs hover:bg-white/5 transition-all duration-200 hover:bg-red-500/10"
-                                >
-                                    <motion.span
-                                        className="text-red-400 font-mono"
-                                        animate={{ scale: [1, 1.05, 1] }}
-                                        transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
-                                    >
-                                        ${(ask.price * 100).toFixed(1)}
-                                    </motion.span>
-                                    <motion.span
-                                        className="text-gray-300 font-mono"
-                                        animate={{ opacity: [0.7, 1, 0.7] }}
-                                        transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: index * 0.2 }}
-                                    >
+                    <div className="flex-1 overflow-y-auto scrollbar-none space-y-[1px] p-1">
+                        <AnimatePresence initial={false}>
+                            {orderBook.asks.map((ask, index) => (
+                                <div key={`ask-${index}`} className="relative group flex items-center justify-between px-2 py-1 rounded h-7">
+                                    {/* Depth Bar */}
+                                    <div
+                                        className="absolute right-0 top-0 bottom-0 bg-red-500/10 rounded-l transition-all duration-300"
+                                        style={{ width: `${(ask.amount / (maxAsk || 1)) * 100}%` }}
+                                    />
+                                    <span className="relative z-10 font-mono text-xs text-red-400 font-medium">
+                                        {(ask.price * 100).toFixed(1)}¢
+                                    </span>
+                                    <span className="relative z-10 font-mono text-xs text-gray-400">
                                         {ask.amount.toFixed(0)}
-                                    </motion.span>
-                                </motion.div>
+                                    </span>
+                                </div>
                             ))}
                             {orderBook.asks.length === 0 && (
-                                <div className="px-3 py-2 text-xs text-gray-500">No asks</div>
+                                <div className="p-4 text-center text-xs text-gray-600">No asks available</div>
                             )}
-                        </div>
-                        <div className="w-32">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart layout="horizontal" data={orderBook.asks.slice(0, 8).map(ask => ({ price: (ask.price * 100).toFixed(1), amount: ask.amount }))}>
-                                    <YAxis type="category" dataKey="price" />
-                                    <XAxis type="number" />
-                                    <Bar dataKey="amount" fill="#ef4444" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
+                        </AnimatePresence>
                     </div>
                 </div>
 
-                {/* Bids (Buy Orders) */}
-                <div className="flex-1">
-                    <div className="px-3 py-2 bg-green-500/10">
-                        <div className="text-xs text-green-400 font-medium">Bids (Buy)</div>
+                {/* Bids (Buy) */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    <div className="px-3 py-2 border-b border-white/5 bg-green-500/[0.05] flex justify-between items-center">
+                        <span className="text-[10px] text-gray-500">Amt / Price</span>
+                        <span className="text-[10px] font-medium text-green-400">Bids</span>
                     </div>
-                    <div className="flex flex-row h-64">
-                        <div className="flex-1 overflow-y-auto">
-                            {orderBook.bids.slice(0, 8).map((bid, index) => (
-                                <motion.div
-                                    key={index}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.05, duration: 0.3 }}
-                                    className="flex flex-col items-center px-3 py-1 text-xs hover:bg-white/5 transition-all duration-200 hover:bg-green-500/10"
-                                >
-                                    <motion.span
-                                        className="text-green-400 font-mono"
-                                        animate={{ scale: [1, 1.05, 1] }}
-                                        transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: index * 0.1 }}
-                                    >
-                                        ${(bid.price * 100).toFixed(1)}
-                                    </motion.span>
-                                    <motion.span
-                                        className="text-gray-300 font-mono"
-                                        animate={{ opacity: [0.7, 1, 0.7] }}
-                                        transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: index * 0.3 }}
-                                    >
+                    <div className="flex-1 overflow-y-auto scrollbar-none space-y-[1px] p-1">
+                        <AnimatePresence initial={false}>
+                            {orderBook.bids.map((bid, index) => (
+                                <div key={`bid-${index}`} className="relative group flex items-center justify-between px-2 py-1 rounded h-7">
+                                    {/* Depth Bar */}
+                                    <div
+                                        className="absolute left-0 top-0 bottom-0 bg-green-500/10 rounded-r transition-all duration-300"
+                                        style={{ width: `${(bid.amount / (maxBid || 1)) * 100}%` }}
+                                    />
+                                    <span className="relative z-10 font-mono text-xs text-gray-400">
                                         {bid.amount.toFixed(0)}
-                                    </motion.span>
-                                </motion.div>
+                                    </span>
+                                    <span className="relative z-10 font-mono text-xs text-green-400 font-medium">
+                                        {(bid.price * 100).toFixed(1)}¢
+                                    </span>
+                                </div>
                             ))}
                             {orderBook.bids.length === 0 && (
-                                <div className="px-3 py-2 text-xs text-gray-500">No bids</div>
+                                <div className="p-4 text-center text-xs text-gray-600">No bids available</div>
                             )}
-                        </div>
-                        <div className="w-32">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart layout="horizontal" data={orderBook.bids.slice(0, 8).map(bid => ({ price: (bid.price * 100).toFixed(1), amount: bid.amount }))}>
-                                    <YAxis type="category" dataKey="price" />
-                                    <XAxis type="number" />
-                                    <Bar dataKey="amount" fill="#22c55e" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
+                        </AnimatePresence>
                     </div>
                 </div>
             </div>
