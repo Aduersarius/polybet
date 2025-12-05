@@ -65,11 +65,11 @@ async function generateBinaryHistoricalOdds(
     const eventAgeMs = now.getTime() - event.createdAt.getTime();
     const effectiveDuration = Math.min(durationMs, eventAgeMs);
 
-    // Set bucket size to get approx 200 points for the VIEW range
+    // Set bucket size to get approx 300 points for the VIEW range
     // but not smaller than 1 minute to avoid excessive processing
     // IMPORTANT: Use effectiveDuration to ensure we get enough points even if the event is young
-    // e.g. viewing '1m' for a 1-day old event should still give 200 points for that day
-    const targetPoints = 200;
+    // e.g. viewing '1m' for a 1-day old event should still give 300 points for that day
+    const targetPoints = 500;
     let bucketSizeMs = Math.max(Math.floor(effectiveDuration / targetPoints), 60 * 1000);
 
     // Determines where the chart data STARTS
@@ -263,8 +263,8 @@ async function generateMultipleHistoricalOdds(
     const eventAgeMs = now.getTime() - event.createdAt.getTime();
     const effectiveDuration = Math.min(durationMs, eventAgeMs);
 
-    const targetPoints = 200;
-    // Use effectiveDuration for bucket size to ensure enough points (200) even for young events
+    const targetPoints = 300;
+    // Use effectiveDuration for bucket size to ensure enough points (300) even for young events
     let bucketSizeMs = Math.max(Math.floor(effectiveDuration / targetPoints), 60 * 1000);
 
     // Determine start time
