@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
     Area,
     AreaChart,
@@ -9,7 +9,7 @@ import {
     YAxis,
     Tooltip,
     ResponsiveContainer,
-    Legend,
+    ReferenceLine,
 } from 'recharts';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,15 +45,22 @@ const OUTCOME_COLORS = [
     '#10B981', // Green
     '#F59E0B', // Orange
     '#3B82F6', // Blue
+    '#EC4899', // Pink
+    '#6366F1', // Indigo
+    '#14B8A6', // Teal
+    '#F43F5E', // Rose
+    '#84CC16', // Lime
+    '#D946EF', // Fuchsia
+    '#06B6D4', // Cyan
 ];
 
 // Time period options
 const TIME_PERIODS = [
-    { label: '1H', value: '1h' },
     { label: '6H', value: '6h' },
     { label: '1D', value: '1d' },
     { label: '1W', value: '1w' },
     { label: '1M', value: '1m' },
+    { label: '3M', value: '3m' },
     { label: 'ALL', value: 'all' },
 ];
 
@@ -67,7 +74,7 @@ export function NewPolymarketChart({
     const [period, setPeriod] = useState('all');
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState<DataPoint[]>([]);
-    const [hoveredOutcome, setHoveredOutcome] = useState<string | null>(null);
+    const [hoveredDataPoint, setHoveredDataPoint] = useState<any>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
 
     // Debug: Log received outcomes
@@ -214,86 +221,254 @@ export function NewPolymarketChart({
         return {};
     }, [chartData, coloredOutcomes, isMultipleOutcomes]);
 
+    // Custom Timeline Tick for X-Axis (dots and labels above the line)
+    const CustomTimelineTick = (props: any) => {
+        const { x, y, payload } = props;
+        const date = new Date(payload.value * 1000);
 
-    // Enhanced Tooltip with Datetime
-    const EnhancedTooltipWithDatetime = ({ active, payload }: any) => {
-        if (!active || !payload || !payload.length) return null;
-
-        // Show only the first payload item (the line being hovered)
-        const hoveredItem = payload[0];
-        const dataPoint = hoveredItem.payload;
-        if (!dataPoint.timestamp) return null;
-
-        // Extract outcome info
-        let outcomeName = 'Yes';
-        let outcomeColor = '#BB86FC';
-        let outcomeValue = hoveredItem.value;
-
-        if (isMultipleOutcomes) {
-            const dataKey = hoveredItem.dataKey as string;
-            const outcomeId = dataKey.replace('outcome_', '');
-            const outcome = coloredOutcomes.find((o) => o.id === outcomeId);
-            if (outcome) {
-                outcomeName = outcome.name;
-                outcomeColor = outcome.color;
-            }
+        // Format label based on period
+        let label = '';
+        if (period === '1h' || period === '6h') {
+            label = format(date, 'h:mm a');
+        } else if (period === '1d') {
+            label = format(date, 'ha');
+        } else if (period === '1w') {
+            label = format(date, 'MMM d');
+        } else if (period === '1m' || period === '3m' || period === 'all') {
+            label = format(date, 'MMM d');
+        } else {
+            label = format(date, 'MMM');
         }
 
-        // Format timestamp based on the current period
-        const formatTimestamp = (timestamp: number) => {
-            const date = new Date(timestamp * 1000);
+        return (
+            <g transform={`translate(${x},${y})`}>
+                {/* Label above the dot */}
+                <text
+                    x={0}
+                    y={-20}
+                    textAnchor="middle"
+                    fill="#6B7280"
+                    fontSize={11}
+                >
+                    {label}
+                </text>
+                {/* Dot on the timeline */}
+                <circle
+                    cx={0}
+                    cy={-5}
+                    r={4}
+                    fill="#3B4048"
+                    stroke="#4B5563"
+                    strokeWidth={1}
+                />
+            </g>
+        );
+    };
 
-            if (period === '1h' || period === '6h') {
+    // Custom Cursor with Datetime Label at Top, Individual Tooltips, and Tint Overlay
+    const CustomCursor = ({ points, payload, width, height, period: cursorPeriod, domain }: any) => {
+        if (!points || points.length === 0 || !payload || payload.length === 0) return null;
+
+        const x = points[0].x;
+        const timestamp = payload[0]?.payload?.timestamp;
+        if (!timestamp) return null;
+
+        // Chart dimensions
+        const chartWidth = width || 800;
+        const chartHeight = height || 300;
+
+        // Domain values for manual Y calculation
+        const domainMin = domain?.[0] || 0;
+        const domainMax = domain?.[1] || 100;
+        const domainRange = domainMax - domainMin;
+
+        // Format timestamp based on the current period
+        const formatTimestamp = (ts: number) => {
+            const date = new Date(ts * 1000);
+            if (cursorPeriod === '1h' || cursorPeriod === '6h') {
                 return format(date, 'h:mm a');
-            } else if (period === '1d') {
-                return format(date, 'ha');
-            } else if (period === '1w') {
+            } else if (cursorPeriod === '1d') {
+                return format(date, 'MMM d, ha');
+            } else if (cursorPeriod === '1w') {
                 return format(date, 'MMM d, h a');
-            } else if (period === '1m') {
-                return format(date, 'MMM d');
+            } else if (cursorPeriod === '1m' || cursorPeriod === '3m') {
+                return format(date, 'MMM d, yyyy');
             } else {
-                // Default format for 'all' or unknown periods
                 return format(date, 'MMM d, yyyy h:mm a');
             }
         };
 
+        const formattedDate = formatTimestamp(timestamp);
+
+
+        // Get all data points with their Y positions - calculate manually from value
+        let tooltipItems: Array<{ y: number, value: number, color: string, name: string }> = [];
+
+        payload.forEach((item: any, index: number) => {
+            const value = item.value || 0;
+
+            // Calculate Y position manually based on domain
+            // y = height - ((value - min) / range) * height
+            const normalizedValue = (value - domainMin) / domainRange;
+            // Clamp value between 0 and 1 to stay within chart area
+            const clampedValue = Math.max(0, Math.min(1, normalizedValue));
+            const y = chartHeight - (clampedValue * chartHeight);
+
+            // Find outcome info for coloring
+            let color = '#BB86FC';
+            let name = 'Yes';
+
+            if (isMultipleOutcomes) {
+                const dataKey = item.dataKey as string;
+                const outcomeId = dataKey?.replace('outcome_', '');
+                const outcome = coloredOutcomes.find((o) => o.id === outcomeId);
+                if (outcome) {
+                    color = outcome.color;
+                    name = outcome.name;
+                }
+            }
+
+            tooltipItems.push({ y, value, color, name });
+        });
+
+        // Sort items by Y position (ascending - top to bottom)
+        tooltipItems.sort((a, b) => a.y - b.y);
+
+        // Prevent overlap
+        const minDistance = 24; // Minimum distance between labels
+        for (let i = 1; i < tooltipItems.length; i++) {
+            const prev = tooltipItems[i - 1];
+            const curr = tooltipItems[i];
+
+            if (curr.y - prev.y < minDistance) {
+                // Shift current item down
+                curr.y = prev.y + minDistance;
+            }
+        }
+
         return (
-            <div className="rounded-lg border border-white/20 bg-[#1e1e1e]/95 px-2 py-1 shadow-2xl backdrop-blur-md">
-                <div className="flex items-center gap-2">
-                    <div
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: outcomeColor }}
-                    />
-                    <span className="text-xs font-semibold text-white">
-                        {outcomeName}:
-                    </span>
-                    <span className="text-xs font-bold" style={{ color: outcomeColor }}>
-                        {outcomeValue.toFixed(1)}%
-                    </span>
-                </div>
-                <div className="mt-1 text-xs text-gray-300">
-                    {formatTimestamp(dataPoint.timestamp)}
-                </div>
-            </div>
+            <g>
+                {/* Tinted overlay for area after crosshair */}
+                <rect
+                    x={x}
+                    y={0}
+                    width={chartWidth - x}
+                    height={chartHeight}
+                    fill="rgba(30, 30, 30, 0.5)"
+                    style={{ pointerEvents: 'none' }}
+                />
+
+                {/* Vertical crosshair line */}
+                <line
+                    x1={x}
+                    y1={10}
+                    x2={x}
+                    y2={chartHeight}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth={1}
+                    strokeDasharray="4 4"
+                />
+
+                {/* Datetime label moving with cursor */}
+                <foreignObject x={x - 75} y={50} width={150} height={26}>
+                    <div className="flex justify-center">
+                        <div className="bg-[#1e1e1e]/90 border border-white/20 rounded px-2 py-0.5 text-[11px] font-medium text-gray-300 backdrop-blur-sm shadow-xl whitespace-nowrap">
+                            {formattedDate}
+                        </div>
+                    </div>
+                </foreignObject>
+
+                {/* Individual tooltips for each line */}
+                {tooltipItems.map((item, idx) => {
+                    // Position tooltip exactly at the calculated Y coordinate, centered vertically
+                    const tooltipY = item.y - 10;
+
+                    return (
+                        <foreignObject
+                            key={idx}
+                            x={x + 8}
+                            y={tooltipY}
+                            width={120} // Increased width for name
+                            height={20}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        background: 'rgba(30, 30, 30, 0.95)',
+                                        border: `1px solid ${item.color}50`,
+                                        borderRadius: '4px',
+                                        padding: '2px 6px',
+                                        fontSize: '10px',
+                                        fontWeight: 600,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        backdropFilter: 'blur(4px)',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: '6px',
+                                            height: '6px',
+                                            borderRadius: '50%',
+                                            backgroundColor: item.color,
+                                            flexShrink: 0,
+                                        }}
+                                    />
+                                    <span style={{ color: '#E5E7EB', fontWeight: 500 }}>
+                                        {item.name}
+                                    </span>
+                                    <span style={{ color: item.color, fontWeight: 700 }}>
+                                        {item.value.toFixed(0)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </foreignObject>
+                    );
+                })}
+            </g>
         );
     };
 
-    // Custom Legend (Top) - No background plates
+    // Enhanced Tooltip - captures hovered data and updates legend
+    const EnhancedTooltip = ({ active, payload }: any) => {
+        // Update hovered data point for legend
+        if (active && payload && payload.length > 0) {
+            const dataPoint = payload[0]?.payload;
+            if (dataPoint && dataPoint !== hoveredDataPoint) {
+                // Use setTimeout to avoid state update during render
+                setTimeout(() => setHoveredDataPoint(dataPoint), 0);
+            }
+        } else if (hoveredDataPoint !== null) {
+            setTimeout(() => setHoveredDataPoint(null), 0);
+        }
+
+        // Return null - we show data in the legend and cursor instead
+        return null;
+    };
+
+    // Custom Legend (Top) - Shows hovered values when hovering on chart
     const CustomLegend = () => {
         if (isMultipleOutcomes) {
             return (
-                <div className="mb-4 flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                     {coloredOutcomes.map((outcome) => {
-                        const value = currentValues[`outcome_${outcome.id}`] || 0;
-                        const isHovered = hoveredOutcome === outcome.id;
+                        // Use hovered data point values if available, otherwise use current values
+                        const value = hoveredDataPoint
+                            ? (hoveredDataPoint[`outcome_${outcome.id}`] || 0)
+                            : (currentValues[`outcome_${outcome.id}`] || 0);
 
                         return (
                             <motion.div
                                 key={outcome.id}
-                                onHoverStart={() => setHoveredOutcome(outcome.id)}
-                                onHoverEnd={() => setHoveredOutcome(null)}
-                                whileHover={{ scale: 1.05 }}
-                                className="flex items-center gap-2 cursor-pointer"
+                                className="flex items-center gap-2"
                             >
                                 <div
                                     className="h-2 w-2 rounded-full"
@@ -303,7 +478,7 @@ export function NewPolymarketChart({
                                     {outcome.name}
                                 </span>
                                 <span
-                                    className="text-sm font-bold"
+                                    className="text-sm font-bold tabular-nums"
                                     style={{ color: outcome.color }}
                                 >
                                     {Math.round(value)}%
@@ -313,35 +488,30 @@ export function NewPolymarketChart({
                     })}
                 </div>
             );
-
         }
 
+        // Binary event - show Yes value
+        const binaryValue = hoveredDataPoint
+            ? (hoveredDataPoint.value || 0)
+            : ((currentYesPrice || 0) * 100);
+
         return (
-            <div className="mb-4 flex items-center gap-3">
+            <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-[#BB86FC]" />
                     <span className="text-xs font-medium text-gray-300">Yes</span>
-                    <span className="text-sm font-bold text-[#BB86FC]">
-                        {((currentYesPrice || 0) * 100).toFixed(0)}%
+                    <span className="text-sm font-bold text-[#BB86FC] tabular-nums">
+                        {Math.round(binaryValue)}%
                     </span>
                 </div>
             </div>
         );
     };
 
-
     return (
-        <div className="flex h-full flex-col bg-[#1e1e1e] p-6">
-            {/* Header with Legend and Time */}
-            <div className="mb-4 flex items-start justify-between">
-                <CustomLegend />
-                <div className="text-xs text-gray-500">
-                    {format(currentTime, 'MMM d, yyyy h:mm a')}
-                </div>
-            </div>
-
-            {/* Chart */}
-            <div className="w-full h-full flex-1 min-h-0">
+        <div className="relative h-full w-full bg-[#1e1e1e]">
+            {/* Full-size Chart */}
+            <div className="absolute inset-0">
                 {isLoading && data.length === 0 ? (
                     <div className="flex h-full w-full items-center justify-center">
                         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#BB86FC]" />
@@ -350,7 +520,7 @@ export function NewPolymarketChart({
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart
                             data={chartData}
-                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                            margin={{ top: 0, right: 0, left: 0, bottom: 15 }}
                         >
                             <defs>
                                 {isMultipleOutcomes ? (
@@ -394,20 +564,12 @@ export function NewPolymarketChart({
                                 dataKey="timestamp"
                                 type="number"
                                 domain={['dataMin', 'dataMax']}
-                                tickFormatter={(unixTime) => {
-                                    const date = new Date(unixTime * 1000);
-                                    if (period === '1h' || period === '6h') {
-                                        return format(date, 'h:mm a');
-                                    } else if (period === '1d') {
-                                        return format(date, 'ha');
-                                    } else {
-                                        return format(date, 'MMM d');
-                                    }
-                                }}
-                                stroke="#6B7280"
-                                fontSize={11}
+                                tick={<CustomTimelineTick />}
                                 tickLine={false}
-                                axisLine={false}
+                                axisLine={{ stroke: '#3B4048', strokeWidth: 2 }}
+                                height={45}
+                                tickMargin={0}
+                                minTickGap={50}
                             />
 
                             <YAxis
@@ -417,12 +579,30 @@ export function NewPolymarketChart({
                                 fontSize={11}
                                 tickLine={false}
                                 axisLine={false}
-                                tickFormatter={(value) => `${value}%`}
+                                mirror={true}
+                                tickCount={6}
+                                tick={({ x, y, payload, index, visibleTicksCount }) => {
+                                    // Hide first and last ticks
+                                    if (index === 0 || index === visibleTicksCount - 1) return null;
+
+                                    return (
+                                        <text
+                                            x={x}
+                                            y={y}
+                                            dy={4}
+                                            textAnchor="end"
+                                            fill="#6B7280"
+                                            fontSize={11}
+                                        >
+                                            {payload.value}%
+                                        </text>
+                                    );
+                                }}
                             />
 
                             <Tooltip
-                                content={<EnhancedTooltipWithDatetime />}
-                                cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+                                content={<EnhancedTooltip />}
+                                cursor={<CustomCursor period={period} domain={yAxisDomain} />}
                                 isAnimationActive={false}
                                 animationDuration={0}
                             />
@@ -468,10 +648,17 @@ export function NewPolymarketChart({
                 )}
             </div>
 
-            {/* Bottom Controls */}
-            <div className="mt-4 flex items-center justify-between">
+            {/* Overlay: Header with Legend and Time */}
+            <div className="absolute top-3 left-4 right-4 flex items-start justify-between pointer-events-none">
+                <div className="pointer-events-auto rounded-lg bg-[#1e1e1e]/80 backdrop-blur-sm px-3 py-2 flex flex-col items-end">
+                    <CustomLegend />
+                </div>
+            </div>
+
+            {/* Overlay: Bottom Controls */}
+            <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between pointer-events-none">
                 {/* Time Period Buttons */}
-                <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+                <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1e1e1e]/80 backdrop-blur-sm p-1">
                     {TIME_PERIODS.map((tp) => (
                         <motion.button
                             key={tp.value}
@@ -480,7 +667,7 @@ export function NewPolymarketChart({
                             whileTap={{ scale: 0.95 }}
                             className={`rounded px-3 py-1 text-xs font-semibold transition-all ${period === tp.value
                                 ? 'bg-[#BB86FC] text-white shadow-lg shadow-[#BB86FC]/30'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                : 'text-gray-400 hover:bg-white/10 hover:text-white'
                                 }`}
                         >
                             {tp.label}
@@ -488,34 +675,22 @@ export function NewPolymarketChart({
                     ))}
                 </div>
 
-                {/* Utility Buttons */}
-                <div className="flex gap-2">
-                    <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="rounded-lg bg-white/5 p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                        title="Copy to clipboard"
-                    >
-                        <Copy size={16} />
-                    </motion.button>
-                    <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="rounded-lg bg-white/5 p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                        title="View code"
-                    >
-                        <Code size={16} />
-                    </motion.button>
-                    <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="rounded-lg bg-white/5 p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                        title="Settings"
-                    >
-                        <Settings size={16} />
-                    </motion.button>
+                {/* Utility Buttons -> Replaced with Watermark */}
+                <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1e1e1e]/80 backdrop-blur-sm p-2">
+                    <div className="flex items-center gap-1 opacity-40 hover:opacity-100 transition-opacity select-none">
+                        <img
+                            src="/diamond_logo_nobg.png"
+                            alt="PolyBet"
+                            className="h-6 w-6 object-contain"
+                        />
+                        <span className="text-xs font-bold tracking-wider bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                            POLYBET
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
     );
 }
+
+
