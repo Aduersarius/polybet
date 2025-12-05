@@ -6,8 +6,27 @@ import { Footer } from "../components/Footer";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
+
+// Cookie utility functions
+function setCookie(name: string, value: string, days: number) {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+}
+
+function getCookie(name: string): string | null {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+}
 
 interface DbEvent {
   id: string;
@@ -42,6 +61,13 @@ export default function Home() {
   const [tradingModalOpen, setTradingModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<DbEvent | null>(null);
   const [preselectedOption, setPreselectedOption] = useState<'YES' | 'NO'>('YES');
+
+  const router = useRouter();
+
+  const handleCategoryChange = (category: string) => {
+    router.push(`?category=${category}`);
+    setSelectedCategory(category);
+  };
 
   // Fetch events from database
   const { data: eventsData, isLoading, error } = useQuery({
@@ -78,20 +104,14 @@ export default function Home() {
     console.log('selectedCategory changed to:', selectedCategory);
   }, [selectedCategory]);
 
-  // Save selectedCategory to localStorage with sessionStorage fallback
+  // Save selectedCategory to cookies
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('selectedCategory', selectedCategory);
-        console.log('Saved selectedCategory to localStorage:', selectedCategory);
+        setCookie('selectedCategory', selectedCategory, 30);
+        console.log('Saved selectedCategory to cookies:', selectedCategory);
       } catch (e) {
-        console.log('localStorage not available, trying sessionStorage:', e);
-        try {
-          sessionStorage.setItem('selectedCategory', selectedCategory);
-          console.log('Saved selectedCategory to sessionStorage:', selectedCategory);
-        } catch (e2) {
-          console.log('sessionStorage also not available:', e2);
-        }
+        console.log('Cookies not available:', e);
       }
     }
   }, [selectedCategory]);
@@ -109,16 +129,10 @@ export default function Home() {
       } else {
         let saved = null;
         try {
-          saved = localStorage.getItem('selectedCategory');
-          console.log('Restored selectedCategory from localStorage:', saved);
+          saved = getCookie('selectedCategory');
+          console.log('Restored selectedCategory from cookies:', saved);
         } catch (e) {
-          console.log('localStorage not available, trying sessionStorage:', e);
-          try {
-            saved = sessionStorage.getItem('selectedCategory');
-            console.log('Restored selectedCategory from sessionStorage:', saved);
-          } catch (e2) {
-            console.log('sessionStorage also not available:', e2);
-          }
+          console.log('Cookies not available:', e);
         }
         if (saved) {
           setSelectedCategory(saved);
@@ -492,7 +506,7 @@ export default function Home() {
           key="markets"
           className="min-h-screen relative text-white z-10"
         >
-          <Navbar selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+          <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
           {/* Markets Background */}
           <div className="fixed inset-0 z-0"></div>
 

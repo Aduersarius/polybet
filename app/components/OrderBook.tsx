@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 
 interface Outcome {
     id: string;
@@ -114,76 +115,98 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     )}
                 </div>
             </div>
-            <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden">
+            <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden flex flex-row">
                 {/* Asks (Sell Orders) */}
-                <div className="border-b border-white/10">
+                <div className="flex-1 border-r border-white/10">
                     <div className="px-3 py-2 bg-red-500/10">
                         <div className="text-xs text-red-400 font-medium">Asks (Sell)</div>
                     </div>
-                    <div className="max-h-32 overflow-y-auto">
-                        {orderBook.asks.slice(0, 8).map((ask, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05, duration: 0.3 }}
-                                className="flex justify-between px-3 py-1 text-xs hover:bg-white/5 transition-all duration-200 hover:bg-green-500/10"
-                            >
-                                <motion.span
-                                    className="text-red-400 font-mono"
-                                    animate={{ scale: [1, 1.05, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
+                    <div className="flex flex-row h-64">
+                        <div className="flex-1 overflow-y-auto">
+                            {orderBook.asks.slice(0, 8).map((ask, index) => (
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.05, duration: 0.3 }}
+                                    className="flex flex-col items-center px-3 py-1 text-xs hover:bg-white/5 transition-all duration-200 hover:bg-red-500/10"
                                 >
-                                    ${(ask.price * 100).toFixed(1)}
-                                </motion.span>
-                                <motion.span
-                                    className="text-gray-300 font-mono"
-                                    animate={{ opacity: [0.7, 1, 0.7] }}
-                                    transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: index * 0.2 }}
-                                >
-                                    {ask.amount.toFixed(0)}
-                                </motion.span>
-                            </motion.div>
-                        ))}
-                        {orderBook.asks.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-gray-500">No asks</div>
-                        )}
+                                    <motion.span
+                                        className="text-red-400 font-mono"
+                                        animate={{ scale: [1, 1.05, 1] }}
+                                        transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
+                                    >
+                                        ${(ask.price * 100).toFixed(1)}
+                                    </motion.span>
+                                    <motion.span
+                                        className="text-gray-300 font-mono"
+                                        animate={{ opacity: [0.7, 1, 0.7] }}
+                                        transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: index * 0.2 }}
+                                    >
+                                        {ask.amount.toFixed(0)}
+                                    </motion.span>
+                                </motion.div>
+                            ))}
+                            {orderBook.asks.length === 0 && (
+                                <div className="px-3 py-2 text-xs text-gray-500">No asks</div>
+                            )}
+                        </div>
+                        <div className="w-32">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart layout="horizontal" data={orderBook.asks.slice(0, 8).map(ask => ({ price: (ask.price * 100).toFixed(1), amount: ask.amount }))}>
+                                    <YAxis type="category" dataKey="price" />
+                                    <XAxis type="number" />
+                                    <Bar dataKey="amount" fill="#ef4444" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
 
                 {/* Bids (Buy Orders) */}
-                <div>
+                <div className="flex-1">
                     <div className="px-3 py-2 bg-green-500/10">
                         <div className="text-xs text-green-400 font-medium">Bids (Buy)</div>
                     </div>
-                    <div className="max-h-32 overflow-y-auto">
-                        {orderBook.bids.slice(0, 8).map((bid, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05, duration: 0.3 }}
-                                className="flex justify-between px-3 py-1 text-xs hover:bg-white/5 transition-all duration-200 hover:bg-green-500/10"
-                            >
-                                <motion.span
-                                    className="text-green-400 font-mono"
-                                    animate={{ scale: [1, 1.05, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: index * 0.1 }}
+                    <div className="flex flex-row h-64">
+                        <div className="flex-1 overflow-y-auto">
+                            {orderBook.bids.slice(0, 8).map((bid, index) => (
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.05, duration: 0.3 }}
+                                    className="flex flex-col items-center px-3 py-1 text-xs hover:bg-white/5 transition-all duration-200 hover:bg-green-500/10"
                                 >
-                                    ${(bid.price * 100).toFixed(1)}
-                                </motion.span>
-                                <motion.span
-                                    className="text-gray-300 font-mono"
-                                    animate={{ opacity: [0.7, 1, 0.7] }}
-                                    transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: index * 0.3 }}
-                                >
-                                    {bid.amount.toFixed(0)}
-                                </motion.span>
-                            </motion.div>
-                        ))}
-                        {orderBook.bids.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-gray-500">No bids</div>
-                        )}
+                                    <motion.span
+                                        className="text-green-400 font-mono"
+                                        animate={{ scale: [1, 1.05, 1] }}
+                                        transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: index * 0.1 }}
+                                    >
+                                        ${(bid.price * 100).toFixed(1)}
+                                    </motion.span>
+                                    <motion.span
+                                        className="text-gray-300 font-mono"
+                                        animate={{ opacity: [0.7, 1, 0.7] }}
+                                        transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: index * 0.3 }}
+                                    >
+                                        {bid.amount.toFixed(0)}
+                                    </motion.span>
+                                </motion.div>
+                            ))}
+                            {orderBook.bids.length === 0 && (
+                                <div className="px-3 py-2 text-xs text-gray-500">No bids</div>
+                            )}
+                        </div>
+                        <div className="w-32">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart layout="horizontal" data={orderBook.bids.slice(0, 8).map(bid => ({ price: (bid.price * 100).toFixed(1), amount: bid.amount }))}>
+                                    <YAxis type="category" dataKey="price" />
+                                    <XAxis type="number" />
+                                    <Bar dataKey="amount" fill="#22c55e" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
             </div>

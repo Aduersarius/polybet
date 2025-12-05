@@ -380,12 +380,9 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                         (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
                     }
                     className="w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={selectedOutcome?.color ? {
-                        backgroundColor: selectedOutcome.color,
-                        boxShadow: `0 0 20px ${selectedOutcome.color}40`
-                    } : {
-                        backgroundColor: '#bb86fc',
-                        boxShadow: '0 0 20px rgba(187, 134, 252, 0.2)'
+                    style={{
+                        backgroundColor: '#4CAF50',
+                        boxShadow: '0 0 20px rgba(76, 175, 80, 0.2)'
                     }}
                 >
                     {isLoading
