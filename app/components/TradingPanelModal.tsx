@@ -70,9 +70,11 @@ export function TradingPanelModal({
                             {/* Trading Panel Content */}
                             <div className="p-4 overflow-y-auto">
                                 <TradingPanel
+                                    eventId={eventId}
                                     creationDate={creationDate}
                                     resolutionDate={resolutionDate}
                                     onTrade={handleTrade}
+                                    preselectedOption={preselectedOption}
                                 />
                             </div>
                         </motion.div>

@@ -50,6 +50,7 @@ export async function GET(
                             include: {
                                 user: {
                                     select: {
+                                        id: true,
                                         username: true,
                                         address: true,
                                         avatarUrl: true,

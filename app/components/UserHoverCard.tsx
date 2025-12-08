@@ -32,6 +32,8 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [mounted, setMounted] = useState(false);
 
+    const isUnknownUser = !address || address.toLowerCase() === 'unknown';
+
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -43,7 +45,7 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
             if (!res.ok) throw new Error('Failed to fetch user stats');
             return res.json();
         },
-        enabled: isOpen,
+        enabled: isOpen && !isUnknownUser,
         staleTime: 1000 * 60 * 5,
     });
 
@@ -115,7 +117,7 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                             initial={{
                                 opacity: 0,
                                 scale: 0.95,
-                                y: coords.placement === 'top' ? -10 : 10
+                                y: coords.placement === 'top' ? "-100%" : 0
                             }}
                             animate={{
                                 opacity: 1,
@@ -125,7 +127,7 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                             exit={{
                                 opacity: 0,
                                 scale: 0.95,
-                                y: coords.placement === 'top' ? -10 : 10
+                                y: coords.placement === 'top' ? "-100%" : 0
                             }}
                             transition={{ duration: 0.2 }}
                             style={{
@@ -139,7 +141,11 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                             onMouseLeave={handleMouseLeave}
                         >
                             <div className="bg-[#1e293b] rounded-xl shadow-2xl border border-white/10 overflow-hidden p-4">
-                                {isLoading ? (
+                                {isUnknownUser ? (
+                                    <div className="text-center text-gray-400 py-4">
+                                        User information is not available
+                                    </div>
+                                ) : isLoading ? (
                                     <div className="flex justify-center py-8">
                                         <div className="w-6 h-6 border-2 border-[#bb86fc] border-t-transparent rounded-full animate-spin" />
                                     </div>

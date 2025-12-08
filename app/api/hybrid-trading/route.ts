@@ -85,6 +85,20 @@ export async function POST(request: Request) {
         const totalTime = Date.now() - startTime;
         console.log(`✅ Hybrid order executed in ${totalTime}ms: ${side} ${amount} ${targetOption} @ ${result.averagePrice}`);
 
+        // Create a notification for the user (fire-and-forget)
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: sessionUserId,
+                    type: 'BET_RESULT',
+                    message: `Trade executed: ${side.toUpperCase()} ${amount} ${targetOption}`,
+                    resourceId: eventId,
+                },
+            });
+        } catch (err) {
+            console.error('Failed to create trade notification:', err);
+        }
+
         // Publish real-time updates via WebSocket and Redis
         if (redis) {
             let updatePayload: any = {
