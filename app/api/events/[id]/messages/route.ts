@@ -56,6 +56,7 @@ export async function GET(
                             select: {
                                 username: true,
                                 avatarUrl: true,
+                                image: true, // Include image field from Better Auth as fallback
                                 address: true,
                                 marketActivity: {
                                     where: { eventId: id },
@@ -83,6 +84,12 @@ export async function GET(
                 // Transform for frontend
                 const formattedMessages = messagesToReturn.map((msg: any) => ({
                     ...msg,
+                    user: {
+                        ...msg.user,
+                        // Ensure image field is included
+                        image: msg.user.image || null,
+                        avatarUrl: msg.user.avatarUrl || null,
+                    },
                     replyCount: msg.replies.length,
                     reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {
                         if (!acc[r.type]) acc[r.type] = [];
@@ -164,6 +171,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                         select: {
                             username: true,
                             avatarUrl: true,
+                            image: true, // Include image field from Better Auth as fallback
                             address: true
                         }
                     }
@@ -206,7 +214,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                     text: message.text,
                     userId: message.userId,
                     username: message.user.username,
-                    avatarUrl: message.user.avatarUrl,
+                    avatarUrl: message.user.avatarUrl || message.user.image,
                     address: message.user.address,
                     createdAt: message.createdAt,
                     parentId: message.parentId,

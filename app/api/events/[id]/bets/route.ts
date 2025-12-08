@@ -53,6 +53,7 @@ export async function GET(
                                         username: true,
                                         address: true,
                                         avatarUrl: true,
+                                        image: true, // Include image field from Better Auth
                                     },
                                 },
                             },

@@ -15,6 +15,7 @@ interface UserHoverCardProps {
 interface UserStats {
     username: string | null;
     avatarUrl: string | null;
+    image: string | null; // Include image field from Better Auth
     joinedAt: string;
     stats: {
         volume: number;
@@ -147,7 +148,12 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                                         {/* Header */}
                                         <div className="flex items-center gap-3 mb-4">
                                             <Avatar className="w-12 h-12 border-2 border-white/10">
-                                                <AvatarImage src={user.avatarUrl || undefined} />
+                                                {(user.avatarUrl || user.image) && (
+                                                    <AvatarImage 
+                                                        src={user.avatarUrl || user.image || undefined} 
+                                                        alt={user.username || formatAddress(address)}
+                                                    />
+                                                )}
                                                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg">
                                                     {(user.username?.[0] || address.slice(2, 3)).toUpperCase()}
                                                 </AvatarFallback>

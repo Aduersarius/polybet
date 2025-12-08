@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActivityList } from './ActivityList';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +29,7 @@ interface Message {
         address?: string;
         username: string | null;
         avatarUrl: string | null;
+        image: string | null; // Include image field from Better Auth as fallback
         bets?: {
             option: string;
             amount: number;
@@ -43,42 +44,110 @@ interface EventChatProps {
 }
 
 export function EventChat({ eventId }: EventChatProps) {
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [inputText, setInputText] = useState('');
     const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
     const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat');
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     // Mock user for dev - in real app use auth context
     const user = { id: 'dev-user', username: 'Dev User' };
     const queryClient = useQueryClient();
 
-    // Fetch messages
-    const { data: messagesData, isLoading } = useQuery<{
+    // Fetch messages with pagination
+    const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        refetch,
+    } = useInfiniteQuery<{
         messages: Message[];
         hasMore: boolean;
         nextCursor: string | null;
     }>({
         queryKey: ['messages', eventId],
-        queryFn: async () => {
-            const res = await fetch(`/api/events/${eventId}/messages`);
+        queryFn: async ({ pageParam }) => {
+            const params = new URLSearchParams({
+                limit: '20', // Load 20 messages per page
+            });
+            if (pageParam) {
+                params.append('cursor', pageParam as string);
+            }
+            const res = await fetch(`/api/events/${eventId}/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
+        getNextPageParam: (lastPage) => {
+            return lastPage.nextCursor || undefined;
+        },
+        initialPageParam: undefined,
     });
 
-    const messages = messagesData?.messages || [];
+    // Flatten all pages into a single messages array
+    const messages = data?.pages.flatMap((page) => page.messages) || [];
 
     // Real-time updates
     useEffect(() => {
         const { socket } = require('@/lib/socket');
         function onMessage() {
-            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+            // Refetch first page to get new messages
+            refetch();
         }
         socket.on(`chat-message-${eventId}`, onMessage);
         return () => {
             socket.off(`chat-message-${eventId}`, onMessage);
         };
-    }, [eventId, queryClient]);
+    }, [eventId, refetch]);
+
+    // Handle loading more messages
+    const handleLoadMore = async () => {
+        if (!hasNextPage || isFetchingNextPage) return;
+        
+        setIsLoadingMore(true);
+        // Get the viewport element from ScrollArea
+        const scrollArea = scrollContainerRef.current?.closest('[data-radix-scroll-area-root]');
+        const viewport = scrollArea?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        const previousScrollHeight = viewport?.scrollHeight || 0;
+        const previousScrollTop = viewport?.scrollTop || 0;
+        
+        try {
+            await fetchNextPage();
+            
+            // Maintain scroll position after loading
+            // Use setTimeout to ensure DOM has updated
+            setTimeout(() => {
+                if (viewport) {
+                    const newScrollHeight = viewport.scrollHeight;
+                    const scrollDifference = newScrollHeight - previousScrollHeight;
+                    viewport.scrollTop = previousScrollTop + scrollDifference;
+                }
+            }, 0);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
+    useEffect(() => {
+        if (!data || isLoading) return;
+        
+        const scrollArea = scrollContainerRef.current?.closest('[data-radix-scroll-area-root]');
+        const viewport = scrollArea?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        
+        if (viewport) {
+            // Check if user is near bottom (within 100px)
+            const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
+            
+            if (isNearBottom) {
+                // Scroll to bottom
+                setTimeout(() => {
+                    viewport.scrollTop = viewport.scrollHeight;
+                }, 100);
+            }
+        }
+    }, [data?.pages.length, isLoading]);
 
     // Group messages
     const rootMessages = messages.filter(m => !m.parentId);
@@ -109,7 +178,8 @@ export function EventChat({ eventId }: EventChatProps) {
         onSuccess: () => {
             setInputText('');
             setReplyTo(null);
-            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+            // Refetch to show new message
+            refetch();
         },
     });
 
@@ -147,6 +217,13 @@ export function EventChat({ eventId }: EventChatProps) {
         if (userObj.address) return userObj.address.slice(2, 3).toUpperCase();
         const initial = userId[0].toUpperCase();
         return isNaN(parseInt(initial)) ? initial : 'U';
+    };
+
+    // Helper function to get avatar URL with fallback
+    const getAvatarUrl = (userObj: Message['user']): string | undefined => {
+        const url = userObj.avatarUrl || userObj.image;
+        // Return undefined if url is null, empty string, or undefined
+        return url && url.trim() !== '' ? url : undefined;
     };
 
     return (
@@ -205,98 +282,134 @@ export function EventChat({ eventId }: EventChatProps) {
                     </div>
 
                     <ScrollArea className="flex-1 pr-4">
-                        {isLoading ? (
-                            <div className="flex justify-center items-center h-40">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#bb86fc]"></div>
-                            </div>
-                        ) : rootMessages.length === 0 ? (
-                            <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
-                        ) : (
-                            <Discussion type="multiple" className="space-y-6">
-                                {rootMessages.map((msg) => {
-                                    const replies = messageMap.get(msg.id) || [];
-                                    const isMe = msg.userId === user?.id;
-                                    const displayName = formatDisplayName(msg.user, msg.userId);
-                                    const avatarFallback = getAvatarFallback(msg.user, msg.userId);
+                        <div ref={scrollContainerRef} className="flex flex-col">
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-40">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#bb86fc]"></div>
+                                </div>
+                            ) : rootMessages.length === 0 ? (
+                                <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
+                            ) : (
+                                <>
+                                    {/* Load More Button */}
+                                    {hasNextPage && (
+                                        <div className="flex justify-center mb-4">
+                                            <Button
+                                                onClick={handleLoadMore}
+                                                disabled={isFetchingNextPage || isLoadingMore}
+                                                className="bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 text-xs px-4 py-2"
+                                                size="sm"
+                                            >
+                                                {isFetchingNextPage || isLoadingMore ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-2"></div>
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    'Load Older Messages'
+                                                )}
+                                            </Button>
+                                        </div>
+                                    )}
+                                    
+                                    <Discussion type="multiple" className="space-y-6">
+                                        {rootMessages.map((msg) => {
+                                            const replies = messageMap.get(msg.id) || [];
+                                            const isMe = msg.userId === user?.id;
+                                            const displayName = formatDisplayName(msg.user, msg.userId);
+                                            const avatarFallback = getAvatarFallback(msg.user, msg.userId);
 
-                                    return (
-                                        <DiscussionItem key={msg.id} value={msg.id}>
-                                            <DiscussionContent className="gap-3 items-start">
-                                                <UserHoverCard address={msg.user.address || msg.userId}>
-                                                    <div className="cursor-pointer">
-                                                        <Avatar className="w-8 h-8 border border-white/10">
-                                                            <AvatarImage src={msg.user.avatarUrl || undefined} />
-                                                            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">{avatarFallback}</AvatarFallback>
-                                                        </Avatar>
-                                                    </div>
-                                                </UserHoverCard>
-
-                                                <div className="flex flex-col gap-1 w-full min-w-0">
-                                                    <div className="flex items-center gap-2">
+                                            return (
+                                                <DiscussionItem key={msg.id} value={msg.id}>
+                                                    <DiscussionContent className="gap-3 items-start">
                                                         <UserHoverCard address={msg.user.address || msg.userId}>
-                                                            <DiscussionTitle className={`cursor-pointer hover:underline text-sm font-semibold ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
-                                                                {displayName}
-                                                            </DiscussionTitle>
+                                                            <div className="cursor-pointer">
+                                                                <Avatar className="w-8 h-8 border border-white/10">
+                                                                    {getAvatarUrl(msg.user) && (
+                                                                        <AvatarImage src={getAvatarUrl(msg.user)!} alt={displayName} />
+                                                                    )}
+                                                                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">{avatarFallback}</AvatarFallback>
+                                                                </Avatar>
+                                                            </div>
                                                         </UserHoverCard>
-                                                        <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
-                                                    </div>
 
-                                                    <DiscussionBody className="text-sm text-gray-300">
-                                                        {msg.text}
-                                                    </DiscussionBody>
+                                                        <div className="flex flex-col gap-1 w-full min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <UserHoverCard address={msg.user.address || msg.userId}>
+                                                                    <DiscussionTitle className={`cursor-pointer hover:underline text-sm font-semibold ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
+                                                                        {displayName}
+                                                                    </DiscussionTitle>
+                                                                </UserHoverCard>
+                                                                <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
+                                                            </div>
 
-                                                    <div className="flex items-center gap-4 pt-1">
-                                                        <button
-                                                            onClick={() => setReplyTo({ id: msg.id, username: displayName })}
-                                                            className="text-xs text-gray-500 hover:text-white flex items-center gap-1 group"
-                                                        >
-                                                            <ArrowUturnLeftIcon className="w-3 h-3 group-hover:text-[#bb86fc]" />
-                                                            Reply
-                                                        </button>
+                                                            <DiscussionBody className="text-sm text-gray-300">
+                                                                {msg.text}
+                                                            </DiscussionBody>
 
-                                                        {replies.length > 0 && (
-                                                            <DiscussionExpand />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </DiscussionContent>
+                                                            <div className="flex items-center gap-4 pt-1">
+                                                                <button
+                                                                    onClick={() => setReplyTo({ id: msg.id, username: displayName })}
+                                                                    className="text-xs text-gray-500 hover:text-white flex items-center gap-1 group"
+                                                                >
+                                                                    <ArrowUturnLeftIcon className="w-3 h-3 group-hover:text-[#bb86fc]" />
+                                                                    Reply
+                                                                </button>
 
-                                            {replies.length > 0 && (
-                                                <DiscussionReplies>
-                                                    <div className="space-y-4 py-2 pl-4 border-l border-white/10 ml-3">
-                                                        {replies.map(reply => {
-                                                            const replyDisplayName = formatDisplayName(reply.user, reply.userId);
-                                                            const replyAvatarFallback = getAvatarFallback(reply.user, reply.userId);
-                                                            return (
-                                                                <div key={reply.id} className="flex gap-3">
-                                                                    <UserHoverCard address={reply.user.address || reply.userId}>
-                                                                        <div className="cursor-pointer shrink-0">
-                                                                            <Avatar className="w-6 h-6 border border-white/10">
-                                                                                <AvatarImage src={reply.user.avatarUrl || undefined} />
-                                                                                <AvatarFallback className="bg-gray-700 text-white font-bold text-[10px]">{replyAvatarFallback}</AvatarFallback>
-                                                                            </Avatar>
-                                                                        </div>
-                                                                    </UserHoverCard>
-                                                                    <div>
-                                                                        <div className="flex items-center gap-2">
+                                                                {replies.length > 0 && (
+                                                                    <DiscussionExpand />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </DiscussionContent>
+
+                                                    {replies.length > 0 && (
+                                                        <DiscussionReplies>
+                                                            <div className="space-y-4 py-2 pl-4 border-l border-white/10 ml-3">
+                                                                {replies.map(reply => {
+                                                                    const replyDisplayName = formatDisplayName(reply.user, reply.userId);
+                                                                    const replyAvatarFallback = getAvatarFallback(reply.user, reply.userId);
+                                                                    return (
+                                                                        <div key={reply.id} className="flex gap-3">
                                                                             <UserHoverCard address={reply.user.address || reply.userId}>
-                                                                                <span className="text-xs font-bold text-gray-300 cursor-pointer hover:underline">{replyDisplayName}</span>
+                                                                                <div className="cursor-pointer shrink-0">
+                                                                                    <Avatar className="w-6 h-6 border border-white/10">
+                                                                                        {getAvatarUrl(reply.user) && (
+                                                                                            <AvatarImage src={getAvatarUrl(reply.user)!} alt={replyDisplayName} />
+                                                                                        )}
+                                                                                        <AvatarFallback className="bg-gray-700 text-white font-bold text-[10px]">{replyAvatarFallback}</AvatarFallback>
+                                                                                    </Avatar>
+                                                                                </div>
                                                                             </UserHoverCard>
-                                                                            <span className="text-[10px] text-gray-600">{formatTime(reply.createdAt)}</span>
+                                                                            <div>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <UserHoverCard address={reply.user.address || reply.userId}>
+                                                                                        <span className="text-xs font-bold text-gray-300 cursor-pointer hover:underline">{replyDisplayName}</span>
+                                                                                    </UserHoverCard>
+                                                                                    <span className="text-[10px] text-gray-600">{formatTime(reply.createdAt)}</span>
+                                                                                </div>
+                                                                                <p className="text-sm text-gray-400 mt-0.5">{reply.text}</p>
+                                                                            </div>
                                                                         </div>
-                                                                        <p className="text-sm text-gray-400 mt-0.5">{reply.text}</p>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </DiscussionReplies>
-                                            )}
-                                        </DiscussionItem>
-                                    );
-                                })}
-                            </Discussion>
-                        )}
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </DiscussionReplies>
+                                                    )}
+                                                </DiscussionItem>
+                                            );
+                                        })}
+                                    </Discussion>
+                                    
+                                    {/* Loading indicator at bottom when fetching next page */}
+                                    {isFetchingNextPage && (
+                                        <div className="flex justify-center items-center py-4">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#bb86fc]"></div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </ScrollArea>
                 </>
             ) : (
