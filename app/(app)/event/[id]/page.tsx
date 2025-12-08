@@ -241,13 +241,9 @@ export default function EventPage() {
                                         </div>
 
                                         {/* Comments Section */}
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.5 }}
-                                        >
+                                        <div>
                                             <EventChat eventId={eventId.toString()} />
-                                        </motion.div>
+                                        </div>
                                     </div>
                                 </div>
 
