@@ -296,7 +296,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                         <div className="flex justify-center mb-4">
                                             <Button
                                                 onClick={handleLoadMore}
-                                                disabled={isFetchingNextPage || isLoadingMore}
+                                                isDisabled={isFetchingNextPage || isLoadingMore}
                                                 className="bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 text-xs px-4 py-2"
                                                 size="sm"
                                             >
