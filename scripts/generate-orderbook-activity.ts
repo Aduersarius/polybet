@@ -20,9 +20,7 @@
  *   - Supports both BINARY and MULTIPLE event types
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 // Configuration
 const UPDATE_INTERVAL_MS = parseInt(process.env.ORDERBOOK_UPDATE_INTERVAL || '15000'); // Default: 15 seconds (4 times per minute)

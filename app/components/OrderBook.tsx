@@ -14,6 +14,7 @@ interface OrderBookProps {
     selectedOption?: 'YES' | 'NO';
     outcomes?: Outcome[];
     eventType?: string;
+    visualMode?: boolean;
     onOrderSelect?: (intent: {
         side: 'buy' | 'sell';
         price: number;
@@ -22,15 +23,63 @@ interface OrderBookProps {
     }) => void;
 }
 
-export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', onOrderSelect }: OrderBookProps) {
+type OrderBookState = { bids: Array<{ price: number; amount: number }>; asks: Array<{ price: number; amount: number }> };
+
+function generateSyntheticOrderBook(basePrice: number): OrderBookState {
+    const numLevels = 10;
+    const spread = 0.12; // total spread around base price
+
+    const bids: OrderBookState['bids'] = [];
+    const asks: OrderBookState['asks'] = [];
+
+    for (let i = 1; i <= numLevels; i++) {
+        const levelOffset = (i / numLevels) * (spread / 2);
+        const priceBid = Math.max(0.01, basePrice - levelOffset);
+        const priceAsk = Math.min(0.99, basePrice + levelOffset);
+
+        const baseSize = 50 + Math.random() * 150;
+        const sizeFactor = (numLevels - i + 1) / numLevels; // larger near top of book
+
+        bids.push({ price: priceBid, amount: baseSize * sizeFactor });
+        asks.push({ price: priceAsk, amount: baseSize * sizeFactor });
+    }
+
+    return { bids, asks };
+}
+
+function jitterOrderBook(prev: OrderBookState, basePrice: number): OrderBookState {
+    const jitterPrice = (p: number, isBid: boolean) => {
+        const maxJitter = 0.01; // 1% jitter
+        const delta = (Math.random() - 0.5) * 2 * maxJitter;
+        const next = p + delta;
+        if (isBid) {
+            return Math.min(basePrice, Math.max(0.01, next));
+        }
+        return Math.max(basePrice, Math.min(0.99, next));
+    };
+
+    const jitterSize = (a: number) => {
+        const maxFactor = 0.1;
+        const factor = 1 + (Math.random() - 0.5) * 2 * maxFactor;
+        return Math.max(10, a * factor);
+    };
+
+    return {
+        bids: prev.bids.map(b => ({ price: jitterPrice(b.price, true), amount: jitterSize(b.amount) })),
+        asks: prev.asks.map(a => ({ price: jitterPrice(a.price, false), amount: jitterSize(a.amount) })),
+    };
+}
+
+export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', visualMode = false, onOrderSelect }: OrderBookProps) {
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || 'YES');
-    const [orderBook, setOrderBook] = useState<{ bids: Array<{ price: number, amount: number }>, asks: Array<{ price: number, amount: number }> }>({ bids: [], asks: [] });
+    const [orderBook, setOrderBook] = useState<OrderBookState>({ bids: [], asks: [] });
 
     const isMultiple = eventType === 'MULTIPLE';
     const selectedOption = isMultiple ? selectedOutcomeId : (selectedOutcomeId as 'YES' | 'NO');
 
-    // Fetch initial order book data
+    // Fetch initial order book data (disabled in visual mode)
     useEffect(() => {
+        if (visualMode) return;
         const fetchOrderBook = async () => {
             try {
                 const params = isMultiple
@@ -47,10 +96,11 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         };
 
         fetchOrderBook();
-    }, [eventId, selectedOutcomeId, isMultiple, selectedOption]);
+    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode]);
 
-    // Real-time updates via WebSocket
+    // Real-time updates via WebSocket (disabled in visual mode)
     useEffect(() => {
+        if (visualMode) return;
         const { socket } = require('@/lib/socket');
 
         function onOrderbookUpdate(update: any) {
@@ -71,7 +121,44 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
             socket.emit('unsubscribe-orderbook', isMultiple ? { eventId, outcomeId: selectedOutcomeId } : { eventId, option: selectedOption });
             socket.off('orderbook-update', onOrderbookUpdate);
         };
-    }, [eventId, selectedOutcomeId, isMultiple, selectedOption]);
+    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode]);
+
+    // Visual-only synthetic orderbook dynamics
+    useEffect(() => {
+        if (!visualMode) return;
+
+        const basePrice = isMultiple ? 0.5 : (selectedOption === 'YES' ? 0.6 : 0.4);
+        setOrderBook(generateSyntheticOrderBook(basePrice));
+
+        const id = setInterval(() => {
+            setOrderBook(prev => jitterOrderBook(prev, basePrice));
+        }, 1500);
+
+        return () => clearInterval(id);
+    }, [visualMode, isMultiple, selectedOption]);
+
+    // Breathing effect on top of real data (when not in visual mode)
+    useEffect(() => {
+        if (visualMode) return;
+
+        const getBasePriceFromOrderBook = (state: OrderBookState): number => {
+            const bestBid = state.bids.length > 0 ? Math.max(...state.bids.map(b => b.price)) : 0.5;
+            const bestAsk = state.asks.length > 0 ? Math.min(...state.asks.map(a => a.price)) : 0.5;
+            if (bestBid === 0.5 && bestAsk === 0.5) return 0.5;
+            return (bestBid + bestAsk) / 2;
+        };
+
+        const id = setInterval(() => {
+            setOrderBook(prev => {
+                // If no real data yet, don't jitter
+                if (prev.bids.length === 0 && prev.asks.length === 0) return prev;
+                const basePrice = getBasePriceFromOrderBook(prev);
+                return jitterOrderBook(prev, basePrice);
+            });
+        }, 1500);
+
+        return () => clearInterval(id);
+    }, [visualMode]);
 
     const maxAsk = useMemo(() => Math.max(...orderBook.asks.map(a => a.amount), 0), [orderBook.asks]);
     const maxBid = useMemo(() => Math.max(...orderBook.bids.map(b => b.amount), 0), [orderBook.bids]);

@@ -147,7 +147,7 @@ export function EventChat({ eventId }: EventChatProps) {
                 }, 100);
             }
         }
-    }, [data?.pages.length, isLoading]);
+    }, [data?.pages?.length ?? 0, isLoading]);
 
     // Group messages
     const rootMessages = messages.filter(m => !m.parentId);
