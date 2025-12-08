@@ -9,7 +9,8 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
-    "stress": "npx tsx stress-test.ts"
+    "stress": "npx tsx stress-test.ts",
+    "orderbook-activity": "npx tsx scripts/generate-orderbook-activity.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
