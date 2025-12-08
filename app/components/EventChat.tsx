@@ -1,6 +1,7 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { ActivityList } from './ActivityList';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,40 +50,28 @@ export function EventChat({ eventId }: EventChatProps) {
     const [inputText, setInputText] = useState('');
     const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
     const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat');
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     // Mock user for dev - in real app use auth context
     const user = { id: 'dev-user', username: 'Dev User' };
-    const queryClient = useQueryClient();
 
-    // Fetch messages with pagination (React Query v5 object signature)
+    // Fetch latest messages as a simple flat list (no client-side pagination)
     const {
         data,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
         isLoading,
         refetch,
-    } = useInfiniteQuery<any>({
+    } = useQuery<{ messages: Message[] }>({
         queryKey: ['messages', eventId],
-        queryFn: async (ctx: any) => {
-            const pageParam = ctx?.pageParam as string | undefined;
+        queryFn: async () => {
             const params = new URLSearchParams({
-                limit: '20', // Load 20 messages per page
+                limit: '50', // Load up to 50 latest messages
             });
-            if (pageParam) {
-                params.append('cursor', pageParam);
-            }
             const res = await fetch(`/api/events/${eventId}/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
-        getNextPageParam: (lastPage: any) => lastPage?.nextCursor || undefined,
-        initialPageParam: undefined,
     });
 
-    // Flatten all pages into a single messages array
-    const messages: Message[] = (data?.pages || []).flatMap((page: any) => page.messages) || [];
+    const messages: Message[] = data?.messages || [];
 
     // Real-time updates
     useEffect(() => {
@@ -96,34 +85,6 @@ export function EventChat({ eventId }: EventChatProps) {
             socket.off(`chat-message-${eventId}`, onMessage);
         };
     }, [eventId, refetch]);
-
-    // Handle loading more messages
-    const handleLoadMore = async () => {
-        if (!hasNextPage || isFetchingNextPage) return;
-        
-        setIsLoadingMore(true);
-        // Get the viewport element from ScrollArea
-        const scrollArea = scrollContainerRef.current?.closest('[data-radix-scroll-area-root]');
-        const viewport = scrollArea?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
-        const previousScrollHeight = viewport?.scrollHeight || 0;
-        const previousScrollTop = viewport?.scrollTop || 0;
-        
-        try {
-            await fetchNextPage();
-            
-            // Maintain scroll position after loading
-            // Use setTimeout to ensure DOM has updated
-            setTimeout(() => {
-                if (viewport) {
-                    const newScrollHeight = viewport.scrollHeight;
-                    const scrollDifference = newScrollHeight - previousScrollHeight;
-                    viewport.scrollTop = previousScrollTop + scrollDifference;
-                }
-            }, 0);
-        } finally {
-            setIsLoadingMore(false);
-        }
-    };
 
     // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
     useEffect(() => {
@@ -143,7 +104,7 @@ export function EventChat({ eventId }: EventChatProps) {
                 }, 100);
             }
         }
-    }, [data?.pages?.length ?? 0, isLoading]);
+    }, [messages.length, isLoading]);
 
     // Group messages
     const rootMessages = messages.filter(m => !m.parentId);
@@ -303,27 +264,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                 <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
                             ) : (
                                 <>
-                                    {/* Load More Button */}
-                                    {hasNextPage && (
-                                        <div className="flex justify-center mb-4">
-                                            <Button
-                                                onClick={handleLoadMore}
-                                                isDisabled={isFetchingNextPage || isLoadingMore}
-                                                className="bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 text-xs px-4 py-2"
-                                                size="sm"
-                                            >
-                                                {isFetchingNextPage || isLoadingMore ? (
-                                                    <>
-                                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-2"></div>
-                                                        Loading...
-                                                    </>
-                                                ) : (
-                                                    'Load Older Messages'
-                                                )}
-                                            </Button>
-                                        </div>
-                                    )}
-                                    
+                                    {/* No "Load Older" pagination for now; show latest messages only */}
                                     <Discussion type="multiple" className="space-y-6">
                                         {rootMessages.map((msg) => {
                                             const replies = messageMap.get(msg.id) || [];
@@ -333,6 +274,8 @@ export function EventChat({ eventId }: EventChatProps) {
                                             const likeCount = msg.reactions?.LIKE?.length || 0;
                                             const dislikeCount = msg.reactions?.DISLIKE?.length || 0;
 
+                                            const profileAddress = msg.user.address || msg.userId;
+
                                             // Use the most recent bet for this event if available
                                             const latestBet = msg.user.bets && msg.user.bets.length > 0
                                                 ? msg.user.bets[0]
@@ -341,23 +284,25 @@ export function EventChat({ eventId }: EventChatProps) {
                                             return (
                                                 <DiscussionItem key={msg.id} value={msg.id}>
                                                     <DiscussionContent className="gap-3 items-start">
-                                                        <UserHoverCard address={msg.user.address || msg.userId}>
-                                                            <div className="cursor-pointer">
+                                                        <UserHoverCard address={profileAddress}>
+                                                            <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
                                                                 <Avatar className="w-8 h-8 border border-white/10">
                                                                     {getAvatarUrl(msg.user) && (
                                                                         <AvatarImage src={getAvatarUrl(msg.user)!} alt={displayName} />
                                                                     )}
                                                                     <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">{avatarFallback}</AvatarFallback>
                                                                 </Avatar>
-                                                            </div>
+                                                            </Link>
                                                         </UserHoverCard>
 
                                                         <div className="flex flex-col gap-1 w-full min-w-0">
                                                             <div className="flex items-center gap-2 flex-wrap">
-                                                                <UserHoverCard address={msg.user.address || msg.userId}>
-                                                                    <DiscussionTitle className={`cursor-pointer hover:underline text-sm font-semibold ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
-                                                                        {displayName}
-                                                                    </DiscussionTitle>
+                                                                <UserHoverCard address={profileAddress}>
+                                                                    <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
+                                                                        <DiscussionTitle className={`hover:underline text-sm font-semibold ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
+                                                                            {displayName}
+                                                                        </DiscussionTitle>
+                                                                    </Link>
                                                                 </UserHoverCard>
                                                                 <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
 
@@ -457,13 +402,6 @@ export function EventChat({ eventId }: EventChatProps) {
                                             );
                                         })}
                                     </Discussion>
-                                    
-                                    {/* Loading indicator at bottom when fetching next page */}
-                                    {isFetchingNextPage && (
-                                        <div className="flex justify-center items-center py-4">
-                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#bb86fc]"></div>
-                                        </div>
-                                    )}
                                 </>
                             )}
                         </div>
