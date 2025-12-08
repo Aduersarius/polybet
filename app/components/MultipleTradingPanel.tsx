@@ -202,35 +202,42 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                 {/* Outcome Selector */}
                 <div className="space-y-2">
                     <div className="text-sm text-gray-400">Select Outcome</div>
-                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                    <div className={`grid gap-2 max-h-60 overflow-y-auto ${currentOutcomes.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         {currentOutcomes.map((outcome) => {
                             const outcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === outcome.id)?.amount || 0;
+                            const isTileView = currentOutcomes.length > 3;
+
                             return (
                                 <button
                                     key={outcome.id}
                                     onClick={() => setSelectedOutcomeId(outcome.id)}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${selectedOutcomeId === outcome.id
-                                        ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    className={`relative flex items-center justify-between rounded-lg border transition-all ${isTileView ? 'p-2' : 'p-3'
+                                        } ${selectedOutcomeId === outcome.id
+                                            ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
+                                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                                         }`}
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2 min-w-0">
                                         {outcome.color && (
                                             <div
-                                                className="w-3 h-3 rounded-full"
+                                                className={`rounded-full shrink-0 ${isTileView ? 'w-2 h-2' : 'w-3 h-3'}`}
                                                 style={{ backgroundColor: outcome.color }}
                                             />
                                         )}
-                                        <div className="flex flex-col items-start">
-                                            <span className="font-medium">{outcome.name}</span>
+                                        <div className="flex flex-col items-start min-w-0">
+                                            <span className={`font-medium truncate max-w-[100px] ${isTileView ? 'text-xs' : 'text-sm'}`}>
+                                                {outcome.name}
+                                            </span>
                                             {selectedTab === 'sell' && (
-                                                <span className="text-xs opacity-60">
-                                                    {outcomeBalance.toFixed(2)} shares owned
+                                                <span className="text-[10px] opacity-60 truncate">
+                                                    {outcomeBalance.toFixed(1)} owned
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    <span className="text-xs opacity-80">{Math.round(outcome.probability * 100)}%</span>
+                                    <span className={`${isTileView ? 'text-sm' : 'text-xs'} opacity-80 font-bold ml-2`}>
+                                        {Math.round(outcome.probability * 100)}%
+                                    </span>
                                 </button>
                             );
                         })}
