@@ -197,7 +197,7 @@ export default function EventPage() {
                                                 <p className="text-gray-400 text-sm leading-relaxed">{liveEvent.description}</p>
                                             </div>
 
-                                            <div className="w-24 h-24 rounded-lg overflow-hidden border border-white/10 shadow-lg absolute top-0 right-0">
+                                            <div className="w-28 h-28 rounded-lg overflow-hidden border border-white/10 shadow-lg absolute top-0 right-0">
                                                 <img
                                                     src={liveEvent.imageUrl || getCategoryImage(liveEvent.categories)}
                                                     alt={liveEvent.title}

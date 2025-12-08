@@ -6,28 +6,34 @@ import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { socket } from '@/lib/socket';
 import { calculateLMSROdds } from '@/lib/amm';
+import { toast } from '@/components/ui/use-toast';
+import { useSession } from '@/lib/auth-client';
+import { Slider } from '@/components/ui/slider';
 
 interface TradingPanelProps {
+    eventId?: string;
     creationDate?: string;
     resolutionDate?: string;
     onTrade?: (type: 'YES' | 'NO', amount: number) => void;
     tradeIntent?: { side: 'buy' | 'sell', price: number, amount: number, outcomeId?: string } | null;
+    preselectedOption?: 'YES' | 'NO';
 }
 
-export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeIntent }: TradingPanelProps) {
+export function TradingPanel({ eventId: propEventId, creationDate, resolutionDate, onTrade, tradeIntent, preselectedOption }: TradingPanelProps) {
     const params = useParams();
-    const eventId = params.id as string;
-    // Mock user for dev
-    const user = { id: 'dev-user' };
-    const isLoaded = true;
+    const routeEventId = (params as any)?.id as string | undefined;
+    const eventId = (propEventId || routeEventId) as string | undefined;
+    const { data: session } = useSession();
+    const isAuthenticated = Boolean((session as any)?.user);
 
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
-    const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>('YES');
+    const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>(preselectedOption || 'YES');
     const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
     const [amount, setAmount] = useState<string>('');
     const [price, setPrice] = useState<string>('0');
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
+    const [balancePct, setBalancePct] = useState<number>(0);
     const [yesPrice, setYesPrice] = useState<number>(0.5);
     const [noPrice, setNoPrice] = useState<number>(0.5);
 
@@ -39,7 +45,7 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
             if (!response.ok) return { balances: [] };
             return await response.json();
         },
-        enabled: selectedTab === 'sell',
+        enabled: !!eventId,
         staleTime: 0,
     });
 
@@ -101,6 +107,9 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
     }
 
     const availableShares = selectedOutcomeBalance?.amount || 0;
+
+    // Stablecoin balance (TUSD) for buy-side percentage slider
+    const stablecoinBalance = balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount || 0;
 
     // Set default limit price to current market price
     useEffect(() => {
@@ -164,6 +173,10 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
 
     const tradeMutation = useMutation({
         mutationFn: async () => {
+            if (!eventId) {
+                throw new Error('Missing event id');
+            }
+
             const res = await fetch("/api/hybrid-trading", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -200,10 +213,29 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
             }
 
             // WebSocket will automatically update odds and order book in real-time
+            toast({
+                variant: 'success',
+                title: 'Trade successful',
+                description: `${selectedTab === 'buy' ? 'Bought' : 'Sold'} ${result.totalFilled.toFixed(2)} ${selectedOption} tokens`,
+            });
         },
         onError: (error) => {
             console.error('Trade error:', error);
-            alert(error instanceof Error ? error.message : 'Failed to place trade');
+            const message = error instanceof Error ? error.message : 'Failed to place trade';
+
+            if (message.toLowerCase().includes('authentication required')) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Sign in required',
+                    description: 'You need to be logged in to place trades.',
+                });
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Trade failed',
+                    description: message,
+                });
+            }
         },
         onSettled: () => {
             setIsLoading(false);
@@ -212,6 +244,15 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
 
     const handleTrade = () => {
         if (!amount || parseFloat(amount) <= 0) return;
+
+        if (!isAuthenticated) {
+            toast({
+                variant: 'destructive',
+                title: 'Sign in required',
+                description: 'You need to be logged in to place trades.',
+            });
+            return;
+        }
         setIsLoading(true);
         tradeMutation.mutate();
     };
@@ -322,45 +363,35 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
                         </div>
                     )}
 
-                    <div className="flex gap-2">
-                        {selectedTab === 'buy' ? (
-                            // Buy presets: USD amounts
-                            ['+1', '+20', '+100', 'Max'].map((val) => (
-                                <button
-                                    key={val}
-                                    onClick={() => {
-                                        if (val === 'Max') {
-                                            setAmount('1000'); // Set a reasonable max
-                                        } else {
-                                            const increment = parseFloat(val.replace('+', ''));
-                                            setAmount((parseFloat(amount) || 0 + increment).toString());
-                                        }
-                                    }}
-                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
-                                >
-                                    {val}
-                                </button>
-                            ))
-                        ) : (
-                            // Sell presets: percentage of shares
-                            ['25%', '50%', 'ALL'].map((val) => (
-                                <button
-                                    key={val}
-                                    onClick={() => {
-                                        if (val === 'ALL') {
-                                            setAmount(availableShares.toString());
-                                        } else {
-                                            const percentage = parseFloat(val.replace('%', '')) / 100;
-                                            setAmount((availableShares * percentage).toString());
-                                        }
-                                    }}
-                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
-                                    disabled={availableShares === 0}
-                                >
-                                    {val}
-                                </button>
-                            ))
-                        )}
+                    {/* Balance Slider */}
+                    <div className="space-y-1">
+                        <div className="flex justify-between items-center text-xs text-gray-400">
+                            <span>Use balance</span>
+                            <span className="text-gray-300">
+                                {selectedTab === 'buy'
+                                    ? `$${stablecoinBalance.toFixed(2)} available`
+                                    : `${availableShares.toFixed(2)} shares available`}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Slider
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={[balancePct]}
+                                className="flex-1"
+                                onValueChange={(value: number[]) => {
+                                    const pct = Math.max(0, Math.min(100, value?.[0] ?? 0));
+                                    setBalancePct(pct);
+                                    const base = selectedTab === 'buy' ? stablecoinBalance : availableShares;
+                                    const nextAmount = base * (pct / 100);
+                                    setAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
+                                }}
+                            />
+                            <span className="w-10 text-right text-xs text-gray-300">
+                                {balancePct.toFixed(0)}%
+                            </span>
+                        </div>
                     </div>
 
                     {/* Order Type Selection */}
@@ -439,43 +470,7 @@ export function TradingPanel({ creationDate, resolutionDate, onTrade, tradeInten
                     }
                 </button>
 
-                {/* Trade Success Feedback */}
-                {lastTrade && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center"
-                    >
-                        {lastTrade.orderType === 'limit' ? (
-                            <>
-                                <p className="text-green-400 text-sm font-medium">
-                                    Limit order placed! {selectedTab === 'buy' ? 'Buy' : 'Sell'} {lastTrade.orderAmount?.toFixed(2)} {selectedOption} tokens at ${(lastTrade.orderPrice! * 100).toFixed(2)}
-                                </p>
-                                <p className="text-green-300 text-xs mt-1">
-                                    If filled and {selectedOption.toLowerCase()} wins, you'll receive ${(lastTrade.orderAmount! * (selectedOption === 'YES' ? (1 / lastTrade.orderPrice!) : (1 / lastTrade.orderPrice!))).toFixed(2)} total
-                                </p>
-                                <p className="text-green-300 text-xs">
-                                    Order ID: {lastTrade.orderId}
-                                </p>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-green-400 text-sm font-medium">
-                                    Trade successful! You {selectedTab === 'buy' ? 'bought' : 'sold'} {lastTrade.tokens.toFixed(2)} {selectedOption} tokens
-                                </p>
-                                {selectedTab === 'buy' ? (
-                                    <p className="text-green-300 text-xs mt-1">
-                                        If {selectedOption.toLowerCase()} wins, you'll receive ${(lastTrade.tokens * (selectedOption === 'YES' ? yesOdds : noOdds)).toFixed(2)} total
-                                    </p>
-                                ) : (
-                                    <p className="text-green-300 text-xs mt-1">
-                                        You received ${(lastTrade.tokens * lastTrade.price).toFixed(2)} USD
-                                    </p>
-                                )}
-                            </>
-                        )}
-                    </motion.div>
-                )}
+                {/* Trade Success Feedback moved to toast notifications */}
 
                 <p className="text-xs text-center text-gray-500">
                     By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.

@@ -21,6 +21,7 @@ interface MarketActivity {
     outcomeId: string | null;
     createdAt: string;
     user: {
+        id: string;
         username: string | null;
         address: string;
         avatarUrl: string | null;
@@ -127,8 +128,9 @@ export function ActivityList({ eventId }: ActivityListProps) {
         <div className="flex flex-col h-full min-h-[400px]">
             <div className="flex-1 space-y-0.5">
                 {trades.map((trade) => {
-                    // Ensure we have a valid address for UserHoverCard
-                    const userAddress = trade.user.address || 'unknown';
+                    // Ensure we have a valid identifier for UserHoverCard
+                    // Use address when available, otherwise fall back to user id
+                    const userAddress = trade.user.address || trade.user.id || 'unknown';
                     const displayName = trade.user.username || formatAddress(trade.user.address);
                     const avatarUrl = trade.user.avatarUrl || trade.user.image;
                     
