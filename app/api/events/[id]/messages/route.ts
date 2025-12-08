@@ -89,6 +89,11 @@ export async function GET(
                         // Ensure image field is included
                         image: msg.user.image || null,
                         avatarUrl: msg.user.avatarUrl || null,
+                        // Flatten market activity into a simple bets array for the UI
+                        bets: (msg.user.marketActivity || []).map((bet: any) => ({
+                            option: bet.option,
+                            amount: bet.amount,
+                        })),
                     },
                     replyCount: msg.replies.length,
                     reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {

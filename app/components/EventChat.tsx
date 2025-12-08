@@ -16,6 +16,7 @@ import {
 } from '@/components/molecule-ui/discussion';
 import { Button } from '@/components/ui/button';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/solid';
+import { ThumbsUp, ThumbsDown } from 'lucide-react';
 
 interface Message {
     id: string;
@@ -54,7 +55,7 @@ export function EventChat({ eventId }: EventChatProps) {
     const user = { id: 'dev-user', username: 'Dev User' };
     const queryClient = useQueryClient();
 
-    // Fetch messages with pagination
+    // Fetch messages with pagination (React Query v5 object signature)
     const {
         data,
         fetchNextPage,
@@ -62,31 +63,26 @@ export function EventChat({ eventId }: EventChatProps) {
         isFetchingNextPage,
         isLoading,
         refetch,
-    } = useInfiniteQuery<{
-        messages: Message[];
-        hasMore: boolean;
-        nextCursor: string | null;
-    }>({
+    } = useInfiniteQuery<any>({
         queryKey: ['messages', eventId],
-        queryFn: async ({ pageParam }) => {
+        queryFn: async (ctx: any) => {
+            const pageParam = ctx?.pageParam as string | undefined;
             const params = new URLSearchParams({
                 limit: '20', // Load 20 messages per page
             });
             if (pageParam) {
-                params.append('cursor', pageParam as string);
+                params.append('cursor', pageParam);
             }
             const res = await fetch(`/api/events/${eventId}/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
-        getNextPageParam: (lastPage) => {
-            return lastPage.nextCursor || undefined;
-        },
+        getNextPageParam: (lastPage: any) => lastPage?.nextCursor || undefined,
         initialPageParam: undefined,
     });
 
     // Flatten all pages into a single messages array
-    const messages = data?.pages.flatMap((page) => page.messages) || [];
+    const messages: Message[] = (data?.pages || []).flatMap((page: any) => page.messages) || [];
 
     // Real-time updates
     useEffect(() => {
@@ -382,7 +378,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                                                 {msg.text}
                                                             </DiscussionBody>
 
-                                                            <div className="flex items-center gap-4 pt-1 text-xs text-gray-500">
+                                                            <div className="flex items-center pt-1 text-xs text-gray-500">
                                                                 <button
                                                                     onClick={() => setReplyTo({ id: msg.id, username: displayName })}
                                                                     className="text-xs text-gray-500 hover:text-white flex items-center gap-1 group"
@@ -391,46 +387,34 @@ export function EventChat({ eventId }: EventChatProps) {
                                                                     Reply
                                                                 </button>
 
-                                                                <button
-                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
-                                                                    className="flex items-center gap-1 hover:text-[#03dac6] disabled:opacity-50"
-                                                                    disabled={reactMutation.isPending}
-                                                                >
-                                                                    <svg
-                                                                        className="w-4 h-4"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="1.8"
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                    >
-                                                                        <path d="M6 21V9a2 2 0 0 1 2-2h3.31a1 1 0 0 0 .95-.68l1.7-5.11A1 1 0 0 1 15.9 1a2.6 2.6 0 0 1 2.6 2.6V5a2 2 0 0 1-.18.82l-1.38 3.1H20a2 2 0 0 1 2 2v1.1c0 .35-.07.69-.21 1L19.3 20a2 2 0 0 1-1.84 1.15H8a2 2 0 0 1-2-2Z" />
-                                                                    </svg>
-                                                                    {likeCount > 0 && <span>{likeCount}</span>}
-                                                                </button>
+                                                                <div className="flex items-center gap-3 ml-6">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
+                                                                            className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-transparent hover:border-white/10 bg-transparent text-gray-500 hover:text-[#03dac6] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                                            disabled={reactMutation.isPending}
+                                                                        >
+                                                                            <ThumbsUp className="h-3.5 w-3.5" />
+                                                                        </button>
+                                                                        {likeCount > 0 && <span className="text-[11px]">{likeCount}</span>}
+                                                                    </div>
 
-                                                                <button
-                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
-                                                                    className="flex items-center gap-1 hover:text-[#cf6679] disabled:opacity-50"
-                                                                    disabled={reactMutation.isPending}
-                                                                >
-                                                                    <svg
-                                                                        className="w-4 h-4 rotate-180"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="1.8"
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                    >
-                                                                        <path d="M6 21V9a2 2 0 0 1 2-2h3.31a1 1 0 0 0 .95-.68l1.7-5.11A1 1 0 0 1 15.9 1a2.6 2.6 0 0 1 2.6 2.6V5a2 2 0 0 1-.18.82l-1.38 3.1H20a2 2 0 0 1 2 2v1.1c0 .35-.07.69-.21 1L19.3 20a2 2 0 0 1-1.84 1.15H8a2 2 0 0 1-2-2Z" />
-                                                                    </svg>
-                                                                    {dislikeCount > 0 && <span>{dislikeCount}</span>}
-                                                                </button>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
+                                                                            className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-transparent hover:border-white/10 bg-transparent text-gray-500 hover:text-[#cf6679] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                                            disabled={reactMutation.isPending}
+                                                                        >
+                                                                            <ThumbsDown className="h-3.5 w-3.5" />
+                                                                        </button>
+                                                                        {dislikeCount > 0 && <span className="text-[11px]">{dislikeCount}</span>}
+                                                                    </div>
+                                                                </div>
 
                                                                 {replies.length > 0 && (
-                                                                    <DiscussionExpand />
+                                                                    <div className="ml-4">
+                                                                        <DiscussionExpand />
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </div>

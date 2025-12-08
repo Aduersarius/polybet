@@ -27,46 +27,73 @@ type OrderBookState = { bids: Array<{ price: number; amount: number }>; asks: Ar
 
 function generateSyntheticOrderBook(basePrice: number): OrderBookState {
     const numLevels = 10;
-    const spread = 0.12; // total spread around base price
+    const tick = 0.005; // 0.5¢ price step for a clean ladder
 
     const bids: OrderBookState['bids'] = [];
     const asks: OrderBookState['asks'] = [];
 
     for (let i = 1; i <= numLevels; i++) {
-        const levelOffset = (i / numLevels) * (spread / 2);
-        const priceBid = Math.max(0.01, basePrice - levelOffset);
-        const priceAsk = Math.min(0.99, basePrice + levelOffset);
+        // Stable price ladder around base price
+        const priceBid = Math.max(0.01, basePrice - tick * (i));
+        const priceAsk = Math.min(0.99, basePrice + tick * (i));
 
-        const baseSize = 50 + Math.random() * 150;
-        const sizeFactor = (numLevels - i + 1) / numLevels; // larger near top of book
+        // Depth profile:
+        // - top 2–3 levels are thick
+        // - then decay quickly
+        // - some deeper levels are effectively empty to create gaps
+        const depthIndex = i - 1; // 0 is best level
 
-        bids.push({ price: priceBid, amount: baseSize * sizeFactor });
-        asks.push({ price: priceAsk, amount: baseSize * sizeFactor });
+        const topSize = 160 + Math.random() * 60; // base size near top
+        const decayRate = 0.45; // stronger falloff for tree shape
+        const decayFactor = Math.exp(-decayRate * depthIndex);
+
+        // Random gaps deeper in the book
+        const isDeep = depthIndex >= 5;
+        const gapChance = isDeep ? 0.45 : 0.12;
+        const isGap = Math.random() < gapChance;
+
+        // Occasional big resting order deeper in the book
+        const bigOrderBoost = !isGap && depthIndex >= 3 && Math.random() < 0.15
+            ? 1.8 + Math.random() * 0.7
+            : 1;
+
+        const noiseBid = 1 + (Math.random() - 0.5) * 0.25;  // ±12.5%
+        const noiseAsk = 1 + (Math.random() - 0.5) * 0.25;
+
+        const baseAmount = isGap ? 0 : topSize * decayFactor * bigOrderBoost;
+        const amountBid = Math.max(0, baseAmount * noiseBid);
+        const amountAsk = Math.max(0, baseAmount * noiseAsk);
+
+        bids.push({ price: priceBid, amount: amountBid });
+        asks.push({ price: priceAsk, amount: amountAsk });
     }
 
     return { bids, asks };
 }
 
 function jitterOrderBook(prev: OrderBookState, basePrice: number): OrderBookState {
-    const jitterPrice = (p: number, isBid: boolean) => {
-        const maxJitter = 0.01; // 1% jitter
-        const delta = (Math.random() - 0.5) * 2 * maxJitter;
-        const next = p + delta;
-        if (isBid) {
-            return Math.min(basePrice, Math.max(0.01, next));
-        }
-        return Math.max(basePrice, Math.min(0.99, next));
-    };
-
-    const jitterSize = (a: number) => {
-        const maxFactor = 0.1;
-        const factor = 1 + (Math.random() - 0.5) * 2 * maxFactor;
-        return Math.max(10, a * factor);
+    // Only jitter sizes; keep prices fixed so ladder looks stable.
+    const jitterSize = (a: number, index: number, side: 'bid' | 'ask') => {
+        // Stronger movement near top-of-book, softer deeper in the book
+        const isTop = index < 3;
+        const baseMaxFactor = isTop ? 0.22 : 0.08;
+        const factor = 1 + (Math.random() - 0.5) * 2 * baseMaxFactor;
+        const minAmount = side === 'bid' ? 15 : 15;
+        return Math.max(minAmount, a * factor);
     };
 
     return {
-        bids: prev.bids.map(b => ({ price: jitterPrice(b.price, true), amount: jitterSize(b.amount) })),
-        asks: prev.asks.map(a => ({ price: jitterPrice(a.price, false), amount: jitterSize(a.amount) })),
+        bids: prev.bids.map((b, index) => {
+            // Jitter mostly near top, occasionally deeper levels
+            const shouldMove = index < 3 || Math.random() < 0.25;
+            if (!shouldMove) return b;
+            return { ...b, amount: jitterSize(b.amount, index, 'bid') };
+        }),
+        asks: prev.asks.map((a, index) => {
+            const shouldMove = index < 3 || Math.random() < 0.25;
+            if (!shouldMove) return a;
+            return { ...a, amount: jitterSize(a.amount, index, 'ask') };
+        }),
     };
 }
 
@@ -130,11 +157,25 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         const basePrice = isMultiple ? 0.5 : (selectedOption === 'YES' ? 0.6 : 0.4);
         setOrderBook(generateSyntheticOrderBook(basePrice));
 
-        const id = setInterval(() => {
-            setOrderBook(prev => jitterOrderBook(prev, basePrice));
-        }, 1500);
+        let timeoutId: NodeJS.Timeout | null = null;
 
-        return () => clearInterval(id);
+        const scheduleNext = () => {
+            // Random delay between ~0.3s and 1.8s, sometimes longer pause
+            const baseDelay = 300 + Math.random() * 1500;
+            const extraPause = Math.random() < 0.2 ? 600 + Math.random() * 800 : 0;
+            const delay = baseDelay + extraPause;
+
+            timeoutId = setTimeout(() => {
+                setOrderBook(prev => jitterOrderBook(prev, basePrice));
+                scheduleNext();
+            }, delay);
+        };
+
+        scheduleNext();
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
     }, [visualMode, isMultiple, selectedOption]);
 
     // Breathing effect on top of real data (when not in visual mode)
@@ -148,16 +189,29 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
             return (bestBid + bestAsk) / 2;
         };
 
-        const id = setInterval(() => {
-            setOrderBook(prev => {
-                // If no real data yet, don't jitter
-                if (prev.bids.length === 0 && prev.asks.length === 0) return prev;
-                const basePrice = getBasePriceFromOrderBook(prev);
-                return jitterOrderBook(prev, basePrice);
-            });
-        }, 1500);
+        let timeoutId: NodeJS.Timeout | null = null;
 
-        return () => clearInterval(id);
+        const scheduleNext = () => {
+            const baseDelay = 400 + Math.random() * 1600;
+            const extraPause = Math.random() < 0.15 ? 800 + Math.random() * 600 : 0;
+            const delay = baseDelay + extraPause;
+
+            timeoutId = setTimeout(() => {
+                setOrderBook(prev => {
+                    // If no real data yet, don't jitter
+                    if (prev.bids.length === 0 && prev.asks.length === 0) return prev;
+                    const basePrice = getBasePriceFromOrderBook(prev);
+                    return jitterOrderBook(prev, basePrice);
+                });
+                scheduleNext();
+            }, delay);
+        };
+
+        scheduleNext();
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
     }, [visualMode]);
 
     const maxAsk = useMemo(() => Math.max(...orderBook.asks.map(a => a.amount), 0), [orderBook.asks]);
