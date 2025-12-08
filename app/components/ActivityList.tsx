@@ -24,6 +24,7 @@ interface MarketActivity {
         username: string | null;
         address: string;
         avatarUrl: string | null;
+        image: string | null; // Include image field from Better Auth
     };
 }
 
@@ -125,46 +126,58 @@ export function ActivityList({ eventId }: ActivityListProps) {
     return (
         <div className="flex flex-col h-full min-h-[400px]">
             <div className="flex-1 space-y-0.5">
-                {trades.map((trade) => (
-                    <div key={trade.id} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors group">
-                        <div className="flex items-center gap-2">
-                            <UserHoverCard address={trade.user.address}>
-                                <div className="relative cursor-pointer">
-                                    <Avatar className="w-8 h-8 border border-white/10">
-                                        <AvatarImage src={trade.user.avatarUrl || undefined} />
-                                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">
-                                            {(trade.user.username?.[0] || (trade.user.address ? trade.user.address.slice(2, 3) : '?')).toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center border border-[#1e1e1e] text-[8px] font-bold ${trade.option === 'YES' ? 'bg-[#03dac6] text-black' : 'bg-[#cf6679] text-white'}`}>
-                                        {trade.option === 'YES' ? 'Y' : 'N'}
+                {trades.map((trade) => {
+                    // Ensure we have a valid address for UserHoverCard
+                    const userAddress = trade.user.address || 'unknown';
+                    const displayName = trade.user.username || formatAddress(trade.user.address);
+                    const avatarUrl = trade.user.avatarUrl || trade.user.image;
+                    
+                    return (
+                        <div key={trade.id} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors group">
+                            <div className="flex items-center gap-2">
+                                <UserHoverCard address={userAddress}>
+                                    <div className="relative cursor-pointer">
+                                        <Avatar className="w-8 h-8 border border-white/10">
+                                            {avatarUrl && (
+                                                <AvatarImage 
+                                                    src={avatarUrl} 
+                                                    alt={displayName}
+                                                />
+                                            )}
+                                            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">
+                                                {(trade.user.username?.[0] || (trade.user.address ? trade.user.address.slice(2, 3) : '?')).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center border border-[#1e1e1e] text-[8px] font-bold ${trade.option === 'YES' ? 'bg-[#03dac6] text-black' : 'bg-[#cf6679] text-white'}`}>
+                                            {trade.option === 'YES' ? 'Y' : 'N'}
+                                        </div>
+                                    </div>
+                                </UserHoverCard>
+
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-1.5">
+                                        <UserHoverCard address={userAddress}>
+                                            <a className="text-xs font-bold text-gray-200 hover:text-[#bb86fc] hover:underline transition-colors cursor-pointer">
+                                                {displayName}
+                                            </a>
+                                        </UserHoverCard>
+                                        <span className="text-[10px] text-gray-500">bought</span>
+                                        <span className={`text-xs font-bold ${trade.option === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
+                                            {trade.option}
+                                        </span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400">
+                                        ${trade.amount.toFixed(2)}
                                     </div>
                                 </div>
-                            </UserHoverCard>
+                            </div>
 
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5">
-                                    <UserHoverCard address={trade.user.address}>
-                                        <a className="text-xs font-bold text-gray-200 hover:text-[#bb86fc] hover:underline transition-colors cursor-pointer">
-                                            {trade.user.username || formatAddress(trade.user.address)}
-                                        </a>
-                                    </UserHoverCard>
-                                    <span className="text-[10px] text-gray-500">bought</span>
-                                    <span className={`text-xs font-bold ${trade.option === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
-                                        {trade.option}
-                                    </span>
-                                </div>
-                                <div className="text-[10px] text-gray-400">
-                                    ${trade.amount.toFixed(2)}
-                                </div>
+                            <div className="text-[10px] text-gray-600 font-mono">
+                                {formatDistanceToNow(new Date(trade.createdAt), { addSuffix: true }).replace('about ', '')}
                             </div>
                         </div>
-
-                        <div className="text-[10px] text-gray-600 font-mono">
-                            {formatDistanceToNow(new Date(trade.createdAt), { addSuffix: true }).replace('about ', '')}
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Pagination Controls */}
