@@ -161,6 +161,22 @@ export function EventChat({ eventId }: EventChatProps) {
         }
     });
 
+    const reactMutation = useMutation({
+        mutationFn: async ({ messageId, type }: { messageId: string; type: 'LIKE' | 'DISLIKE' }) => {
+            const res = await fetch(`/api/messages/${messageId}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type }),
+            });
+            if (!res.ok) throw new Error('Failed to react to message');
+            return res.json();
+        },
+        onSuccess: () => {
+            // Refresh messages so reaction counts stay in sync
+            refetch();
+        },
+    });
+
     const sendMessageMutation = useMutation({
         mutationFn: async (text: string) => {
             const res = await fetch(`/api/events/${eventId}/messages`, {
@@ -318,6 +334,13 @@ export function EventChat({ eventId }: EventChatProps) {
                                             const isMe = msg.userId === user?.id;
                                             const displayName = formatDisplayName(msg.user, msg.userId);
                                             const avatarFallback = getAvatarFallback(msg.user, msg.userId);
+                                            const likeCount = msg.reactions?.LIKE?.length || 0;
+                                            const dislikeCount = msg.reactions?.DISLIKE?.length || 0;
+
+                                            // Use the most recent bet for this event if available
+                                            const latestBet = msg.user.bets && msg.user.bets.length > 0
+                                                ? msg.user.bets[0]
+                                                : null;
 
                                             return (
                                                 <DiscussionItem key={msg.id} value={msg.id}>
@@ -334,26 +357,76 @@ export function EventChat({ eventId }: EventChatProps) {
                                                         </UserHoverCard>
 
                                                         <div className="flex flex-col gap-1 w-full min-w-0">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
                                                                 <UserHoverCard address={msg.user.address || msg.userId}>
                                                                     <DiscussionTitle className={`cursor-pointer hover:underline text-sm font-semibold ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
                                                                         {displayName}
                                                                     </DiscussionTitle>
                                                                 </UserHoverCard>
                                                                 <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
+
+                                                                {latestBet && (
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${latestBet.option === 'YES'
+                                                                            ? 'bg-[#03dac6]/10 text-[#03dac6] border-[#03dac6]/40'
+                                                                            : 'bg-[#cf6679]/10 text-[#cf6679] border-[#cf6679]/40'
+                                                                        }`}
+                                                                    >
+                                                                        <span>{latestBet.option}</span>
+                                                                        <span>${latestBet.amount.toFixed(2)}</span>
+                                                                    </span>
+                                                                )}
                                                             </div>
 
                                                             <DiscussionBody className="text-sm text-gray-300">
                                                                 {msg.text}
                                                             </DiscussionBody>
 
-                                                            <div className="flex items-center gap-4 pt-1">
+                                                            <div className="flex items-center gap-4 pt-1 text-xs text-gray-500">
                                                                 <button
                                                                     onClick={() => setReplyTo({ id: msg.id, username: displayName })}
                                                                     className="text-xs text-gray-500 hover:text-white flex items-center gap-1 group"
                                                                 >
                                                                     <ArrowUturnLeftIcon className="w-3 h-3 group-hover:text-[#bb86fc]" />
                                                                     Reply
+                                                                </button>
+
+                                                                <button
+                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
+                                                                    className="flex items-center gap-1 hover:text-[#03dac6] disabled:opacity-50"
+                                                                    disabled={reactMutation.isPending}
+                                                                >
+                                                                    <svg
+                                                                        className="w-4 h-4"
+                                                                        viewBox="0 0 24 24"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="1.8"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                    >
+                                                                        <path d="M6 21V9a2 2 0 0 1 2-2h3.31a1 1 0 0 0 .95-.68l1.7-5.11A1 1 0 0 1 15.9 1a2.6 2.6 0 0 1 2.6 2.6V5a2 2 0 0 1-.18.82l-1.38 3.1H20a2 2 0 0 1 2 2v1.1c0 .35-.07.69-.21 1L19.3 20a2 2 0 0 1-1.84 1.15H8a2 2 0 0 1-2-2Z" />
+                                                                    </svg>
+                                                                    {likeCount > 0 && <span>{likeCount}</span>}
+                                                                </button>
+
+                                                                <button
+                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
+                                                                    className="flex items-center gap-1 hover:text-[#cf6679] disabled:opacity-50"
+                                                                    disabled={reactMutation.isPending}
+                                                                >
+                                                                    <svg
+                                                                        className="w-4 h-4 rotate-180"
+                                                                        viewBox="0 0 24 24"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="1.8"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                    >
+                                                                        <path d="M6 21V9a2 2 0 0 1 2-2h3.31a1 1 0 0 0 .95-.68l1.7-5.11A1 1 0 0 1 15.9 1a2.6 2.6 0 0 1 2.6 2.6V5a2 2 0 0 1-.18.82l-1.38 3.1H20a2 2 0 0 1 2 2v1.1c0 .35-.07.69-.21 1L19.3 20a2 2 0 0 1-1.84 1.15H8a2 2 0 0 1-2-2Z" />
+                                                                    </svg>
+                                                                    {dislikeCount > 0 && <span>{dislikeCount}</span>}
                                                                 </button>
 
                                                                 {replies.length > 0 && (

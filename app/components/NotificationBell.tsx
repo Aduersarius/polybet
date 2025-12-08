@@ -65,6 +65,19 @@ export function NotificationBell() {
         setIsOpen(false);
     };
 
+    // When the dropdown is opened, mark all unread notifications as read
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!notifications.length) return;
+
+        const unread = notifications.filter((n) => !n.isRead);
+        unread.forEach((n) => {
+            if (!markReadMutation.isPending) {
+                markReadMutation.mutate(n.id);
+            }
+        });
+    }, [isOpen, notifications, markReadMutation]);
+
     // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
