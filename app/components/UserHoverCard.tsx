@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -152,7 +153,7 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                                 ) : user ? (
                                     <>
                                         {/* Header */}
-                                        <div className="flex items-center gap-3 mb-4">
+                                        <Link href={`/profile?address=${address}`} className="flex items-center gap-3 mb-4">
                                             <Avatar className="w-12 h-12 border-2 border-white/10">
                                                 {(user.avatarUrl || user.image) && (
                                                     <AvatarImage 
@@ -172,7 +173,7 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                                                     Joined {formatDate(user.joinedAt)}
                                                 </p>
                                             </div>
-                                        </div>
+                                        </Link>
 
                                         {/* Stats Grid */}
                                         <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/5">

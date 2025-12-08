@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { useEffect, useState } from 'react';
@@ -138,7 +139,7 @@ export function ActivityList({ eventId }: ActivityListProps) {
                         <div key={trade.id} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors group">
                             <div className="flex items-center gap-2">
                                 <UserHoverCard address={userAddress}>
-                                    <div className="relative cursor-pointer">
+                                    <Link href={`/profile?address=${userAddress}`} className="relative cursor-pointer">
                                         <Avatar className="w-8 h-8 border border-white/10">
                                             {avatarUrl && (
                                                 <AvatarImage 
@@ -153,15 +154,15 @@ export function ActivityList({ eventId }: ActivityListProps) {
                                         <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center border border-[#1e1e1e] text-[8px] font-bold ${trade.option === 'YES' ? 'bg-[#03dac6] text-black' : 'bg-[#cf6679] text-white'}`}>
                                             {trade.option === 'YES' ? 'Y' : 'N'}
                                         </div>
-                                    </div>
+                                    </Link>
                                 </UserHoverCard>
 
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-1.5">
                                         <UserHoverCard address={userAddress}>
-                                            <a className="text-xs font-bold text-gray-200 hover:text-[#bb86fc] hover:underline transition-colors cursor-pointer">
+                                            <Link href={`/profile?address=${userAddress}`} className="text-xs font-bold text-gray-200 hover:text-[#bb86fc] hover:underline transition-colors cursor-pointer">
                                                 {displayName}
-                                            </a>
+                                            </Link>
                                         </UserHoverCard>
                                         <span className="text-[10px] text-gray-500">bought</span>
                                         <span className={`text-xs font-bold ${trade.option === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
