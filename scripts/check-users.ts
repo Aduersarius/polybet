@@ -1,29 +1,44 @@
 import { PrismaClient } from '@prisma/client';
-import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
-async function setupAdmin() {
-    console.log('Setting up admin user...\n');
+async function checkUsers() {
+    console.log('Checking users in database...\n');
 
     try {
-        // First, let's see what's in the payload_users table
-        const users = await prisma.$queryRaw`SELECT id, email, role FROM payload_users;`;
+        // Check Better Auth users table
+        const users = await prisma.user.findMany({
+            select: {
+                id: true,
+                email: true,
+                username: true,
+                address: true,
+                isAdmin: true,
+                createdAt: true,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            take: 10,
+        });
 
-        console.log('Current users in payload_users:', users);
-        console.log('');
+        console.log(`Found ${users.length} users (showing first 10):`);
+        console.table(users.map(u => ({
+            id: u.id.slice(0, 8) + '...',
+            email: u.email || 'N/A',
+            username: u.username || 'N/A',
+            address: u.address ? `${u.address.slice(0, 6)}...${u.address.slice(-4)}` : 'N/A',
+            isAdmin: u.isAdmin ? 'Yes' : 'No',
+            createdAt: u.createdAt.toISOString().split('T')[0],
+        })));
 
-        // Option 1: Clear all payload users (you'll see the "create first user" form)
-        console.log('To enable "Create First User" form:');
-        console.log('1. Run: npx tsx scripts/clear-payload-users.ts');
-        console.log('');
+        const adminCount = await prisma.user.count({
+            where: { isAdmin: true },
+        });
 
-        // Option 2: Create a specific admin user
-        console.log('Or, to create admin user directly:');
-        console.log('Email: admin@polybet.com');
-        console.log('Password: admin123');
-        console.log('');
-        console.log('Run: npx tsx scripts/create-payload-admin.ts');
+        console.log(`\nTotal admin users: ${adminCount}`);
+        console.log('\nTo create an admin user, use Better Auth signup and then update the user:');
+        console.log('Run: npx tsx scripts/make-admin.ts <user-id>');
 
     } catch (error: any) {
         console.error('Error:', error.message);
@@ -32,4 +47,4 @@ async function setupAdmin() {
     }
 }
 
-setupAdmin();
+checkUsers();

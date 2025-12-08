@@ -14,23 +14,20 @@ async function testConnection() {
         await client.connect();
         console.log('Connected successfully!');
 
+        // Check User table schema (Better Auth)
         const res = await client.query(`
             SELECT column_name, data_type, character_maximum_length 
             FROM information_schema.columns 
-            WHERE table_name = 'payload_users';
+            WHERE table_name = 'user'
+            ORDER BY ordinal_position;
         `);
 
-        console.log('Schema for payload_users:');
+        console.log('Schema for user table (Better Auth):');
         console.table(res.rows);
 
-        console.log('Attempting direct INSERT...');
-        const testEmail = `sql-test-${Date.now()}@example.com`;
-        const insertRes = await client.query(`
-            INSERT INTO payload_users (email, created_at, updated_at)
-            VALUES ($1, NOW(), NOW())
-            RETURNING id;
-        `, [testEmail]);
-        console.log('Insert success! ID:', insertRes.rows[0].id);
+        // Check if we can query users
+        const userCount = await client.query(`SELECT COUNT(*) as count FROM "user";`);
+        console.log(`\nTotal users in database: ${userCount.rows[0].count}`);
 
         await client.end();
     } catch (err) {
