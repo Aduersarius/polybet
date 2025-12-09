@@ -27,7 +27,7 @@ export default function PnLChart({ data = mockData, color = '#10b981', className
     const percentChange = startValue !== 0 ? (diff / startValue) * 100 : 0;
 
     return (
-        <div className={`flex flex-col h-full bg-[#1e1e1e] rounded-xl border border-white/10 p-4 shadow-lg ${className}`}>
+        <div className={`flex flex-col h-full bg-[#1e1e1e] rounded-xl border border-transparent p-4 shadow-lg ${className}`}>
             <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-medium text-gray-400 uppercase tracking-wider">{title}</span>
                 <span className={`text-lg font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
@@ -44,10 +44,25 @@ export default function PnLChart({ data = mockData, color = '#10b981', className
                             </linearGradient>
                         </defs>
                         <Tooltip
-                            contentStyle={{ backgroundColor: '#1e1e1e', borderColor: '#333', borderRadius: '8px', fontSize: '12px' }}
-                            itemStyle={{ color: '#fff' }}
-                            labelStyle={{ display: 'none' }}
-                            formatter={(value: number) => [`$${value.toFixed(2)}`, 'Value']}
+                            content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                        <div className="bg-[#1e1e1e] border border-white/10 shadow-xl rounded-lg p-3 min-w-[120px]">
+                                            <div className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                                {data.date || 'Estimate'}
+                                            </div>
+                                            <div className={`text-sm font-bold font-mono ${payload[0].value! >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {payload[0].value! >= 0 ? '+' : ''}${Number(payload[0].value).toFixed(2)}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            }}
+                            cursor={{ stroke: '#ffffff', strokeWidth: 1, strokeDasharray: '4 4', opacity: 0.5 }}
+                            animationDuration={0}
+                            isAnimationActive={false}
                         />
                         <XAxis dataKey="date" hide />
                         <Area
