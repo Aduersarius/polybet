@@ -20,6 +20,16 @@ export const auth = betterAuth({
             isAdmin: "isAdmin",
         },
     },
+    socialProviders: {
+        google: {
+            clientId: process.env.GOOGLE_CLIENT_ID || "",
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+        },
+        apple: {
+            clientId: process.env.APPLE_CLIENT_ID || "",
+            clientSecret: process.env.APPLE_CLIENT_SECRET || "",
+        },
+    },
 });
 
 // Utility function to get session from request headers
