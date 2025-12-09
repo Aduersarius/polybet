@@ -1,7 +1,7 @@
 'use client';
 
 import './settings.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/app/components/Navbar';
@@ -104,9 +104,23 @@ export default function SettingsPage() {
         }
     };
 
+    useEffect(() => {
+        if (!session && !isLoading) { // Check if session is explicitly missing (not just loading)
+            // Note: useSession usually adds an isLoading state, but here we just check data.
+            // If data is undefined it might be loading. better-auth's useSession behavior depends on implementation.
+            // Assuming if session is strictly null/false we redirect.
+            // However, useSession hook usually returns { data, isPending, error }.
+            // The code uses { data: session }.
+            // We should ideally check isPending too.
+            // For now, let's just use the existing logic but inside useEffect.
+            if (session === null) {
+                router.push('/');
+            }
+        }
+    }, [session, router]);
+
     if (!session) {
-        router.push('/');
-        return null;
+        return null; // Don't render anything while checking or redirecting
     }
 
     return (

@@ -3,8 +3,8 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 
 const isProduction = process.env.NODE_ENV === 'production';
-const baseUrl = isProduction 
-    ? 'https://polybet.ru' 
+const baseUrl = isProduction
+    ? 'https://polybet.ru'
     : process.env.BETTER_AUTH_URL || 'http://localhost:3000';
 
 // Debug log (remove in production)
@@ -33,17 +33,19 @@ export const auth = betterAuth({
         },
     },
     socialProviders: {
-        google: {
-            clientId: process.env.GOOGLE_CLIENT_ID!,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-            authorization: {
-                params: {
-                    prompt: "consent",
-                    access_type: "offline",
-                    response_type: "code"
+        ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? {
+            google: {
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                authorization: {
+                    params: {
+                        prompt: "consent",
+                        access_type: "offline",
+                        response_type: "code"
+                    }
                 }
             }
-        }
+        } : {})
     },
     debug: !isProduction, // Enable debug in development
 });
