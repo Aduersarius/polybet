@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
                 telegram: null,
                 website: null,
                 settings: Prisma.DbNull,
-            }
+            } as any
         });
 
         // Delete all sessions for this user
