@@ -27,7 +27,15 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
         setLoading(true);
 
         try {
-            // Use Better Auth's fetch API directly
+            // First, check if user has 2FA enabled
+            const check2FARes = await fetch('/api/auth/check-2fa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            const { has2FA } = await check2FARes.json();
+
+            // Attempt sign-in
             const response = await fetch('/api/auth/sign-in/email', {
                 method: 'POST',
                 headers: {
@@ -37,7 +45,6 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                 body: JSON.stringify({ email, password }),
             });
 
-            // Check if response has content
             const text = await response.text();
             let result;
 
@@ -47,20 +54,26 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                 result = {};
             }
 
-            // Check if 2FA is required
-            if (result.twoFactorRedirect || result.error?.code === 'TWO_FACTOR_REQUIRED') {
+            console.log('[LoginModal] Sign-in response:', { status: response.status, result, has2FA });
+
+            // If password is wrong, show error
+            if (!response.ok && !result.twoFactorRedirect) {
+                setError(result.message || result.error?.message || result.error || 'Login failed. Please check your credentials.');
+                setLoading(false);
+                return;
+            }
+
+            // If user has 2FA enabled OR API indicates 2FA required, show TOTP input
+            if (has2FA || result.twoFactorRedirect === true || result.code === 'TWO_FACTOR_REQUIRED') {
+                console.log('[LoginModal] 2FA required, showing TOTP input');
                 setRequires2FA(true);
                 setLoading(false);
                 return;
             }
 
-            if (!response.ok) {
-                setError(result.message || result.error || 'Login failed. Please check your credentials.');
-            } else {
-                // Success - close modal and refresh
-                onClose();
-                window.location.reload();
-            }
+            // Success without 2FA - close modal and refresh
+            onClose();
+            window.location.reload();
         } catch (err: any) {
             console.error('Login error:', err);
             setError(err.message || 'An error occurred');

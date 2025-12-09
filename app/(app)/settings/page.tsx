@@ -126,6 +126,15 @@ export default function SettingsPage() {
     const [showDisable2FAPrompt, setShowDisable2FAPrompt] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [resendCooldown, setResendCooldown] = useState(0);
+
+    // Resend cooldown timer
+    useEffect(() => {
+        if (resendCooldown > 0) {
+            const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [resendCooldown]);
 
     // Check 2FA status on mount
     useEffect(() => {
@@ -406,6 +415,7 @@ export default function SettingsPage() {
                                         {!user?.emailVerified && (
                                             <button
                                                 onClick={async () => {
+                                                    if (resendCooldown > 0) return;
                                                     try {
                                                         const res = await fetch('/api/user/send-verification', {
                                                             method: 'POST',
@@ -414,6 +424,7 @@ export default function SettingsPage() {
                                                         const data = await res.json();
                                                         if (res.ok) {
                                                             toast({ title: 'Verification email sent!', variant: 'success' });
+                                                            setResendCooldown(60);
                                                         } else {
                                                             toast({ title: data.error || 'Failed to send email', variant: 'destructive' });
                                                         }
@@ -421,9 +432,10 @@ export default function SettingsPage() {
                                                         toast({ title: 'Failed to send email', variant: 'destructive' });
                                                     }
                                                 }}
-                                                className="px-3 py-1.5 text-sm bg-yellow-600/20 text-yellow-400 rounded-lg hover:bg-yellow-600/30 transition-colors"
+                                                disabled={resendCooldown > 0}
+                                                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${resendCooldown > 0 ? 'bg-gray-600/20 text-gray-500 cursor-not-allowed' : 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30'}`}
                                             >
-                                                Resend
+                                                {resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 'Resend'}
                                             </button>
                                         )}
                                         <button

@@ -23,6 +23,7 @@ model User {
   isAdmin       Boolean           @default(false)
   isBanned      Boolean           @default(false)
   isDeleted     Boolean           @default(false)
+  twoFactorEnabled Boolean?       @default(false)
   telegram      String?
   twitter       String?
   website       String?
