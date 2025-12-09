@@ -86,10 +86,10 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
 
     return (
         <div ref={searchRef} className="relative w-full">
-            <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`relative flex items-center transition-all duration-300 ${isFocused ? 'scale-105' : ''
+            <div
+                className={`relative flex items-center bg-[#1e1e1e]/80 backdrop-blur-sm rounded-lg border transition-colors ${isFocused
+                    ? 'border-[#bb86fc] shadow-lg shadow-[#bb86fc]/20'
+                    : 'border-[#333] hover:border-[#555]'
                     }`}
             >
                 {/* Search Icon */}
@@ -121,10 +121,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                     onChange={(e) => handleSearch(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     placeholder={placeholder}
-                    className={`w-full pl-10 pr-10 py-2 bg-[#1e1e1e]/80 backdrop-blur-sm border rounded-lg text-white placeholder-gray-400 focus:outline-none transition-all ${isFocused
-                        ? 'border-[#bb86fc] shadow-lg shadow-[#bb86fc]/20'
-                        : 'border-[#333] hover:border-[#555]'
-                        }`}
+                    className="w-full pl-10 pr-10 py-2 bg-transparent text-white placeholder-gray-400 focus:outline-none"
                 />
 
                 {/* Clear Button */}
@@ -143,7 +140,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                         </motion.button>
                     )}
                 </AnimatePresence>
-            </motion.div>
+            </div>
 
             {/* Results Dropdown */}
             <AnimatePresence>

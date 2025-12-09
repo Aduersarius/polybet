@@ -1,15 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Save, X, User, Mail, FileText } from 'lucide-react';
+import { Camera, Save, User, Mail, FileText } from 'lucide-react';
 import { FileTrigger } from '@/components/ui/file-trigger';
-import { Button as IntentButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 
 import { TextField } from '@/components/ui/text-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/field';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 interface EditProfileModalProps {
     isOpen: boolean;
@@ -70,30 +77,16 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
                 const formDataUpload = new FormData();
                 formDataUpload.append('file', avatarFile);
 
-                console.log('Uploading file:', avatarFile.name, avatarFile.type, avatarFile.size);
-
                 const uploadRes = await fetch('/api/upload/avatar', {
                     method: 'POST',
                     body: formDataUpload,
                 });
 
-                console.log('Upload response status:', uploadRes.status, uploadRes.statusText);
-
                 if (!uploadRes.ok) {
-                    const responseText = await uploadRes.text();
-                    console.error('Upload failed - Status:', uploadRes.status);
-                    console.error('Upload failed - Response text:', responseText);
-
-                    try {
-                        const errorData = JSON.parse(responseText);
-                        throw new Error(errorData.details || errorData.error || 'Failed to upload avatar');
-                    } catch (e) {
-                        throw new Error(`Upload failed (${uploadRes.status}): ${responseText.substring(0, 200)}`);
-                    }
+                    throw new Error('Failed to upload avatar');
                 }
 
                 const { url } = await uploadRes.json();
-                console.log('Upload successful:', url);
                 avatarUrl = url;
             }
 
@@ -114,213 +107,130 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
             setTimeout(() => {
                 onSaved?.();
+                onClose(); // Close dialog on success
                 window.location.reload();
-            }, 1500);
+            }, 1000);
         } catch (error) {
             console.error('Error updating profile:', error);
-            setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
+            setMessage({ type: 'error', text: 'Failed to update profile.' });
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <AnimatePresence>
-            {isOpen && (
-                <>
-                    {/* Backdrop */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
-                    />
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="sm:max-w-[500px] bg-[#1e1e1e] border-white/10 text-white">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        Edit Profile
+                    </DialogTitle>
+                    <DialogDescription className="text-gray-400">
+                        Make changes to your profile here. Click save when you're done.
+                    </DialogDescription>
+                </DialogHeader>
 
-                    {/* Modal */}
-                    <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] rounded-2xl border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-                            style={{ backgroundColor: '#1e1e1e' }}
-                        >
-                            {/* Header */}
-                            <div className="sticky top-0 bg-[#1e1e1e] border-b border-white/10 p-6 flex items-center justify-between z-10" style={{ backgroundColor: '#1e1e1e' }}>
-                                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                                    Edit Profile
-                                </h2>
-                                <button
-                                    onClick={onClose}
-                                    className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                                >
-                                    <X className="w-5 h-5 text-gray-400" />
-                                </button>
-                            </div>
-
-                            {/* Message */}
-                            {message && (
-                                <div className="mx-6 mt-4">
-                                    <div
-                                        className={`p-4 rounded-lg border ${message.type === 'success'
-                                            ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                                            : 'bg-red-500/10 border-red-500/30 text-red-400'
-                                            }`}
-                                    >
-                                        {message.text}
-                                    </div>
-                                </div>
-                            )}
-
-                            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                                {/* Avatar Section */}
-                                <div>
-                                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                        <Camera className="w-5 h-5 text-blue-400" />
-                                        Profile Picture
-                                    </h3>
-
-                                    <div className="flex flex-col items-center gap-6">
-                                        {/* Avatar Preview */}
-                                        <div className="relative group">
-                                            <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-4xl font-bold text-white overflow-hidden border-4 border-white/20 shadow-xl">
-                                                {avatarPreview ? (
-                                                    <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    user?.name?.charAt(0)?.toUpperCase() || '?'
-                                                )}
-                                            </div>
-                                            <div className="absolute -bottom-2 -right-2 bg-blue-600 rounded-full p-2 shadow-lg">
-                                                <Camera className="w-5 h-5 text-white" />
-                                            </div>
-                                        </div>
-
-                                        {/* Upload Info & FileTrigger */}
-                                        <div className="w-full text-center">
-                                            <p className="text-gray-400 text-sm mb-4">
-                                                Click below to upload a new photo. JPG, PNG or GIF. Max size 5MB.
-                                            </p>
-
-                                            <FileTrigger
-                                                acceptedFileTypes={['image/*']}
-                                                defaultCamera="user"
-                                                onSelect={(files) => {
-                                                    if (files) {
-                                                        const fileArray = Array.from(files);
-                                                        const file = fileArray[0];
-                                                        if (file) {
-                                                            handleAvatarChange({ target: { files } } as any);
-                                                        }
-                                                    }
-                                                }}
-                                                intent="primary"
-                                                size="md"
-                                                className="w-full"
-                                            >
-                                                <Camera className="w-4 h-4" data-slot="icon" />
-                                                Upload New Photo
-                                            </FileTrigger>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Personal Information */}
-                                <div>
-                                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                        <User className="w-5 h-5 text-purple-400" />
-                                        Personal Information
-                                    </h3>
-
-                                    <div className="space-y-4">
-                                        {/* Name */}
-                                        <TextField>
-                                            <Label>Display Name</Label>
-                                            <Input
-                                                value={formData.name}
-                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                                placeholder="Enter your name"
-                                            />
-                                        </TextField>
-
-                                        {/* Username */}
-                                        <TextField>
-                                            <Label>Username</Label>
-                                            <Input
-                                                value={formData.username}
-                                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                                placeholder="@username"
-                                            />
-                                        </TextField>
-
-                                        {/* Email */}
-                                        <TextField>
-                                            <Label className="flex items-center gap-2">
-                                                <Mail className="w-4 h-4" />
-                                                Email Address
-                                            </Label>
-                                            <Input
-                                                type="email"
-                                                value={formData.email}
-                                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                placeholder="your@email.com"
-                                            />
-                                        </TextField>
-
-                                        {/* Bio */}
-                                        <TextField>
-                                            <Label className="flex items-center gap-2">
-                                                <FileText className="w-4 h-4" />
-                                                Bio
-                                            </Label>
-                                            <Textarea
-                                                value={formData.bio}
-                                                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                                                rows={3}
-                                                placeholder="Tell us about yourself..."
-                                                className="resize-none"
-                                            />
-                                        </TextField>
-                                    </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-3 pt-4">
-                                    <IntentButton
-                                        type="submit"
-                                        isDisabled={isLoading}
-                                        intent="primary"
-                                        size="lg"
-                                        className="flex-1"
-                                    >
-                                        {isLoading ? (
-                                            <>
-                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                Saving...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-5 h-5" />
-                                                Save Changes
-                                            </>
-                                        )}
-                                    </IntentButton>
-
-                                    <IntentButton
-                                        type="button"
-                                        onPress={onClose}
-                                        intent="secondary"
-                                        size="lg"
-                                    >
-                                        Cancel
-                                    </IntentButton>
-                                </div>
-                            </form>
-                        </motion.div>
+                {message && (
+                    <div
+                        className={`p-3 rounded-md text-sm font-medium border ${message.type === 'success'
+                            ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                            : 'bg-red-500/10 border-red-500/30 text-red-400'
+                            }`}
+                    >
+                        {message.text}
                     </div>
-                </>
-            )}
-        </AnimatePresence>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6 pt-2">
+                    {/* Avatar Section */}
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="relative group">
+                            <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-3xl font-bold text-white overflow-hidden border-2 border-white/20 shadow-lg">
+                                {avatarPreview ? (
+                                    <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                    user?.name?.charAt(0)?.toUpperCase() || '?'
+                                )}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 bg-blue-600 rounded-full p-1.5 shadow-md">
+                                <Camera className="w-4 h-4 text-white" />
+                            </div>
+                        </div>
+
+                        <div className="w-full">
+                            <FileTrigger
+                                acceptedFileTypes={['image/*']}
+                                onSelect={(files) => {
+                                    if (files) {
+                                        const fileArray = Array.from(files);
+                                        const file = fileArray[0];
+                                        if (file) {
+                                            handleAvatarChange({ target: { files } } as any);
+                                        }
+                                    }
+                                }}
+                                intent="outline"
+                                size="xs"
+                                className="w-full !h-7 !min-h-0 !py-0 text-[10px] uppercase tracking-wider font-bold bg-white/5 border-white/20 hover:bg-white/10 hover:border-white/30 transition-all"
+                            >
+                                <Camera className="w-3.5 h-3.5 mr-1.5" data-slot="icon" />
+                                Upload Photo
+                            </FileTrigger>
+                        </div>
+                    </div>
+
+                    {/* Inputs */}
+                    <div className="space-y-4">
+                        <TextField>
+                            <Label className="text-xs uppercase text-gray-500 font-bold tracking-wider">Display Name</Label>
+                            <Input
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                placeholder="Enter your name"
+                                className="bg-white/5 border-white/10 focus:border-blue-500/50"
+                            />
+                        </TextField>
+
+                        <TextField>
+                            <Label className="text-xs uppercase text-gray-500 font-bold tracking-wider">Username</Label>
+                            <Input
+                                value={formData.username}
+                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                placeholder="@username"
+                                className="bg-white/5 border-white/10 focus:border-blue-500/50"
+                            />
+                        </TextField>
+
+                        <TextField>
+                            <Label className="text-xs uppercase text-gray-500 font-bold tracking-wider">Bio</Label>
+                            <Textarea
+                                value={formData.bio}
+                                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                                placeholder="Tell us about yourself..."
+                                className="bg-white/5 border-white/10 focus:border-blue-500/50 resize-none min-h-[80px]"
+                            />
+                        </TextField>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            intent="outline"
+                            onClick={onClose}
+                            className="border-white/10 hover:bg-white/5 hover:text-white"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            isDisabled={isLoading}
+                            className="bg-blue-600 hover:bg-blue-500 text-white border-0"
+                        >
+                            {isLoading ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }

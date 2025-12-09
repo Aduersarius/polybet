@@ -11,7 +11,7 @@ import { Loader } from "./loader"
 
 export interface FileTriggerProps
   extends FileTriggerPrimitiveProps,
-    VariantProps<typeof buttonStyles> {
+  VariantProps<typeof buttonStyles> {
   isDisabled?: boolean
   isPending?: boolean
   ref?: React.RefObject<HTMLInputElement>
@@ -35,21 +35,21 @@ export function FileTrigger({
         size={size}
         isCircle={isCircle}
       >
-        {!props.isPending ? (
-          props.defaultCamera ? (
-            <CameraIcon />
-          ) : props.acceptDirectory ? (
-            <FolderIcon />
-          ) : (
-            <PaperClipIcon />
-          )
-        ) : (
-          <Loader />
-        )}
         {props.children ? (
           props.children
         ) : (
           <>
+            {!props.isPending ? (
+              props.defaultCamera ? (
+                <CameraIcon />
+              ) : props.acceptDirectory ? (
+                <FolderIcon />
+              ) : (
+                <PaperClipIcon />
+              )
+            ) : (
+              <Loader />
+            )}
             {props.allowsMultiple
               ? "Browse a files"
               : props.acceptDirectory
