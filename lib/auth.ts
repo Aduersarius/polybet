@@ -21,6 +21,8 @@ console.log('Auth Config:', {
 });
 
 // Email template for verification
+const LOGO_URL = 'https://jnlgh0ps99hx76my.public.blob.vercel-storage.com/diamond_logo_nobg.png';
+
 const createVerificationEmailHTML = (verificationUrl: string) => `
 <!DOCTYPE html>
 <html>
@@ -36,10 +38,13 @@ const createVerificationEmailHTML = (verificationUrl: string) => `
                 <table role="presentation" style="max-width: 480px; width: 100%; border-collapse: collapse;">
                     <!-- Logo -->
                     <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <img src="${LOGO_URL}" alt="PolyBet" width="64" height="64" style="display: block;" />
+                        </td>
+                    </tr>
+                    <tr>
                         <td align="center" style="padding-bottom: 32px;">
-                            <h1 style="margin: 0; font-size: 32px; font-weight: bold; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                                PolyBet
-                            </h1>
+                            <span style="font-size: 28px; font-weight: bold; color: #8b5cf6;">PolyBet</span>
                         </td>
                     </tr>
                     <!-- Card -->

@@ -407,8 +407,16 @@ export default function SettingsPage() {
                                             <button
                                                 onClick={async () => {
                                                     try {
-                                                        await email.sendVerificationEmail();
-                                                        toast({ title: 'Verification email sent', variant: 'success' });
+                                                        const res = await fetch('/api/user/send-verification', {
+                                                            method: 'POST',
+                                                            credentials: 'include',
+                                                        });
+                                                        const data = await res.json();
+                                                        if (res.ok) {
+                                                            toast({ title: 'Verification email sent!', variant: 'success' });
+                                                        } else {
+                                                            toast({ title: data.error || 'Failed to send email', variant: 'destructive' });
+                                                        }
                                                     } catch {
                                                         toast({ title: 'Failed to send email', variant: 'destructive' });
                                                     }
