@@ -37,29 +37,19 @@ export const auth = betterAuth({
         sendOnSignUp: true,
     },
     user: {
-        fields: {
-            email: "email",
-            name: "name",
-            image: "image",
-            emailVerified: "emailVerified",
-            isAdmin: "isAdmin",
+        additionalFields: {
+            isAdmin: {
+                type: "boolean",
+                defaultValue: false,
+            },
         },
     },
-    socialProviders: {
-        ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? {
-            google: {
-                clientId: process.env.GOOGLE_CLIENT_ID,
-                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                authorization: {
-                    params: {
-                        prompt: "consent",
-                        access_type: "offline",
-                        response_type: "code"
-                    }
-                }
-            }
-        } : {})
-    },
+    socialProviders: process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? {
+        google: {
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        }
+    } : undefined,
     plugins: [
         twoFactor({
             issuer: "PolyBet",
