@@ -46,7 +46,7 @@ export default function HistoryPage() {
         <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
             <Navbar />
 
-            <main className="max-w-5xl mx-auto px-4 py-8">
+            <main className="max-w-5xl mx-auto px-4 py-8 relative z-10">
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-8">
                     <Link href="/profile" className="p-2 bg-[#1e1e1e] rounded-full hover:bg-white/10 transition-colors">
@@ -77,63 +77,85 @@ export default function HistoryPage() {
                     ))}
                 </div>
 
-                {/* List */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-[#1e1e1e] rounded-2xl border border-white/10 overflow-hidden min-h-[500px]"
+                    style={{ backgroundColor: '#1e1e1e' }}
                 >
+                    {/* Table Header */}
+                    <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/10 text-xs font-bold text-gray-500 uppercase tracking-wider bg-[#1a1b26]/50">
+                        <div className="col-span-5">Event</div>
+                        <div className="col-span-2 text-center">Prediction</div>
+                        <div className="col-span-2 text-right">Stake</div>
+                        <div className="col-span-2 text-right">Return</div>
+                        <div className="col-span-1 text-right">Status</div>
+                    </div>
                     {isLoading ? (
                         <div className="p-12 text-center text-gray-500">Loading history...</div>
                     ) : (
-                        <div className="divide-y divide-white/10">
+                        <div className="divide-y divide-white/5">
                             {filteredBets && filteredBets.length > 0 ? (
                                 filteredBets.map((bet) => (
                                     <Link
                                         href={`/event/${bet.eventId}`}
                                         key={bet.id}
-                                        className="block p-4 hover:bg-white/5 transition-colors group"
+                                        className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-white/5 transition-colors group items-center"
                                     >
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                            {/* Event Info */}
-                                            <div className="flex-1">
-                                                <h3 className="font-medium text-white mb-1 group-hover:text-purple-400 transition-colors">
-                                                    {bet.eventTitle}
-                                                </h3>
-                                                <div className="flex items-center gap-3 text-xs text-gray-500">
-                                                    <span>{new Date(bet.createdAt).toLocaleString()}</span>
-                                                    <span className="w-1 h-1 bg-gray-700 rounded-full"></span>
-                                                    <span>ID: {bet.id.slice(0, 8)}</span>
-                                                </div>
+                                        {/* Event Info */}
+                                        <div className="col-span-5">
+                                            <h3 className="font-medium text-white mb-1 group-hover:text-purple-400 transition-colors truncate pr-4">
+                                                {bet.eventTitle}
+                                            </h3>
+                                            <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
+                                                <span>{new Date(bet.createdAt).toLocaleDateString()}</span>
+                                                <span>•</span>
+                                                <span>{new Date(bet.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
+                                        </div>
 
-                                            {/* Bet Details */}
-                                            <div className="flex items-center gap-6 shrink-0">
-                                                <div className="text-right">
-                                                    <div className="text-xs text-gray-500 mb-0.5">Prediction</div>
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${bet.option === 'YES' ? 'bg-green-500/10 text-green-400' :
-                                                        bet.option === 'NO' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'
-                                                        }`}>
-                                                        {bet.option}
+                                        {/* Prediction */}
+                                        <div className="col-span-2 flex justify-center">
+                                            <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border border-opacity-20 ${bet.option === 'YES' ? 'bg-green-500/10 text-green-400 border-green-500' :
+                                                bet.option === 'NO' ? 'bg-red-500/10 text-red-400 border-red-500' : 'bg-blue-500/10 text-blue-400 border-blue-500'
+                                                }`}>
+                                                {bet.option}
+                                            </span>
+                                        </div>
+
+                                        {/* Stake */}
+                                        <div className="col-span-2 text-right">
+                                            <div className="font-medium text-white font-mono">${bet.amount.toFixed(2)}</div>
+                                        </div>
+
+                                        {/* Return / PnL */}
+                                        <div className="col-span-2 text-right">
+                                            {bet.status === 'PENDING' ? (
+                                                <span className="text-gray-600 font-mono">-</span>
+                                            ) : (
+                                                <div className="flex flex-col items-end">
+                                                    <span className={`font-mono font-medium ${bet.payout! > bet.amount ? 'text-green-400' : 'text-gray-400'}`}>
+                                                        ${bet.payout?.toFixed(2) || '0.00'}
+                                                    </span>
+                                                    <span className={`text-xs ${bet.payout! > bet.amount ? 'text-green-500/70' : 'text-red-500/70'}`}>
+                                                        {bet.payout! > bet.amount ? '+' : ''}{(bet.payout! - bet.amount).toFixed(2)}
                                                     </span>
                                                 </div>
+                                            )}
+                                        </div>
 
-                                                <div className="text-right w-24">
-                                                    <div className="text-xs text-gray-500 mb-0.5">Amount</div>
-                                                    <div className="font-bold text-white">${bet.amount.toFixed(2)}</div>
+                                        {/* Status */}
+                                        <div className="col-span-1 text-right">
+                                            {bet.status === 'PENDING' ? (
+                                                <div className="flex items-center justify-end gap-1.5 text-yellow-400/80 text-xs font-medium">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                                                    Pending
                                                 </div>
-
-                                                <div className="text-right w-24">
-                                                    <div className="text-xs text-gray-500 mb-0.5">Result</div>
-                                                    {bet.status === 'PENDING' ? (
-                                                        <span className="text-yellow-400 font-bold text-sm">PENDING</span>
-                                                    ) : (
-                                                        <div className={`font-bold text-sm ${bet.payout! > bet.amount ? 'text-green-400' : 'text-red-400'}`}>
-                                                            {bet.payout! > bet.amount ? '+' : ''}${(bet.payout! - bet.amount).toFixed(2)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                            ) : bet.status === 'WON' ? (
+                                                <div className="text-green-400 text-xs font-bold tracking-wider">WON</div>
+                                            ) : (
+                                                <div className="text-gray-500 text-xs font-bold tracking-wider">LOST</div>
+                                            )}
                                         </div>
                                     </Link>
                                 ))

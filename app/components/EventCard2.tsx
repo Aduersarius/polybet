@@ -29,10 +29,10 @@ interface DbEvent {
 }
 
 interface EventCard2Props {
-   event: DbEvent;
-   isEnded?: boolean;
-   onTradeClick?: (event: DbEvent, option: 'YES' | 'NO') => void;
-   onMultipleTradeClick?: (event: DbEvent) => void;
+  event: DbEvent;
+  isEnded?: boolean;
+  onTradeClick?: (event: DbEvent, option: 'YES' | 'NO') => void;
+  onMultipleTradeClick?: (event: DbEvent) => void;
 }
 
 const getTimeRemaining = (endDate: Date) => {
@@ -109,7 +109,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     queryFn: async () => {
       const res = await fetch(`/api/events/${event.id}/messages`);
       if (!res.ok) return [];
-      return res.json();
+      const data = await res.json();
+      return data.messages || [];
     },
   });
 
@@ -122,6 +123,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
   const betCount = event.betCount || 0;
   const commentsCount = messages?.length || 0;
+
+  // Calculate remaining outcomes for multiple choice events
+  const totalOutcomes = (liveOutcomes || event.outcomes)?.length || 0;
+  const remainingOutcomes = Math.max(0, totalOutcomes - 2);
 
   // Use odds from props or calculate simple estimate based on bet count
   let yesOdds = 50;
@@ -187,6 +192,24 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     }
   };
 
+  // Deterministic random color based on event ID for hover effect
+  const hoverColors = [
+    'hover:border-blue-500/50',
+    'hover:border-purple-500/50',
+    'hover:border-pink-500/50',
+    'hover:border-orange-500/50',
+    'hover:border-green-500/50',
+    'hover:border-cyan-500/50'
+  ];
+  const charCodeSum = event.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hoverColorClass = hoverColors[charCodeSum % hoverColors.length];
+
+  // Random delay for entrance animation to create organic feel
+  const [randomDelay, setRandomDelay] = useState(0);
+  useEffect(() => {
+    setRandomDelay(Math.random() * 0.3); // 0 to 0.3s delay
+  }, []);
+
   return (
     <Link
       key={event.id}
@@ -198,20 +221,21 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         }
       }}
     >
-      <div
-        className={`group bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-2.5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 h-[180px] flex flex-col shadow-lg hover:shadow-xl ${
-          isEnded ? 'opacity-60' : ''
-        }`}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: randomDelay }}
+        className={`group bg-[#1e1e1e] border border-transparent rounded-xl p-2.5 ${hoverColorClass} transition-all duration-300 flex flex-col justify-between shadow-lg h-[180px] gap-2 ${isEnded ? 'opacity-60' : ''
+          }`}
       >
-        {/* Header: Image, Title, Favorite */}
-        <div className="flex items-start gap-2 mb-1">
-          {/* Circular Image */}
-          <div className="flex-shrink-0">
+        {/* 1. Header: Image & Title */}
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 relative">
             {event.imageUrl ? (
               <img
                 src={event.imageUrl}
                 alt={event.title}
-                className="w-10 h-10 rounded-full object-cover border-2 border-white/20 group-hover:border-white/40 transition-colors"
+                className="w-12 h-12 rounded-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                   (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
@@ -219,9 +243,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               />
             ) : null}
             <div
-              className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/30 to-purple-500/30 border-2 border-white/20 group-hover:border-white/40 flex items-center justify-center text-sm font-bold text-white/80 transition-colors ${
-                event.imageUrl ? 'hidden' : ''
-              }`}
+              className={`w-12 h-12 rounded-full bg-[#2a2b36] border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400 transition-colors ${event.imageUrl ? 'hidden' : ''
+                }`}
             >
               {(event as any).categories && (event as any).categories.length > 0
                 ? (event as any).categories[0][0]
@@ -229,18 +252,17 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             </div>
           </div>
 
-          {/* Title and Favorite */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-1.5">
-              <h3 className="text-base font-semibold text-white line-clamp-2 leading-tight group-hover:text-white/90 transition-colors">
+            <div className="flex justify-between items-start gap-1">
+              <h3 className="text-[14px] font-bold text-white leading-snug line-clamp-3 tracking-tight group-hover:text-blue-400 transition-colors">
                 {event.title}
               </h3>
               <button
                 onClick={toggleFavorite}
-                className="flex-shrink-0 w-5 h-5 rounded-full bg-black/30 hover:bg-red-500/20 flex items-center justify-center transition-all hover:scale-110"
+                className="flex-shrink-0 text-gray-500 hover:text-red-500 transition-colors pt-0.5"
               >
                 <svg
-                  className={`w-3 h-3 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white/60'}`}
+                  className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'}`}
                   fill={isFavorite ? 'currentColor' : 'none'}
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -257,65 +279,58 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
         </div>
 
-        {/* Stats and Meta Info - All in one section */}
-        <div className="flex flex-col gap-1.5 mb-1">
-          {/* First Row: Category Tag and Time */}
-          <div className="flex items-center justify-between">
+        {/* 2. Info Row: Category & Time */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
             {(event as any).categories && (event as any).categories.length > 0 && (
-              <Badge 
-                variant="outline" 
-                className="text-[10px] h-5 px-2 py-0 text-blue-300/90 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+              <Badge
+                variant="outline"
+                className="text-[10px] h-5 px-2 py-0 text-blue-300 border-blue-500/30 bg-blue-500/10 uppercase tracking-wide font-bold"
               >
                 {(event as any).categories[0]}
               </Badge>
             )}
-            <span className="text-[10px] text-gray-400 font-medium">
-              {isEnded ? 'Ended' : getTimeRemaining(new Date(event.resolutionDate))}
-            </span>
           </div>
-          
-          {/* Second Row: Volume and Bet Count */}
-          <div className="flex items-center gap-2.5 text-xs text-gray-400">
-            <span className="flex items-center gap-1">
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                />
-              </svg>
-              <span className="font-medium">{volume}</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <span className="font-medium">{betCount}</span>
-            </span>
-          </div>
+          <span className="text-[10px] font-mono text-gray-500">{getTimeRemaining(new Date(event.resolutionDate))}</span>
         </div>
 
-        {/* Odds Display */}
+        {/* 3. Stats Row */}
+        <div className="flex items-center justify-between text-gray-500 px-1">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
+              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              {volume}
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
+              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              {betCount}
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
+              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+              {commentsCount}
+            </span>
+          </div>
+
+          {remainingOutcomes > 0 && event.type === 'MULTIPLE' && (
+            <span className="text-[10px] font-medium text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+              +{remainingOutcomes}
+            </span>
+          )}
+        </div>
+
+        {/* 4. Outcomes / Buttons */}
         {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
-          <div className="space-y-1 mt-auto">
+          <div className="flex gap-2 min-h-[38px]">
             {(liveOutcomes || event.outcomes)?.slice(0, 2).map((outcome, idx) => {
               const probability = Math.round(outcome.probability * 100);
+              // Use random color if outcome.color is not defined (for demo)
+              const outcomeColor = outcome.color || (idx === 0 ? '#3b82f6' : '#8b5cf6');
               return (
                 <motion.button
                   key={outcome.id}
@@ -327,53 +342,55 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                       window.location.href = `/event/${event.id}`;
                     }
                   }}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full bg-gray-800/50 hover:bg-gray-700/50 rounded-lg px-2.5 py-2 text-left cursor-pointer transition-colors"
-                  style={{
-                    borderLeftColor: outcome.color || '#666',
-                    borderLeftWidth: '4px',
-                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="relative flex-1 overflow-hidden bg-[#2a2b36] hover:bg-[#353644] rounded-lg px-2 py-1.5 text-left cursor-pointer transition-colors group/btn flex flex-col justify-center"
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-medium text-white truncate">
-                      {outcome.name}
-                    </span>
-                    <span className="text-xs font-bold text-white ml-2">
-                      {probability}%
-                    </span>
+                  {/* Progress Bar Background */}
+                  <div
+                    className="absolute top-0 left-0 h-full opacity-10 transition-all group-hover/btn:opacity-20"
+                    style={{ width: `${probability}%`, backgroundColor: outcomeColor }}
+                  />
+
+                  <div className="relative z-10 w-full">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <span className="text-[11px] font-bold text-gray-200 truncate w-full pr-1">
+                        {outcome.name}
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <span className="text-[11px] font-bold" style={{ color: outcomeColor }}>
+                        {probability}%
+                      </span>
+                    </div>
                   </div>
                 </motion.button>
               );
             })}
           </div>
         ) : (
-          <div className="flex gap-1 mt-auto h-8">
+          <div className="flex gap-2 min-h-[38px]">
             <motion.button
               onClick={(e) => handleTradeClick(e, 'YES')}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="bg-green-500/15 hover:bg-green-500/25 text-green-400 hover:text-green-300 font-semibold text-xs cursor-pointer transition-all px-1 py-1.5 rounded-lg text-center flex items-center justify-center"
-              style={{ flex: `${yesOdds}` }}
+              className="flex-1 bg-[#1E2A25] hover:bg-[#1E3A2F] rounded-lg flex items-center justify-between px-4 cursor-pointer transition-all group/yes"
             >
-              <span className="truncate text-[10px]">YES</span>
+              <span className="text-[12px] font-bold text-green-500/90 group-hover/yes:text-green-400">YES</span>
+              <span className="text-[12px] font-bold text-green-400">{yesOdds}%</span>
             </motion.button>
             <motion.button
               onClick={(e) => handleTradeClick(e, 'NO')}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="bg-red-500/15 hover:bg-red-500/25 text-red-400 hover:text-red-300 font-semibold text-xs cursor-pointer transition-all px-1 py-1.5 rounded-lg text-center flex items-center justify-center"
-              style={{ flex: `${noOdds}` }}
+              className="flex-1 bg-[#2A1E1E] hover:bg-[#3A1E1E] rounded-lg flex items-center justify-between px-4 cursor-pointer transition-all group/no"
             >
-              <span className="truncate text-[10px]">NO</span>
+              <span className="text-[12px] font-bold text-red-500/90 group-hover/no:text-red-400">NO</span>
+              <span className="text-[12px] font-bold text-red-400">{noOdds}%</span>
             </motion.button>
           </div>
         )}
-      </div>
+      </motion.div>
     </Link>
   );
 }
-

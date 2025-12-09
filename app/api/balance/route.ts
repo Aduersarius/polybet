@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
         const balances = await prisma.balance.findMany({
             where: {
                 userId,
-                amount: { gt: 0 } // Only return balances with positive amounts
+                amount: { not: 0 } // Return all non-zero balances
             },
             select: {
                 tokenSymbol: true,
