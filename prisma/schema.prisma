@@ -27,6 +27,7 @@ model User {
   website       String?
   email         String?           @unique
   password      String?
+  settings      Json?             // User preferences (trading, notifications, display, privacy)
   marketActivity MarketActivity[]
   createdEvents Event[]
   messages      Message[]
@@ -261,6 +262,16 @@ model Verification {
    createdAt  DateTime @default(now())
    updatedAt  DateTime @updatedAt
 }
+
+model TwoFactor {
+   id          String   @id @default(cuid())
+   userId      String   @unique
+   secret      String
+   backupCodes String[]
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
+}
+
 model DepositAddress {
   id              String   @id @default(cuid())
   userId          String

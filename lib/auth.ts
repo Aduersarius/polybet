@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
+import { twoFactor } from "better-auth/plugins";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl = isProduction
@@ -27,6 +28,14 @@ export const auth = betterAuth({
     emailAndPassword: {
         enabled: true,
     },
+    emailVerification: {
+        sendVerificationEmail: async ({ user, url, token }) => {
+            // TODO: Replace with actual email service (Resend, SendGrid, etc.)
+            console.log(`[EMAIL] Send verification to ${user.email}`);
+            console.log(`[EMAIL] Verification URL: ${url}`);
+        },
+        sendOnSignUp: true,
+    },
     user: {
         fields: {
             email: "email",
@@ -51,6 +60,11 @@ export const auth = betterAuth({
             }
         } : {})
     },
+    plugins: [
+        twoFactor({
+            issuer: "PolyBet",
+        })
+    ],
     debug: !isProduction, // Enable debug in development
 });
 
