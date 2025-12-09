@@ -267,7 +267,7 @@ model TwoFactor {
    id          String   @id @default(cuid())
    userId      String   @unique
    secret      String
-   backupCodes String[]
+   backupCodes String   // better-auth stores as encrypted string
    createdAt   DateTime @default(now())
    updatedAt   DateTime @updatedAt
 }
