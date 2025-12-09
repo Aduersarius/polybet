@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
@@ -12,6 +12,7 @@ import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
 import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
 import { PositionsDropdown } from './PositionsDropdown';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 
 interface NavbarProps {
@@ -28,7 +29,7 @@ interface Category {
     label: string;
 }
 
-export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage, activeAdminView, onAdminViewChange, onCreateEvent }: NavbarProps) {
+function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage, activeAdminView, onAdminViewChange, onCreateEvent }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
@@ -61,6 +62,26 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 .catch(err => console.error('Failed to fetch balance:', err));
         }
     }, [session]);
+
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // Check for auth query param to open modals
+    useEffect(() => {
+        const authParam = searchParams.get('auth');
+        if (authParam === 'login') {
+            setShowLoginModal(true);
+            // Clean URL
+            const url = new URL(window.location.href);
+            url.searchParams.delete('auth');
+            router.replace(url.pathname + url.search);
+        } else if (authParam === 'signup') {
+            setShowSignupModal(true);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('auth');
+            router.replace(url.pathname + url.search);
+        }
+    }, [searchParams, router]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -306,5 +327,13 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 }}
             />
         </>
+    );
+}
+
+export function Navbar(props: NavbarProps) {
+    return (
+        <Suspense fallback={<div className="h-16 bg-black/50 border-b border-white/10" />}>
+            <NavbarContent {...props} />
+        </Suspense>
     );
 }

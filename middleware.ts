@@ -6,56 +6,50 @@ const authPaths = ['/auth/login', '/auth/register'];
 export async function middleware(request: NextRequest) {
     const { pathname, origin } = request.nextUrl;
 
-    // Skip middleware for public paths
-    if (publicPaths.some(path => pathname.startsWith(path))) {
-        // If user is logged in and tries to access auth pages, redirect to home
-        if (authPaths.some(path => pathname.startsWith(path))) {
-            try {
-                const response = await fetch(`${origin}/api/auth/get-session`, {
-                    headers: {
-                        cookie: request.headers.get('cookie') || '',
-                    },
-                });
-                const session = await response.json();
+    // Define paths that REQUIRE authentication
+    const protectedPaths = ['/settings', '/profile', '/admin'];
 
-                if (session) {
-                    return NextResponse.redirect(new URL('/', request.url));
-                }
-            } catch (e) {
-                // Ignore error, just continue
-            }
+    // Redirect legacy auth pages to home with modal param
+    if (pathname === '/auth/login') {
+        const url = new URL('/', request.url);
+        url.searchParams.set('auth', 'login');
+        return NextResponse.redirect(url);
+    }
+    if (pathname === '/auth/register') {
+        const url = new URL('/', request.url);
+        url.searchParams.set('auth', 'signup');
+        return NextResponse.redirect(url);
+    }
+
+    // Check if the current path is protected
+    const isProtected = protectedPaths.some(path => pathname.startsWith(path));
+
+    if (isProtected) {
+        let session = null;
+        try {
+            const response = await fetch(`${origin}/api/auth/get-session`, {
+                headers: {
+                    cookie: request.headers.get('cookie') || '',
+                },
+            });
+            session = await response.json();
+        } catch (e) {
+            console.error('Middleware session check failed', e);
         }
-        return NextResponse.next();
-    }
 
-    // Check for protected routes
-    let session = null;
-    try {
-        const response = await fetch(`${origin}/api/auth/get-session`, {
-            headers: {
-                cookie: request.headers.get('cookie') || '',
-            },
-        });
-        session = await response.json();
-    } catch (e) {
-        console.error('Middleware session check failed', e);
-    }
+        if (!session) {
+            const url = new URL('/', request.url);
+            url.searchParams.set('auth', 'login');
+            url.searchParams.set('callbackUrl', pathname);
+            return NextResponse.redirect(url);
+        }
 
-    // If no session, redirect to login
-    if (!session) {
-        const loginUrl = new URL('/auth/login', request.url);
-        loginUrl.searchParams.set('callbackUrl', pathname);
-        return NextResponse.redirect(loginUrl);
-    }
-
-    // Check for admin routes
-    if (pathname.startsWith('/admin')) {
-        if (!session.user?.isAdmin) {
+        // Admin check
+        if (pathname.startsWith('/admin') && !session.user?.isAdmin) {
             return NextResponse.redirect(new URL('/', request.url));
         }
     }
 
-    // Continue with the request
     return NextResponse.next();
 }
 

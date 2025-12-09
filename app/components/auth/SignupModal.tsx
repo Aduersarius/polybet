@@ -180,15 +180,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                             </svg>
                             Sign up with Google
                         </button>
-                        <button
-                            onClick={() => (authClient as any).signIn.social({ provider: 'apple', callbackURL: '/' })}
-                            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                        >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.74 1.18 0 2.45-1.02 4.14-.95 1.5.09 2.52.61 3.34 1.55-2.9 1.72-2.4 5.92.51 7.09-.59 1.63-1.46 3.29-3.07 4.54zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                            </svg>
-                            Sign up with Apple
-                        </button>
                     </div>
 
                     {/* Switch to Login */}
