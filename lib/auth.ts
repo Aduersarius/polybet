@@ -19,6 +19,10 @@ export const auth = betterAuth({
         provider: "postgresql",
     }),
     baseURL: baseUrl,
+    trustedOrigins: [
+        'https://polybet.ru',
+        'https://www.polybet.ru',
+    ],
     secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET!,
     emailAndPassword: {
         enabled: true,
