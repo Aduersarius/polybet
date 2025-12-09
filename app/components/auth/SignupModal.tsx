@@ -13,7 +13,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [username, setUsername] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -43,7 +42,11 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email, password, name: username }),
+                body: JSON.stringify({
+                    email,
+                    password,
+                    name: email.split('@')[0] // Use email local part as default name
+                }),
             });
 
             // Check if response has content
@@ -103,20 +106,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Username
-                            </label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                                placeholder="cryptotrader"
-                                required
-                            />
-                        </div>
-
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">
                                 Email
