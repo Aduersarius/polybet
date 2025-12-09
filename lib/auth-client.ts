@@ -36,7 +36,13 @@ export const twoFactor = {
 // Export email methods
 export const email = {
     sendVerificationEmail: async () => {
-        return await (authClient as any).sendVerificationEmail();
+        // Try the standard better-auth path
+        return await (authClient as any).emailVerification?.sendVerificationEmail()
+            ?? await (authClient as any).sendVerificationEmail?.()
+            ?? await fetch('/api/auth/send-verification-email', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(r => r.json());
     },
     changeEmail: async (newEmail: string) => {
         return await (authClient as any).changeEmail({ newEmail });
