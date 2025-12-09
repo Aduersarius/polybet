@@ -122,8 +122,29 @@ export default function SettingsPage() {
     const [show2FASetup, setShow2FASetup] = useState(false);
     const [totpUri, setTotpUri] = useState('');
     const [totpCode, setTotpCode] = useState('');
+    const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+    const [showDisable2FAPrompt, setShowDisable2FAPrompt] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+    // Check 2FA status on mount
+    useEffect(() => {
+        const check2FAStatus = async () => {
+            try {
+                // Check if user has 2FA enabled by checking if TwoFactor record exists
+                const res = await fetch('/api/user/2fa-status');
+                if (res.ok) {
+                    const data = await res.json();
+                    setIs2FAEnabled(data.enabled);
+                }
+            } catch (err) {
+                console.error('Failed to check 2FA status:', err);
+            }
+        };
+        if (user) {
+            check2FAStatus();
+        }
+    }, [user]);
 
     // Fetch settings on mount
     useEffect(() => {
@@ -451,16 +472,32 @@ export default function SettingsPage() {
                                     <div className="flex items-center gap-3">
                                         <Smartphone className="w-5 h-5 text-gray-400" />
                                         <div>
-                                            <div className="text-white font-medium">Authenticator App</div>
-                                            <div className="text-sm text-gray-400">Use an app like Google Authenticator</div>
+                                            <div className="text-white font-medium flex items-center gap-2">
+                                                Authenticator App
+                                                {is2FAEnabled && (
+                                                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Enabled</span>
+                                                )}
+                                            </div>
+                                            <div className="text-sm text-gray-400">
+                                                {is2FAEnabled ? 'Your account is protected with 2FA' : 'Use an app like Google Authenticator'}
+                                            </div>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setShow2FAPasswordPrompt(true)}
-                                        className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
-                                    >
-                                        Set up 2FA
-                                    </button>
+                                    {is2FAEnabled ? (
+                                        <button
+                                            onClick={() => setShowDisable2FAPrompt(true)}
+                                            className="px-4 py-2 text-sm border border-red-500/50 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
+                                        >
+                                            Disable 2FA
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShow2FAPasswordPrompt(true)}
+                                            className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+                                        >
+                                            Set up 2FA
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -741,9 +778,30 @@ export default function SettingsPage() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const result = await twoFactor.getTotpUri(twoFAPassword);
-                                            if (result?.data?.totpURI) {
-                                                setTotpUri(result.data.totpURI);
+                                            // First enable 2FA which generates the secret
+                                            const enableResult = await twoFactor.enable(twoFAPassword);
+                                            console.log('Enable 2FA result:', enableResult);
+
+                                            if (enableResult?.error) {
+                                                toast({ title: enableResult.error.message || 'Failed to enable 2FA', variant: 'destructive' });
+                                                return;
+                                            }
+
+                                            // Check if totpURI is in the enable response
+                                            if (enableResult?.data?.totpURI) {
+                                                setTotpUri(enableResult.data.totpURI);
+                                                setShow2FAPasswordPrompt(false);
+                                                setTwoFAPassword('');
+                                                setShow2FASetup(true);
+                                                return;
+                                            }
+
+                                            // If not, try to get it separately
+                                            const uriResult = await twoFactor.getTotpUri(twoFAPassword);
+                                            console.log('Get TOTP URI result:', uriResult);
+
+                                            if (uriResult?.data?.totpURI) {
+                                                setTotpUri(uriResult.data.totpURI);
                                                 setShow2FAPasswordPrompt(false);
                                                 setTwoFAPassword('');
                                                 setShow2FASetup(true);
@@ -826,6 +884,7 @@ export default function SettingsPage() {
                                         try {
                                             await twoFactor.verifyTotp(totpCode);
                                             toast({ title: '2FA enabled successfully!', variant: 'success' });
+                                            setIs2FAEnabled(true);
                                             setShow2FASetup(false);
                                             setTotpCode('');
                                         } catch {
@@ -836,6 +895,70 @@ export default function SettingsPage() {
                                     className="flex-1 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-500 disabled:opacity-50"
                                 >
                                     Enable 2FA
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Disable 2FA Modal */}
+            <AnimatePresence>
+                {showDisable2FAPrompt && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        onClick={() => {
+                            setShowDisable2FAPrompt(false);
+                            setTwoFAPassword('');
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4"
+                        >
+                            <h3 className="text-xl font-bold text-white mb-4">Disable Two-Factor Authentication</h3>
+                            <p className="text-gray-400 text-sm mb-4">
+                                Enter your password to disable 2FA. This will make your account less secure.
+                            </p>
+                            <input
+                                type="password"
+                                value={twoFAPassword}
+                                onChange={(e) => setTwoFAPassword(e.target.value)}
+                                placeholder="Enter your password"
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 mb-4"
+                            />
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowDisable2FAPrompt(false);
+                                        setTwoFAPassword('');
+                                    }}
+                                    className="flex-1 py-3 rounded-lg border border-white/10 text-gray-400 font-medium hover:bg-white/5"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await twoFactor.disable(twoFAPassword);
+                                            toast({ title: '2FA disabled', variant: 'success' });
+                                            setIs2FAEnabled(false);
+                                            setShowDisable2FAPrompt(false);
+                                            setTwoFAPassword('');
+                                        } catch {
+                                            toast({ title: 'Invalid password', variant: 'destructive' });
+                                        }
+                                    }}
+                                    disabled={!twoFAPassword}
+                                    className="flex-1 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-500 disabled:opacity-50"
+                                >
+                                    Disable 2FA
                                 </button>
                             </div>
                         </motion.div>
