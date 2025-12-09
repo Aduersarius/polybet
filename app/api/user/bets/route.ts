@@ -25,6 +25,11 @@ export async function GET(request: NextRequest) {
                         status: true,
                         result: true
                     }
+                },
+                outcome: {
+                    select: {
+                        name: true
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' },
@@ -33,14 +38,15 @@ export async function GET(request: NextRequest) {
 
         const formattedBets = bets.map((bet: any) => ({
             id: bet.id,
+            eventId: bet.eventId,
             eventTitle: bet.event.title,
             amount: bet.amount,
-            option: bet.option,
+            option: bet.outcome?.name || bet.option || 'Unknown',
             createdAt: bet.createdAt.toISOString(),
             status: bet.event.status === 'RESOLVED'
-                ? (bet.option === bet.event.result ? 'WON' : 'LOST')
+                ? ((bet.outcome?.name || bet.option) === bet.event.result ? 'WON' : 'LOST')
                 : 'PENDING',
-            payout: bet.event.status === 'RESOLVED' && bet.option === bet.event.result
+            payout: bet.event.status === 'RESOLVED' && (bet.outcome?.name || bet.option) === bet.event.result
                 ? bet.amount * 1.95 // Simplified payout calculation
                 : undefined
         }));
