@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from '@/components/ui/use-toast';
-import { useSession } from '@/lib/auth-client';
-import { Slider } from '@/components/ui/slider';
 
 interface Outcome {
     id: string;
@@ -18,6 +15,7 @@ interface Outcome {
 }
 
 interface MultipleTradingPanelProps {
+    eventId?: string;
     outcomes: Outcome[];
     liveOutcomes?: Outcome[];
     creationDate?: string;
@@ -27,11 +25,9 @@ interface MultipleTradingPanelProps {
     tradeIntent?: { side: 'buy' | 'sell', price: number, amount: number, outcomeId?: string } | null;
 }
 
-export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, resolutionDate, onTrade, onTradeSuccess, tradeIntent }: MultipleTradingPanelProps) {
+export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutcomes, creationDate, resolutionDate, onTrade, onTradeSuccess, tradeIntent }: MultipleTradingPanelProps) {
     const params = useParams();
-    const eventId = params.id as string;
-    const { data: session } = useSession();
-    const isAuthenticated = Boolean((session as any)?.user);
+    const eventId = propEventId || (params.id as string);
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || '');
     const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
@@ -39,7 +35,6 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
     const [price, setPrice] = useState<string>('0');
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
-    const [balancePct, setBalancePct] = useState<number>(0);
 
     // Fetch user balances for all outcomes in this event
     const { data: balanceData } = useQuery({
@@ -49,14 +44,12 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
             if (!response.ok) return { balances: [] };
             return await response.json();
         },
-        enabled: !!eventId
+        enabled: !!eventId && selectedTab === 'sell'
     });
 
     const userBalances = balanceData?.balances?.filter((b: any) =>
         b.eventId === eventId && b.tokenSymbol !== 'TUSD'
     ) || [];
-
-    const stablecoinBalance = balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount || 0;
 
     // Auto-fill from trade intent (Order Book click)
     useEffect(() => {
@@ -139,11 +132,7 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
         onSuccess: (result) => {
             if (result.warning) {
                 // Display user-friendly notification for risk concern
-                toast({
-                    variant: 'default',
-                    title: 'Trade warning',
-                    description: result.warning,
-                });
+                alert(`Trade Warning: ${result.warning}`);
             }
 
             setLastTrade({
@@ -164,36 +153,15 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
             if (onTradeSuccess) {
                 onTradeSuccess();
             }
-
-            toast({
-                variant: 'success',
-                title: 'Trade successful',
-                description: `${selectedTab === 'buy' ? 'Bought' : 'Sold'} ${result.totalFilled.toFixed(2)} ${currentSelectedOutcome?.name || 'tokens'}`,
-            });
         },
         onError: (error) => {
             console.error('Trade error:', error);
             const message = error instanceof Error ? error.message : 'Failed to place trade';
-
-            if (message.toLowerCase().includes('authentication required')) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Sign in required',
-                    description: 'You need to be logged in to place trades.',
-                });
-            } else if (message.startsWith('Risk Check Failed')) {
+            if (message.startsWith('Risk Check Failed')) {
                 // Show user-friendly notification for risk check failures
-                toast({
-                    variant: 'destructive',
-                    title: 'Risk check failed',
-                    description: `${message.replace('Risk Check Failed: ', '')}. The trade was not executed to protect your position.`,
-                });
+                alert(`Trade Warning: ${message.replace('Risk Check Failed: ', '')}. The trade was not executed to protect your position.`);
             } else {
-                toast({
-                    variant: 'destructive',
-                    title: 'Trade failed',
-                    description: message,
-                });
+                alert(message);
             }
         },
         onSettled: () => {
@@ -203,15 +171,6 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
 
     const handleTrade = () => {
         if (!amount || parseFloat(amount) <= 0 || !selectedOutcomeId) return;
-
-        if (!isAuthenticated) {
-            toast({
-                variant: 'destructive',
-                title: 'Sign in required',
-                description: 'You need to be logged in to place trades.',
-            });
-            return;
-        }
         setIsLoading(true);
         tradeMutation.mutate();
     };
@@ -244,42 +203,35 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                 {/* Outcome Selector */}
                 <div className="space-y-2">
                     <div className="text-sm text-gray-400">Select Outcome</div>
-                    <div className={`grid gap-2 max-h-60 overflow-y-auto ${currentOutcomes.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
                         {currentOutcomes.map((outcome) => {
                             const outcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === outcome.id)?.amount || 0;
-                            const isTileView = currentOutcomes.length > 3;
-
                             return (
                                 <button
                                     key={outcome.id}
                                     onClick={() => setSelectedOutcomeId(outcome.id)}
-                                    className={`relative flex items-center justify-between rounded-lg border transition-all ${isTileView ? 'p-2' : 'p-3'
-                                        } ${selectedOutcomeId === outcome.id
-                                            ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
-                                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${selectedOutcomeId === outcome.id
+                                        ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
+                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                                         }`}
                                 >
-                                    <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex items-center gap-3">
                                         {outcome.color && (
                                             <div
-                                                className={`rounded-full shrink-0 ${isTileView ? 'w-2 h-2' : 'w-3 h-3'}`}
+                                                className="w-3 h-3 rounded-full"
                                                 style={{ backgroundColor: outcome.color }}
                                             />
                                         )}
-                                        <div className="flex flex-col items-start min-w-0">
-                                            <span className={`font-medium truncate max-w-[100px] ${isTileView ? 'text-xs' : 'text-sm'}`}>
-                                                {outcome.name}
-                                            </span>
+                                        <div className="flex flex-col items-start">
+                                            <span className="font-medium">{outcome.name}</span>
                                             {selectedTab === 'sell' && (
-                                                <span className="text-[10px] opacity-60 truncate">
-                                                    {outcomeBalance.toFixed(1)} owned
+                                                <span className="text-xs opacity-60">
+                                                    {outcomeBalance.toFixed(2)} shares owned
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    <span className={`${isTileView ? 'text-sm' : 'text-xs'} opacity-80 font-bold ml-2`}>
-                                        {Math.round(outcome.probability * 100)}%
-                                    </span>
+                                    <span className="text-xs opacity-80">{Math.round(outcome.probability * 100)}%</span>
                                 </button>
                             );
                         })}
@@ -335,35 +287,45 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                         </div>
                     )}
 
-                    {/* Balance Slider */}
-                    <div className="space-y-1">
-                        <div className="flex justify-between items-center text-xs text-gray-400">
-                            <span>Use balance</span>
-                            <span className="text-gray-300">
-                                {selectedTab === 'buy'
-                                    ? `$${stablecoinBalance.toFixed(2)} available`
-                                    : `${selectedOutcomeBalance.toFixed(2)} shares available`}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Slider
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={[balancePct]}
-                                className="flex-1"
-                                onValueChange={(value: number[]) => {
-                                    const pct = Math.max(0, Math.min(100, value?.[0] ?? 0));
-                                    setBalancePct(pct);
-                                    const base = selectedTab === 'buy' ? stablecoinBalance : selectedOutcomeBalance;
-                                    const nextAmount = base * (pct / 100);
-                                    setAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
-                                }}
-                            />
-                            <span className="w-10 text-right text-xs text-gray-300">
-                                {balancePct.toFixed(0)}%
-                            </span>
-                        </div>
+                    <div className="flex gap-2">
+                        {selectedTab === 'buy' ? (
+                            // Buy presets: USD amounts
+                            ['+1', '+20', '+100', 'Max'].map((val) => (
+                                <button
+                                    key={val}
+                                    onClick={() => {
+                                        if (val === 'Max') {
+                                            setAmount('1000');
+                                        } else {
+                                            const increment = parseFloat(val.replace('+', ''));
+                                            setAmount((parseFloat(amount) || 0 + increment).toString());
+                                        }
+                                    }}
+                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                >
+                                    {val}
+                                </button>
+                            ))
+                        ) : (
+                            // Sell presets: percentage of selected outcome's shares
+                            ['25%', '50%', 'ALL'].map((val) => (
+                                <button
+                                    key={val}
+                                    onClick={() => {
+                                        if (val === 'ALL') {
+                                            setAmount(selectedOutcomeBalance.toString());
+                                        } else {
+                                            const percentage = parseFloat(val.replace('%', '')) / 100;
+                                            setAmount((selectedOutcomeBalance * percentage).toString());
+                                        }
+                                    }}
+                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                    disabled={selectedOutcomeBalance === 0}
+                                >
+                                    {val}
+                                </button>
+                            ))
+                        )}
                     </div>
 
                     {/* Order Type Selection */}
@@ -446,7 +408,43 @@ export function MultipleTradingPanel({ outcomes, liveOutcomes, creationDate, res
                     }
                 </button>
 
-                {/* Trade Success Feedback moved to toast notifications */}
+                {/* Trade Success Feedback */}
+                {lastTrade && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center"
+                    >
+                        {lastTrade.orderType === 'limit' ? (
+                            <>
+                                <p className="text-green-400 text-sm font-medium">
+                                    Limit order placed! {selectedTab === 'buy' ? 'Buy' : 'Sell'} {lastTrade.orderAmount?.toFixed(2)} {currentSelectedOutcome?.name} tokens at ${(lastTrade.orderPrice! * 100).toFixed(2)}
+                                </p>
+                                <p className="text-green-300 text-xs mt-1">
+                                    If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.orderAmount! * (currentSelectedOutcome ? 1 / lastTrade.orderPrice! : 1)).toFixed(2)} total
+                                </p>
+                                <p className="text-green-300 text-xs">
+                                    Order ID: {lastTrade.orderId}
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-green-400 text-sm font-medium">
+                                    Trade successful! You {selectedTab === 'buy' ? 'bought' : 'sold'} {lastTrade.tokens.toFixed(2)} {currentSelectedOutcome?.name} tokens
+                                </p>
+                                {selectedTab === 'buy' ? (
+                                    <p className="text-green-300 text-xs mt-1">
+                                        If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (currentSelectedOutcome ? currentSelectedOutcome.odds : 1)).toFixed(2)} total
+                                    </p>
+                                ) : (
+                                    <p className="text-green-300 text-xs mt-1">
+                                        You received ${(lastTrade.tokens * lastTrade.price).toFixed(2)} USD
+                                    </p>
+                                )}
+                            </>
+                        )}
+                    </motion.div>
+                )}
 
                 <p className="text-xs text-center text-gray-500">
                     By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.

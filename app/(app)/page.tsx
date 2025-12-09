@@ -9,6 +9,9 @@ import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
+import { MultipleTradingPanelModal } from "../components/MultipleTradingPanelModal";
+import { Label, PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
+import { ChartContainer, ChartConfig } from "@/components/ui/chart";
 
 // Cookie utility functions
 function setCookie(name: string, value: string, days: number) {
@@ -61,6 +64,10 @@ export default function Home() {
   const [tradingModalOpen, setTradingModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<DbEvent | null>(null);
   const [preselectedOption, setPreselectedOption] = useState<'YES' | 'NO'>('YES');
+
+  // Multiple trading panel modal state
+  const [multipleTradingModalOpen, setMultipleTradingModalOpen] = useState(false);
+  const [selectedMultipleEvent, setSelectedMultipleEvent] = useState<DbEvent | null>(null);
 
   const router = useRouter();
 
@@ -230,12 +237,14 @@ export default function Home() {
     // Real-time odds state
     const [liveYesOdds, setLiveYesOdds] = useState(event.yesOdds);
     const [liveNoOdds, setLiveNoOdds] = useState(event.noOdds);
+    const [liveOutcomes, setLiveOutcomes] = useState(event.outcomes);
 
     // Update local state if props change
     useEffect(() => {
       setLiveYesOdds(event.yesOdds);
       setLiveNoOdds(event.noOdds);
-    }, [event.yesOdds, event.noOdds]);
+      setLiveOutcomes(event.outcomes);
+    }, [event.yesOdds, event.noOdds, event.outcomes]);
 
     // Listen for real-time updates
     useEffect(() => {
@@ -243,9 +252,14 @@ export default function Home() {
 
       function onOddsUpdate(update: any) {
         if (update.eventId !== event.id) return;
-        // Update provides probabilities (0-1)
-        setLiveYesOdds(update.yesPrice);
-        setLiveNoOdds(1 - update.yesPrice);
+        if (event.type === 'MULTIPLE' && update.outcomes) {
+          // For multiple outcomes, update the outcomes array
+          setLiveOutcomes(update.outcomes);
+        } else {
+          // For binary events, update yes/no probabilities
+          setLiveYesOdds(update.yesPrice);
+          setLiveNoOdds(1 - update.yesPrice);
+        }
       }
 
       socket.on(`odds-update-${event.id}`, onOddsUpdate);
@@ -253,7 +267,7 @@ export default function Home() {
       return () => {
         socket.off(`odds-update-${event.id}`, onOddsUpdate);
       };
-    }, [event.id]);
+    }, [event.id, event.type]);
 
     // Fetch messages count
     const { data: messages } = useQuery({
@@ -340,159 +354,191 @@ export default function Home() {
         }}
       >
         <div
-          className={`material-card group relative rounded-xl overflow-hidden h-[320px] flex flex-col ${isEnded
-            ? 'opacity-70'
+          className={`group bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-2.5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 h-[180px] flex flex-col shadow-lg hover:shadow-xl ${isEnded
+            ? 'opacity-60'
             : ''
             }`}
         >
-          {/* Header with Image and Favorite */}
-          <div className="relative h-32 overflow-hidden bg-gradient-to-br from-blue-500/10 to-purple-500/10">
-            {event.imageUrl ? (
-              <img
-                src={event.imageUrl}
-                alt={event.title}
-                className="w-full h-full object-cover opacity-50"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-6xl font-bold text-white/10">
+          {/* Header: Image, Title, Favorite */}
+          <div className="flex items-start gap-2 mb-1">
+            {/* Circular Image */}
+            <div className="flex-shrink-0">
+              {event.imageUrl ? (
+                <img
+                  src={event.imageUrl}
+                  alt={event.title}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-white/20 group-hover:border-white/40 transition-colors"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/30 to-purple-500/30 border-2 border-white/20 group-hover:border-white/40 flex items-center justify-center text-sm font-bold text-white/80 transition-colors ${event.imageUrl ? 'hidden' : ''}`}>
                 {(event as any).categories && (event as any).categories.length > 0 ? (event as any).categories[0][0] : '?'}
               </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1e1e1e] to-transparent" />
+            </div>
 
-            {/* Favorite Button */}
-            <button
-              onClick={toggleFavorite}
-              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center hover:bg-black/70 transition-all"
-            >
-              <svg className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white/60'}`} fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-            </button>
-
-            {/* Time Left Badge */}
-            <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm border border-white/10 text-xs font-medium text-white/90">
-              ⏱ {isEnded ? 'Ended' : getTimeRemaining(new Date(event.resolutionDate))}
+            {/* Title and Favorite */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-1.5">
+                <h3 className="text-base font-semibold text-white line-clamp-2 leading-tight group-hover:text-white/90 transition-colors">
+                  {event.title}
+                </h3>
+                <button
+                  onClick={toggleFavorite}
+                  className="flex-shrink-0 w-5 h-5 rounded-full bg-black/30 hover:bg-red-500/20 flex items-center justify-center transition-all hover:scale-110"
+                >
+                  <svg className={`w-3 h-3 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white/60'}`} fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="p-4 flex-1 flex flex-col">
-            {/* Title */}
-            <h3 className="text-base font-semibold leading-snug text-white line-clamp-2 mb-3">
-              {event.title}
-            </h3>
-
-            {/* Category Tags */}
-            {(event as any).categories && (event as any).categories.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {(event as any).categories.slice(0, 2).map((cat: string, idx: number) => (
-                  <span
-                    key={idx}
-                    className="px-2 py-1 text-xs font-medium bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 border border-blue-500/30 rounded-md"
+          {/* Stats and Meta Info with Radial Chart */}
+          <div className="flex flex-col gap-2 mb-1">
+            {/* First Row: Category Tag and Time */}
+            <div className="flex items-center gap-2">
+              {(event as any).categories && (event as any).categories.length > 0 && (
+                <span className="text-[10px] font-medium text-blue-300/80 px-1.5 py-0.5 rounded border border-blue-500/20 bg-blue-500/10">
+                  {(event as any).categories[0]}
+                </span>
+              )}
+              <span className="text-[10px] text-gray-400 font-medium">
+                {isEnded ? 'Ended' : getTimeRemaining(new Date(event.resolutionDate))}
+              </span>
+            </div>
+            
+            {/* Second Row: Radial Chart and Stats */}
+            <div className="flex items-center gap-2">
+              {/* Radial Chart for YES odds */}
+              {event.type !== 'MULTIPLE' && (
+                <div className="flex-shrink-0">
+                  <ChartContainer
+                    config={{
+                      yesOdds: {
+                        label: "YES",
+                        color: "#10b981",
+                      },
+                    } satisfies ChartConfig}
+                    className="h-12 w-12"
                   >
-                    {cat}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Stats Row */}
-            <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-                <span>{volume}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                <span>{betCount} bets</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <span>{commentsCount} comments</span>
+                    <RadialBarChart
+                      data={[{ yesOdds: 100, fill: "#10b981" }]}
+                      startAngle={0}
+                      endAngle={360 * (yesOdds / 100)}
+                      innerRadius={16}
+                      outerRadius={24}
+                    >
+                      <RadialBar dataKey="yesOdds" cornerRadius={4} />
+                      <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
+                        <Label
+                          content={({ viewBox }) => {
+                            if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                              return (
+                                <text
+                                  x={viewBox.cx}
+                                  y={viewBox.cy}
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  className="fill-white text-[10px] font-bold"
+                                >
+                                  {yesOdds}%
+                                </text>
+                              );
+                            }
+                          }}
+                        />
+                      </PolarRadiusAxis>
+                    </RadialBarChart>
+                  </ChartContainer>
+                </div>
+              )}
+              
+              {/* Volume and Bet Count */}
+              <div className="flex items-center gap-2.5 text-xs text-gray-400 flex-1">
+                <span className="flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                  <span className="font-medium">{volume}</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <span className="font-medium">{betCount}</span>
+                </span>
               </div>
             </div>
-
-            {/* Odds/Outcomes Display - Push to bottom */}
-            {event.type === 'MULTIPLE' && event.outcomes ? (
-              // Multiple outcomes display
-              <div className="mt-auto">
-                <div className="text-xs text-gray-400 mb-2">Top Outcomes</div>
-                <div className="space-y-1">
-                  {event.outcomes.slice(0, 3).map((outcome, idx) => (
-                    <motion.button
-                      key={outcome.id}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        // For multiple outcomes, we'll need to modify the trading modal
-                        // For now, just open the event page
-                        window.location.href = `/event/${event.id}`;
-                      }}
-                      whileHover={{ scale: 1.01 }}
-                      transition={{ duration: 0.2 }}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-left cursor-pointer hover:bg-white/10 transition-colors"
-                      style={{
-                        borderLeftColor: outcome.color || '#666',
-                        borderLeftWidth: '3px'
-                      }}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-white truncate">{outcome.name}</span>
-                        <span className="text-sm font-bold text-white">{Math.round(outcome.probability * 100)}%</span>
-                      </div>
-                    </motion.button>
-                  ))}
-                  {event.outcomes.length > 3 && (
-                    <div className="text-xs text-gray-500 text-center py-1">
-                      +{event.outcomes.length - 3} more outcomes
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              // Binary YES/NO display
-              <div className="flex gap-2 mt-auto">
-                <motion.button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSelectedEvent(event);
-                    setPreselectedOption('YES');
-                    setTradingModalOpen(true);
-                  }}
-                  whileHover={{ scale: 1.02, borderColor: 'rgba(34, 197, 94, 0.5)' }}
-                  transition={{ duration: 0.2 }}
-                  className="flex-1 bg-green-500/10 border border-green-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-green-500/20 transition-colors"
-                >
-                  <div className="text-xs text-green-400 mb-0.5">YES</div>
-                  <div className="text-base font-bold text-white">{yesOdds}%</div>
-                </motion.button>
-                <motion.button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSelectedEvent(event);
-                    setPreselectedOption('NO');
-                    setTradingModalOpen(true);
-                  }}
-                  whileHover={{ scale: 1.02, borderColor: 'rgba(239, 68, 68, 0.5)' }}
-                  transition={{ duration: 0.2 }}
-                  className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-1.5 text-center cursor-pointer hover:bg-red-500/20 transition-colors"
-                >
-                  <div className="text-xs text-red-400 mb-0.5">NO</div>
-                  <div className="text-base font-bold text-white">{noOdds}%</div>
-                </motion.button>
-              </div>
-            )}
-
           </div>
+
+          {/* Odds Display */}
+          {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
+             <div className="space-y-1 mt-auto">
+               {(liveOutcomes || event.outcomes).slice(0, 2).map((outcome, idx) => {
+                 const probability = Math.round(outcome.probability * 100);
+                 return (
+                   <motion.button
+                     key={outcome.id}
+                     onClick={(e) => {
+                       e.preventDefault();
+                       setSelectedMultipleEvent(event);
+                       setMultipleTradingModalOpen(true);
+                     }}
+                     whileHover={{ scale: 1.01 }}
+                     whileTap={{ scale: 0.99 }}
+                     transition={{ duration: 0.2 }}
+                     className="w-full bg-gray-800/50 hover:bg-gray-700/50 rounded-lg px-2.5 py-2 text-left cursor-pointer transition-colors"
+                     style={{
+                       borderLeftColor: outcome.color || '#666',
+                       borderLeftWidth: '4px'
+                     }}
+                   >
+                     <div className="flex justify-between items-center">
+                       <span className="text-xs font-medium text-white truncate">{outcome.name}</span>
+                       <span className="text-xs font-bold text-white ml-2">{probability}%</span>
+                     </div>
+                   </motion.button>
+                 );
+               })}
+             </div>
+           ) : (
+            <div className="flex gap-1 mt-auto h-8">
+              <motion.button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedEvent(event);
+                  setPreselectedOption('YES');
+                  setTradingModalOpen(true);
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className="bg-green-500/15 hover:bg-green-500/25 text-green-400 hover:text-green-300 font-semibold text-xs cursor-pointer transition-all px-1 py-1.5 rounded-lg text-center flex items-center justify-center"
+                style={{ flex: `${yesOdds}` }}
+              >
+                <span className="truncate text-[10px]">YES</span>
+              </motion.button>
+              <motion.button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedEvent(event);
+                  setPreselectedOption('NO');
+                  setTradingModalOpen(true);
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className="bg-red-500/15 hover:bg-red-500/25 text-red-400 hover:text-red-300 font-semibold text-xs cursor-pointer transition-all px-1 py-1.5 rounded-lg text-center flex items-center justify-center"
+                style={{ flex: `${noOdds}` }}
+              >
+                <span className="truncate text-[10px]">NO</span>
+              </motion.button>
+            </div>
+          )}
         </div>
       </Link>
     );
@@ -601,9 +647,16 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-12">
               {activeEvents.map((event) => (
-                <EventCard key={event.id} event={event} />
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onMultipleTradeClick={(event) => {
+                    setSelectedMultipleEvent({...event, outcomes: liveOutcomes || event.outcomes});
+                    setMultipleTradingModalOpen(true);
+                  }}
+                />
               ))}
             </div>
 
@@ -619,9 +672,17 @@ export default function Home() {
                     Ended Markets
                     <div className="h-px bg-gray-800 flex-1" />
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     {endedEvents.map((event) => (
-                      <EventCard key={event.id} event={event} isEnded={true} />
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        isEnded={true}
+                        onMultipleTradeClick={(event) => {
+                          setSelectedMultipleEvent({...event, outcomes: liveOutcomes || event.outcomes});
+                          setMultipleTradingModalOpen(true);
+                        }}
+                      />
                     ))}
                   </div>
                 </motion.div>
@@ -643,6 +704,26 @@ export default function Home() {
           creationDate={selectedEvent.createdAt}
           resolutionDate={selectedEvent.resolutionDate}
           preselectedOption={preselectedOption}
+        />
+      )}
+
+      {/* Multiple Trading Panel Modal */}
+      {selectedMultipleEvent && selectedMultipleEvent.outcomes && (
+        <MultipleTradingPanelModal
+          isOpen={multipleTradingModalOpen}
+          onClose={() => setMultipleTradingModalOpen(false)}
+          eventId={selectedMultipleEvent.id}
+          eventTitle={selectedMultipleEvent.title}
+          outcomes={selectedMultipleEvent.outcomes.map(outcome => ({
+            id: outcome.id,
+            name: outcome.name,
+            probability: outcome.probability,
+            price: outcome.probability, // Use probability as price approximation
+            odds: 1 / outcome.probability, // Calculate odds from probability
+            color: outcome.color
+          }))}
+          creationDate={selectedMultipleEvent.createdAt}
+          resolutionDate={selectedMultipleEvent.resolutionDate}
         />
       )}
     </main>

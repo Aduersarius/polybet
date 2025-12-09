@@ -2,30 +2,35 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TradingPanel } from './TradingPanel';
+import { MultipleTradingPanel } from './MultipleTradingPanel';
 
-interface TradingPanelModalProps {
+interface MultipleTradingPanelModalProps {
     isOpen: boolean;
     onClose: () => void;
     eventId: string;
     eventTitle: string;
+    outcomes: Array<{
+        id: string;
+        name: string;
+        probability: number;
+        price: number;
+        odds: number;
+        color?: string;
+    }>;
     creationDate?: string;
     resolutionDate?: string;
-    preselectedOption?: 'YES' | 'NO';
 }
 
-export function TradingPanelModal({
+export function MultipleTradingPanelModal({
     isOpen,
     onClose,
     eventId,
     eventTitle,
+    outcomes,
     creationDate,
-    resolutionDate,
-    preselectedOption
-}: TradingPanelModalProps) {
-    const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>(preselectedOption || 'YES');
-
-    const handleTrade = (type: 'YES' | 'NO', amount: number) => {
+    resolutionDate
+}: MultipleTradingPanelModalProps) {
+    const handleTrade = (outcomeId: string, amount: number) => {
         // Close modal after successful trade
         onClose();
     };
@@ -49,13 +54,13 @@ export function TradingPanelModal({
                             exit={{ opacity: 0, y: 100, scale: 0.9 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-md bg-[#121212] rounded-2xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
+                            className="w-full max-w-lg bg-[#121212] rounded-2xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
                         >
                             {/* Header */}
                             <div className="bg-[#121212] border-b border-white/10 p-4 flex items-center justify-between shrink-0">
                                 <div className="flex-1 pr-4">
                                     <h2 className="text-lg font-bold text-white line-clamp-2">{eventTitle}</h2>
-                                    <p className="text-xs text-gray-400 mt-1">Place your bet</p>
+                                    <p className="text-xs text-gray-400 mt-1">Place your bet on multiple outcomes</p>
                                 </div>
                                 <button
                                     onClick={onClose}
@@ -67,14 +72,14 @@ export function TradingPanelModal({
                                 </button>
                             </div>
 
-                            {/* Trading Panel Content */}
+                            {/* Multiple Trading Panel Content */}
                             <div className="p-4 overflow-y-auto">
-                                <TradingPanel
+                                <MultipleTradingPanel
                                     eventId={eventId}
+                                    outcomes={outcomes}
                                     creationDate={creationDate}
                                     resolutionDate={resolutionDate}
                                     onTrade={handleTrade}
-                                    preselectedOption={preselectedOption}
                                 />
                             </div>
                         </motion.div>
