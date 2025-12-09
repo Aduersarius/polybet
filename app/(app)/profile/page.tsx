@@ -253,14 +253,14 @@ function ProfileContent() {
 
     if (isAuthPending || (isOwnProfile && !ownStats) || (!isOwnProfile && isPublicLoading)) {
         return (
-            <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
+        <div className="min-h-screen text-white font-sans relative z-10">
             <Navbar />
 
             <main className="profile-container max-w-5xl mx-auto px-4 py-8 relative z-10" style={{ position: 'relative', zIndex: 10 }}>
@@ -705,7 +705,7 @@ function ProfileContent() {
 
 export default function ProfilePage() {
     return (
-        <Suspense fallback={<div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white">Loading...</div>}>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white">Loading...</div>}>
             <ProfileContent />
         </Suspense>
     );

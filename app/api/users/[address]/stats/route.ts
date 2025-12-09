@@ -32,6 +32,21 @@ export async function GET(
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        // Check privacy settings
+        const userSettings = (user as any).settings as Record<string, any> || {};
+        const privacySettings = userSettings.privacy || { publicProfile: true, showActivity: true };
+
+        // If profile is not public, return minimal data
+        if (!privacySettings.publicProfile) {
+            return NextResponse.json({
+                username: user.username,
+                avatarUrl: user.avatarUrl,
+                image: user.image,
+                isPrivate: true,
+                stats: null
+            });
+        }
+
         const userId = user.id;
 
         // Get all market activities (bets and trades) for this user
@@ -63,7 +78,7 @@ export async function GET(
         // Calculate profit/loss from resolved events
         let totalProfit = 0;
         const resolvedActivities = allActivities.filter(a => a.event.status === 'RESOLVED');
-        
+
         for (const activity of resolvedActivities) {
             if (activity.event.type === 'BINARY') {
                 // Binary event - check if option matches result
@@ -99,7 +114,7 @@ export async function GET(
 
         // Get all unique event IDs
         const eventIds = [...new Set(positionBalances.map(b => b.eventId).filter(Boolean))] as string[];
-        
+
         // Fetch all events and outcomes in bulk
         const [events, outcomes] = await Promise.all([
             prisma.event.findMany({
@@ -132,10 +147,10 @@ export async function GET(
         const outcomeMap = new Map(outcomes.map(o => [o.id, o]));
 
         let positionsValue = 0;
-        
+
         for (const balance of positionBalances) {
             if (!balance.eventId) continue;
-            
+
             const event = eventMap.get(balance.eventId);
             if (!event) continue;
 
