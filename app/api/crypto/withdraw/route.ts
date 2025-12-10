@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
-import { cryptoService } from '@/lib/crypto-service';
+import { getCryptoService } from '@/lib/crypto-service';
 import { auth } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 
@@ -36,10 +36,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
         }
 
-        await cryptoService.requestWithdrawal(userId, parseFloat(amount), address, token, idempotencyKey);
+        const service = getCryptoService();
+        await service.requestWithdrawal(userId, parseFloat(amount), address, token, idempotencyKey);
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
+        if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
+            return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
+        }
         console.error('Error requesting withdrawal:', error);
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }

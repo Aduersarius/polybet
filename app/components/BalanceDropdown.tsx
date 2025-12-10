@@ -8,6 +8,7 @@ interface BalanceDropdownProps {
 
 export function BalanceDropdown({ balance }: BalanceDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const displayBalance = Number.isFinite(Number(balance)) ? Number(balance) : 0;
 
     return (
         <div className="relative">
@@ -16,7 +17,7 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                 className="hidden md:flex flex-col items-end mr-2 hover:bg-white/5 rounded-lg px-3 py-2 transition-colors group"
             >
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white">${balance.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-white">${displayBalance.toFixed(2)}</span>
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </div>
                 <span className="text-xs text-gray-400">Balance</span>
@@ -35,7 +36,7 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                         <div className="p-3 border-b border-white/10">
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-400">Balance</span>
-                                <span className="text-lg font-bold text-white">${balance.toFixed(2)}</span>
+                                <span className="text-lg font-bold text-white">${displayBalance.toFixed(2)}</span>
                             </div>
                         </div>
 
