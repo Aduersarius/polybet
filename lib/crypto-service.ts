@@ -497,22 +497,23 @@ export class CryptoService {
                     `;
                     if (balances.length > 0) {
                         const availableBefore = Number(balances[0].amount);
+                        const refundAmount = Number(withdrawal.amount);
                         await tx.balance.update({
                             where: { id: balances[0].id },
-                            data: { amount: { increment: withdrawal.amount }, locked: { decrement: withdrawal.amount } }
+                            data: { amount: { increment: refundAmount }, locked: { decrement: refundAmount } }
                         });
                         await this.recordLedger(tx, {
                             userId: withdrawal.userId,
                             direction: 'CREDIT',
-                            amount: withdrawal.amount,
+                            amount: refundAmount,
                             currency: 'TUSD',
                             balanceBefore: availableBefore,
-                            balanceAfter: availableBefore + withdrawal.amount,
+                            balanceAfter: availableBefore + refundAmount,
                             referenceType: 'WITHDRAWAL_REFUND',
                             referenceId: withdrawalId,
                             metadata: { txHash: transferTxHash }
                         });
-                        console.log(`[WITHDRAWAL] Successfully refunded ${withdrawal.amount} USD to user ${withdrawal.userId}`);
+                        console.log(`[WITHDRAWAL] Successfully refunded ${refundAmount} USD to user ${withdrawal.userId}`);
                     } else {
                         console.error(`[WITHDRAWAL] No balance found to refund for user ${withdrawal.userId}`);
                     }
