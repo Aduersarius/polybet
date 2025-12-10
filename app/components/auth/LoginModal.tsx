@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { authClient, twoFactor } from '@/lib/auth-client';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 interface LoginModalProps {
     isOpen: boolean;
@@ -19,9 +20,13 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     const [requires2FA, setRequires2FA] = useState(false);
     const [totpCode, setTotpCode] = useState('');
 
-    if (!isOpen) return null;
+    // Forgot Password state
+    const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+
+    if (!isOpen && !isForgotPasswordOpen) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
+        // ... existing submit logic ... (unchanged)
         e.preventDefault();
         setError('');
         setLoading(true);
@@ -83,6 +88,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     };
 
     const handleTotpVerify = async (e: React.FormEvent) => {
+        // ... existing totp logic ... (unchanged)
         e.preventDefault();
         setError('');
         setLoading(true);
@@ -111,8 +117,22 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
         setRequires2FA(false);
         setTotpCode('');
         setError('');
+        setIsForgotPasswordOpen(false);
         onClose();
     };
+
+    if (isForgotPasswordOpen) {
+        return (
+            <ForgotPasswordModal
+                isOpen={isForgotPasswordOpen}
+                onClose={() => {
+                    setIsForgotPasswordOpen(false);
+                    onClose();
+                }}
+                onBackToLogin={() => setIsForgotPasswordOpen(false)}
+            />
+        );
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -217,9 +237,18 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                                        Password
-                                    </label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-sm font-medium text-gray-300">
+                                            Password
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsForgotPasswordOpen(true)}
+                                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                        >
+                                            Forgot password?
+                                        </button>
+                                    </div>
                                     <input
                                         type="password"
                                         value={password}

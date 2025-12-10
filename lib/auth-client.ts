@@ -47,4 +47,15 @@ export const email = {
     changeEmail: async (newEmail: string) => {
         return await (authClient as any).changeEmail({ newEmail });
     },
+    forgetPassword: async (email: string, redirectTo: string = '/reset-password') => {
+        return await (authClient as any).forgetPassword({
+            email,
+            redirectTo,
+        });
+    },
+    resetPassword: async (newPassword: string) => {
+        return await (authClient as any).resetPassword({
+            newPassword,
+        });
+    },
 };
