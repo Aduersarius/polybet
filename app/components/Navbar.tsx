@@ -12,6 +12,7 @@ import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
 import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
 import { PositionsDropdown } from './PositionsDropdown';
+import { BalanceDropdown } from './BalanceDropdown';
 
 
 interface NavbarProps {
@@ -122,9 +123,7 @@ export function Navbar({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                             {session ? (
                                 <div className="flex items-center gap-3">
                                     {/* Balance Display */}
-                                    <div className="hidden md:flex flex-col items-end mr-2">
-                                        <span className="text-sm font-bold text-white">${balance.toFixed(2)}</span>
-                                    </div >
+                                    <BalanceDropdown balance={balance} />
 
                                     {/* User Profile Dropdown */}
                                     < div className="relative group" >

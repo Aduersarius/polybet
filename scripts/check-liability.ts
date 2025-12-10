@@ -18,7 +18,7 @@ async function checkLiability() {
     const sharesByOutcome: Record<string, number> = {};
     for (const bal of balances) {
         console.log(`- User ${bal.userId.substring(0, 10)}...: ${bal.amount} ${bal.tokenSymbol}`);
-        sharesByOutcome[bal.tokenSymbol] = (sharesByOutcome[bal.tokenSymbol] || 0) + bal.amount;
+        sharesByOutcome[bal.tokenSymbol] = (sharesByOutcome[bal.tokenSymbol] || 0) + bal.amount.toNumber();
     }
 
     console.log('\nShares by outcome:');

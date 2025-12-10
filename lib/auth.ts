@@ -50,3 +50,15 @@ export async function requireAuth(request: Request) {
     }
     return session.user;
 }
+
+// Utility function to require admin authentication in API routes
+export async function requireAdminAuth(request: Request) {
+    const user = await requireAuth(request);
+    if (!user.isAdmin) {
+        throw new Response(JSON.stringify({ error: 'Admin access required' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+    return user;
+}

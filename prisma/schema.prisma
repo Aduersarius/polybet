@@ -207,7 +207,7 @@ model Balance {
    tokenSymbol  String   // 'TUSD' for base currency, '{outcomeId}' for outcome tokens
    eventId      String?  // NULL for base currency, event ID for outcome tokens
    outcomeId    String?  // NULL for base currency, outcome ID for outcome tokens
-   amount       Float    @default(0.0)
+   amount       Decimal  @default(0.0)
    updatedAt    DateTime @updatedAt
 
    user         User     @relation(fields: [userId], references: [id])
@@ -277,7 +277,7 @@ model DepositAddress {
 model Deposit {
   id          String   @id @default(cuid())
   userId      String
-  amount      Float
+  amount      Decimal
   currency    String
   txHash      String   @unique
   status      String   // "PENDING", "COMPLETED", "FAILED"
@@ -292,18 +292,19 @@ model Deposit {
 }
 
 model Withdrawal {
-  id          String   @id @default(cuid())
-  userId      String
-  amount      Float
-  currency    String
-  toAddress   String
-  txHash      String?
-  status      String   // "PENDING", "APPROVED", "REJECTED", "COMPLETED", "FAILED"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  approvedAt  DateTime?
-  approvedBy  String?  // Admin ID
-  user        User     @relation(fields: [userId], references: [id])
+  id             String   @id @default(cuid())
+  userId         String
+  amount         Decimal
+  currency       String
+  toAddress      String
+  txHash         String?
+  idempotencyKey String?  @unique
+  status         String   // "PENDING", "APPROVED", "REJECTED", "COMPLETED", "FAILED"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  approvedAt     DateTime?
+  approvedBy     String?  // Admin ID
+  user           User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])

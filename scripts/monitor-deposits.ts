@@ -12,8 +12,8 @@ async function main() {
             console.error('Error in monitor loop:', error);
         }
 
-        // Wait 60 seconds before next check
-        await new Promise(resolve => setTimeout(resolve, 60000));
+        // Wait 10 seconds before next check
+        await new Promise(resolve => setTimeout(resolve, 10000));
     }
 }
 
