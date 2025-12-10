@@ -26,7 +26,11 @@ export default function RootLayout({
   return (
     <>
       <Providers>
-        {children}
+        <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white relative z-10">
+          <div className="flex-1 flex flex-col">
+            {children}
+          </div>
+        </div>
       </Providers>
       <Analytics />
       <SpeedInsights />

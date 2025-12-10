@@ -100,20 +100,31 @@ export function AdminStatistics() {
     const users = usersData?.users || [];
     const events = eventsData?.events || [];
 
+    const toNum = (value: any) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+    };
+
     // Calculate comprehensive statistics
     const stats = useMemo(() => {
-        const totalUsers = users.length;
+        const getEventBets = (e: AdminEvent & { _count?: any }) =>
+            toNum((e as any)?._count?.bets ?? (e as any)?._count?.marketActivity);
+        const getUserBets = (u: AdminUser & { _count?: any }) =>
+            toNum((u as any)?._count?.bets ?? (u as any)?._count?.marketActivity);
+        const getUserCreatedEvents = (u: AdminUser & { _count?: any }) =>
+            toNum((u as any)?._count?.createdEvents);
+        const totalUsers = toNum(users.length);
         const activeUsers = users.filter(u => !u.isBanned).length;
         const bannedUsers = users.filter(u => u.isBanned).length;
         const adminUsers = users.filter(u => u.isAdmin).length;
-        const totalBets = users.reduce((sum, u) => sum + u._count.bets, 0);
-        const totalEventsCreated = users.reduce((sum, u) => sum + u._count.createdEvents, 0);
+        const totalBets = users.reduce((sum, u) => sum + getUserBets(u as any), 0);
+        const totalEventsCreated = users.reduce((sum, u) => sum + getUserCreatedEvents(u as any), 0);
 
-        const totalEvents = events.length;
+        const totalEvents = toNum(events.length);
         const activeEvents = events.filter(e => e.status === 'ACTIVE').length;
         const resolvedEvents = events.filter(e => e.status === 'RESOLVED').length;
         const hiddenEvents = events.filter(e => e.isHidden).length;
-        const totalEventBets = events.reduce((sum, e) => sum + e._count.bets, 0);
+        const totalEventBets = events.reduce((sum, e) => sum + getEventBets(e as any), 0);
 
         // Category distribution
         const categoryCount: Record<string, number> = {};
@@ -130,9 +141,9 @@ export function AdminStatistics() {
         }, {} as Record<string, number>);
 
         // Product metrics calculations
-        const usersWithBets = users.filter(u => u._count.bets > 0).length;
-        const usersWithEvents = users.filter(u => u._count.createdEvents > 0).length;
-        const eventsWithBets = events.filter(e => e._count.bets > 0).length;
+        const usersWithBets = users.filter(u => getUserBets(u as any) > 0).length;
+        const usersWithEvents = users.filter(u => getUserCreatedEvents(u as any) > 0).length;
+        const eventsWithBets = events.filter(e => getEventBets(e as any) > 0).length;
 
         // Engagement rates
         const betEngagementRate = totalUsers > 0 ? Math.round((usersWithBets / totalUsers) * 100) : 0;
@@ -143,8 +154,8 @@ export function AdminStatistics() {
         const avgBetsPerActiveEvent = eventsWithBets > 0 ? Math.round(totalEventBets / eventsWithBets * 100) / 100 : 0;
 
         // User segments
-        const powerUsers = users.filter(u => u._count.bets >= 10).length; // Users with 10+ bets
-        const creators = users.filter(u => u._count.createdEvents >= 3).length; // Users who created 3+ events
+        const powerUsers = users.filter(u => getUserBets(u as any) >= 10).length; // Users with 10+ bets
+        const creators = users.filter(u => getUserCreatedEvents(u as any) >= 3).length; // Users who created 3+ events
 
         // Time-based metrics
         const now = new Date();
@@ -154,15 +165,15 @@ export function AdminStatistics() {
 
         // Activity metrics (using bets and event creation as proxy for activity)
         const activeUsersToday = users.filter(u =>
-            u._count.bets > 0 || u._count.createdEvents > 0 // Simplified - in real app would check last activity
+            getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0 // Simplified - in real app would check last activity
         ).length;
 
         const activeUsersWeek = users.filter(u =>
-            u._count.bets > 0 || u._count.createdEvents > 0
+            getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0
         ).length;
 
         const activeUsersMonth = users.filter(u =>
-            u._count.bets > 0 || u._count.createdEvents > 0
+            getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0
         ).length;
 
         // DAU/WAU/MAU calculations (simplified - in real app would use actual activity timestamps)
@@ -173,7 +184,7 @@ export function AdminStatistics() {
         // Retention metrics (simplified calculations)
         const newUsersThisMonth = users.filter(u => new Date(u.createdAt) >= thirtyDaysAgo).length;
         const retainedUsers = users.filter(u =>
-            new Date(u.createdAt) < thirtyDaysAgo && (u._count.bets > 0 || u._count.createdEvents > 0)
+            new Date(u.createdAt) < thirtyDaysAgo && (getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0)
         ).length;
 
         const retentionRate1d = mau > 0 ? Math.round((dau / mau) * 100) : 0; // Simplified 1-day retention

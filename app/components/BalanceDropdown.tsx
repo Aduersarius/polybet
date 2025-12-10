@@ -20,7 +20,6 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                     <span className="text-sm font-bold text-white">${displayBalance.toFixed(2)}</span>
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </div>
-                <span className="text-xs text-gray-400">Balance</span>
             </button>
 
             {isOpen && (

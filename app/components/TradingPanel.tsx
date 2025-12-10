@@ -19,9 +19,10 @@ interface TradingPanelProps {
     onTrade?: (type: 'YES' | 'NO', amount: number) => void;
     tradeIntent?: { side: 'buy' | 'sell', price: number, amount: number, outcomeId?: string } | null;
     preselectedOption?: 'YES' | 'NO';
+    variant?: 'default' | 'modal';
 }
 
-export function TradingPanel({ eventId: propEventId, creationDate, resolutionDate, onTrade, tradeIntent, preselectedOption }: TradingPanelProps) {
+export function TradingPanel({ eventId: propEventId, creationDate, resolutionDate, onTrade, tradeIntent, preselectedOption, variant = 'default' }: TradingPanelProps) {
     const params = useParams();
     const routeEventId = (params as any)?.id as string | undefined;
     const eventId = (propEventId || routeEventId) as string | undefined;
@@ -111,10 +112,17 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         );
     }
 
-    const availableShares = selectedOutcomeBalance?.amount || 0;
+    const toNum = (v: any) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+    };
+
+    const availableShares = toNum(selectedOutcomeBalance?.amount);
 
     // Stablecoin balance (TUSD) for buy-side percentage slider
-    const stablecoinBalance = balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount || 0;
+    const stablecoinBalance = toNum(
+        balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount
+    );
 
     // Set default limit price to current market price
     useEffect(() => {
@@ -273,10 +281,17 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         tradeMutation.mutate();
     };
 
+    const containerClass =
+        variant === 'modal'
+            ? "bg-transparent"
+            : "bg-[#1e1e1e] rounded-xl border border-white/10 overflow-hidden shadow-2xl";
+
+    const contentPadding = variant === 'modal' ? 'p-5 space-y-5' : 'p-4 space-y-4';
+
     return (
-        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className={containerClass}>
             {/* Header Tabs */}
-            <div className="flex border-b border-white/10">
+            <div className={`flex border-b border-white/10 ${variant === 'modal' ? 'px-2' : ''}`}>
                 <button
                     onClick={() => setSelectedTab('buy')}
                     className={`flex-1 py-3 text-sm font-medium transition-colors relative ${selectedTab === 'buy' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
@@ -305,7 +320,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className={contentPadding}>
                 {/* Outcome Selector */}
                 <div className="grid grid-cols-2 gap-3">
                     <button

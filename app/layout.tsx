@@ -29,8 +29,18 @@ export default function RootLayout({
         <html lang="en" className={outfit.variable} suppressHydrationWarning>
             <body suppressHydrationWarning className="bg-[#0a0a0a] min-h-screen text-white">
                 <Providers>
-                    <Sparks id="tsparticlesfullpage" background="transparent" minSize={0.6} maxSize={1.4} particleDensity={100} className="w-full h-full" particleColor="#FFFFFF" />
-                    {children}
+                    <Sparks
+                        id="tsparticlesfullpage"
+                        background="transparent"
+                        minSize={0.6}
+                        maxSize={1.4}
+                        particleDensity={100}
+                        className="w-full h-full"
+                        particleColor="#FFFFFF"
+                    />
+                    <div className="relative z-10 min-h-screen flex flex-col">
+                        {children}
+                    </div>
                     <Toaster />
                 </Providers>
                 <Analytics />

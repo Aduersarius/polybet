@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 
@@ -11,16 +12,26 @@ export async function GET(request: NextRequest) {
         const userId = user.id;
 
         // Get user's balance records for outcome tokens (their positions)
-        const balances = await prisma.balance.findMany({
-            where: {
-                userId,
-                eventId: { not: null },
-                amount: { gt: 0 }
-            },
-            include: {
-                user: false
+        let balances;
+        try {
+            balances = await prisma.balance.findMany({
+                where: {
+                    userId,
+                    eventId: { not: null },
+                    amount: { gt: 0 }
+                },
+                include: {
+                    user: false
+                }
+            });
+        } catch (err: any) {
+            // Gracefully handle schema drift (e.g., missing columns in the current DB)
+            if (err?.code === 'P2022') {
+                console.warn('positions: balance query skipped due to schema mismatch (P2022)');
+                return NextResponse.json([]);
             }
-        });
+            throw err;
+        }
 
         // Get event details for positions
         const positions = await Promise.all(
