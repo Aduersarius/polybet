@@ -13,7 +13,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [username, setUsername] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -43,7 +42,11 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email, password, name: username }),
+                body: JSON.stringify({
+                    email,
+                    password,
+                    name: email.split('@')[0] // Use email local part as default name
+                }),
             });
 
             // Check if response has content
@@ -103,20 +106,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Username
-                            </label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                                placeholder="cryptotrader"
-                                required
-                            />
-                        </div>
-
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">
                                 Email
@@ -190,15 +179,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                             </svg>
                             Sign up with Google
-                        </button>
-                        <button
-                            onClick={() => (authClient as any).signIn.social({ provider: 'apple', callbackURL: '/' })}
-                            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                        >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.74 1.18 0 2.45-1.02 4.14-.95 1.5.09 2.52.61 3.34 1.55-2.9 1.72-2.4 5.92.51 7.09-.59 1.63-1.46 3.29-3.07 4.54zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                            </svg>
-                            Sign up with Apple
                         </button>
                     </div>
 

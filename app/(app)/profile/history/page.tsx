@@ -43,7 +43,7 @@ export default function HistoryPage() {
     });
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
+        <div className="min-h-screen text-white font-sans relative z-10">
             <Navbar />
 
             <main className="max-w-5xl mx-auto px-4 py-8 relative z-10">

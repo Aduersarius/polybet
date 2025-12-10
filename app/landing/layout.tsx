@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "../globals.css";
 import { Providers } from "../providers";
-import { SparklesCore as Sparks } from "../../components/ui/sparkles";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
@@ -28,7 +27,6 @@ export default function LandingLayout({
         <html lang="en" className={outfit.variable} suppressHydrationWarning>
             <body suppressHydrationWarning>
                 <Providers>
-                    <Sparks id="tsparticleslanding" background="transparent" minSize={0.6} maxSize={1.4} particleDensity={100} className="w-full h-full" particleColor="#FFFFFF" />
                     {children}
                 </Providers>
                 <Analytics />

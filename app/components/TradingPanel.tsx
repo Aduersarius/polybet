@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { socket } from '@/lib/socket';
@@ -9,6 +9,8 @@ import { calculateLMSROdds } from '@/lib/amm';
 import { toast } from '@/components/ui/use-toast';
 import { useSession } from '@/lib/auth-client';
 import { Slider } from '@/components/ui/slider';
+import { useSettings } from '@/lib/settings-context';
+import { AlertTriangle, X } from 'lucide-react';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -36,6 +38,9 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const [balancePct, setBalancePct] = useState<number>(0);
     const [yesPrice, setYesPrice] = useState<number>(0.5);
     const [noPrice, setNoPrice] = useState<number>(0.5);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+    const { settings, formatCurrency, formatOdds } = useSettings();
 
     // Fetch user balances - fetch when sell tab is selected
     const { data: balanceData, refetch: refetchBalances } = useQuery({
@@ -253,6 +258,17 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
             });
             return;
         }
+
+        // Show confirmation dialog if setting is enabled
+        if (settings.trading.confirmOrders) {
+            setShowConfirmDialog(true);
+        } else {
+            executeTrade();
+        }
+    };
+
+    const executeTrade = () => {
+        setShowConfirmDialog(false);
         setIsLoading(true);
         tradeMutation.mutate();
     };
@@ -476,6 +492,85 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.
                 </p>
             </div>
+
+            {/* Confirmation Dialog */}
+            <AnimatePresence>
+                {showConfirmDialog && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        onClick={() => setShowConfirmDialog(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${selectedOption === 'YES' ? 'bg-[#03dac6]/20' : 'bg-[#cf6679]/20'}`}>
+                                        <AlertTriangle className={`w-5 h-5 ${selectedOption === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`} />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-white">Confirm Trade</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowConfirmDialog(false)}
+                                    className="p-1 rounded-lg hover:bg-white/10 text-gray-400"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-3 mb-6">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-400">Action</span>
+                                    <span className="text-white font-medium">{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-400">{selectedTab === 'buy' ? 'Amount' : 'Shares'}</span>
+                                    <span className="text-white font-medium">
+                                        {selectedTab === 'buy' ? formatCurrency(parseFloat(amount)) : `${parseFloat(amount).toFixed(2)} shares`}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-400">Price</span>
+                                    <span className="text-white font-medium">{formatOdds(currentPrice)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-400">You receive</span>
+                                    <span className={`font-bold ${selectedOption === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
+                                        {selectedTab === 'buy' ? `${potentialPayout.toFixed(2)} shares` : formatCurrency(potentialPayout)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowConfirmDialog(false)}
+                                    className="flex-1 py-3 rounded-lg border border-white/10 text-gray-400 font-medium hover:bg-white/5 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={executeTrade}
+                                    className={`flex-1 py-3 rounded-lg font-bold text-black transition-all ${selectedOption === 'YES' ? 'bg-[#03dac6] hover:bg-[#02b3a5]' : 'bg-[#cf6679] hover:bg-[#b85868]'
+                                        }`}
+                                >
+                                    Confirm
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-center text-gray-500 mt-4">
+                                You can disable confirmations in Settings
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

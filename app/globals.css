@@ -42,6 +42,12 @@ body {
   min-height: 100vh;
 }
 
+/* Ensure all direct page content is above particles background */
+body > div:not([class*="fixed"]) {
+  position: relative;
+  z-index: 1;
+}
+
 /* Material Flat Utilities */
 .material-card {
   background-color: var(--surface);
