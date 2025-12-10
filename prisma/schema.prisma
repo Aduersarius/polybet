@@ -22,11 +22,14 @@ model User {
   discord       String?
   isAdmin       Boolean           @default(false)
   isBanned      Boolean           @default(false)
+  isDeleted     Boolean           @default(false)
+  twoFactorEnabled Boolean?       @default(false)
   telegram      String?
   twitter       String?
   website       String?
   email         String?           @unique
   password      String?
+  settings      Json?             // User preferences (trading, notifications, display, privacy)
   marketActivity MarketActivity[]
   createdEvents Event[]
   messages      Message[]
@@ -261,6 +264,16 @@ model Verification {
    createdAt  DateTime @default(now())
    updatedAt  DateTime @updatedAt
 }
+
+model TwoFactor {
+   id          String   @id @default(cuid())
+   userId      String   @unique
+   secret      String
+   backupCodes String   // better-auth stores as encrypted string
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
+}
+
 model DepositAddress {
   id              String   @id @default(cuid())
   userId          String

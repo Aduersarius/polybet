@@ -1,6 +1,5 @@
 'use client';
 import { motion } from "framer-motion";
-import { SparklesCore as Sparks } from "../../components/ui/sparkles";
 import { useRouter } from 'next/navigation';
 
 export default function Landing() {
@@ -12,7 +11,6 @@ export default function Landing() {
                 key="landing"
                 className="fixed inset-0 flex items-center justify-center z-10"
             >
-                <Sparks id="particles-landing" />
                 {/* Dark Background with Gradient */}
                 {/* Floating Content */}
                 <div className="relative z-10 text-center">
