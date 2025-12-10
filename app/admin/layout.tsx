@@ -22,7 +22,11 @@ export default function RootLayout({
     <html lang="en" className={outfit.variable} suppressHydrationWarning>
       <body suppressHydrationWarning className="bg-black text-white">
         <Providers>
-          {children}
+          <div className="min-h-screen flex flex-col bg-black text-white relative z-10">
+            <div className="flex-1 flex flex-col">
+              {children}
+            </div>
+          </div>
         </Providers>
       </body>
     </html>

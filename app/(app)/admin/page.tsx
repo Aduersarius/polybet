@@ -6,12 +6,13 @@ import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
 import { AdminStatistics } from '../../components/admin/AdminStatistics';
+import { AdminFinance } from '../../components/admin/AdminFinance';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 
-type AdminView = 'events' | 'users' | 'statistics';
+type AdminView = 'events' | 'users' | 'statistics' | 'finance';
 
 interface AdminEvent {
     id: string;
@@ -69,10 +70,11 @@ export default function AdminPage() {
         { id: 'events', label: 'Events', icon: '📊' },
         { id: 'users', label: 'Users', icon: '👥' },
         { id: 'statistics', label: 'Statistics', icon: '📈' },
+        { id: 'finance', label: 'Money', icon: '💵' },
     ];
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white">
+        <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
             <Navbar
                 isAdminPage={true}
                 activeAdminView={activeView}
@@ -84,11 +86,14 @@ export default function AdminPage() {
             />
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 py-6">
-                <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-6 relative z-10">
-                    {activeView === 'events' && <AdminEventList onEditEvent={(event) => { setSelectedEvent(event as AdminEvent); setIsCreateModalOpen(true); }} />}
-                    {activeView === 'users' && <AdminUserList />}
-                    {activeView === 'statistics' && <AdminStatistics />}
+            <div className="flex-1">
+                <div className="max-w-7xl mx-auto px-4 py-6">
+                    <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-6 relative z-10">
+                        {activeView === 'events' && <AdminEventList onEditEvent={(event) => { setSelectedEvent(event as AdminEvent); setIsCreateModalOpen(true); }} />}
+                        {activeView === 'users' && <AdminUserList />}
+                        {activeView === 'statistics' && <AdminStatistics />}
+                        {activeView === 'finance' && <AdminFinance />}
+                    </div>
                 </div>
             </div>
 

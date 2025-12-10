@@ -20,10 +20,26 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
         }
 
-        const service = getCryptoService();
-        const address = await service.getDepositAddress(userId, 'USDC');
+        try {
+            const service = getCryptoService();
+            const address = await service.getDepositAddress(userId, 'USDC');
+            return NextResponse.json({ address, currency: 'USDC', network: 'Polygon' });
+        } catch (serviceError: any) {
+            const isConfigError = serviceError?.message?.includes('CRYPTO_MASTER_MNEMONIC');
+            const isProd = process.env.NODE_ENV === 'production';
 
-        return NextResponse.json({ address, currency: 'USDC', network: 'Polygon' });
+            // In non-prod, fall back to a mock address so the UI keeps working
+            if (isConfigError && !isProd) {
+                const mockAddress = '0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEAD0001';
+                console.warn('crypto/deposit: using mock address because crypto service is not configured');
+                return NextResponse.json({ address: mockAddress, currency: 'USDC', network: 'Polygon', mock: true });
+            }
+
+            if (isConfigError) {
+                return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
+            }
+            throw serviceError;
+        }
     } catch (error: any) {
         if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
             return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
