@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { cryptoService } from '@/lib/crypto-service';
+import { getCryptoService } from '@/lib/crypto-service';
 
 async function main() {
     console.log('🚀 Starting Deposit Monitor...');
@@ -7,7 +7,8 @@ async function main() {
 
     while (true) {
         try {
-            await cryptoService.checkDeposits();
+        const service = getCryptoService();
+        await service.checkDeposits();
         } catch (error) {
             console.error('Error in monitor loop:', error);
         }

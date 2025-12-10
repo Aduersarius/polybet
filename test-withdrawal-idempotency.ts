@@ -1,4 +1,4 @@
-import { cryptoService } from './lib/crypto-service';
+import { getCryptoService } from './lib/crypto-service';
 
 async function testWithdrawalIdempotency() {
     const userId = 'test-user-id'; // Use a test user ID
@@ -9,10 +9,12 @@ async function testWithdrawalIdempotency() {
 
     console.log('Testing withdrawal idempotency...');
 
+    const service = getCryptoService();
+
     try {
         // First request should succeed
         console.log('Making first withdrawal request...');
-        await cryptoService.requestWithdrawal(userId, amount, address, currency, idempotencyKey);
+        await service.requestWithdrawal(userId, amount, address, currency, idempotencyKey);
         console.log('✅ First withdrawal request succeeded');
     } catch (error) {
         console.log('❌ First withdrawal request failed:', (error as Error).message);
@@ -22,7 +24,7 @@ async function testWithdrawalIdempotency() {
     try {
         // Second request with same idempotencyKey should fail
         console.log('Making second withdrawal request with same idempotencyKey...');
-        await cryptoService.requestWithdrawal(userId, amount, address, currency, idempotencyKey);
+        await service.requestWithdrawal(userId, amount, address, currency, idempotencyKey);
         console.log('❌ Second withdrawal request should have failed but succeeded');
     } catch (error) {
         if ((error as Error).message.includes('already exists')) {
@@ -35,7 +37,7 @@ async function testWithdrawalIdempotency() {
     // Test without idempotencyKey (should succeed multiple times, but balance might be insufficient)
     try {
         console.log('Making withdrawal request without idempotencyKey...');
-        await cryptoService.requestWithdrawal(userId, amount, address, currency);
+        await service.requestWithdrawal(userId, amount, address, currency);
         console.log('✅ Withdrawal request without idempotencyKey succeeded');
     } catch (error) {
         console.log('Withdrawal request without idempotencyKey failed:', (error as Error).message);

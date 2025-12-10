@@ -44,6 +44,7 @@ model User {
   deposits         Deposit[]
   withdrawals      Withdrawal[]
   favorites        UserFavorite[]
+  ledgerEntries    LedgerEntry[]
 
   @@index([address])
 }
@@ -211,12 +212,32 @@ model Balance {
    eventId      String?  // NULL for base currency, event ID for outcome tokens
    outcomeId    String?  // NULL for base currency, outcome ID for outcome tokens
    amount       Decimal  @default(0.0)
+   locked       Decimal  @default(0.0)
    updatedAt    DateTime @updatedAt
 
    user         User     @relation(fields: [userId], references: [id])
 
    @@unique([userId, tokenSymbol, eventId, outcomeId])
    @@index([userId])
+}
+
+model LedgerEntry {
+  id           String   @id @default(cuid())
+  userId       String
+  direction    String   // 'CREDIT' | 'DEBIT'
+  amount       Decimal
+  currency     String   // e.g., 'TUSD'
+  balanceBefore Decimal
+  balanceAfter  Decimal
+  referenceType String? // 'DEPOSIT' | 'WITHDRAWAL' | 'TRADE' | etc.
+  referenceId   String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([referenceType, referenceId])
 }
 
 // Better Auth models

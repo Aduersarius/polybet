@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cryptoService } from '@/lib/crypto-service';
+import { getCryptoService } from '@/lib/crypto-service';
 import { auth } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 
@@ -20,10 +20,14 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
         }
 
-        const address = await cryptoService.getDepositAddress(userId, 'USDC');
+        const service = getCryptoService();
+        const address = await service.getDepositAddress(userId, 'USDC');
 
         return NextResponse.json({ address, currency: 'USDC', network: 'Polygon' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
+            return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
+        }
         console.error('Error getting deposit address:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

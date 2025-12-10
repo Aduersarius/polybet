@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { cryptoService } from '../lib/crypto-service';
+import { getCryptoService } from '../lib/crypto-service';
 
 // Mocking Prisma
 const mockPrisma = {
@@ -37,7 +37,8 @@ async function main() {
 
     // 1. Generate Deposit Address
     console.log('\n--- Testing Generate Deposit Address ---');
-    const address = await cryptoService.getDepositAddress(userId, 'ETH');
+        const service = getCryptoService();
+        const address = await service.getDepositAddress(userId, 'ETH');
     console.log('Generated address:', address);
 
     // 2. Simulate Deposit Sweep (USDC + Gas Top-up)
@@ -54,14 +55,14 @@ async function main() {
     // 3. Request Withdrawal (USDC)
     console.log('\n--- Testing Withdrawal Request (USDC) ---');
     const withdrawAmount = 50;
-    await cryptoService.requestWithdrawal(userId, withdrawAmount, '0xexternalwallet', 'USDC');
+        await service.requestWithdrawal(userId, withdrawAmount, '0xexternalwallet', 'USDC');
     console.log('Requested withdrawal of $50 USDC');
 
     // 4. Approve Withdrawal
     console.log('\n--- Testing Withdrawal Approval ---');
 
     try {
-        await cryptoService.approveWithdrawal('w1', 'admin');
+        await service.approveWithdrawal('w1', 'admin');
     } catch (e: any) {
         // We expect it to fail because we don't have a real provider/wallet connected
         console.log('Approval failed as expected (no real wallet/provider):', e.message);

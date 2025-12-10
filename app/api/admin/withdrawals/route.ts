@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cryptoService } from '@/lib/crypto-service';
+import { getCryptoService } from '@/lib/crypto-service';
 import { prisma } from '@/lib/prisma';
 import { requireAdminAuth } from '@/lib/auth';
 
@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
         }));
 
         if (action === 'APPROVE') {
-            const txHash = await cryptoService.approveWithdrawal(withdrawalId, adminId);
+            const service = getCryptoService();
+            const txHash = await service.approveWithdrawal(withdrawalId, adminId);
             return NextResponse.json({ success: true, txHash });
         } else if (action === 'REJECT') {
             // Implement rejection (refund)
@@ -104,6 +105,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
     } catch (error: any) {
+        if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
+            return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
+        }
         console.error('Error processing withdrawal:', error);
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: error.status || 500 });
     }

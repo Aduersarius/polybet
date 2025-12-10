@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 import { prisma } from '@/lib/prisma';
 
-const MASTER_MNEMONIC = process.env.CRYPTO_MASTER_MNEMONIC;
 // Polygon RPC (e.g., https://polygon-rpc.com or Alchemy/Infura)
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL || 'https://polygon-rpc.com';
 const MASTER_WALLET_ADDRESS = process.env.MASTER_WALLET_ADDRESS;
@@ -18,6 +17,33 @@ export class CryptoService {
     private provider: ethers.JsonRpcProvider;
     private masterNode: ethers.HDNodeWallet;
 
+    // Centralized ledger writer inside existing transactions
+    private async recordLedger(tx: any, params: {
+        userId: string,
+        direction: 'CREDIT' | 'DEBIT',
+        amount: number,
+        currency: string,
+        balanceBefore: number,
+        balanceAfter: number,
+        referenceType?: string,
+        referenceId?: string,
+        metadata?: any
+    }) {
+        await tx.ledgerEntry.create({
+            data: {
+                userId: params.userId,
+                direction: params.direction,
+                amount: params.amount,
+                currency: params.currency,
+                balanceBefore: params.balanceBefore,
+                balanceAfter: params.balanceAfter,
+                referenceType: params.referenceType,
+                referenceId: params.referenceId,
+                metadata: params.metadata ?? {}
+            }
+        });
+    }
+
     private validateWithdrawalStatusTransition(currentStatus: string, newStatus: string) {
         const validTransitions: Record<string, string[]> = {
             'PENDING': ['APPROVED', 'REJECTED'],
@@ -32,13 +58,10 @@ export class CryptoService {
         }
     }
 
-    constructor() {
-        if (!MASTER_MNEMONIC) {
-            throw new Error('CRYPTO_MASTER_MNEMONIC environment variable is required');
-        }
+    constructor(mnemonic: string) {
         this.provider = new ethers.JsonRpcProvider(PROVIDER_URL);
         // Initialize with root path "m" to avoid derivation errors
-        this.masterNode = ethers.HDNodeWallet.fromPhrase(MASTER_MNEMONIC, undefined, "m");
+        this.masterNode = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, "m");
     }
 
     async getDepositAddress(userId: string, currency: string = 'USDC'): Promise<string> {
@@ -202,26 +225,47 @@ export class CryptoService {
                     });
 
                     // Update User Balance with row-level locking
-                    const balances = await txPrisma.$queryRaw<Array<{id: string, amount: number}>>`
-                        SELECT id, amount FROM balance
+                    const balances = await txPrisma.$queryRaw<Array<{id: string, amount: number, locked: number}>>`
+                        SELECT id, amount, locked FROM balance
                         WHERE userId = ${addr.userId} AND tokenSymbol = 'TUSD' AND eventId IS NULL AND outcomeId IS NULL
                         FOR UPDATE
                     `;
 
+                    let balanceId: string;
+                    let before = 0;
                     if (balances.length > 0) {
+                        balanceId = balances[0].id;
+                        before = Number(balances[0].amount);
                         await txPrisma.balance.update({
-                            where: { id: balances[0].id },
+                            where: { id: balanceId },
                             data: { amount: { increment: usdAmount } }
                         });
                     } else {
-                        await txPrisma.balance.create({
+                        const created = await txPrisma.balance.create({
                             data: {
                                 userId: addr.userId,
                                 tokenSymbol: 'TUSD',
-                                amount: usdAmount
+                                amount: usdAmount,
+                                locked: 0
                             }
                         });
+                        balanceId = created.id;
+                        before = 0;
                     }
+
+                    const after = before + usdAmount;
+
+                    await this.recordLedger(txPrisma, {
+                        userId: addr.userId,
+                        direction: 'CREDIT',
+                        amount: usdAmount,
+                        currency: 'TUSD',
+                        balanceBefore: before,
+                        balanceAfter: after,
+                        referenceType: 'DEPOSIT',
+                        referenceId: tx.hash,
+                        metadata: { fromAddress: addr.address }
+                    });
                 });
                 dbTransactionSuccess = true;
                 console.log(`[DEPOSIT] Successfully credited user ${addr.userId} with $${usdAmount}`);
@@ -267,8 +311,8 @@ export class CryptoService {
         try {
             await prisma.$transaction(async (tx) => {
                 // Lock the balance row for update
-                const balances = await tx.$queryRaw<Array<{id: string, amount: number}>>`
-                    SELECT id, amount FROM balance
+                const balances = await tx.$queryRaw<Array<{id: string, amount: number, locked: number}>>`
+                    SELECT id, amount, locked FROM balance
                     WHERE userId = ${userId} AND tokenSymbol = 'TUSD'
                     FOR UPDATE
                 `;
@@ -277,13 +321,16 @@ export class CryptoService {
                     throw new Error(`No balance found for user ${userId}`);
                 }
 
-                if (balances[0].amount < amount) {
-                    throw new Error(`Insufficient balance: requested ${amount}, available ${balances[0].amount}`);
+                const available = Number(balances[0].amount);
+                const locked = Number(balances[0].locked || 0);
+
+                if (available < amount) {
+                    throw new Error(`Insufficient balance: requested ${amount}, available ${available}`);
                 }
 
                 const balanceId = balances[0].id;
 
-                await tx.withdrawal.create({
+                const withdrawalRecord = await tx.withdrawal.create({
                     data: {
                         userId,
                         amount,
@@ -296,7 +343,19 @@ export class CryptoService {
 
                 await tx.balance.update({
                     where: { id: balanceId },
-                    data: { amount: { decrement: amount } }
+                    data: { amount: { decrement: amount }, locked: { increment: amount } }
+                });
+
+                await this.recordLedger(tx, {
+                    userId,
+                    direction: 'DEBIT',
+                    amount,
+                    currency: 'TUSD',
+                    balanceBefore: available,
+                    balanceAfter: available - amount,
+                    referenceType: 'WITHDRAWAL',
+                    referenceId: withdrawalRecord.id,
+                    metadata: { toAddress: address }
                 });
             });
 
@@ -378,6 +437,22 @@ export class CryptoService {
                             approvedBy: adminId
                         }
                     });
+
+                    // Release locked funds (they were deducted from available at request time)
+                    await prisma.$transaction(async (tx) => {
+                        const balances = await tx.$queryRaw<Array<{id: string, locked: number}>>`
+                            SELECT id, locked FROM balance
+                            WHERE userId = ${withdrawal.userId} AND tokenSymbol = 'TUSD'
+                            FOR UPDATE
+                        `;
+                        if (balances.length > 0) {
+                            await tx.balance.update({
+                                where: { id: balances[0].id },
+                                data: { locked: { decrement: withdrawal.amount } }
+                            });
+                        }
+                    });
+
                     console.log(`[WITHDRAWAL] Successfully updated withdrawal ${withdrawalId} to COMPLETED`);
                     break; // Success, exit loop
                 } catch (dbError) {
@@ -415,15 +490,27 @@ export class CryptoService {
                     });
 
                     // Refund with row-level locking
-                    const balances = await tx.$queryRaw<Array<{id: string, amount: number}>>`
-                        SELECT id, amount FROM balance
+                    const balances = await tx.$queryRaw<Array<{id: string, amount: number, locked: number}>>`
+                        SELECT id, amount, locked FROM balance
                         WHERE userId = ${withdrawal.userId} AND tokenSymbol = 'TUSD'
                         FOR UPDATE
                     `;
                     if (balances.length > 0) {
+                        const availableBefore = Number(balances[0].amount);
                         await tx.balance.update({
                             where: { id: balances[0].id },
-                            data: { amount: { increment: withdrawal.amount } }
+                            data: { amount: { increment: withdrawal.amount }, locked: { decrement: withdrawal.amount } }
+                        });
+                        await this.recordLedger(tx, {
+                            userId: withdrawal.userId,
+                            direction: 'CREDIT',
+                            amount: withdrawal.amount,
+                            currency: 'TUSD',
+                            balanceBefore: availableBefore,
+                            balanceAfter: availableBefore + withdrawal.amount,
+                            referenceType: 'WITHDRAWAL_REFUND',
+                            referenceId: withdrawalId,
+                            metadata: { txHash: transferTxHash }
                         });
                         console.log(`[WITHDRAWAL] Successfully refunded ${withdrawal.amount} USD to user ${withdrawal.userId}`);
                     } else {
@@ -442,4 +529,14 @@ export class CryptoService {
     }
 }
 
-export const cryptoService = new CryptoService();
+let cryptoServiceSingleton: CryptoService | null = null;
+
+export function getCryptoService(): CryptoService {
+    if (cryptoServiceSingleton) return cryptoServiceSingleton;
+    const mnemonic = process.env.CRYPTO_MASTER_MNEMONIC;
+    if (!mnemonic) {
+        throw new Error('CRYPTO_MASTER_MNEMONIC environment variable is required');
+    }
+    cryptoServiceSingleton = new CryptoService(mnemonic);
+    return cryptoServiceSingleton;
+}
