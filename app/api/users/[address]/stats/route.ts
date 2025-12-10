@@ -160,7 +160,7 @@ export async function GET(
             }
 
             // Calculate current value of position
-            const currentValue = balance.amount * currentPrice;
+            const currentValue = balance.amount.toNumber() * currentPrice;
             positionsValue += currentValue;
         }
 

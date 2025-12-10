@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cryptoService } from '@/lib/crypto-service';
 import { auth } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function GET(req: NextRequest) {
     try {
@@ -13,6 +14,12 @@ export async function GET(req: NextRequest) {
         }
 
         const userId = session.user.id;
+
+        const rateLimitOk = await checkRateLimit(userId);
+        if (!rateLimitOk) {
+            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+        }
+
         const address = await cryptoService.getDepositAddress(userId, 'USDC');
 
         return NextResponse.json({ address, currency: 'USDC', network: 'Polygon' });

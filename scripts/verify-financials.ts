@@ -30,7 +30,7 @@ async function verifyFinancials() {
     const initialAmmBal = await prisma.balance.findFirst({
         where: { userId: AMM_BOT_ID, tokenSymbol: 'TUSD', eventId: null }
     });
-    const startAmmUsd = initialAmmBal?.amount || 0;
+    const startAmmUsd = initialAmmBal?.amount.toNumber() || 0;
     console.log('Initial AMM USD:', startAmmUsd);
 
     // Place trade: Buy $100 of YES
@@ -39,7 +39,7 @@ async function verifyFinancials() {
     // AMM should receive $100 TUSD.
     // AMM should pay out shares worth roughly $98.04 (at 0.5 price -> ~196 shares)
     // Net effect on AMM TUSD should be +$100.
-    // But we want to verify the "Spread" was conceptually separated? 
+    // But we want to verify the "Spread" was conceptually separated?
     // The code adds `costToSpend` and `spreadAmount` separately to AMM balance.
     // So total TUSD increase = amount.
 
@@ -48,7 +48,7 @@ async function verifyFinancials() {
     const midAmmBal = await prisma.balance.findFirst({
         where: { userId: AMM_BOT_ID, tokenSymbol: 'TUSD', eventId: null }
     });
-    const midAmmUsd = midAmmBal?.amount || 0;
+    const midAmmUsd = midAmmBal?.amount.toNumber() || 0;
     console.log('Post-Trade AMM USD:', midAmmUsd);
     console.log('Difference:', midAmmUsd - startAmmUsd);
 
@@ -71,7 +71,7 @@ async function verifyFinancials() {
     const userSharesBal = await prisma.balance.findFirst({
         where: { userId: AMM_BOT_ID, tokenSymbol: `YES_${event.id}` }
     });
-    const shares = userSharesBal?.amount || 0;
+    const shares = userSharesBal?.amount.toNumber() || 0;
     console.log('User Shares:', shares);
 
     const expectedPayout = shares * 1.00;

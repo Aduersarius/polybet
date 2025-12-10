@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
                 });
 
                 const totalCost = bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
-                const totalShares = balance.amount;
+                const totalShares = balance.amount.toNumber();
                 const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
                 const currentValue = totalShares * currentPrice;
                 const unrealizedPnL = currentValue - totalCost;

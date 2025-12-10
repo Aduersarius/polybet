@@ -1,31 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cryptoService } from '@/lib/crypto-service';
 import { prisma } from '@/lib/prisma';
+import { requireAdminAuth } from '@/lib/auth';
+
+// Status transition validation
+function validateWithdrawalStatusTransition(currentStatus: string, newStatus: string) {
+    const validTransitions: Record<string, string[]> = {
+        'PENDING': ['APPROVED', 'REJECTED'],
+        'APPROVED': ['COMPLETED', 'FAILED'],
+        'REJECTED': [],
+        'COMPLETED': [],
+        'FAILED': []
+    };
+
+    if (!validTransitions[currentStatus]?.includes(newStatus)) {
+        throw new Error(`Invalid status transition from ${currentStatus} to ${newStatus}`);
+    }
+}
 
 export async function GET(req: NextRequest) {
-    // TODO: Add Admin Auth check
+    try {
+        // Admin authentication check
+        await requireAdminAuth(req);
 
-    const withdrawals = await prisma.withdrawal.findMany({
-        where: { status: 'PENDING' },
-        include: { user: true },
-        orderBy: { createdAt: 'desc' }
-    });
+        const withdrawals = await prisma.withdrawal.findMany({
+            where: { status: 'PENDING' },
+            include: { user: true },
+            orderBy: { createdAt: 'desc' }
+        });
 
-    return NextResponse.json(withdrawals);
+        return NextResponse.json(withdrawals);
+    } catch (error: any) {
+        console.error('Error fetching withdrawals:', error);
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: error.status || 500 });
+    }
 }
 
 export async function POST(req: NextRequest) {
-    // TODO: Add Admin Auth check
-    const adminId = req.headers.get('x-user-id') || 'admin'; // Mock admin ID
-
-    const body = await req.json();
-    const { withdrawalId, action } = body;
-
-    if (!withdrawalId || !action) {
-        return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-    }
-
     try {
+        // Admin authentication check
+        const admin = await requireAdminAuth(req);
+        const adminId = admin.id;
+
+        const body = await req.json();
+        const { withdrawalId, action } = body;
+
+        if (!withdrawalId || !action) {
+            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+        }
+
+        // Fetch withdrawal details for audit logging
+        const withdrawalDetails = await prisma.withdrawal.findUnique({
+            where: { id: withdrawalId },
+            select: { userId: true, amount: true, currency: true, toAddress: true }
+        });
+
+        // Audit logging
+        console.log(JSON.stringify({
+            type: 'ADMIN_WITHDRAWAL_ACTION',
+            adminId,
+            adminEmail: admin.email,
+            withdrawalId,
+            action,
+            withdrawalDetails,
+            timestamp: new Date().toISOString(),
+            ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
+        }));
+
         if (action === 'APPROVE') {
             const txHash = await cryptoService.approveWithdrawal(withdrawalId, adminId);
             return NextResponse.json({ success: true, txHash });
@@ -33,7 +74,13 @@ export async function POST(req: NextRequest) {
             // Implement rejection (refund)
             await prisma.$transaction(async (tx) => {
                 const withdrawal = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });
-                if (!withdrawal || withdrawal.status !== 'PENDING') throw new Error('Invalid withdrawal');
+                if (!withdrawal) throw new Error('Invalid withdrawal');
+
+                // Validate status transition
+                validateWithdrawalStatusTransition(withdrawal.status, 'REJECTED');
+
+                // Additional validation: ensure withdrawal hasn't been processed
+                if (withdrawal.txHash) throw new Error('Cannot reject a processed withdrawal');
 
                 await tx.withdrawal.update({
                     where: { id: withdrawalId },
@@ -58,6 +105,6 @@ export async function POST(req: NextRequest) {
         }
     } catch (error: any) {
         console.error('Error processing withdrawal:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: error.status || 500 });
     }
 }

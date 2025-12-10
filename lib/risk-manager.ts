@@ -123,7 +123,7 @@ export class RiskManager {
 
         for (const bal of balances) {
             const symbol = bal.tokenSymbol;
-            sharesByOutcome[symbol] = (sharesByOutcome[symbol] || 0) + bal.amount;
+            sharesByOutcome[symbol] = (sharesByOutcome[symbol] || 0) + bal.amount.toNumber();
         }
 
         // Find the max payout

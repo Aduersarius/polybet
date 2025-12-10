@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function GET(req: NextRequest) {
     try {
@@ -13,6 +14,11 @@ export async function GET(req: NextRequest) {
         }
 
         const userId = session.user.id;
+
+        const rateLimitOk = await checkRateLimit(userId);
+        if (!rateLimitOk) {
+            return NextResponse.json({ canWithdraw: false, reason: 'Rate limit exceeded' });
+        }
 
         // Check if user has made any bets or trades
         const betCount = await prisma.marketActivity.count({
@@ -39,7 +45,7 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        if (!balance || balance.amount <= 0) {
+        if (!balance || balance.amount.lte(0)) {
             return NextResponse.json({
                 canWithdraw: false,
                 reason: 'Insufficient balance',

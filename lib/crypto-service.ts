@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { prisma } from '@/lib/prisma';
 
-const MASTER_MNEMONIC = process.env.CRYPTO_MASTER_MNEMONIC || 'test test test test test test test test test test test junk';
+const MASTER_MNEMONIC = process.env.CRYPTO_MASTER_MNEMONIC;
 // Polygon RPC (e.g., https://polygon-rpc.com or Alchemy/Infura)
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL || 'https://polygon-rpc.com';
 const MASTER_WALLET_ADDRESS = process.env.MASTER_WALLET_ADDRESS;
@@ -18,7 +18,24 @@ export class CryptoService {
     private provider: ethers.JsonRpcProvider;
     private masterNode: ethers.HDNodeWallet;
 
+    private validateWithdrawalStatusTransition(currentStatus: string, newStatus: string) {
+        const validTransitions: Record<string, string[]> = {
+            'PENDING': ['APPROVED', 'REJECTED'],
+            'APPROVED': ['COMPLETED', 'FAILED'],
+            'REJECTED': [],
+            'COMPLETED': [],
+            'FAILED': []
+        };
+
+        if (!validTransitions[currentStatus]?.includes(newStatus)) {
+            throw new Error(`Invalid status transition from ${currentStatus} to ${newStatus}`);
+        }
+    }
+
     constructor() {
+        if (!MASTER_MNEMONIC) {
+            throw new Error('CRYPTO_MASTER_MNEMONIC environment variable is required');
+        }
         this.provider = new ethers.JsonRpcProvider(PROVIDER_URL);
         // Initialize with root path "m" to avoid derivation errors
         this.masterNode = ethers.HDNodeWallet.fromPhrase(MASTER_MNEMONIC, undefined, "m");
@@ -71,18 +88,31 @@ export class CryptoService {
 
         const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, this.provider);
 
-        for (const addr of addresses) {
+        // Check balances in parallel to prevent blocking
+        const balancePromises = addresses.map(async (addr) => {
             try {
                 const balance = await usdcContract.balanceOf(addr.address);
-                // Minimum deposit amount (e.g., 1 USDC)
-                const minDeposit = ethers.parseUnits('1', 6); // USDC has 6 decimals
-
-                if (balance > minDeposit) {
-                    console.log(`Found balance ${ethers.formatUnits(balance, 6)} USDC at ${addr.address}`);
-                    await this.sweepAndCredit(addr, balance);
-                }
+                return { addr, balance };
             } catch (error) {
                 console.error(`Error checking address ${addr.address}:`, error);
+                return { addr, balance: 0n };
+            }
+        });
+
+        const balanceResults = await Promise.all(balancePromises);
+
+        // Process deposits sequentially to avoid database conflicts
+        for (const { addr, balance } of balanceResults) {
+            // Minimum deposit amount (e.g., 1 USDC)
+            const minDeposit = ethers.parseUnits('1', 6); // USDC has 6 decimals
+
+            if (balance > minDeposit) {
+                console.log(`Found balance ${ethers.formatUnits(balance, 6)} USDC at ${addr.address}`);
+                try {
+                    await this.sweepAndCredit(addr, balance);
+                } catch (error) {
+                    console.error(`Error sweeping and crediting ${addr.address}:`, error);
+                }
             }
         }
     }
@@ -99,13 +129,22 @@ export class CryptoService {
 
         const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, userWallet);
 
-        // 1. Check MATIC balance for gas
-        const maticBalance = await this.provider.getBalance(addr.address);
+        // 1. Check MATIC balance for gas and get fee data in parallel
+        let maticBalance: bigint;
+        let feeData: ethers.FeeData;
+        try {
+            [maticBalance, feeData] = await Promise.all([
+                this.provider.getBalance(addr.address),
+                this.provider.getFeeData()
+            ]);
+        } catch (error) {
+            console.error(`Error fetching balance and fee data for ${addr.address}:`, error);
+            return; // Skip this address
+        }
 
         // Estimate gas for transfer
         // Standard ERC20 transfer is ~65,000 gas
         const gasLimit = BigInt(100000);
-        const feeData = await this.provider.getFeeData();
         const gasPrice = feeData.gasPrice || ethers.parseUnits('30', 'gwei');
         const gasCost = gasLimit * gasPrice;
 
@@ -132,9 +171,11 @@ export class CryptoService {
 
         // 2. Sweep Tokens
         try {
+            console.log(`[DEPOSIT] Starting token sweep for user ${addr.userId}, address ${addr.address}, balance: ${ethers.formatUnits(tokenBalance, 6)} USDC`);
             const tx = await usdcContract.transfer(MASTER_WALLET_ADDRESS, tokenBalance);
-            console.log(`Sweeping USDC... Hash: ${tx.hash}`);
+            console.log(`[DEPOSIT] Sweep transaction sent. Hash: ${tx.hash}`);
             await tx.wait();
+            console.log(`[DEPOSIT] Sweep transaction confirmed for ${addr.address}`);
 
             // 3. Credit User
             // USDC is pegged to USD. We take a 1% fee for conversion/service.
@@ -142,132 +183,258 @@ export class CryptoService {
             const fee = rawUsdAmount * 0.01; // 1% fee
             const usdAmount = rawUsdAmount - fee;
 
-            console.log(`Processed deposit: ${rawUsdAmount} USDC. Fee: ${fee}. Crediting: ${usdAmount}`);
+            console.log(`[DEPOSIT] Processing deposit: raw ${rawUsdAmount} USDC, fee ${fee}, crediting ${usdAmount} USD`);
 
-            await prisma.$transaction(async (txPrisma) => {
-                // Create Deposit Record
-                await txPrisma.deposit.create({
-                    data: {
-                        userId: addr.userId,
-                        amount: usdAmount,
-                        currency: 'USDC',
-                        txHash: tx.hash,
-                        status: 'COMPLETED',
-                        fromAddress: addr.address,
-                        toAddress: MASTER_WALLET_ADDRESS,
-                    },
+            let dbTransactionSuccess = false;
+            try {
+                await prisma.$transaction(async (txPrisma) => {
+                    // Create Deposit Record
+                    await txPrisma.deposit.create({
+                        data: {
+                            userId: addr.userId,
+                            amount: usdAmount,
+                            currency: 'USDC',
+                            txHash: tx.hash,
+                            status: 'COMPLETED',
+                            fromAddress: addr.address,
+                            toAddress: MASTER_WALLET_ADDRESS,
+                        },
+                    });
+
+                    // Update User Balance with row-level locking
+                    const balances = await txPrisma.$queryRaw<Array<{id: string, amount: number}>>`
+                        SELECT id, amount FROM balance
+                        WHERE userId = ${addr.userId} AND tokenSymbol = 'TUSD' AND eventId IS NULL AND outcomeId IS NULL
+                        FOR UPDATE
+                    `;
+
+                    if (balances.length > 0) {
+                        await txPrisma.balance.update({
+                            where: { id: balances[0].id },
+                            data: { amount: { increment: usdAmount } }
+                        });
+                    } else {
+                        await txPrisma.balance.create({
+                            data: {
+                                userId: addr.userId,
+                                tokenSymbol: 'TUSD',
+                                amount: usdAmount
+                            }
+                        });
+                    }
                 });
+                dbTransactionSuccess = true;
+                console.log(`[DEPOSIT] Successfully credited user ${addr.userId} with $${usdAmount}`);
+            } catch (dbError) {
+                console.error(`[DEPOSIT] Database transaction failed for user ${addr.userId}, attempting rollback:`, dbError);
 
-                // Update User Balance
-                const safeUserBalance = await txPrisma.balance.findFirst({
-                    where: {
-                        userId: addr.userId,
-                        tokenSymbol: 'TUSD',
-                        eventId: null,
-                        outcomeId: null
+                // Rollback: Refund tokens back to user wallet
+                try {
+                    const masterWallet = this.masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
+                    const refundContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, masterWallet);
+                    const refundTx = await refundContract.transfer(addr.address, tokenBalance);
+                    console.log(`[DEPOSIT] Refund transaction sent. Hash: ${refundTx.hash}`);
+                    await refundTx.wait();
+                    console.log(`[DEPOSIT] Successfully refunded ${ethers.formatUnits(tokenBalance, 6)} USDC to ${addr.address}`);
+                } catch (refundError) {
+                    console.error(`[DEPOSIT] CRITICAL: Failed to refund tokens to ${addr.address}. Manual intervention required:`, refundError);
+                    // At this point, tokens are swept but user not credited and refund failed
+                    // This needs manual intervention
+                    throw new Error(`Deposit sweep succeeded but database failed and refund failed for address ${addr.address}`);
+                }
+
+                throw dbError; // Re-throw the original DB error
+            }
+
+        } catch (error) {
+            console.error(`[DEPOSIT] Failed to process deposit for ${addr.address}:`, error);
+        }
+    }
+
+    async requestWithdrawal(userId: string, amount: number, address: string, currency: string = 'USDC', idempotencyKey?: string) {
+        console.log(`[WITHDRAWAL] Requesting withdrawal for user ${userId}: ${amount} ${currency} to ${address}${idempotencyKey ? ` (idempotencyKey: ${idempotencyKey})` : ''}`);
+
+        // Check for existing idempotencyKey to prevent duplicates
+        if (idempotencyKey) {
+            const existingWithdrawal = await prisma.withdrawal.findUnique({
+                where: { idempotencyKey }
+            });
+            if (existingWithdrawal) {
+                throw new Error(`Withdrawal request with idempotencyKey ${idempotencyKey} already exists`);
+            }
+        }
+
+        try {
+            await prisma.$transaction(async (tx) => {
+                // Lock the balance row for update
+                const balances = await tx.$queryRaw<Array<{id: string, amount: number}>>`
+                    SELECT id, amount FROM balance
+                    WHERE userId = ${userId} AND tokenSymbol = 'TUSD'
+                    FOR UPDATE
+                `;
+
+                if (balances.length === 0) {
+                    throw new Error(`No balance found for user ${userId}`);
+                }
+
+                if (balances[0].amount < amount) {
+                    throw new Error(`Insufficient balance: requested ${amount}, available ${balances[0].amount}`);
+                }
+
+                const balanceId = balances[0].id;
+
+                await tx.withdrawal.create({
+                    data: {
+                        userId,
+                        amount,
+                        currency,
+                        toAddress: address,
+                        status: 'PENDING',
+                        ...(idempotencyKey && { idempotencyKey })
                     }
                 });
 
-                if (safeUserBalance) {
-                    await txPrisma.balance.update({
-                        where: { id: safeUserBalance.id },
-                        data: { amount: { increment: usdAmount } }
-                    });
-                } else {
-                    await txPrisma.balance.create({
-                        data: {
-                            userId: addr.userId,
-                            tokenSymbol: 'TUSD',
-                            amount: usdAmount
-                        }
-                    });
-                }
+                await tx.balance.update({
+                    where: { id: balanceId },
+                    data: { amount: { decrement: amount } }
+                });
             });
 
-            console.log(`Credited user ${addr.userId} with $${usdAmount}`);
-
+            console.log(`[WITHDRAWAL] Successfully created withdrawal request for user ${userId}`);
         } catch (error) {
-            console.error(`Failed to sweep from ${addr.address}:`, error);
+            console.error(`[WITHDRAWAL] Failed to create withdrawal request for user ${userId}:`, error);
+            throw error;
         }
-    }
-
-    async requestWithdrawal(userId: string, amount: number, address: string, currency: string = 'USDC') {
-        const userBalance = await prisma.balance.findFirst({
-            where: {
-                userId,
-                tokenSymbol: 'TUSD'
-            }
-        });
-
-        if (!userBalance || userBalance.amount < amount) {
-            throw new Error('Insufficient balance');
-        }
-
-        await prisma.withdrawal.create({
-            data: {
-                userId,
-                amount,
-                currency,
-                toAddress: address,
-                status: 'PENDING'
-            }
-        });
-
-        await prisma.balance.update({
-            where: { id: userBalance.id },
-            data: { amount: { decrement: amount } }
-        });
     }
 
     async approveWithdrawal(withdrawalId: string, adminId: string) {
+        console.log(`[WITHDRAWAL] Starting approval for withdrawal ${withdrawalId} by admin ${adminId}`);
+
         const withdrawal = await prisma.withdrawal.findUnique({
             where: { id: withdrawalId },
         });
 
         if (!withdrawal || withdrawal.status !== 'PENDING') {
-            throw new Error('Invalid withdrawal request');
+            const errorMsg = `Invalid withdrawal request: ${withdrawalId} - status: ${withdrawal?.status || 'not found'}`;
+            console.error(`[WITHDRAWAL] ${errorMsg}`);
+            throw new Error(errorMsg);
         }
+
+        // Idempotency check: ensure withdrawal hasn't been processed before
+        if (withdrawal.txHash) {
+            const errorMsg = `Withdrawal already processed: ${withdrawalId}`;
+            console.error(`[WITHDRAWAL] ${errorMsg}`);
+            throw new Error(errorMsg);
+        }
+
+        // Validate and update status to APPROVED
+        this.validateWithdrawalStatusTransition(withdrawal.status, 'APPROVED');
+        await prisma.withdrawal.update({
+            where: { id: withdrawalId },
+            data: {
+                status: 'APPROVED',
+                approvedBy: adminId,
+                approvedAt: new Date()
+            }
+        });
 
         // Convert USD amount to USDC (6 decimals)
         const amountUnits = ethers.parseUnits(withdrawal.amount.toFixed(6), 6);
+        console.log(`[WITHDRAWAL] Processing withdrawal of ${withdrawal.amount} USD (${ethers.formatUnits(amountUnits, 6)} USDC) to ${withdrawal.toAddress}`);
 
         // Use Hot Wallet (Index 0)
         const hotWallet = this.masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
         const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, hotWallet);
 
+        let transferTxHash: string | null = null;
         try {
             const tx = await usdcContract.transfer(withdrawal.toAddress, amountUnits);
+            transferTxHash = tx.hash;
+            console.log(`[WITHDRAWAL] Transfer transaction sent. Hash: ${tx.hash}`);
 
-            await prisma.withdrawal.update({
-                where: { id: withdrawalId },
-                data: {
-                    status: 'COMPLETED',
-                    txHash: tx.hash,
-                    approvedAt: new Date(),
-                    approvedBy: adminId
+            // Wait for transaction confirmation and verify
+            const receipt = await tx.wait();
+            if (receipt.status !== 1) {
+                throw new Error(`Blockchain transaction failed with status ${receipt.status}`);
+            }
+            console.log(`[WITHDRAWAL] Transfer transaction confirmed for withdrawal ${withdrawalId}`);
+
+            // Update database with retry logic for robustness
+            let updateAttempts = 0;
+            const maxAttempts = 3;
+            while (updateAttempts < maxAttempts) {
+                try {
+                    // Validate status transition (should be APPROVED to COMPLETED)
+                    const currentWithdrawal = await prisma.withdrawal.findUnique({ where: { id: withdrawalId } });
+                    if (currentWithdrawal) {
+                        this.validateWithdrawalStatusTransition(currentWithdrawal.status, 'COMPLETED');
+                    }
+                    await prisma.withdrawal.update({
+                        where: { id: withdrawalId },
+                        data: {
+                            status: 'COMPLETED',
+                            txHash: tx.hash,
+                            approvedAt: new Date(),
+                            approvedBy: adminId
+                        }
+                    });
+                    console.log(`[WITHDRAWAL] Successfully updated withdrawal ${withdrawalId} to COMPLETED`);
+                    break; // Success, exit loop
+                } catch (dbError) {
+                    updateAttempts++;
+                    console.warn(`[WITHDRAWAL] DB update attempt ${updateAttempts} failed for ${withdrawalId}:`, dbError);
+                    if (updateAttempts >= maxAttempts) {
+                        console.error(`[WITHDRAWAL] Failed to update withdrawal status after successful transfer for ${withdrawalId}:`, dbError);
+                        // At this point, transfer succeeded but DB update failed
+                        // This is a critical error that needs manual intervention
+                        throw new Error(`Transfer succeeded but database update failed for withdrawal ${withdrawalId} - manual intervention required`);
+                    }
+                    // Wait before retry
+                    await new Promise(resolve => setTimeout(resolve, 1000 * updateAttempts));
                 }
-            });
+            }
 
             return tx.hash;
         } catch (error) {
-            console.error('Withdrawal failed:', error);
-            await prisma.withdrawal.update({
-                where: { id: withdrawalId },
-                data: { status: 'FAILED' }
-            });
+            console.error(`[WITHDRAWAL] Withdrawal processing failed for ${withdrawalId}:`, error);
 
-            // Refund
-            const userBalance = await prisma.balance.findFirst({
-                where: {
-                    userId: withdrawal.userId,
-                    tokenSymbol: 'TUSD'
-                }
-            });
-            if (userBalance) {
-                await prisma.balance.update({
-                    where: { id: userBalance.id },
-                    data: { amount: { increment: withdrawal.amount } }
+            // Attempt to mark as failed and refund
+            try {
+                await prisma.$transaction(async (tx) => {
+                    const currentWithdrawal = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });
+                    if (currentWithdrawal) {
+                        // Validate transition to FAILED
+                        this.validateWithdrawalStatusTransition(currentWithdrawal.status, 'FAILED');
+                    }
+                    await tx.withdrawal.update({
+                        where: { id: withdrawalId },
+                        data: {
+                            status: 'FAILED',
+                            txHash: transferTxHash // Include tx hash if transfer succeeded
+                        }
+                    });
+
+                    // Refund with row-level locking
+                    const balances = await tx.$queryRaw<Array<{id: string, amount: number}>>`
+                        SELECT id, amount FROM balance
+                        WHERE userId = ${withdrawal.userId} AND tokenSymbol = 'TUSD'
+                        FOR UPDATE
+                    `;
+                    if (balances.length > 0) {
+                        await tx.balance.update({
+                            where: { id: balances[0].id },
+                            data: { amount: { increment: withdrawal.amount } }
+                        });
+                        console.log(`[WITHDRAWAL] Successfully refunded ${withdrawal.amount} USD to user ${withdrawal.userId}`);
+                    } else {
+                        console.error(`[WITHDRAWAL] No balance found to refund for user ${withdrawal.userId}`);
+                    }
                 });
+            } catch (refundError) {
+                console.error(`[WITHDRAWAL] CRITICAL: Failed to update withdrawal status and refund for ${withdrawalId}. Manual intervention required:`, refundError);
+                // If both transfer succeeded and refund failed, this is very bad
+                // The user has been debited but transfer may or may not have succeeded
+                throw new Error(`Withdrawal processing failed and rollback incomplete for ${withdrawalId} - manual intervention required`);
             }
 
             throw error;
