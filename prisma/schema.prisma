@@ -44,7 +44,10 @@ model User {
   deposits         Deposit[]
   withdrawals      Withdrawal[]
   favorites        UserFavorite[]
+  institutionalAccount InstitutionalAccount?
+  batchOrders   BatchOrder[]
   ledgerEntries    LedgerEntry[]
+  eventSuggestions EventSuggestion[]
 
   @@index([address])
 }
@@ -82,6 +85,30 @@ model Event {
   @@index([categories], type: Gin)
   @@index([creatorId])
   @@index([searchVector], type: Gin)
+}
+
+model EventSuggestion {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String
+  description     String
+  categories      String[] @default([])
+  imageUrl        String?
+  resolutionDate  DateTime
+  type            String   @default("BINARY") // 'BINARY' or 'MULTIPLE'
+  outcomes        Json?
+  status          String   @default("PENDING") // 'PENDING' | 'APPROVED' | 'DECLINED'
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewNote      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  approvedEventId String?
+
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([userId])
 }
 
 model Outcome {
@@ -181,28 +208,73 @@ model Notification {
 }
 
 model Order {
-  id            String    @id @default(cuid())
-  userId        String
-  eventId       String
-  outcomeId     String?   // Reference to specific outcome (for multiple outcomes)
-  option        String?   // Legacy field for binary events: 'YES' or 'NO'
-  side          String    // 'buy' or 'sell'
-  price         Float     // Price per token (0.01 to 0.99)
-  amount        Float     // Total amount to spend
-  amountFilled  Float     @default(0.0) // Amount that has been filled
-  status        String    @default("open") // 'open', 'partially_filled', 'filled', 'cancelled'
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+   id            String    @id @default(cuid())
+   userId        String
+   eventId       String
+   outcomeId     String?   // Reference to specific outcome (for multiple outcomes)
+   option        String?   // Legacy field for binary events: 'YES' or 'NO'
+   side          String    // 'buy' or 'sell'
+   price         Float     // Price per token (0.01 to 0.99)
+   amount        Float     // Total amount to spend
+   amountFilled  Float     @default(0.0) // Amount that has been filled
+   status        String    @default("open") // 'open', 'partially_filled', 'filled', 'cancelled'
+   orderType     String    @default("limit") // 'market', 'limit', 'iceberg', 'twap', 'stop'
+   // Advanced order fields
+   visibleAmount Float?    // For iceberg orders: visible portion
+   totalAmount   Float?    // For iceberg orders: total amount
+   timeWindow    Int?      // For TWAP: time window in minutes
+   totalDuration Int?      // For TWAP: total duration in minutes
+   executedSlices Int      @default(0) // For TWAP: number of executed slices
+   stopPrice     Float?    // For stop orders: trigger price
+   stopType      String?   // For stop orders: 'stop_loss', 'stop_limit'
+   batchId       String?   // Reference to batch operation
+   createdAt     DateTime  @default(now())
+   updatedAt     DateTime  @updatedAt
 
-  user          User      @relation(fields: [userId], references: [id])
-  event         Event     @relation(fields: [eventId], references: [id])
-  outcome       Outcome?  @relation(fields: [outcomeId], references: [id])
-  marketActivity MarketActivity[]
+   user          User      @relation(fields: [userId], references: [id])
+   event         Event     @relation(fields: [eventId], references: [id])
+   outcome       Outcome?  @relation(fields: [outcomeId], references: [id])
+   marketActivity MarketActivity[]
+   executions    OrderExecution[]
+   batch         BatchOrder? @relation(fields: [batchId], references: [id])
 
-  @@index([eventId, side])
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
+   @@index([eventId, side])
+   @@index([userId])
+   @@index([status])
+   @@index([createdAt])
+   @@index([batchId])
+}
+
+model BatchOrder {
+   id            String   @id @default(cuid())
+   userId        String
+   idempotencyKey String  @unique // For bulk operation idempotency
+   status        String   @default("processing") // 'processing', 'completed', 'failed'
+   totalOrders   Int      @default(0)
+   successfulOrders Int   @default(0)
+   failedOrders  Int      @default(0)
+   createdAt     DateTime @default(now())
+   updatedAt     DateTime @updatedAt
+
+   user          User     @relation(fields: [userId], references: [id])
+   orders        Order[]
+
+   @@index([userId])
+   @@index([idempotencyKey])
+   @@index([status])
+}
+
+model OrderExecution {
+   id            String   @id @default(cuid())
+   orderId       String
+   amount        Float    // Amount filled in this execution
+   price         Float    // Execution price
+   executedAt    DateTime @default(now())
+
+   order         Order    @relation(fields: [orderId], references: [id])
+
+   @@index([orderId])
+   @@index([executedAt])
 }
 
 model Balance {
@@ -356,4 +428,40 @@ model UserFavorite {
   @@unique([userId, eventId])
   @@index([userId])
   @@index([eventId])
+}
+
+model InstitutionalAccount {
+   id          String   @id @default(cuid())
+   userId      String   @unique
+   name        String
+   type        String   // e.g., "LIQUIDITY_PROVIDER", "MARKET_MAKER"
+   maxOrderSize Float   @default(10000.0)
+   maxDailyVolume Float @default(100000.0)
+   dailyVolume Float    @default(0.0) // Current day's volume
+   dailyVolumeDate DateTime? // Date when dailyVolume was last reset
+   isActive    Boolean  @default(true)
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
+
+   user        User     @relation(fields: [userId], references: [id])
+   apiKeys     ApiKey[]
+
+   @@index([userId])
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  accountId   String
+  key         String   @unique
+  secret      String   // hashed
+  permissions String[] @default([]) // e.g., ["trade", "read", "admin"]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastUsedAt  DateTime?
+
+  account     InstitutionalAccount @relation(fields: [accountId], references: [id])
+
+  @@index([key])
+  @@index([accountId])
 }

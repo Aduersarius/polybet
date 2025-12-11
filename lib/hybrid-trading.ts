@@ -378,6 +378,15 @@ export async function placeHybridOrder(
                         }
                     });
 
+                    // Create OrderExecution record for tracking fills
+                    await (tx as any).orderExecution.create({
+                        data: {
+                            orderId: placeholderOrder.id,
+                            amount: quote.shares,
+                            price: quote.avgPrice,
+                        }
+                    });
+
                     // 4. Update Probabilities (So next quote is more expensive)
                     console.log(`[TRADE] Updating probabilities`);
                     await updateOutcomeProbabilities(tx, eventId);

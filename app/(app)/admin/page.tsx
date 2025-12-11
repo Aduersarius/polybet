@@ -7,12 +7,13 @@ import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
 import { AdminStatistics } from '../../components/admin/AdminStatistics';
 import { AdminFinance } from '../../components/admin/AdminFinance';
+import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 
-type AdminView = 'events' | 'users' | 'statistics' | 'finance';
+type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'suggested';
 
 interface AdminEvent {
     id: string;
@@ -66,13 +67,6 @@ export default function AdminPage() {
         );
     }
 
-    const menuItems = [
-        { id: 'events', label: 'Events', icon: '📊' },
-        { id: 'users', label: 'Users', icon: '👥' },
-        { id: 'statistics', label: 'Statistics', icon: '📈' },
-        { id: 'finance', label: 'Money', icon: '💵' },
-    ];
-
     return (
         <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
             <Navbar
@@ -93,6 +87,7 @@ export default function AdminPage() {
                         {activeView === 'users' && <AdminUserList />}
                         {activeView === 'statistics' && <AdminStatistics />}
                         {activeView === 'finance' && <AdminFinance />}
+                        {activeView === 'suggested' && <AdminSuggestedEvents />}
                     </div>
                 </div>
             </div>

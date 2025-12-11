@@ -24,6 +24,7 @@ interface CreateEventModalProps {
         isHidden: boolean;
         outcomes?: Outcome[];
     } | null;
+    mode?: 'admin' | 'user';
 }
 
 const CATEGORIES = ['CRYPTO', 'SPORTS', 'POLITICS', 'ECONOMICS', 'TECH', 'FINANCE', 'CULTURE', 'WORLD', 'SCIENCE'];
@@ -32,9 +33,10 @@ const EVENT_TYPES = [
     { value: 'MULTIPLE', label: 'Multiple Choice', description: 'Multiple possible outcomes' },
 ];
 
-export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalProps) {
+export function CreateEventModal({ isOpen, onClose, event, mode = 'admin' }: CreateEventModalProps) {
     const queryClient = useQueryClient();
     const isEditMode = !!event;
+    const isUserMode = mode === 'user';
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -45,6 +47,7 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
     const [uploading, setUploading] = useState(false);
     const [saveAsDraft, setSaveAsDraft] = useState(false);
     const [outcomes, setOutcomes] = useState<Outcome[]>([{ name: 'YES' }, { name: 'NO' }]);
+    const [showThankYou, setShowThankYou] = useState(false);
 
     // Populate form when editing
     useEffect(() => {
@@ -72,8 +75,15 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
             setImageUrl('');
             setSaveAsDraft(false);
             setOutcomes([{ name: 'YES' }, { name: 'NO' }]);
+            setShowThankYou(false);
         }
     }, [event]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setShowThankYou(false);
+        }
+    }, [isOpen]);
 
     // Update outcomes when event type changes
     useEffect(() => {
@@ -96,7 +106,10 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
                 body: formData,
             });
 
-            if (!res.ok) throw new Error('Upload failed');
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Upload failed');
+            }
 
             const data = await res.json();
             setImageUrl(data.url);
@@ -110,8 +123,9 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
 
     const createEventMutation = useMutation({
         mutationFn: async (data: any) => {
-            const url = isEditMode ? `/api/events/${event.id}` : '/api/events';
-            const method = isEditMode ? 'PUT' : 'POST';
+            const isEdit = isEditMode && !isUserMode;
+            const url = isUserMode ? '/api/event-suggestions' : (isEdit ? `/api/events/${event?.id}` : '/api/events');
+            const method = isEdit ? 'PUT' : 'POST';
 
             const res = await fetch(url, {
                 method,
@@ -120,14 +134,18 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
             });
             if (!res.ok) {
                 const error = await res.text();
-                throw new Error(`Failed to ${isEditMode ? 'update' : 'create'} event: ${error}`);
+                throw new Error(`Failed to ${isEdit ? 'update' : isUserMode ? 'submit' : 'create'} event: ${error}`);
             }
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
-            queryClient.invalidateQueries({ queryKey: ['events'] });
-            onClose();
+            if (isUserMode) {
+                setShowThankYou(true);
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+                queryClient.invalidateQueries({ queryKey: ['events'] });
+                onClose();
+            }
         },
         onError: (error: any) => {
             alert(error.message || 'Failed to save event');
@@ -149,7 +167,7 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
             type: eventType,
             resolutionDate,
             imageUrl,
-            isHidden: saveAsDraft,
+            isHidden: isUserMode ? undefined : saveAsDraft,
             outcomes: eventType === 'MULTIPLE' ? outcomes.filter(o => o.name.trim()) : undefined,
         });
     };
@@ -197,10 +215,26 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
                     >
                         <div className="w-full max-w-3xl bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                             <h2 className="text-2xl font-bold text-white mb-6">
-                                {isEditMode ? 'Edit Event' : 'Create New Event'}
+                                {isUserMode ? 'Suggest an Event' : (isEditMode ? 'Edit Event' : 'Create New Event')}
                             </h2>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            {isUserMode && showThankYou ? (
+                                <div className="space-y-4 text-center text-white">
+                                    <div className="text-4xl">🎉</div>
+                                    <p className="text-lg font-semibold">Thank you for your suggestion!</p>
+                                    <p className="text-sm text-gray-300">
+                                        We&apos;ll review the event details and publish it if approved.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowThankYou(false); onClose(); }}
+                                        className="mt-4 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Image Upload */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-2">Event Image</label>
@@ -345,19 +379,21 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
                                 </div>
 
                                 {/* Save as Draft Toggle */}
-                                <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
-                                    <input
-                                        type="checkbox"
-                                        id="draft-mode"
-                                        checked={saveAsDraft}
-                                        onChange={(e) => setSaveAsDraft(e.target.checked)}
-                                        className="w-5 h-5 rounded border-white/20 bg-white/5 checked:bg-blue-600"
-                                    />
-                                    <label htmlFor="draft-mode" className="flex-1 cursor-pointer">
-                                        <div className="text-sm font-medium text-white">Save as Draft/Preview Mode</div>
-                                        <div className="text-xs text-gray-400">Event will be hidden from public until published</div>
-                                    </label>
-                                </div>
+                                {!isUserMode && (
+                                    <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
+                                        <input
+                                            type="checkbox"
+                                            id="draft-mode"
+                                            checked={saveAsDraft}
+                                            onChange={(e) => setSaveAsDraft(e.target.checked)}
+                                            className="w-5 h-5 rounded border-white/20 bg-white/5 checked:bg-blue-600"
+                                        />
+                                        <label htmlFor="draft-mode" className="flex-1 cursor-pointer">
+                                            <div className="text-sm font-medium text-white">Save as Draft/Preview Mode</div>
+                                            <div className="text-xs text-gray-400">Event will be hidden from public until published</div>
+                                        </label>
+                                    </div>
+                                )}
 
                                 {/* Action Buttons */}
                                 <div className="flex gap-3 pt-4 border-t border-white/10">
@@ -374,11 +410,12 @@ export function CreateEventModal({ isOpen, onClose, event }: CreateEventModalPro
                                         className="flex-1 px-4 py-3 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50"
                                     >
                                         {createEventMutation.isPending
-                                            ? (isEditMode ? 'Updating...' : 'Creating...')
-                                            : (isEditMode ? 'Update Event' : (saveAsDraft ? 'Save as Draft' : 'Publish Event'))}
+                                            ? (isUserMode ? 'Submitting...' : (isEditMode ? 'Updating...' : 'Creating...'))
+                                            : (isUserMode ? 'Submit Suggestion' : (isEditMode ? 'Update Event' : (saveAsDraft ? 'Save as Draft' : 'Publish Event')))}
                                     </button>
                                 </div>
-                            </form>
+                                </form>
+                            )}
                         </div>
                     </motion.div>
                 </>
