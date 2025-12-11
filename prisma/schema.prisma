@@ -32,9 +32,27 @@ model User {
   settings      Json?             // User preferences (trading, notifications, display, privacy)
   lastIp        String?
   lastCountry   String?
+  lastRegion    String?
+  lastCity      String?
+  lastTimezone  String?
+  lastAsn       Int?
+  lastIsp       String?
   lastUserAgent String?
   lastDevice    String?
   lastOs        String?
+  lastLocale    String?
+  lastReferrer  String?
+  lastUtmSource   String?
+  lastUtmMedium   String?
+  lastUtmCampaign String?
+  lastUtmTerm     String?
+  lastUtmContent  String?
+  lastDeviceMemory Float?
+  lastDpr          Float?
+  lastViewportWidth Int?
+  lastDownlink     Float?
+  lastRtt          Int?
+  lastEct          String?
   lastVisitedAt DateTime?
   currentBalance  Decimal         @default(0.0)
   totalDeposited  Decimal         @default(0.0)
@@ -58,10 +76,32 @@ model User {
   batchOrders   BatchOrder[]
   ledgerEntries    LedgerEntry[]
   eventSuggestions EventSuggestion[]
+  telemetryEvents  TelemetryEvent[]
 
   @@index([address])
   @@index([lastVisitedAt])
   @@index([lastCountry])
+  @@index([lastCity])
+  @@index([lastRegion])
+}
+
+model TelemetryEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // perf | error | feature | security
+  name      String   // event name/key
+  payload   Json?
+  ip        String?
+  userAgent String?
+  country   String?
+  city      String?
+  region    String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }
 
 model Event {

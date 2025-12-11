@@ -3,7 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
-import { updateUserTelemetry } from "./user-telemetry";
+import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
 import { rateLimit } from "./rate-limit";
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -287,12 +287,19 @@ export async function requireAuth(request: Request) {
         select: { isBanned: true, isDeleted: true },
     });
     if (!dbUser || dbUser.isBanned || dbUser.isDeleted) {
+        recordTelemetryEvent({
+            userId: user.id,
+            request,
+            type: 'security',
+            name: 'blocked_account',
+            payload: { isBanned: dbUser?.isBanned ?? null, isDeleted: dbUser?.isDeleted ?? null },
+        }).catch((err) => console.error('[telemetry] security event failed', err));
         throw new Response(JSON.stringify({ error: 'Account is disabled' }), {
             status: 403,
             headers: { 'Content-Type': 'application/json' },
         });
     }
-    updateUserTelemetry(user.id, request.headers).catch((err) =>
+    updateUserTelemetry(user.id, request).catch((err) =>
         console.error('[telemetry] update failed (non-blocking)', err)
     );
     return user;

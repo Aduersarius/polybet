@@ -11,7 +11,8 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@prisma/client', 'ioredis'],
   },
   webpack: (config) => {
-    config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream");
+    // Keep geoip-lite external so its data files remain available at runtime
+    config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream", "geoip-lite");
     config.resolve.alias = {
       ...config.resolve.alias,
       '@react-native-async-storage/async-storage': false,
