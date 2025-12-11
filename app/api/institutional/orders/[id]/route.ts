@@ -26,18 +26,6 @@ export async function GET(
     const { id } = await context.params;
     const auth = await requireApiKeyAuth(request);
 
-    // Require trade/write capability to cancel order
-    const canTrade = hasPermission(auth, 'trade') || hasPermission(auth, 'write');
-    if (!canTrade) {
-      return NextResponse.json({ error: 'Insufficient permissions. Trade access required.' }, { status: 403 });
-    }
-
-    // Require trade/write capability to modify order
-    const canTrade = hasPermission(auth, 'trade') || hasPermission(auth, 'write');
-    if (!canTrade) {
-      return NextResponse.json({ error: 'Insufficient permissions. Trade access required.' }, { status: 403 });
-    }
-
     // Require read or trade capability to view order
     const canRead = hasPermission(auth, 'read') || hasPermission(auth, 'trade');
     if (!canRead) {
