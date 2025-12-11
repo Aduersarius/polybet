@@ -10,15 +10,29 @@ export async function GET(request: NextRequest) {
         const user = await requireAuth(request);
         const userId = user.id;
 
-        // Get user's balance from Balance table
-        const balanceRecord = await prisma.balance.findFirst({
-            where: {
-                userId,
-                tokenSymbol: 'TUSD',
-                eventId: null,
-                outcomeId: null
-            }
-        });
+        // Get user's balance from Balance table (be tolerant of older schemas without event/outcome columns)
+        let balanceRecord: { amount: any } | null = null;
+        try {
+            balanceRecord = await prisma.balance.findFirst({
+                where: {
+                    userId,
+                    tokenSymbol: 'TUSD',
+                    eventId: null,
+                    outcomeId: null
+                },
+                select: { amount: true }
+            });
+        } catch {
+            // Fallback for schemas missing eventId/outcomeId
+            const rows = await prisma.$queryRaw<Array<{ amount: any }>>`
+                SELECT "amount"
+                FROM "Balance"
+                WHERE "userId" = ${userId} AND "tokenSymbol" = 'TUSD'
+                ORDER BY "updatedAt" DESC
+                LIMIT 1
+            `;
+            balanceRecord = rows[0] ?? null;
+        }
 
         // Get betting statistics
         const [totalBets, activeBets, resolvedBets] = await Promise.all([

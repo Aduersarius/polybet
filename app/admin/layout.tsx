@@ -19,16 +19,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={outfit.variable} suppressHydrationWarning>
-      <body suppressHydrationWarning className="bg-black text-white">
-        <Providers>
-          <div className="min-h-screen flex flex-col bg-transparent text-white relative z-10">
-            <div className="flex-1 flex flex-col">
-              {children}
-            </div>
-          </div>
-        </Providers>
-      </body>
-    </html>
+    <Providers>
+      <div className={`${outfit.variable} min-h-screen flex flex-col bg-transparent text-white relative z-10`}>
+        <div className="flex-1 flex flex-col">
+          {children}
+        </div>
+      </div>
+    </Providers>
   )
 }

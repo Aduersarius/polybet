@@ -17,7 +17,7 @@ interface AdminEvent {
     resolutionDate: string;
     creator: {
         username: string | null;
-        address: string;
+        address?: string | null;
     };
     _count: {
         bets: number;
@@ -116,9 +116,17 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10 bg-[#1e1e1e]">
-                        {events?.map((event) => (
+                        {events?.map((event, idx) => {
+                            if (!event) return null;
+
+                            const addr = event.creator?.address || '';
+                            const shortAddress = addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : 'Unknown';
+                            const creatorLabel = event.creator?.username || shortAddress;
+                            const categories = Array.isArray(event.categories) ? event.categories : [];
+
+                            return (
                             <tr
-                                key={event.id}
+                                key={event.id || `event-${idx}`}
                                 className="hover:bg-[#2a2a2a] cursor-pointer transition-colors group bg-[#1e1e1e]"
                                 onClick={() => onEditEvent(event)}
                             >
@@ -134,20 +142,20 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="flex flex-wrap gap-1">
-                                        {event.categories?.slice(0, 2).map((cat, idx) => (
+                                        {categories.slice(0, 2).map((cat, idx) => (
                                             <span key={idx} className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-gray-300">
                                                 {cat}
                                             </span>
                                         ))}
-                                        {event.categories?.length > 2 && (
+                                        {categories.length > 2 && (
                                             <span className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-gray-400">
-                                                +{event.categories.length - 2}
+                                                +{categories.length - 2}
                                             </span>
                                         )}
                                     </div>
                                 </td>
                                 <td className="px-4 py-3 text-gray-300">
-                                    {event.creator.username || event.creator.address.slice(0, 6) + '...'}
+                                    {creatorLabel}
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-blue-400">
@@ -222,7 +230,8 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                                     </div>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
 
