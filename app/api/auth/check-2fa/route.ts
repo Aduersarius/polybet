@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { rateLimit } from '@/lib/rate-limit';
 
 // POST /api/auth/check-2fa - Check if user has 2FA enabled (before login)
 export async function POST(request: NextRequest) {
@@ -8,6 +9,14 @@ export async function POST(request: NextRequest) {
 
         if (!email) {
             return NextResponse.json({ error: 'Email required' }, { status: 400 });
+        }
+
+        const clientId = email.toLowerCase();
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+        const key = `rl:check-2fa:${clientId}:${ip}`;
+        const { allowed } = await rateLimit(key, 10, 300); // 10 attempts per 5 minutes
+        if (!allowed) {
+            return NextResponse.json({ error: 'Too many attempts. Please wait and try again.' }, { status: 429 });
         }
 
         // Find user by email

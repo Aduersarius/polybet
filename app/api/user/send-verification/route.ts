@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, auth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
+import { rateLimit } from '@/lib/rate-limit';
 
 // POST /api/user/send-verification - Trigger better-auth to send verification email
 export async function POST(request: NextRequest) {
     try {
+        assertSameOrigin(request);
         const user = await requireAuth(request);
+
+        const key = `rl:send-verification:${user.id}`;
+        const { allowed } = await rateLimit(key, 3, 900); // 3 emails per 15 minutes
+        if (!allowed) {
+            return NextResponse.json({ error: 'Too many verification requests' }, { status: 429 });
+        }
 
         if (user.emailVerified) {
             return NextResponse.json({ error: 'Email already verified' }, { status: 400 });

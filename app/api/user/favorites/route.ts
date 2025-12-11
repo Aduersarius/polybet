@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,6 +60,7 @@ export async function GET(request: Request) {
 // POST /api/user/favorites - Add event to favorites
 export async function POST(request: Request) {
     try {
+        assertSameOrigin(request);
         const user = await requireAuth(request);
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
 // DELETE /api/user/favorites - Remove event from favorites
 export async function DELETE(request: Request) {
     try {
+        assertSameOrigin(request);
         const user = await requireAuth(request);
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

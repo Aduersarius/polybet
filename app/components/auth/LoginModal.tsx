@@ -19,6 +19,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     // 2FA state
     const [requires2FA, setRequires2FA] = useState(false);
     const [totpCode, setTotpCode] = useState('');
+    const [trustDevice, setTrustDevice] = useState(false);
 
     // Forgot Password state
     const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
@@ -94,7 +95,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
         setLoading(true);
 
         try {
-            const result = await twoFactor.verifyTotp(totpCode, true);
+            const result = await twoFactor.verifyTotp(totpCode, trustDevice);
 
             if (result?.error) {
                 setError(result.error.message || 'Invalid code');
@@ -116,6 +117,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     const handleClose = () => {
         setRequires2FA(false);
         setTotpCode('');
+        setTrustDevice(false);
         setError('');
         setIsForgotPasswordOpen(false);
         onClose();
@@ -182,6 +184,16 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                                     />
                                 </div>
 
+                                <label className="flex items-center gap-2 text-sm text-gray-400">
+                                    <input
+                                        type="checkbox"
+                                        checked={trustDevice}
+                                        onChange={(e) => setTrustDevice(e.target.checked)}
+                                        className="h-4 w-4 rounded border-white/20 bg-white/5 text-purple-600 focus:ring-purple-500"
+                                    />
+                                    Remember this device (skip 2FA on this browser)
+                                </label>
+
                                 <button
                                     type="submit"
                                     disabled={loading || totpCode.length !== 6}
@@ -195,6 +207,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                                     onClick={() => {
                                         setRequires2FA(false);
                                         setTotpCode('');
+                                        setTrustDevice(false);
                                         setError('');
                                     }}
                                     className="w-full py-2 text-gray-400 hover:text-white transition-colors"

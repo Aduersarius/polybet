@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireApiKeyAuth, checkInstitutionalRateLimit } from '@/lib/api-auth';
+import { requireApiKeyAuth, checkInstitutionalRateLimit, hasPermission } from '@/lib/api-auth';
 import { redis } from '@/lib/redis';
 
 interface ModifyOrderRequest {
@@ -25,6 +25,24 @@ export async function GET(
   try {
     const { id } = await context.params;
     const auth = await requireApiKeyAuth(request);
+
+    // Require trade/write capability to cancel order
+    const canTrade = hasPermission(auth, 'trade') || hasPermission(auth, 'write');
+    if (!canTrade) {
+      return NextResponse.json({ error: 'Insufficient permissions. Trade access required.' }, { status: 403 });
+    }
+
+    // Require trade/write capability to modify order
+    const canTrade = hasPermission(auth, 'trade') || hasPermission(auth, 'write');
+    if (!canTrade) {
+      return NextResponse.json({ error: 'Insufficient permissions. Trade access required.' }, { status: 403 });
+    }
+
+    // Require read or trade capability to view order
+    const canRead = hasPermission(auth, 'read') || hasPermission(auth, 'trade');
+    if (!canRead) {
+      return NextResponse.json({ error: 'Insufficient permissions. Read access required.' }, { status: 403 });
+    }
 
     if (redis) {
       const withinLimit = await checkInstitutionalRateLimit(auth.accountId, redis, 200, 60000);

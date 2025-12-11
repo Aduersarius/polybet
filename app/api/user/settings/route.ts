@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 // Default settings structure
 const defaultSettings = {
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
     try {
+        assertSameOrigin(request);
         const user = await requireAuth(request);
         const updates = await request.json();
 

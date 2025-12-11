@@ -9,6 +9,12 @@ const { PrismaClient } = require('@prisma/client');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
+const allowDangerous = process.env.ALLOW_DANGEROUS_SQL === 'true';
+if (!allowDangerous) {
+    console.error('❌ Set ALLOW_DANGEROUS_SQL=true to run this destructive cleanup. Aborting.');
+    process.exit(1);
+}
+
 const connectionString = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
 const pool = new Pool({
