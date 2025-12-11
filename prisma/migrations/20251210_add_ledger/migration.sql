@@ -21,3 +21,4 @@ CREATE TABLE IF NOT EXISTS "LedgerEntry" (
 CREATE INDEX IF NOT EXISTS "LedgerEntry_userId_idx" ON "LedgerEntry"("userId");
 CREATE INDEX IF NOT EXISTS "LedgerEntry_reference_idx" ON "LedgerEntry"("referenceType","referenceId");
 
+

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { getCryptoService } from '@/lib/crypto-service';
+import { getCryptoService } from '../lib/crypto-service';
 
 async function main() {
     console.log('🚀 Starting Deposit Monitor...');
