@@ -266,6 +266,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 { id: 'users', label: 'Users', icon: '👥' },
                                                 { id: 'statistics', label: 'Statistics', icon: '📈' },
                                                 { id: 'finance', label: 'Money', icon: '💵' },
+                                                { id: 'withdraw', label: 'Withdrawals', icon: '🏧' },
                                             ].map((item) => (
                                                 <button
                                                     key={item.id}

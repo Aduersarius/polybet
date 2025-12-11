@@ -126,8 +126,8 @@ export class CryptoService {
 
         // Process deposits sequentially to avoid database conflicts
         for (const { addr, balance } of balanceResults) {
-            // Minimum deposit amount (e.g., 1 USDC)
-            const minDeposit = ethers.parseUnits('1', 6); // USDC has 6 decimals
+            // Minimum deposit amount (e.g., 0.5 USDC)
+            const minDeposit = ethers.parseUnits('0.5', 6); // USDC has 6 decimals
 
             if (balance > minDeposit) {
                 console.log(`Found balance ${ethers.formatUnits(balance, 6)} USDC at ${addr.address}`);
@@ -308,12 +308,33 @@ export class CryptoService {
             }
         }
 
+        // Detect required ledger schema
+        const lockedColResult = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'Balance' AND column_name = 'locked'
+            ) AS "exists"
+        `;
+        const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
+
+        const ledgerTableResult = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'LedgerEntry'
+            ) AS "exists"
+        `;
+        const hasLedgerTable = Boolean(ledgerTableResult?.[0]?.exists);
+
+        if (!hasLockedColumn || !hasLedgerTable) {
+            throw new Error('Ledger schema missing: ensure Balance.locked and LedgerEntry table exist (run latest migrations).');
+        }
+
         try {
             await prisma.$transaction(async (tx) => {
                 // Lock the balance row for update
-                const balances = await tx.$queryRaw<Array<{id: string, amount: number, locked: number}>>`
-                    SELECT id, amount, locked FROM balance
-                    WHERE userId = ${userId} AND tokenSymbol = 'TUSD'
+                const balances = await tx.$queryRaw<Array<{ id: string; amount: any; locked: any }>>`
+                    SELECT "id", "amount", "locked" FROM "Balance"
+                    WHERE "userId" = ${userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
                     FOR UPDATE
                 `;
 
@@ -373,29 +394,35 @@ export class CryptoService {
             where: { id: withdrawalId },
         });
 
-        if (!withdrawal || withdrawal.status !== 'PENDING') {
+        const isRetryApproved = withdrawal?.status === 'APPROVED' && !withdrawal.txHash;
+
+        if (!withdrawal || (!isRetryApproved && withdrawal.status !== 'PENDING')) {
             const errorMsg = `Invalid withdrawal request: ${withdrawalId} - status: ${withdrawal?.status || 'not found'}`;
             console.error(`[WITHDRAWAL] ${errorMsg}`);
             throw new Error(errorMsg);
         }
 
-        // Idempotency check: ensure withdrawal hasn't been processed before
+        // Idempotency check: ensure withdrawal hasn't been processed before (txHash set)
         if (withdrawal.txHash) {
             const errorMsg = `Withdrawal already processed: ${withdrawalId}`;
             console.error(`[WITHDRAWAL] ${errorMsg}`);
             throw new Error(errorMsg);
         }
 
-        // Validate and update status to APPROVED
-        this.validateWithdrawalStatusTransition(withdrawal.status, 'APPROVED');
-        await prisma.withdrawal.update({
-            where: { id: withdrawalId },
-            data: {
-                status: 'APPROVED',
-                approvedBy: adminId,
-                approvedAt: new Date()
-            }
-        });
+        // Validate and update status to APPROVED (skip update on retry of already-approved with no txHash)
+        if (!isRetryApproved) {
+            this.validateWithdrawalStatusTransition(withdrawal.status, 'APPROVED');
+            await prisma.withdrawal.update({
+                where: { id: withdrawalId },
+                data: {
+                    status: 'APPROVED',
+                    approvedBy: adminId,
+                    approvedAt: new Date()
+                }
+            });
+        } else {
+            console.warn(`[WITHDRAWAL] Resuming previously approved withdrawal without txHash ${withdrawalId}`);
+        }
 
         // Convert USD amount to USDC (6 decimals)
         const amountUnits = ethers.parseUnits(withdrawal.amount.toFixed(6), 6);
@@ -440,9 +467,9 @@ export class CryptoService {
 
                     // Release locked funds (they were deducted from available at request time)
                     await prisma.$transaction(async (tx) => {
-                        const balances = await tx.$queryRaw<Array<{id: string, locked: number}>>`
-                            SELECT id, locked FROM balance
-                            WHERE userId = ${withdrawal.userId} AND tokenSymbol = 'TUSD'
+                        const balances = await tx.$queryRaw<Array<{ id: string; locked: any }>>`
+                            SELECT "id", "locked" FROM "Balance"
+                            WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
                             FOR UPDATE
                         `;
                         if (balances.length > 0) {
@@ -490,9 +517,9 @@ export class CryptoService {
                     });
 
                     // Refund with row-level locking
-                    const balances = await tx.$queryRaw<Array<{id: string, amount: number, locked: number}>>`
-                        SELECT id, amount, locked FROM balance
-                        WHERE userId = ${withdrawal.userId} AND tokenSymbol = 'TUSD'
+                    const balances = await tx.$queryRaw<Array<{ id: string; amount: any; locked: any }>>`
+                        SELECT "id", "amount", "locked" FROM "Balance"
+                        WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
                         FOR UPDATE
                     `;
                     if (balances.length > 0) {

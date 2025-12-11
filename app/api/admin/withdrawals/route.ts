@@ -83,9 +83,9 @@ export async function POST(req: NextRequest) {
                 if (withdrawal.txHash) throw new Error('Cannot reject a processed withdrawal');
 
                 // Lock user's base balance row
-                const balances = await tx.$queryRaw<Array<{ id: string; amount: number; locked: number }>>`
-                    SELECT id, amount, locked FROM balance
-                    WHERE userId = ${withdrawal.userId} AND tokenSymbol = 'TUSD' AND eventId IS NULL AND outcomeId IS NULL
+                const balances = await tx.$queryRaw<Array<{ id: string; amount: any; locked: any }>>`
+                    SELECT "id", "amount", "locked" FROM "Balance"
+                    WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
                     FOR UPDATE
                 `;
                 if (balances.length === 0) {
@@ -108,6 +108,37 @@ export async function POST(req: NextRequest) {
                     data: { status: 'REJECTED', approvedBy: adminId, approvedAt: new Date() }
                 });
 
+                // Write ledger entry only if the table exists
+                const ledgerTableResult = await tx.$queryRaw<Array<{ exists: boolean }>>`
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = 'LedgerEntry'
+                    ) AS "exists"
+                `;
+                if (ledgerTableResult?.[0]?.exists) {
+                // Ensure ledger schema exists
+                const [lockedColResult, ledgerTableResult] = await Promise.all([
+                    tx.$queryRaw<Array<{ exists: boolean }>>`
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_schema = 'public' AND table_name = 'Balance' AND column_name = 'locked'
+                        ) AS "exists"
+                    `,
+                    tx.$queryRaw<Array<{ exists: boolean }>>`
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.tables
+                            WHERE table_schema = 'public' AND table_name = 'LedgerEntry'
+                        ) AS "exists"
+                    `
+                ]);
+
+                const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
+                const hasLedgerTable = Boolean(ledgerTableResult?.[0]?.exists);
+
+                if (!hasLockedColumn || !hasLedgerTable) {
+                    throw new Error('Ledger schema missing: ensure Balance.locked and LedgerEntry table exist (run latest migrations).');
+                }
+
                 await tx.ledgerEntry.create({
                     data: {
                         userId: withdrawal.userId,
@@ -121,6 +152,9 @@ export async function POST(req: NextRequest) {
                         metadata: { adminId }
                     }
                 });
+                } else {
+                    console.warn('[ADMIN WITHDRAWAL] LedgerEntry table missing; skipping ledger write');
+                }
             });
             return NextResponse.json({ success: true });
         } else {

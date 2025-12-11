@@ -1,18 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
 import { AdminStatistics } from '../../components/admin/AdminStatistics';
 import { AdminFinance } from '../../components/admin/AdminFinance';
+import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 
-type AdminView = 'events' | 'users' | 'statistics' | 'finance';
+type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw';
 
 interface AdminEvent {
     id: string;
@@ -35,12 +36,22 @@ export default function AdminPage() {
 
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { data: session, isPending } = useSession();
 
     useEffect(() => {
         // Temporarily bypass authentication to show the tables
         setIsAdmin(true);
     }, []);
+
+    useEffect(() => {
+        const viewParam = (searchParams.get('view') as AdminView | null) || null;
+        const allowed: AdminView[] = ['events', 'users', 'statistics', 'finance', 'withdraw'];
+        if (viewParam && allowed.includes(viewParam)) {
+            setActiveView(viewParam);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     // Temporarily bypass session loading for testing
     // if (isPending || isAdmin === null) {
@@ -71,6 +82,7 @@ export default function AdminPage() {
         { id: 'users', label: 'Users', icon: '👥' },
         { id: 'statistics', label: 'Statistics', icon: '📈' },
         { id: 'finance', label: 'Money', icon: '💵' },
+        { id: 'withdraw', label: 'Withdrawals', icon: '🏧' },
     ];
 
     return (
@@ -78,7 +90,11 @@ export default function AdminPage() {
             <Navbar
                 isAdminPage={true}
                 activeAdminView={activeView}
-                onAdminViewChange={(view) => setActiveView(view as AdminView)}
+                onAdminViewChange={(view) => {
+                    const nextView = view as AdminView;
+                    setActiveView(nextView);
+                    router.replace(`/admin?view=${nextView}`);
+                }}
                 onCreateEvent={() => {
                     setSelectedEvent(null);
                     setIsCreateModalOpen(true);
@@ -93,6 +109,7 @@ export default function AdminPage() {
                         {activeView === 'users' && <AdminUserList />}
                         {activeView === 'statistics' && <AdminStatistics />}
                         {activeView === 'finance' && <AdminFinance />}
+                        {activeView === 'withdraw' && <AdminWithdraw />}
                     </div>
                 </div>
             </div>
