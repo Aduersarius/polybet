@@ -30,6 +30,16 @@ model User {
   email         String?           @unique
   password      String?
   settings      Json?             // User preferences (trading, notifications, display, privacy)
+  lastIp        String?
+  lastCountry   String?
+  lastUserAgent String?
+  lastDevice    String?
+  lastOs        String?
+  lastVisitedAt DateTime?
+  currentBalance  Decimal         @default(0.0)
+  totalDeposited  Decimal         @default(0.0)
+  totalWithdrawn  Decimal         @default(0.0)
+  telemetry     Json?
   marketActivity MarketActivity[]
   createdEvents Event[]
   messages      Message[]
@@ -47,6 +57,8 @@ model User {
   ledgerEntries    LedgerEntry[]
 
   @@index([address])
+  @@index([lastVisitedAt])
+  @@index([lastCountry])
 }
 
 model Event {

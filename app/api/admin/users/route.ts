@@ -46,7 +46,14 @@ export async function GET(request: NextRequest) {
             prisma.user.count({ where })
         ]);
 
-        return NextResponse.json({ users, total });
+        const serializedUsers = users.map((user) => ({
+            ...user,
+            currentBalance: Number(user.currentBalance || 0),
+            totalDeposited: Number(user.totalDeposited || 0),
+            totalWithdrawn: Number(user.totalWithdrawn || 0),
+        }));
+
+        return NextResponse.json({ users: serializedUsers, total });
     } catch (error) {
         console.error('Error fetching users:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
