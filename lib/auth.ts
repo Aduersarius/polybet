@@ -21,13 +21,15 @@ const trustedOrigins = Array.from(new Set([
 // Initialize Resend (only if API key is available)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-// Debug log (remove in production)
-console.log('Auth Config:', {
-    isProduction,
-    baseUrl,
-    hasGoogleCreds: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-    hasResend: !!process.env.RESEND_API_KEY,
-});
+// Debug log (dev only)
+if (!isProduction) {
+    console.log('Auth Config:', {
+        isProduction,
+        baseUrl,
+        hasGoogleCreds: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+        hasResend: !!process.env.RESEND_API_KEY,
+    });
+}
 
 // Email template for verification
 const LOGO_URL = 'https://jnlgh0ps99hx76my.public.blob.vercel-storage.com/diamond_logo_nobg.png';
@@ -167,7 +169,7 @@ export const auth = betterAuth({
     secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET!,
     emailAndPassword: {
         enabled: true,
-        requireEmailVerification: false, // Optional: based on requirements
+        requireEmailVerification: true,
         sendResetPassword: async ({ user, url }) => {
             if (!resend) {
                 if (isProduction) {

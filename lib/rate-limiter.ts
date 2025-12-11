@@ -5,7 +5,8 @@ export async function checkRateLimit(userId: string, limit: number = 10, windowM
         const key = `rate_limit:crypto:${userId}`;
         const count = await redis.incr(key);
 
-        if (count === null) return true; // Redis not available, allow
+        // Fail closed if Redis is unavailable
+        if (count === null || typeof count === 'undefined') return false;
 
         if (count === 1) {
             await redis.expire(key, Math.ceil(windowMs / 1000));
@@ -13,7 +14,7 @@ export async function checkRateLimit(userId: string, limit: number = 10, windowM
 
         return count <= limit;
     } catch (error) {
-        console.error('Rate limit check failed:', error);
-        return true; // Allow on error
+        console.error('Rate limit check failed, blocking by default:', error);
+        return false; // Fail closed on error
     }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAdminAuth } from '@/lib/auth';
 import { resolveMarket } from '@/lib/hybrid-trading';
 
 export const runtime = 'nodejs';
@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        // Authentication check
-        await requireAuth(request);
+        // Admin authentication check
+        await requireAdminAuth(request);
 
         const { searchParams } = new URL(request.url);
         const page = parseInt(searchParams.get('page') || '1', 10);
@@ -73,8 +73,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
     try {
-        // Authentication check
-        await requireAuth(request);
+        // Admin authentication check
+        await requireAdminAuth(request);
         const body = await request.json();
         const { eventId, action, value } = body;
 
