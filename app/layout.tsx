@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" className={outfit.variable} suppressHydrationWarning>
-            <body suppressHydrationWarning className="bg-[#0a0a0a] min-h-screen text-white">
+            <body suppressHydrationWarning className="min-h-screen text-white">
                 <Providers>
                     <PWARegister />
                     <OnboardingLauncher />
@@ -42,6 +42,7 @@ export default function RootLayout({
                         className="w-full h-full"
                         particleColor="#FFFFFF"
                     />
+                    <div className="fixed inset-0 bg-[#0a0a0a]/85 pointer-events-none z-[1]" />
                     <div className="relative z-10 min-h-screen flex flex-col">
                         {children}
                     </div>

@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
 import { AdminStatistics } from '../../components/admin/AdminStatistics';
 import { AdminFinance } from '../../components/admin/AdminFinance';
-import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
+import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 
-type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'suggested';
+type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw';
 
 interface AdminEvent {
     id: string;
@@ -26,7 +26,7 @@ interface AdminEvent {
     isHidden: boolean;
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
     const [activeView, setActiveView] = useState<AdminView>('events');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
@@ -36,12 +36,22 @@ export default function AdminPage() {
 
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { data: session, isPending } = useSession();
 
     useEffect(() => {
         // Temporarily bypass authentication to show the tables
         setIsAdmin(true);
     }, []);
+
+    useEffect(() => {
+        const viewParam = (searchParams.get('view') as AdminView | null) || null;
+        const allowed: AdminView[] = ['events', 'users', 'statistics', 'finance', 'withdraw'];
+        if (viewParam && allowed.includes(viewParam)) {
+            setActiveView(viewParam);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     // Temporarily bypass session loading for testing
     // if (isPending || isAdmin === null) {
@@ -67,12 +77,24 @@ export default function AdminPage() {
         );
     }
 
+    const menuItems = [
+        { id: 'events', label: 'Events', icon: '📊' },
+        { id: 'users', label: 'Users', icon: '👥' },
+        { id: 'statistics', label: 'Statistics', icon: '📈' },
+        { id: 'finance', label: 'Money', icon: '💵' },
+        { id: 'withdraw', label: 'Withdrawals', icon: '🏧' },
+    ];
+
     return (
         <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
             <Navbar
                 isAdminPage={true}
                 activeAdminView={activeView}
-                onAdminViewChange={(view) => setActiveView(view as AdminView)}
+                onAdminViewChange={(view) => {
+                    const nextView = view as AdminView;
+                    setActiveView(nextView);
+                    router.replace(`/admin?view=${nextView}`);
+                }}
                 onCreateEvent={() => {
                     setSelectedEvent(null);
                     setIsCreateModalOpen(true);
@@ -87,7 +109,7 @@ export default function AdminPage() {
                         {activeView === 'users' && <AdminUserList />}
                         {activeView === 'statistics' && <AdminStatistics />}
                         {activeView === 'finance' && <AdminFinance />}
-                        {activeView === 'suggested' && <AdminSuggestedEvents />}
+                        {activeView === 'withdraw' && <AdminWithdraw />}
                     </div>
                 </div>
             </div>
@@ -104,5 +126,19 @@ export default function AdminPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function AdminPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+                    <div className="text-gray-400">Loading admin...</div>
+                </div>
+            }
+        >
+            <AdminPageContent />
+        </Suspense>
     );
 }
