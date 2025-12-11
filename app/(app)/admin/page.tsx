@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
@@ -26,7 +26,7 @@ interface AdminEvent {
     isHidden: boolean;
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
     const [activeView, setActiveView] = useState<AdminView>('events');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
@@ -126,5 +126,19 @@ export default function AdminPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function AdminPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+                    <div className="text-gray-400">Loading admin...</div>
+                </div>
+            }
+        >
+            <AdminPageContent />
+        </Suspense>
     );
 }
