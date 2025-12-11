@@ -64,7 +64,7 @@
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.4.0",
     "tailwind-variants": "^3.2.2",
-    "ua-parser-js": "^1.0.39"
+    "ua-parser-js": "^1.0.41"
   },
   "devDependencies": {
     "@types/geoip-lite": "^1.4.4",

@@ -111,19 +111,19 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
             {/* Extended background for navbar overscroll */}
             <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/50 backdrop-blur-md pointer-events-none -z-10" />
 
-            <nav className="border-b border-white/10 bg-black/70 backdrop-blur-md sticky top-0 z-50" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.5)' }}>
-                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+            <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.5)' }}>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-16 gap-3">
                         {/* Logo */}
-                        <Link href="/" className="flex items-center gap-1 group">
-                            <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-10 w-auto object-contain group-hover:scale-105 transition-transform" />
-                            <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-blue-500 bg-clip-text text-transparent group-hover:from-blue-300 group-hover:via-purple-300 group-hover:to-blue-400 transition-all">
+                        <Link href="/" className="flex items-center gap-2 group">
+                            <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-9 w-auto object-contain group-hover:scale-105 transition-transform" />
+                            <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-blue-500 bg-clip-text text-transparent group-hover:from-blue-300 group-hover:via-purple-300 group-hover:to-blue-400 transition-all">
                                 PolyBet
                             </span>
                         </Link>
 
                         {/* Search */}
-                        <div className="flex-1 ml-2 mr-2 hidden md:block">
+                        <div className="flex-1 ml-4 sm:ml-6 lg:ml-10 mr-4 hidden md:block">
                             <SearchBar onSearch={handleSearch} />
                         </div>
 
@@ -144,7 +144,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <>
                                     <button
                                         onClick={() => setShowDepositModal(true)}
-                                        className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
+                                        className="hidden md:inline-flex items-center gap-2 h-10 px-3 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
                                     >
                                         <Wallet className="w-4 h-4" />
                                         Deposit
@@ -152,7 +152,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     <PositionsDropdown />
                                 </>
                             )}
-                            <NotificationBell />
+                            {session && <NotificationBell />}
 
 
                             {/* Authentication */}
@@ -213,13 +213,13 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setShowLoginModal(true)}
-                                        className="px-3 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-sm transition-colors"
+                                        className="inline-flex h-10 items-center justify-center rounded-md bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-sm font-semibold px-4 transition-colors"
                                     >
                                         Login
                                     </button>
                                     <button
                                         onClick={() => setShowSignupModal(true)}
-                                        className="px-3 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm transition-colors"
+                                        className="inline-flex h-10 items-center justify-center rounded-md bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm font-semibold px-4 transition-colors"
                                     >
                                         Sign Up
                                     </button>

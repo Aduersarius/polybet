@@ -4,7 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { SparklesCore as Sparks } from "../components/ui/sparkles";
 import { Toaster } from "@/components/ui/toaster";
-import { PWARegister } from "./components/PWARegister";
+import { DevSwCleanup } from "./components/DevSwCleanup";
 import { OnboardingLauncher } from "./components/OnboardingLauncher";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -31,7 +31,7 @@ export default function RootLayout({
         <html lang="en" className={outfit.variable} suppressHydrationWarning>
             <body suppressHydrationWarning className="min-h-screen text-white">
                 <Providers>
-                    <PWARegister />
+                    <DevSwCleanup />
                     <OnboardingLauncher />
                     <Sparks
                         id="tsparticlesfullpage"

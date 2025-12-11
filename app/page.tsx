@@ -1,1 +1,5 @@
-export { default } from "./(app)/page";
+import HomePage from "./(app)/page";
+
+export default function Page() {
+  return <HomePage />;
+}
