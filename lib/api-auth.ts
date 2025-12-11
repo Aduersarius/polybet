@@ -109,14 +109,18 @@ export async function checkInstitutionalRateLimit(
     const key = `rate_limit:institutional:${accountId}`;
     const count = await redis.incr(key);
 
+    if (count === null || typeof count === 'undefined') {
+      return false; // Fail closed if Redis unavailable
+    }
+
     if (count === 1) {
       await redis.expire(key, Math.ceil(windowMs / 1000));
     }
 
     return count <= limit;
   } catch (error) {
-    console.error('Institutional rate limit check failed:', error);
-    return true; // Allow on error
+    console.error('Institutional rate limit check failed, blocking by default:', error);
+    return false; // Fail closed on error
   }
 }
 

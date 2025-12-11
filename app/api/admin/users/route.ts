@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAdminAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        // Authentication check
-        await requireAuth(request);
+        // Admin authentication check
+        await requireAdminAuth(request);
 
         const { searchParams } = new URL(request.url);
         const page = parseInt(searchParams.get('page') || '1');
@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        // Authentication check
-        await requireAuth(request);
+        // Admin authentication check
+        await requireAdminAuth(request);
         const body = await request.json();
         const { targetUserId, action } = body;
 
@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
     try {
-        // Authentication check
-        await requireAuth(request);
+        // Admin authentication check
+        await requireAdminAuth(request);
         const body = await request.json();
         const { targetUserId } = body;
 
