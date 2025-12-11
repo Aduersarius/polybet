@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './lib/prisma';
 
 // Image generation prompts for each event
@@ -63,11 +64,13 @@ async function main() {
     console.log('To generate images, use the following prompts with an image generation tool:');
     console.log('');
 
-    const events = await prisma.event.findMany({
-        select: {
-            id: true,
-            title: true,
-        },
+    const eventSelect = {
+        id: true,
+        title: true,
+    } as const;
+
+    const events: Prisma.EventGetPayload<{ select: typeof eventSelect }>[] = await prisma.event.findMany({
+        select: eventSelect,
         orderBy: {
             createdAt: 'asc',
         },

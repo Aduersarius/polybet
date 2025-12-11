@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
@@ -50,20 +51,22 @@ export async function GET(
         const userId = user.id;
 
         // Get all market activities (bets and trades) for this user
-        const allActivities = await prisma.marketActivity.findMany({
+        const activityInclude = {
+            event: {
+                select: {
+                    status: true,
+                    result: true,
+                    type: true
+                }
+            }
+        } as const;
+
+        const allActivities: Prisma.MarketActivityGetPayload<{ include: typeof activityInclude }>[] = await prisma.marketActivity.findMany({
             where: {
                 userId,
                 type: { in: ['BET', 'TRADE'] }
             },
-            include: {
-                event: {
-                    select: {
-                        status: true,
-                        result: true,
-                        type: true
-                    }
-                }
-            }
+            include: activityInclude
         });
 
         // Calculate volume (total amount spent on bets/trades)
@@ -104,41 +107,56 @@ export async function GET(
 
         // Calculate positions value (current value of open positions)
         // Get user's balances for outcome tokens with event details
-        const positionBalances = await prisma.balance.findMany({
+        const positionBalanceSelect = {
+            eventId: true,
+            outcomeId: true,
+            tokenSymbol: true,
+            amount: true
+        } as const;
+
+        const positionBalances: Prisma.BalanceGetPayload<{ select: typeof positionBalanceSelect }>[] = await prisma.balance.findMany({
             where: {
                 userId,
                 eventId: { not: null },
                 amount: { gt: 0 }
-            }
+            },
+            select: positionBalanceSelect
         });
 
         // Get all unique event IDs
         const eventIds = [...new Set(positionBalances.map(b => b.eventId).filter(Boolean))] as string[];
 
         // Fetch all events and outcomes in bulk
-        const [events, outcomes] = await Promise.all([
+        const eventSelect = {
+            id: true,
+            type: true,
+            qYes: true,
+            qNo: true,
+            liquidityParameter: true
+        } as const;
+
+        const outcomeSelect = {
+            id: true,
+            eventId: true,
+            probability: true
+        } as const;
+
+        const [events, outcomes]: [
+            Prisma.EventGetPayload<{ select: typeof eventSelect }>[],
+            Prisma.OutcomeGetPayload<{ select: typeof outcomeSelect }>[]
+        ] = await Promise.all([
             prisma.event.findMany({
                 where: {
                     id: { in: eventIds },
                     status: 'ACTIVE'
                 },
-                select: {
-                    id: true,
-                    type: true,
-                    qYes: true,
-                    qNo: true,
-                    liquidityParameter: true
-                }
+                select: eventSelect
             }),
             prisma.outcome.findMany({
                 where: {
                     eventId: { in: eventIds }
                 },
-                select: {
-                    id: true,
-                    eventId: true,
-                    probability: true
-                }
+                select: outcomeSelect
             })
         ]);
 

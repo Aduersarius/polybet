@@ -6,6 +6,79 @@ const globalForRedis = global as unknown as { redis: Redis | null };
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
+function ensureSecureRedisConfig() {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    if (!process.env.REDIS_URL) {
+        throw new Error('REDIS_URL is required in production');
+    }
+
+    const url = process.env.REDIS_URL;
+    const isLocalDefault = url.startsWith('redis://localhost') || url.startsWith('redis://127.0.0.1');
+    const hasAuth = url.includes('@');
+    const usesTls = url.startsWith('rediss://');
+
+    if (isLocalDefault) {
+        throw new Error('REDIS_URL must not point to localhost in production');
+    }
+    if (!hasAuth) {
+        throw new Error('REDIS_URL must include authentication credentials in production');
+    }
+    if (!usesTls) {
+        throw new Error('REDIS_URL must use TLS (rediss://) in production');
+    }
+}
+
+const NO_OP_METHODS = new Set([
+    'get',
+    'set',
+    'setex',
+    'del',
+    'keys',
+    'publish',
+    'subscribe',
+    'on',
+    'incr',
+    'decr',
+    'expire',
+    'dbsize',
+    'info',
+    'flushdb',
+    'lpush',
+    'ltrim',
+    'zadd',
+    'zremrangebyscore',
+    'zrangebyscore',
+    'lrange',
+]);
+
+function createNoOpMethod() {
+    return async (...args: any[]) => {
+        const callback = args.find((arg) => typeof arg === 'function');
+        if (callback) {
+            try {
+                callback(null, 0);
+            } catch {
+                // Swallow callback errors in no-op mode
+            }
+        }
+        return null;
+    };
+}
+
+function createNoOpPipeline() {
+    const pipeline = {
+        del: () => pipeline,
+        setex: () => pipeline,
+        set: () => pipeline,
+        expire: () => pipeline,
+        incr: () => pipeline,
+        decr: () => pipeline,
+        exec: async () => [],
+    } as any;
+    return pipeline;
+}
+
 // Lazy initialization - only connect when actually used (not during build)
 let redisInstance: Redis | null = null;
 let connectionAttempted = false;
@@ -15,6 +88,8 @@ function getRedisInstance(): Redis | null {
     if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
         return null;
     }
+
+    ensureSecureRedisConfig();
 
     // Return existing instance
     if (redisInstance) {
@@ -84,8 +159,11 @@ export const redis = new Proxy({} as Redis, {
         const instance = getRedisInstance();
         if (!instance) {
             // Return no-op functions for common Redis methods
-            if (typeof prop === 'string' && ['get', 'set', 'setex', 'del', 'keys', 'publish', 'subscribe', 'on'].includes(prop)) {
-                return async (...args: any[]) => null;
+            if (prop === 'pipeline') {
+                return () => createNoOpPipeline();
+            }
+            if (typeof prop === 'string' && NO_OP_METHODS.has(prop)) {
+                return createNoOpMethod();
             }
             return undefined;
         }

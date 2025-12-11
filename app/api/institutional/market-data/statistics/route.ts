@@ -184,7 +184,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate VWAP and volatility
-    const vwap = calculateVWAP(marketActivities.filter(a => a.price !== null).map(a => ({ price: a.price!, amount: a.amount })));
+    const vwap = calculateVWAP(
+        marketActivities
+            .filter((a: (typeof marketActivities)[number]) => a.price !== null)
+            .map((a: (typeof marketActivities)[number]) => ({ price: a.price!, amount: a.amount }))
+    );
     const volatility = calculateStandardDeviation(prices);
 
     // Get available liquidity from order book

@@ -121,12 +121,14 @@ export async function POST(request: Request) {
             if (updatedEvent) {
                 if (updatedEvent.type === 'MULTIPLE') {
                     // Send updated probabilities for ALL outcomes
-                    updatePayload.outcomes = updatedEvent.outcomes.map(outcome => ({
-                        id: outcome.id,
-                        name: outcome.name,
-                        probability: outcome.probability || 0, // This is now fresh from DB
-                        color: outcome.color
-                    }));
+                    updatePayload.outcomes = updatedEvent.outcomes.map(
+                        (outcome: (typeof updatedEvent.outcomes)[number]) => ({
+                            id: outcome.id,
+                            name: outcome.name,
+                            probability: outcome.probability || 0, // This is now fresh from DB
+                            color: outcome.color
+                        })
+                    );
                 } else {
                     // Binary update logic
                     const b = updatedEvent.liquidityParameter || 1000;
@@ -184,6 +186,12 @@ export async function POST(request: Request) {
     } catch (error) {
         const errorTime = Date.now() - startTime;
         console.error(`❌ Hybrid trading failed after ${errorTime}ms:`, error);
+
+        if (error instanceof Error && error.message === 'BALANCE_SCHEMA_MISMATCH') {
+            return NextResponse.json({
+                error: 'Trading temporarily unavailable: balance schema mismatch. Run latest migrations for Balance table.',
+            }, { status: 503 });
+        }
 
         return NextResponse.json({
             error: 'Hybrid trading failed',

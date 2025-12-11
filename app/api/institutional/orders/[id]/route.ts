@@ -91,9 +91,15 @@ export async function GET(
 
     // Calculate execution summary
     const executions = order.executions;
-    const totalExecuted = executions.reduce((sum, exec) => sum + exec.amount, 0);
+    const totalExecuted = executions.reduce(
+        (sum: number, exec: (typeof executions)[number]) => sum + exec.amount,
+        0
+    );
     const avgExecutionPrice = executions.length > 0
-      ? executions.reduce((sum, exec) => sum + (exec.amount * exec.price), 0) / totalExecuted
+      ? executions.reduce(
+          (sum: number, exec: (typeof executions)[number]) => sum + (exec.amount * exec.price),
+          0
+        ) / totalExecuted
       : 0;
 
     return NextResponse.json({

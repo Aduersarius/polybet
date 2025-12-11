@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
             prisma.user.count({ where })
         ]);
 
-        const serializedUsers = users.map((user) => ({
+        const serializedUsers = users.map((user: (typeof users)[number]) => ({
             ...user,
             currentBalance: Number(user.currentBalance || 0),
             totalDeposited: Number(user.totalDeposited || 0),

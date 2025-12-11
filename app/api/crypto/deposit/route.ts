@@ -15,9 +15,14 @@ export async function GET(req: NextRequest) {
 
         const userId = session.user.id;
 
-        const rateLimitOk = await checkRateLimit(userId);
-        if (!rateLimitOk) {
-            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+        const rateLimit = await checkRateLimit(userId, ip);
+        if (!rateLimit.allowed) {
+            const status = rateLimit.reason === 'UNAVAILABLE' ? 503 : 429;
+            const message = rateLimit.reason === 'UNAVAILABLE'
+                ? 'Rate limiting unavailable; please retry later'
+                : 'Rate limit exceeded';
+            return NextResponse.json({ error: message }, { status });
         }
 
         try {

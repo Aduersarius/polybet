@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { requireAdminAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const maxDuration = 10; // 10s timeout
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
     try {
+        if (process.env.NODE_ENV === 'production') {
+            return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        }
+
+        assertSameOrigin(req);
+        await requireAdminAuth(req);
+
         const body = await req.json();
         const { eventId, price, timestamp } = body;
 

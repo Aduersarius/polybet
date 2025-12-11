@@ -8,6 +8,22 @@ export async function POST(request: NextRequest) {
     try {
         assertSameOrigin(request);
         const user = await requireAuth(request);
+        const { totpCode } = await request.json().catch(() => ({}));
+
+        // Require TOTP confirmation when 2FA is enabled
+        if (user.twoFactorEnabled) {
+            const twoFactor = await prisma.twoFactor.findUnique({
+                where: { userId: user.id },
+                select: { secret: true },
+            });
+            if (!twoFactor?.secret || !totpCode || typeof totpCode !== 'string') {
+                return NextResponse.json({ error: 'TOTP code required to delete account' }, { status: 401 });
+            }
+            const { verifyTotpCode } = await import('@/lib/totp');
+            if (!verifyTotpCode(totpCode, twoFactor.secret)) {
+                return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
+            }
+        }
 
         // Soft delete by setting isDeleted flag
         await prisma.user.update({

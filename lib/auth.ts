@@ -4,6 +4,7 @@ import { prisma } from "./prisma";
 import { twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
 import { updateUserTelemetry } from "./user-telemetry";
+import { rateLimit } from "./rate-limit";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl =
@@ -20,11 +21,21 @@ const devTrustedOrigins = [
     'http://127.0.0.1:3000',
 ];
 
-export const trustedOrigins = Array.from(new Set([
-    ...baseTrustedOrigins,
-    ...(isProduction ? [] : devTrustedOrigins),
-    baseUrl,
-]));
+export const trustedOrigins = (() => {
+    const origins = new Set<string>(baseTrustedOrigins);
+    const isHttps = baseUrl.startsWith('https://');
+
+    if (!isProduction) {
+        devTrustedOrigins.forEach((o) => origins.add(o));
+    }
+
+    // Only trust baseUrl in production if it's HTTPS to avoid downgrades via env misconfig
+    if (!isProduction || isHttps) {
+        origins.add(baseUrl);
+    }
+
+    return Array.from(origins);
+})();
 
 // Initialize Resend (only if API key is available)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -179,6 +190,12 @@ export const auth = betterAuth({
         enabled: true,
         requireEmailVerification: true,
         sendResetPassword: async ({ user, url }) => {
+            const rateKey = user.id ? `rl:reset:${user.id}` : `rl:reset:${user.email}`;
+            const { allowed } = await rateLimit(rateKey, 3, 900); // 3 requests per 15 minutes
+            if (!allowed) {
+                throw new Error('Too many password reset requests. Please wait before trying again.');
+            }
+
             if (!resend) {
                 if (isProduction) {
                     throw new Error('Password reset email service is not configured');
@@ -264,6 +281,17 @@ export async function requireAuth(request: Request) {
         });
     }
     const user = session.user;
+    // Enforce ban/deletion checks using authoritative DB state
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { isBanned: true, isDeleted: true },
+    });
+    if (!dbUser || dbUser.isBanned || dbUser.isDeleted) {
+        throw new Response(JSON.stringify({ error: 'Account is disabled' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
     updateUserTelemetry(user.id, request.headers).catch((err) =>
         console.error('[telemetry] update failed (non-blocking)', err)
     );

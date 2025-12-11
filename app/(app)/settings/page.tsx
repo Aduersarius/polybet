@@ -902,7 +902,13 @@ export default function SettingsPage() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            await twoFactor.verifyTotp(totpCode);
+                                            const result = await twoFactor.verifyTotp(totpCode);
+
+                                            if (result?.error) {
+                                                toast({ title: result.error.message || 'Invalid code', variant: 'destructive' });
+                                                return;
+                                            }
+
                                             toast({ title: '2FA enabled successfully!', variant: 'success' });
                                             setIs2FAEnabled(true);
                                             setShow2FASetup(false);

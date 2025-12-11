@@ -12,8 +12,20 @@ export async function GET(request: NextRequest) {
             where: { userId: user.id }
         });
 
+        // Use the authoritative flag set during successful verification
+        let enabled = !!user.twoFactorEnabled;
+
+        // If flag is true but the TwoFactor record was removed, fix the drift
+        if (enabled && !twoFactor) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { twoFactorEnabled: false },
+            });
+            enabled = false;
+        }
+
         return NextResponse.json({
-            enabled: !!twoFactor,
+            enabled,
         });
     } catch (error) {
         if (error instanceof Response) {

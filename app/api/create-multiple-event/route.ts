@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdminAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export async function POST(request: Request) {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    assertSameOrigin(request);
+    await requireAdminAuth(request);
+
     const body = await request.json();
     const { eventType = 'tech-trillion-race' } = body;
 
