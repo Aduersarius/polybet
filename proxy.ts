@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-const publicPaths = ['/auth/login', '/auth/register', '/api/auth'];
-const authPaths = ['/auth/login', '/auth/register'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname, origin } = request.nextUrl;
 
-    // Define paths that REQUIRE authentication
+    // Paths requiring authentication
     const protectedPaths = ['/settings', '/profile', '/admin'];
 
-    // Redirect legacy auth pages to home with modal param
+    // Redirect legacy auth pages to modal flow
     if (pathname === '/auth/login') {
         const url = new URL('/', request.url);
         url.searchParams.set('auth', 'login');
@@ -21,7 +19,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
-    // Check if the current path is protected
+    // Enforce auth on protected paths
     const isProtected = protectedPaths.some(path => pathname.startsWith(path));
 
     if (isProtected) {
@@ -34,7 +32,7 @@ export async function middleware(request: NextRequest) {
             });
             session = await response.json();
         } catch (e) {
-            console.error('Middleware session check failed', e);
+            console.error('proxy session check failed', e);
         }
 
         if (!session) {

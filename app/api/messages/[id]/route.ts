@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,7 @@ export async function PATCH(
 ) {
     try {
         // Authentication check
+        assertSameOrigin(request);
         const user = await requireAuth(request);
 
         const { id } = await params;
@@ -69,6 +71,7 @@ export async function DELETE(
 ) {
     try {
         // Authentication check
+        assertSameOrigin(request);
         const user = await requireAuth(request);
 
         const { id } = await params;

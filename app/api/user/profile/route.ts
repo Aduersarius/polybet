@@ -2,9 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export async function PATCH(request: NextRequest) {
     try {
+        assertSameOrigin(request);
         const user = await requireAuth(request);
         const body = await request.json();
         const { name, image } = body;

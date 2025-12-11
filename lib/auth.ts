@@ -10,11 +10,19 @@ const baseUrl =
     process.env.BETTER_AUTH_URL
     || (isProduction ? 'https://polybet.ru' : 'http://localhost:3000');
 
-const trustedOrigins = Array.from(new Set([
+const baseTrustedOrigins = [
     'https://polybet.ru',
     'https://www.polybet.ru',
+];
+
+const devTrustedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+];
+
+export const trustedOrigins = Array.from(new Set([
+    ...baseTrustedOrigins,
+    ...(isProduction ? [] : devTrustedOrigins),
     baseUrl,
 ]));
 

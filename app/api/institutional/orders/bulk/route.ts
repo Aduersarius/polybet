@@ -4,7 +4,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireApiKeyAuth, checkInstitutionalRateLimit, checkVolumeLimit } from '@/lib/api-auth';
+import { requireApiKeyAuth, checkInstitutionalRateLimit, checkVolumeLimit, hasPermission } from '@/lib/api-auth';
 import { placeHybridOrder } from '@/lib/hybrid-trading';
 import { redis } from '@/lib/redis';
 
@@ -33,6 +33,12 @@ export async function POST(request: NextRequest) {
   try {
     // Authenticate API key
     const auth = await requireApiKeyAuth(request);
+
+    // Require trade/write capability
+    const canTrade = hasPermission(auth, 'trade') || hasPermission(auth, 'write');
+    if (!canTrade) {
+      return NextResponse.json({ error: 'Insufficient permissions. Trade access required.' }, { status: 403 });
+    }
 
     // Check rate limit
     if (redis) {

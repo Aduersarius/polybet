@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireApiKeyAuth, checkInstitutionalRateLimit } from '@/lib/api-auth';
+import { requireApiKeyAuth, checkInstitutionalRateLimit, hasPermission } from '@/lib/api-auth';
 import { redis } from '@/lib/redis';
 
 export async function GET(
@@ -13,6 +13,12 @@ export async function GET(
   try {
     const { id } = await context.params;
     const auth = await requireApiKeyAuth(request);
+
+    // Require read or trade capability
+    const canRead = hasPermission(auth, 'read') || hasPermission(auth, 'trade');
+    if (!canRead) {
+      return NextResponse.json({ error: 'Insufficient permissions. Read access required.' }, { status: 403 });
+    }
 
     if (redis) {
       const withinLimit = await checkInstitutionalRateLimit(auth.accountId, redis, 100, 60000);
