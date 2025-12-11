@@ -8,11 +8,9 @@ import { redis } from '@/lib/redis';
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
-
     const auth = await requireApiKeyAuth(request);
 
     if (redis) {
@@ -29,7 +27,7 @@ export async function GET(
     // Verify order belongs to user
     const order = await prisma.order.findFirst({
       where: {
-        id,
+        id: params.id,
         userId: auth.userId,
       },
       select: {
@@ -61,7 +59,7 @@ export async function GET(
     // Get executions
     const executions = await prisma.orderExecution.findMany({
       where: {
-        orderId: id,
+        orderId: params.id,
       },
       orderBy: {
         executedAt: 'desc',
@@ -79,7 +77,7 @@ export async function GET(
 
     // Get total count for pagination
     const totalCount = await prisma.orderExecution.count({
-      where: { orderId: id },
+      where: { orderId: params.id },
     });
 
     return NextResponse.json({

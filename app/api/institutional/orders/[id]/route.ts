@@ -20,10 +20,9 @@ interface ModifyOrderRequest {
 // GET /api/institutional/orders/[id] - Get specific order details
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
     const auth = await requireApiKeyAuth(request);
 
     if (redis) {
@@ -35,7 +34,7 @@ export async function GET(
 
     const order = await prisma.order.findFirst({
       where: {
-        id,
+        id: params.id,
         userId: auth.userId,
       },
       include: {
@@ -143,10 +142,9 @@ export async function GET(
 // PUT /api/institutional/orders/[id] - Modify order (limited support)
 export async function PUT(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
     const auth = await requireApiKeyAuth(request);
 
     if (redis) {
@@ -161,7 +159,7 @@ export async function PUT(
     // Get current order
     const currentOrder = await prisma.order.findFirst({
       where: {
-        id,
+        id: params.id,
         userId: auth.userId,
       },
     });
@@ -202,7 +200,7 @@ export async function PUT(
     // Advanced order fields modification not implemented yet
 
     const updatedOrder = await prisma.order.update({
-      where: { id },
+      where: { id: params.id },
       data: updateData,
       include: {
         event: {
@@ -240,10 +238,9 @@ export async function PUT(
 // DELETE /api/institutional/orders/[id] - Cancel order
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
     const auth = await requireApiKeyAuth(request);
 
     if (redis) {
@@ -256,7 +253,7 @@ export async function DELETE(
     // Get current order
     const currentOrder = await prisma.order.findFirst({
       where: {
-        id,
+        id: params.id,
         userId: auth.userId,
       },
     });
@@ -274,7 +271,7 @@ export async function DELETE(
 
     // Update order status to cancelled
     const cancelledOrder = await prisma.order.update({
-      where: { id },
+      where: { id: params.id },
       data: {
         status: 'cancelled',
         updatedAt: new Date(),
