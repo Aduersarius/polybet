@@ -195,28 +195,25 @@ export async function GET(request: NextRequest) {
     }
 
     // Convert to OHLC bars
-    const rawBars = Array.from(barsMap.entries())
-      .map(([timestampStr, bar]) => {
-        if (bar.prices.length === 0) return null;
+    const bars: OHLCBar[] = Array.from(barsMap.entries()).reduce<OHLCBar[]>((acc, [timestampStr, bar]) => {
+      if (bar.prices.length === 0) return acc;
 
-        return {
-          eventId,
-          outcomeId: outcomeId || undefined,
-          option: option as 'YES' | 'NO' | undefined,
-          timestamp: timestampStr,
-          interval,
-          open: bar.prices[0],
-          high: Math.max(...bar.prices),
-          low: Math.min(...bar.prices),
-          close: bar.prices[bar.prices.length - 1],
-          volume: bar.volume,
-          trades: bar.trades,
-        };
-      })
-      .filter((bar): bar is OHLCBar => bar !== null);
+      acc.push({
+        eventId,
+        outcomeId: outcomeId || undefined,
+        option: option as 'YES' | 'NO' | undefined,
+        timestamp: timestampStr,
+        interval,
+        open: bar.prices[0],
+        high: Math.max(...bar.prices),
+        low: Math.min(...bar.prices),
+        close: bar.prices[bar.prices.length - 1],
+        volume: bar.volume,
+        trades: bar.trades,
+      });
 
-    // Sort by timestamp ascending and take most recent bars
-    const bars: OHLCBar[] = rawBars
+      return acc;
+    }, [])
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       .slice(-limit);
 

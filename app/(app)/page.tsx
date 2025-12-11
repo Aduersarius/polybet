@@ -194,6 +194,7 @@ export default function Home() {
     };
   }, [selectedCategory, searchQuery, events]);
 
+
   const getTimeRemaining = (endDate: Date) => {
     const now = new Date();
     const diff = endDate.getTime() - now.getTime();

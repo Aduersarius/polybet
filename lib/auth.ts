@@ -6,9 +6,17 @@ import { Resend } from "resend";
 import { updateUserTelemetry } from "./user-telemetry";
 
 const isProduction = process.env.NODE_ENV === 'production';
-const baseUrl = isProduction
-    ? 'https://polybet.ru'
-    : process.env.BETTER_AUTH_URL || 'http://localhost:3000';
+const baseUrl =
+    process.env.BETTER_AUTH_URL
+    || (isProduction ? 'https://polybet.ru' : 'http://localhost:3000');
+
+const trustedOrigins = Array.from(new Set([
+    'https://polybet.ru',
+    'https://www.polybet.ru',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    baseUrl,
+]));
 
 // Initialize Resend (only if API key is available)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -155,10 +163,7 @@ export const auth = betterAuth({
         provider: "postgresql",
     }),
     baseURL: baseUrl,
-    trustedOrigins: [
-        'https://polybet.ru',
-        'https://www.polybet.ru',
-    ],
+    trustedOrigins,
     secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET!,
     emailAndPassword: {
         enabled: true,
