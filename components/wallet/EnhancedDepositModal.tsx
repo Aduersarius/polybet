@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Zap, CreditCard, Building2, Repeat, Wallet as WalletIcon, ChevronDown, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -24,9 +24,21 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [selectedNetwork, setSelectedNetwork] = useState<CryptoNetwork>('polygon-usdc');
     const [depositAddress, setDepositAddress] = useState<string>('');
+    const [balance, setBalance] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
+
+    const fetchBalance = async () => {
+        try {
+            const res = await fetch('/api/balance');
+            if (!res.ok) return;
+            const data = await res.json();
+            setBalance(Number(data.balance ?? 0));
+        } catch (err) {
+            console.error('Failed to fetch balance', err);
+        }
+    };
 
     // Fetch deposit address when crypto is selected
     const fetchDepositAddress = async () => {
@@ -61,6 +73,13 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
         setTimeout(() => setCopied(false), 2000);
     };
 
+    useEffect(() => {
+        if (isOpen) {
+            fetchBalance();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const selectedNetworkData = cryptoNetworks.find(n => n.id === selectedNetwork);
@@ -72,7 +91,9 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h2 className="text-xl font-semibold text-white">Deposit</h2>
-                        <p className="text-sm text-zinc-400">PolyBet Balance: $0.00</p>
+                        <p className="text-sm text-zinc-400">
+                            PolyBet Balance: {balance !== null ? `$${balance.toFixed(2)}` : '—'}
+                        </p>
                     </div>
                     <button
                         onClick={onClose}

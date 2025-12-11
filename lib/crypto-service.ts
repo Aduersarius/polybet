@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { prisma } from '@/lib/prisma';
+import { randomUUID } from 'crypto';
 
 // Polygon RPC (e.g., https://polygon-rpc.com or Alchemy/Infura)
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL || 'https://polygon-rpc.com';
@@ -29,19 +30,28 @@ export class CryptoService {
         referenceId?: string,
         metadata?: any
     }) {
-        await tx.ledgerEntry.create({
-            data: {
-                userId: params.userId,
-                direction: params.direction,
-                amount: params.amount,
-                currency: params.currency,
-                balanceBefore: params.balanceBefore,
-                balanceAfter: params.balanceAfter,
-                referenceType: params.referenceType,
-                referenceId: params.referenceId,
-                metadata: params.metadata ?? {}
+        try {
+            await tx.ledgerEntry.create({
+                data: {
+                    userId: params.userId,
+                    direction: params.direction,
+                    amount: params.amount,
+                    currency: params.currency,
+                    balanceBefore: params.balanceBefore,
+                    balanceAfter: params.balanceAfter,
+                    referenceType: params.referenceType,
+                    referenceId: params.referenceId,
+                    metadata: params.metadata ?? {}
+                }
+            });
+        } catch (e: any) {
+            // If LedgerEntry table is missing (older schema), skip ledger write but do not fail the deposit.
+            if (e?.code === 'P2021') {
+                console.warn('[LEDGER] LedgerEntry table missing, skipping ledger entry');
+                return;
             }
-        });
+            throw e;
+        }
     }
 
     private validateWithdrawalStatusTransition(currentStatus: string, newStatus: string) {
@@ -225,32 +235,64 @@ export class CryptoService {
                     });
 
                     // Update User Balance with row-level locking
-                    const balances = await txPrisma.$queryRaw<Array<{id: string, amount: number, locked: number}>>`
-                        SELECT id, amount, locked FROM balance
-                        WHERE userId = ${addr.userId} AND tokenSymbol = 'TUSD' AND eventId IS NULL AND outcomeId IS NULL
-                        FOR UPDATE
+                    // Some databases might not have the "locked" column (older schema).
+                    const lockedColResult = await txPrisma.$queryRaw<Array<{ exists: boolean }>>`
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_schema = 'public' AND table_name = 'Balance' AND column_name = 'locked'
+                        ) AS "exists"
                     `;
+                    const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
+
+                    const balances = hasLockedColumn
+                        ? await txPrisma.$queryRaw<Array<{id: string, amount: any, locked: any}>>`
+                            SELECT "id", "amount", "locked" FROM "Balance"
+                            WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
+                            FOR UPDATE
+                        `
+                        : await txPrisma.$queryRaw<Array<{id: string, amount: any}>>`
+                            SELECT "id", "amount" FROM "Balance"
+                            WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
+                            FOR UPDATE
+                        `;
 
                     let balanceId: string;
                     let before = 0;
                     if (balances.length > 0) {
                         balanceId = balances[0].id;
-                        before = Number(balances[0].amount);
-                        await txPrisma.balance.update({
-                            where: { id: balanceId },
-                            data: { amount: { increment: usdAmount } }
-                        });
+                        before = Number((balances[0] as any).amount);
+
+                        if (hasLockedColumn) {
+                            await txPrisma.balance.update({
+                                where: { id: balanceId },
+                                data: { amount: { increment: usdAmount } }
+                            });
+                        } else {
+                            await txPrisma.$executeRaw`
+                                UPDATE "Balance"
+                                SET "amount" = "amount" + ${usdAmount}, "updatedAt" = NOW()
+                                WHERE "id" = ${balanceId}
+                            `;
+                        }
                     } else {
-                        const created = await txPrisma.balance.create({
-                            data: {
-                                userId: addr.userId,
-                                tokenSymbol: 'TUSD',
-                                amount: usdAmount,
-                                locked: 0
-                            }
-                        });
-                        balanceId = created.id;
                         before = 0;
+                        if (hasLockedColumn) {
+                            const created = await txPrisma.balance.create({
+                                data: {
+                                    userId: addr.userId,
+                                    tokenSymbol: 'TUSD',
+                                    amount: usdAmount,
+                                    locked: 0
+                                }
+                            });
+                            balanceId = created.id;
+                        } else {
+                            balanceId = randomUUID();
+                            await txPrisma.$executeRaw`
+                                INSERT INTO "Balance" ("id", "userId", "tokenSymbol", "eventId", "outcomeId", "amount", "updatedAt")
+                                VALUES (${balanceId}, ${addr.userId}, 'TUSD', NULL, NULL, ${usdAmount}, NOW())
+                            `;
+                        }
                     }
 
                     const after = before + usdAmount;

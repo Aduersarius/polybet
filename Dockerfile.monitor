@@ -1,0 +1,25 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install system deps needed by Prisma
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Copy manifests first
+COPY package*.json ./
+
+# Install deps (including dev for tsx) but skip postinstall scripts for now.
+# Do NOT omit optional deps because esbuild needs its platform binary.
+RUN npm install --include=dev --ignore-scripts
+
+# Copy the rest of the source (including prisma/schema.prisma)
+COPY . .
+
+# Ensure esbuild native binary is installed for this platform
+RUN npm rebuild esbuild
+
+# Generate Prisma client now that schema is present
+RUN npx prisma generate
+
+# Run the deposit monitor
+CMD ["npx","tsx","-r","tsconfig-paths/register","-r","dotenv/config","scripts/monitor-deposits.ts"]
