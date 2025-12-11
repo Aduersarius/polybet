@@ -8,12 +8,13 @@ import { AdminUserList } from '../../components/admin/AdminUserList';
 import { AdminStatistics } from '../../components/admin/AdminStatistics';
 import { AdminFinance } from '../../components/admin/AdminFinance';
 import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
+import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 
-type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw';
+type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
 
 interface AdminEvent {
     id: string;
@@ -46,7 +47,7 @@ function AdminPageContent() {
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
-        const allowed: AdminView[] = ['events', 'users', 'statistics', 'finance', 'withdraw'];
+        const allowed: AdminView[] = ['events', 'users', 'statistics', 'finance', 'withdraw', 'suggested'];
         if (viewParam && allowed.includes(viewParam)) {
             setActiveView(viewParam);
         }
@@ -77,14 +78,6 @@ function AdminPageContent() {
         );
     }
 
-    const menuItems = [
-        { id: 'events', label: 'Events', icon: '📊' },
-        { id: 'users', label: 'Users', icon: '👥' },
-        { id: 'statistics', label: 'Statistics', icon: '📈' },
-        { id: 'finance', label: 'Money', icon: '💵' },
-        { id: 'withdraw', label: 'Withdrawals', icon: '🏧' },
-    ];
-
     return (
         <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
             <Navbar
@@ -110,6 +103,7 @@ function AdminPageContent() {
                         {activeView === 'statistics' && <AdminStatistics />}
                         {activeView === 'finance' && <AdminFinance />}
                         {activeView === 'withdraw' && <AdminWithdraw />}
+                        {activeView === 'suggested' && <AdminSuggestedEvents />}
                     </div>
                 </div>
             </div>

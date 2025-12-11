@@ -14,6 +14,8 @@ import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
 import { PositionsDropdown } from './PositionsDropdown';
 import { BalanceDropdown } from './BalanceDropdown';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { OnboardingTour } from './OnboardingTour';
+import { CreateEventModal } from './admin/CreateEventModal';
 
 
 interface NavbarProps {
@@ -35,6 +37,8 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
     const [showDepositModal, setShowDepositModal] = useState(false);
+    const [showSuggestModal, setShowSuggestModal] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(false);
     const [balance, setBalance] = useState<number>(0);
     const categories: Category[] = [
         { id: 'ALL', label: 'All' },
@@ -107,9 +111,9 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
             {/* Extended background for navbar overscroll */}
             <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/50 backdrop-blur-md pointer-events-none -z-10" />
 
-            <nav className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.5)' }}>
-                <div className="max-w-7xl mx-auto px-14 sm:px-8 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
+            <nav className="border-b border-white/10 bg-black/70 backdrop-blur-md sticky top-0 z-50" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.5)' }}>
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-1 group">
                             <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-10 w-auto object-contain group-hover:scale-105 transition-transform" />
@@ -119,17 +123,28 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                         </Link>
 
                         {/* Search */}
-                        <div className="flex-1 ml-10 mr-6 hidden md:block">
+                        <div className="flex-1 ml-2 mr-2 hidden md:block">
                             <SearchBar onSearch={handleSearch} />
                         </div>
 
                         {/* Right Side */}
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <button
+                                onClick={() => setShowOnboarding(true)}
+                                className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 text-sm text-gray-200 hover:text-white hover:border-blue-400/50 hover:bg-white/5 transition-colors"
+                                aria-label="Get started"
+                                title="Get started"
+                            >
+                                <span>Get started</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25h.008v.008h-.008v-.008ZM12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm-.75-9.75h1.5v4.5h-1.5v-4.5Zm0-3h1.5v1.5h-1.5v-1.5Z" />
+                                </svg>
+                            </button>
                             {session && (
                                 <>
                                     <button
                                         onClick={() => setShowDepositModal(true)}
-                                        className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
+                                        className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm font-medium transition-colors border border-green-500/20"
                                     >
                                         <Wallet className="w-4 h-4" />
                                         Deposit
@@ -142,7 +157,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
 
                             {/* Authentication */}
                             {session ? (
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 sm:gap-3">
                                     {/* Balance Display */}
                                     <BalanceDropdown balance={balance} />
 
@@ -171,6 +186,12 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 <Link href="/settings" className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
                                                     Settings
                                                 </Link>
+                                                <button
+                                                    onClick={() => setShowSuggestModal(true)}
+                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                                                >
+                                                    Suggest event
+                                                </button>
                                                 {(session as any).user?.isAdmin && (
                                                     <Link href="/admin" className="block px-4 py-2 text-sm text-blue-400 hover:bg-white/5 hover:text-blue-300 transition-colors">
                                                         Admin Panel
@@ -267,6 +288,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 { id: 'statistics', label: 'Statistics', icon: '📈' },
                                                 { id: 'finance', label: 'Money', icon: '💵' },
                                                 { id: 'withdraw', label: 'Withdrawals', icon: '🏧' },
+                                                { id: 'suggested', label: 'Suggested', icon: '💡' },
                                             ].map((item) => (
                                                 <button
                                                     key={item.id}
@@ -326,6 +348,15 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                         .then(res => res.json())
                         .then(data => setBalance(data.balance));
                 }}
+            />
+            <CreateEventModal
+                isOpen={showSuggestModal}
+                onClose={() => setShowSuggestModal(false)}
+                mode="user"
+            />
+            <OnboardingTour
+                isOpen={showOnboarding}
+                onClose={() => setShowOnboarding(false)}
             />
         </>
     );
