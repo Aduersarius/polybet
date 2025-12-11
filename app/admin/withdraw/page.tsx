@@ -2,6 +2,6 @@
 
 import { redirect } from 'next/navigation';
 
-export default function AdminWithdrawalsPage() {
+export default function AdminWithdrawPage() {
     redirect('/admin?view=withdraw');
 }

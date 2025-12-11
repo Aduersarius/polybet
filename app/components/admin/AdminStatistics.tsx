@@ -1,50 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import {
-    LineChart,
-    Line,
-    AreaChart,
-    Area,
-    BarChart,
-    Bar,
-    PieChart,
-    Pie,
-    Cell,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer
-} from 'recharts';
-import { format, subDays, startOfDay, eachDayOfInterval, subHours, isWithinInterval, parseISO, differenceInDays } from 'date-fns';
+import { format, parseISO, startOfDay, subDays, eachDayOfInterval, isSameDay } from 'date-fns';
+import { AreaChart, Area, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { Activity, ArrowUpRight, BarChart2, LineChart as LineChartIcon, Users } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Tooltip component for metric descriptions
-function MetricTooltip({ children, description }: { children: React.ReactNode; description: string }) {
-    const [showTooltip, setShowTooltip] = useState(false);
-
-    return (
-        <div className="relative inline-block">
-            <div
-                onMouseEnter={() => setShowTooltip(true)}
-                onMouseLeave={() => setShowTooltip(false)}
-                className="cursor-help"
-            >
-                {children}
-            </div>
-            {showTooltip && (
-                <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg border border-gray-700 max-w-lg">
-                    {description}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-interface AdminUser {
+type AdminUser = {
     id: string;
     address: string;
     username: string | null;
@@ -52,32 +15,57 @@ interface AdminUser {
     name: string | null;
     isBanned: boolean;
     isAdmin: boolean;
-    _count: {
-        bets: number;
-        createdEvents: number;
-    };
     createdAt: string;
-}
+    _count?: {
+        bets?: number;
+        createdEvents?: number;
+        marketActivity?: number;
+    };
+};
 
-interface AdminEvent {
+type AdminEvent = {
     id: string;
     title: string;
     categories: string[];
     type: string;
     status: string;
     isHidden: boolean;
-    _count: {
-        bets: number;
-    };
     createdAt: string;
-    resolutionDate?: string;
+    resolutionDate?: string | null;
+    _count?: {
+        bets?: number;
+        marketActivity?: number;
+    };
+};
+
+type StatRowProps = {
+    label: string;
+    value: string;
+    tone: 'emerald' | 'blue' | 'purple' | 'cyan' | 'pink' | 'orange' | 'yellow' | 'red';
+};
+
+const toneMap: Record<StatRowProps['tone'], string> = {
+    emerald: 'text-emerald-200 border-emerald-500/40 bg-emerald-500/10',
+    blue: 'text-blue-200 border-blue-500/40 bg-blue-500/10',
+    purple: 'text-purple-200 border-purple-500/40 bg-purple-500/10',
+    cyan: 'text-cyan-200 border-cyan-500/40 bg-cyan-500/10',
+    pink: 'text-pink-200 border-pink-500/40 bg-pink-500/10',
+    orange: 'text-orange-200 border-orange-500/40 bg-orange-500/10',
+    yellow: 'text-yellow-200 border-yellow-500/40 bg-yellow-500/10',
+    red: 'text-red-200 border-red-500/40 bg-red-500/10'
+};
+
+function HealthRow({ label, value, tone }: StatRowProps) {
+    return (
+        <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+            <span className="text-sm text-gray-200">{label}</span>
+            <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${toneMap[tone]}`}>{value}</span>
+        </div>
+    );
 }
 
 export function AdminStatistics() {
     const adminId = 'dev-user';
-    const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
-    const [customStartDate, setCustomStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-    const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
     const { data: usersData, isLoading: usersLoading } = useQuery({
         queryKey: ['admin', 'users', adminId],
@@ -85,7 +73,7 @@ export function AdminStatistics() {
             const res = await fetch(`/api/admin/users?adminId=${adminId}&limit=1000`);
             if (!res.ok) throw new Error('Failed to fetch users');
             return res.json() as Promise<{ users: AdminUser[]; total: number }>;
-        },
+        }
     });
 
     const { data: eventsData, isLoading: eventsLoading } = useQuery({
@@ -94,979 +82,544 @@ export function AdminStatistics() {
             const res = await fetch(`/api/admin/events?adminId=${adminId}&limit=1000`);
             if (!res.ok) throw new Error('Failed to fetch events');
             return res.json() as Promise<{ events: AdminEvent[]; total: number }>;
-        },
+        }
     });
 
     const users = usersData?.users || [];
     const events = eventsData?.events || [];
 
-    const toNum = (value: any) => {
-        const n = Number(value);
-        return Number.isFinite(n) ? n : 0;
-    };
-
-    // Calculate comprehensive statistics
     const stats = useMemo(() => {
-        const getEventBets = (e: AdminEvent & { _count?: any }) =>
-            toNum((e as any)?._count?.bets ?? (e as any)?._count?.marketActivity);
-        const getUserBets = (u: AdminUser & { _count?: any }) =>
-            toNum((u as any)?._count?.bets ?? (u as any)?._count?.marketActivity);
-        const getUserCreatedEvents = (u: AdminUser & { _count?: any }) =>
-            toNum((u as any)?._count?.createdEvents);
-        const totalUsers = toNum(users.length);
-        const activeUsers = users.filter(u => !u.isBanned).length;
-        const bannedUsers = users.filter(u => u.isBanned).length;
-        const adminUsers = users.filter(u => u.isAdmin).length;
-        const totalBets = users.reduce((sum, u) => sum + getUserBets(u as any), 0);
-        const totalEventsCreated = users.reduce((sum, u) => sum + getUserCreatedEvents(u as any), 0);
-
-        const totalEvents = toNum(events.length);
-        const activeEvents = events.filter(e => e.status === 'ACTIVE').length;
-        const resolvedEvents = events.filter(e => e.status === 'RESOLVED').length;
-        const hiddenEvents = events.filter(e => e.isHidden).length;
-        const totalEventBets = events.reduce((sum, e) => sum + getEventBets(e as any), 0);
-
-        // Category distribution
-        const categoryCount: Record<string, number> = {};
-        events.forEach(event => {
-            event.categories.forEach(cat => {
-                categoryCount[cat] = (categoryCount[cat] || 0) + 1;
-            });
-        });
-
-        // Event type distribution
-        const eventTypes = events.reduce((acc, event) => {
-            acc[event.type] = (acc[event.type] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
-
-        // Product metrics calculations
-        const usersWithBets = users.filter(u => getUserBets(u as any) > 0).length;
-        const usersWithEvents = users.filter(u => getUserCreatedEvents(u as any) > 0).length;
-        const eventsWithBets = events.filter(e => getEventBets(e as any) > 0).length;
-
-        // Engagement rates
-        const betEngagementRate = totalUsers > 0 ? Math.round((usersWithBets / totalUsers) * 100) : 0;
-        const creatorEngagementRate = totalUsers > 0 ? Math.round((usersWithEvents / totalUsers) * 100) : 0;
-        const eventParticipationRate = totalEvents > 0 ? Math.round((eventsWithBets / totalEvents) * 100) : 0;
-
-        // Market efficiency metrics
-        const avgBetsPerActiveEvent = eventsWithBets > 0 ? Math.round(totalEventBets / eventsWithBets * 100) / 100 : 0;
-
-        // User segments
-        const powerUsers = users.filter(u => getUserBets(u as any) >= 10).length; // Users with 10+ bets
-        const creators = users.filter(u => getUserCreatedEvents(u as any) >= 3).length; // Users who created 3+ events
-
-        // Time-based metrics
-        const now = new Date();
-        const oneDayAgo = subHours(now, 24);
-        const sevenDaysAgo = subDays(now, 7);
-        const thirtyDaysAgo = subDays(now, 30);
-
-        // Activity metrics (using bets and event creation as proxy for activity)
-        const activeUsersToday = users.filter(u =>
-            getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0 // Simplified - in real app would check last activity
-        ).length;
-
-        const activeUsersWeek = users.filter(u =>
-            getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0
-        ).length;
-
-        const activeUsersMonth = users.filter(u =>
-            getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0
-        ).length;
-
-        // DAU/WAU/MAU calculations (simplified - in real app would use actual activity timestamps)
-        const dau = Math.round(activeUsersToday * 0.3); // Estimate 30% daily activity
-        const wau = Math.round(activeUsersWeek * 0.5); // Estimate 50% weekly activity
-        const mau = Math.round(activeUsersMonth * 0.7); // Estimate 70% monthly activity
-
-        // Retention metrics (simplified calculations)
-        const newUsersThisMonth = users.filter(u => new Date(u.createdAt) >= thirtyDaysAgo).length;
-        const retainedUsers = users.filter(u =>
-            new Date(u.createdAt) < thirtyDaysAgo && (getUserBets(u as any) > 0 || getUserCreatedEvents(u as any) > 0)
-        ).length;
-
-        const retentionRate1d = mau > 0 ? Math.round((dau / mau) * 100) : 0; // Simplified 1-day retention
-        const retentionRate7d = mau > 0 ? Math.round((wau / mau) * 100) : 0; // Simplified 7-day retention
-        const retentionRate30d = retainedUsers > 0 && (totalUsers - newUsersThisMonth) > 0 ? Math.round((retainedUsers / (totalUsers - newUsersThisMonth)) * 100) : 0;
-
-        // Revenue metrics (mock data since we don't have actual revenue)
-        const payingUsers = usersWithBets; // Assume users with bets are paying users
-        const arppu = payingUsers > 0 ? Math.round((totalBets * 0.1) / payingUsers * 100) / 100 : 0; // Mock $0.10 per bet
-        const totalRevenue = totalBets * 0.1; // Mock revenue
-        const ltv = arppu * 3; // Simplified LTV calculation
-
-        // Growth and churn metrics
-        const recentUsers = users.filter(u => new Date(u.createdAt) >= thirtyDaysAgo).length;
-        const recentEvents = events.filter(e => new Date(e.createdAt) >= thirtyDaysAgo).length;
-        const recentResolvedEvents = events.filter(e =>
-            e.status === 'RESOLVED' && e.resolutionDate && new Date(e.resolutionDate) >= thirtyDaysAgo
-        ).length;
-
-        const churnRate = totalUsers > 0 ? Math.round(((totalUsers - activeUsers) / totalUsers) * 100) : 0;
-        const growthRate = totalUsers > 0 ? Math.round((recentUsers / totalUsers) * 100) : 0;
-
-        // Conversion metrics
-        const conversionRate = totalUsers > 0 ? Math.round((payingUsers / totalUsers) * 100) : 0;
-        const creatorConversionRate = totalUsers > 0 ? Math.round((usersWithEvents / totalUsers) * 100) : 0;
-
-        return {
-            users: {
-                total: totalUsers,
-                active: activeUsers,
-                banned: bannedUsers,
-                admins: adminUsers,
-                totalBets,
-                totalEventsCreated,
-                avgBetsPerUser: totalUsers > 0 ? Math.round(totalBets / totalUsers * 100) / 100 : 0,
-                avgEventsPerUser: totalUsers > 0 ? Math.round(totalEventsCreated / totalUsers * 100) / 100 : 0,
-                // New product metrics
-                betEngagementRate,
-                creatorEngagementRate,
-                powerUsers,
-                creators,
-                recentUsers,
-                // Advanced metrics
-                dau,
-                wau,
-                mau,
-                retentionRate1d,
-                retentionRate7d,
-                retentionRate30d,
-                churnRate,
-                conversionRate,
-                creatorConversionRate,
-            },
-            events: {
-                total: totalEvents,
-                active: activeEvents,
-                resolved: resolvedEvents,
-                hidden: hiddenEvents,
-                totalBets: totalEventBets,
-                avgBetsPerEvent: totalEvents > 0 ? Math.round(totalEventBets / totalEvents * 100) / 100 : 0,
-                // New product metrics
-                eventParticipationRate,
-                avgBetsPerActiveEvent,
-                eventsWithBets,
-                recentEvents,
-                recentResolvedEvents,
-            },
-            revenue: {
-                totalRevenue,
-                arppu,
-                ltv,
-                payingUsers,
-            },
-            categories: Object.entries(categoryCount)
-                .map(([name, count]) => ({ name, count }))
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 10),
-            eventTypes: Object.entries(eventTypes).map(([name, count]) => ({
-                name: name === 'BINARY' ? 'Binary' : 'Multiple Choice',
-                count,
-                percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0
-            })),
-            // Product health metrics
-            productHealth: {
-                userRetention: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0,
-                marketLiquidity: totalEvents > 0 ? Math.round((totalEventBets / totalEvents) * 100) / 100 : 0,
-                creatorRatio: totalUsers > 0 ? Math.round((usersWithEvents / totalUsers) * 100) : 0,
-                eventSuccessRate: totalEvents > 0 ? Math.round((resolvedEvents / totalEvents) * 100) : 0,
-                recentGrowth: {
-                    users: recentUsers,
-                    events: recentEvents,
-                    resolutionRate: recentEvents > 0 ? Math.round((recentResolvedEvents / recentEvents) * 100) : 0,
-                },
-                growthRate,
-            }
+        const toNum = (value: unknown) => {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : 0;
         };
-    }, [users, events]);
 
-    // Generate time-based data
-    const timeData = useMemo(() => {
-        let startDate: Date;
-        let endDate: Date = new Date();
+        const getUserBets = (user: AdminUser) =>
+            toNum(user._count?.bets ?? user._count?.marketActivity);
+        const getUserEvents = (user: AdminUser) => toNum(user._count?.createdEvents);
+        const getEventBets = (event: AdminEvent) =>
+            toNum(event._count?.bets ?? event._count?.marketActivity);
 
-        if (timeRange === 'custom') {
-            startDate = parseISO(customStartDate);
-            endDate = parseISO(customEndDate);
-        } else {
-            const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-            startDate = subDays(new Date(), days - 1);
-        }
+        const now = startOfDay(new Date());
+        const recentWindow = subDays(now, 30);
 
-        const dateRange = eachDayOfInterval({
-            start: startDate,
-            end: endDate
-        });
+        const totalUsers = users.length;
+        const activeUsers = users.filter((u) => !u.isBanned).length;
+        const adminUsers = users.filter((u) => u.isAdmin).length;
+        const totalEvents = events.length;
+        const activeEvents = events.filter((e) => e.status === 'ACTIVE').length;
+        const resolvedEvents = events.filter((e) => e.status === 'RESOLVED').length;
 
-        return dateRange.map(date => {
-            const dateStr = format(date, 'yyyy-MM-dd');
-            const dayUsers = users.filter(u =>
-                format(new Date(u.createdAt), 'yyyy-MM-dd') === dateStr
-            ).length;
-            const dayEvents = events.filter(e =>
-                format(new Date(e.createdAt), 'yyyy-MM-dd') === dateStr
-            ).length;
+        const totalBets = users.reduce((sum, u) => sum + getUserBets(u), 0);
+        const payingUsers = users.filter((u) => getUserBets(u) > 0).length;
+        const creators = users.filter((u) => getUserEvents(u) > 0).length;
+        const powerUsers = users.filter((u) => getUserBets(u) >= 10).length;
 
+        const recentUsers = users.filter((u) => parseISO(u.createdAt) >= recentWindow).length;
+        const recentEvents = events.filter((e) => parseISO(e.createdAt) >= recentWindow).length;
+        const recentResolvedEvents = events.filter(
+            (e) => e.resolutionDate && parseISO(e.resolutionDate) >= recentWindow
+        ).length;
+
+        const engagementRate = totalUsers > 0 ? Math.round((payingUsers / totalUsers) * 100) : 0;
+        const creatorRate = totalUsers > 0 ? Math.round((creators / totalUsers) * 100) : 0;
+        const participationRate = totalEvents > 0
+            ? Math.round(
+                (events.filter((e) => getEventBets(e) > 0).length / totalEvents) * 100
+            )
+            : 0;
+
+        const revenue = totalBets * 0.1; // mock revenue
+        const arppu = payingUsers > 0 ? Math.round(((revenue / payingUsers) * 100)) / 100 : 0;
+        const ltv = Math.round(arppu * 3 * 100) / 100;
+
+        const categories = events
+            .flatMap((e) => e.categories)
+            .reduce<Record<string, number>>((acc, cat) => {
+                acc[cat] = (acc[cat] || 0) + 1;
+                return acc;
+            }, {});
+
+        const sortedCategories = Object.entries(categories)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+
+        const rangeStart = subDays(now, 13);
+        const range = eachDayOfInterval({ start: rangeStart, end: now });
+
+        // Track daily user base (carry forward users created before the 14-day window)
+        const initialUsersBeforeRange = users.filter((u) => parseISO(u.createdAt) < rangeStart).length;
+        let runningUsers = initialUsersBeforeRange;
+
+        const chart = range.map((day) => {
+            const newUsers = users.filter((u) => isSameDay(parseISO(u.createdAt), day)).length;
+            runningUsers += newUsers;
             return {
-                date: format(date, 'MMM dd'),
-                users: dayUsers,
-                events: dayEvents,
-                cumulativeUsers: users.filter(u =>
-                    new Date(u.createdAt) <= date
-                ).length,
-                cumulativeEvents: events.filter(e =>
-                    new Date(e.createdAt) <= date
-                ).length,
+                date: format(day, 'MMM d'),
+                dailyUsers: runningUsers,
+                newUsers
             };
         });
-    }, [users, events, timeRange, customStartDate, customEndDate]);
 
-    if (usersLoading || eventsLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <div className="text-white">Loading comprehensive statistics...</div>
-            </div>
-        );
-    }
+        const topUsers = [...users]
+            .map((u) => ({
+                id: u.id,
+                username: u.username || u.address || 'Anonymous',
+                email: u.email,
+                bets: getUserBets(u),
+                events: getUserEvents(u),
+                isBanned: u.isBanned,
+                isAdmin: u.isAdmin,
+                createdAt: u.createdAt
+            }))
+            .sort((a, b) => b.bets - a.bets)
+            .slice(0, 8);
 
-    const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff0000'];
+        const churnRate = totalUsers > 0
+            ? Math.round((users.filter((u) => u.isBanned).length / totalUsers) * 100)
+            : 0;
+
+        const retention30 =
+            totalUsers > 0
+                ? Math.max(0, 100 - churnRate)
+                : 0;
+
+        return {
+            totals: {
+                users: totalUsers,
+                activeUsers,
+                adminUsers,
+                events: totalEvents,
+                activeEvents,
+                resolvedEvents,
+                bets: totalBets
+            },
+            revenue: {
+                total: revenue,
+                arppu,
+                ltv,
+                payingUsers
+            },
+            engagement: {
+                engagementRate,
+                creatorRate,
+                participationRate,
+                powerUsers,
+                creators
+            },
+            growth: {
+                recentUsers,
+                recentEvents,
+                recentResolvedEvents
+            },
+            categories: sortedCategories,
+            chart,
+            topUsers,
+            health: {
+                userRetention: retention30,
+                eventSuccess:
+                    totalEvents > 0 ? Math.round((resolvedEvents / totalEvents) * 100) : 0,
+                creatorRatio: creatorRate,
+                liquidity:
+                    events.filter((e) => getEventBets(e) > 0).length > 0
+                        ? Math.round(
+                            (events.reduce((sum, e) => sum + getEventBets(e), 0) /
+                                Math.max(1, events.filter((e) => getEventBets(e) > 0).length)) *
+                                100
+                        ) / 100
+                        : 0,
+                growthRate:
+                    totalUsers > 0
+                        ? Math.round((recentUsers / Math.max(1, totalUsers - recentUsers)) * 100)
+                        : 0,
+                churnRate
+            }
+        };
+    }, [events, users]);
+
+    const isLoading = usersLoading || eventsLoading;
 
     return (
-        <div className="space-y-8 relative z-10">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <div className="flex flex-wrap gap-2">
-                    {(['7d', '30d', '90d'] as const).map((range) => (
-                        <button
-                            key={range}
-                            onClick={() => setTimeRange(range)}
-                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${timeRange === range
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'
-                                }`}
-                        >
-                            {range.toUpperCase()}
-                        </button>
-                    ))}
-                    <button
-                        onClick={() => setTimeRange('custom')}
-                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${timeRange === 'custom'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'
-                            }`}
-                    >
-                        CUSTOM
-                    </button>
-                </div>
-                {timeRange === 'custom' && (
-                    <div className="flex gap-2 items-center">
-                        <label className="text-sm text-gray-400">From:</label>
-                        <input
-                            type="date"
-                            value={customStartDate}
-                            onChange={(e) => setCustomStartDate(e.target.value)}
-                            className="bg-[#2a2a2a] border border-white/10 rounded-md px-3 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
-                        />
-                        <label className="text-sm text-gray-400">To:</label>
-                        <input
-                            type="date"
-                            value={customEndDate}
-                            onChange={(e) => setCustomEndDate(e.target.value)}
-                            className="bg-[#2a2a2a] border border-white/10 rounded-md px-3 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
-                        />
-                    </div>
-                )}
+        <div className="space-y-6">
+            <div className="flex flex-col gap-2">
+                <h2 className="text-2xl font-semibold text-white">Admin dashboard</h2>
+                <p className="text-sm text-gray-400">
+                    Shadcn dashboard 01 layout — live snapshot of platform health.
+                </p>
             </div>
 
-            {/* Key Metrics Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-10 gap-4">
-                {[
-                    {
-                        label: 'Total Users',
-                        value: stats.users.total,
-                        icon: '👥',
-                        color: 'text-white',
-                        bg: 'bg-blue-600',
-                        description: 'Total number of registered users on the platform'
-                    },
-                    {
-                        label: 'Active Users',
-                        value: stats.users.active,
-                        icon: '✅',
-                        color: 'text-green-400',
-                        bg: 'bg-green-600',
-                        description: 'Users who are not banned and can participate in betting'
-                    },
-                    {
-                        label: 'DAU',
-                        value: stats.users.dau,
-                        icon: '📅',
-                        color: 'text-blue-400',
-                        bg: 'bg-blue-500',
-                        description: 'Daily Active Users - users active in the last 24 hours'
-                    },
-                    {
-                        label: 'WAU',
-                        value: stats.users.wau,
-                        icon: '📊',
-                        color: 'text-purple-400',
-                        bg: 'bg-purple-600',
-                        description: 'Weekly Active Users - users active in the last 7 days'
-                    },
-                    {
-                        label: 'MAU',
-                        value: stats.users.mau,
-                        icon: '📈',
-                        color: 'text-cyan-400',
-                        bg: 'bg-cyan-600',
-                        description: 'Monthly Active Users - users active in the last 30 days'
-                    },
-                    {
-                        label: '1-Day Retention',
-                        value: `${stats.users.retentionRate1d}%`,
-                        icon: '🔄',
-                        color: 'text-green-400',
-                        bg: 'bg-green-500',
-                        description: 'Percentage of users who return within 24 hours of first activity'
-                    },
-                    {
-                        label: '7-Day Retention',
-                        value: `${stats.users.retentionRate7d}%`,
-                        icon: '🔄',
-                        color: 'text-blue-400',
-                        bg: 'bg-blue-500',
-                        description: 'Percentage of users who return within 7 days of first activity'
-                    },
-                    {
-                        label: '30-Day Retention',
-                        value: `${stats.users.retentionRate30d}%`,
-                        icon: '🔄',
-                        color: 'text-purple-400',
-                        bg: 'bg-purple-600',
-                        description: 'Percentage of users who return within 30 days of first activity'
-                    },
-                    {
-                        label: 'Churn Rate',
-                        value: `${stats.users.churnRate}%`,
-                        icon: '📉',
-                        color: 'text-red-400',
-                        bg: 'bg-red-600',
-                        description: 'Percentage of users who have stopped being active'
-                    },
-                    {
-                        label: 'Conversion Rate',
-                        value: `${stats.users.conversionRate}%`,
-                        icon: '🎯',
-                        color: 'text-emerald-400',
-                        bg: 'bg-emerald-600',
-                        description: 'Percentage of users who have placed at least one bet'
-                    },
-                    {
-                        label: 'Bet Engagement',
-                        value: `${stats.users.betEngagementRate}%`,
-                        icon: '🎲',
-                        color: 'text-yellow-400',
-                        bg: 'bg-yellow-600',
-                        description: 'Percentage of users who have participated in betting'
-                    },
-                    {
-                        label: 'Creator Rate',
-                        value: `${stats.users.creatorEngagementRate}%`,
-                        icon: '✨',
-                        color: 'text-amber-400',
-                        bg: 'bg-amber-600',
-                        description: 'Percentage of users who have created prediction events'
-                    },
-                    {
-                        label: 'Power Users',
-                        value: stats.users.powerUsers,
-                        icon: '⚡',
-                        color: 'text-orange-400',
-                        bg: 'bg-orange-600',
-                        description: 'Users who have placed 10 or more bets (highly engaged users)'
-                    },
-                    {
-                        label: 'ARPPU',
-                        value: `$${stats.revenue.arppu}`,
-                        icon: '💰',
-                        color: 'text-green-400',
-                        bg: 'bg-green-600',
-                        description: 'Average Revenue Per Paying User - average earnings from active bettors'
-                    },
-                    {
-                        label: 'LTV',
-                        value: `$${stats.revenue.ltv}`,
-                        icon: '💎',
-                        color: 'text-purple-400',
-                        bg: 'bg-purple-600',
-                        description: 'Lifetime Value - estimated total revenue from a user over their lifetime'
-                    },
-                    {
-                        label: 'Total Revenue',
-                        value: `$${stats.revenue.totalRevenue.toFixed(2)}`,
-                        icon: '💵',
-                        color: 'text-cyan-400',
-                        bg: 'bg-cyan-600',
-                        description: 'Total platform revenue from all betting activity'
-                    },
-                    {
-                        label: 'Event Success Rate',
-                        value: `${stats.productHealth.eventSuccessRate}%`,
-                        icon: '🏆',
-                        color: 'text-emerald-400',
-                        bg: 'bg-emerald-600',
-                        description: 'Percentage of events that have been resolved'
-                    },
-                    {
-                        label: 'Market Liquidity',
-                        value: stats.productHealth.marketLiquidity,
-                        icon: '🌊',
-                        color: 'text-blue-400',
-                        bg: 'bg-blue-600',
-                        description: 'Average number of bets per event (market depth indicator)'
-                    },
-                    {
-                        label: 'Growth Rate',
-                        value: `${stats.productHealth.growthRate}%`,
-                        icon: '🚀',
-                        color: 'text-green-400',
-                        bg: 'bg-green-500',
-                        description: 'Monthly user growth rate (new users as % of total)'
-                    },
-                    {
-                        label: 'Creator Conversion',
-                        value: `${stats.users.creatorConversionRate}%`,
-                        icon: '🎨',
-                        color: 'text-amber-400',
-                        bg: 'bg-amber-600',
-                        description: 'Percentage of users who have created at least one event'
-                    },
-                ].map((stat, idx) => (
-                    <MetricTooltip key={idx} description={stat.description}>
-                        <div className="bg-[#2a2a2a] border border-white/10 rounded-lg p-4 hover:bg-[#3a3a3a] transition-all duration-200 hover:scale-105 cursor-help">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-2xl">{stat.icon}</span>
-                                <div className={`text-lg font-bold ${stat.color}`}>
-                                    {stat.value}
-                                </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                    title="Total users"
+                    value={stats.totals.users}
+                    helper={`Active ${stats.totals.activeUsers} · Admins ${stats.totals.adminUsers}`}
+                    gradient="from-blue-500/20 to-indigo-500/10"
+                />
+                <StatCard
+                    title="Total events"
+                    value={stats.totals.events}
+                    helper={`Active ${stats.totals.activeEvents} · Resolved ${stats.totals.resolvedEvents}`}
+                    gradient="from-emerald-500/20 to-teal-500/10"
+                />
+                <StatCard
+                    title="Total bets"
+                    value={stats.totals.bets}
+                    helper={`Engagement ${stats.engagement.engagementRate}%`}
+                    gradient="from-amber-500/20 to-orange-500/10"
+                />
+                <StatCard
+                    title="Revenue (mock)"
+                    value={`$${stats.revenue.total.toFixed(2)}`}
+                    helper={`ARPPU $${stats.revenue.arppu}`}
+                    gradient="from-pink-500/20 to-rose-500/10"
+                />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+                <Card className="lg:col-span-2 border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Engagement & growth</CardTitle>
+                            <CardDescription>14-day pulse for daily users vs new users</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <span className="flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-blue-400" />
+                                Daily users
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                New users
+                            </span>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="h-80">
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading chart…</div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={stats.chart}>
+                                    <defs>
+                                        <linearGradient id="userArea" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.5} />
+                                            <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="newUserArea" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#34d399" stopOpacity={0.5} />
+                                            <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                                    <XAxis dataKey="date" stroke="#9ca3af" />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#0b0f19',
+                                            border: '1px solid #1f2937',
+                                            borderRadius: 12
+                                        }}
+                                        labelStyle={{ color: '#fff' }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="dailyUsers"
+                                        stroke="#60a5fa"
+                                        fill="url(#userArea)"
+                                        strokeWidth={2}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="newUsers"
+                                        stroke="#34d399"
+                                        fill="url(#newUserArea)"
+                                        strokeWidth={2}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-start justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Engagement quality</CardTitle>
+                            <CardDescription>How users interact with markets</CardDescription>
+                        </div>
+                        <ArrowUpRight className="h-5 w-5 text-gray-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading…</div>
+                        ) : (
+                            <>
+                                <HealthRow
+                                    label="Bet engagement"
+                                    value={`${stats.engagement.engagementRate}%`}
+                                    tone="blue"
+                                />
+                                <HealthRow
+                                    label="Creator engagement"
+                                    value={`${stats.engagement.creatorRate}%`}
+                                    tone="purple"
+                                />
+                                <HealthRow
+                                    label="Event participation"
+                                    value={`${stats.engagement.participationRate}%`}
+                                    tone="emerald"
+                                />
+                                <HealthRow
+                                    label="Power users"
+                                    value={`${stats.engagement.powerUsers}`}
+                                    tone="orange"
+                                />
+                                <HealthRow
+                                    label="Creators"
+                                    value={`${stats.engagement.creators}`}
+                                    tone="pink"
+                                />
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-3">
+                <Card className="xl:col-span-2 border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Top users</CardTitle>
+                            <CardDescription>Leaders by betting activity</CardDescription>
+                        </div>
+                        <div className="text-xs text-gray-400">Sorted by total bets</div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading table…</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="border-b border-white/5 text-gray-400">
+                                        <tr>
+                                            <th className="py-3 pr-3 font-medium">User</th>
+                                            <th className="py-3 pr-3 font-medium">Bets</th>
+                                            <th className="py-3 pr-3 font-medium">Events</th>
+                                            <th className="py-3 pr-3 font-medium">Status</th>
+                                            <th className="py-3 pr-3 font-medium">Joined</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {stats.topUsers.map((user) => (
+                                            <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                                                <td className="py-3 pr-3">
+                                                    <div className="text-white font-semibold">{user.username}</div>
+                                                    <div className="text-xs text-gray-400">{user.email || '—'}</div>
+                                                </td>
+                                                <td className="py-3 pr-3 text-blue-200 font-semibold">{user.bets}</td>
+                                                <td className="py-3 pr-3 text-emerald-200 font-semibold">{user.events}</td>
+                                                <td className="py-3 pr-3">
+                                                    <div className="flex items-center gap-2 text-xs">
+                                                        <span
+                                                            className={`px-2 py-1 rounded-full border ${
+                                                                user.isBanned
+                                                                    ? 'border-red-500/40 text-red-200 bg-red-500/10'
+                                                                    : 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
+                                                            }`}
+                                                        >
+                                                            {user.isBanned ? 'Banned' : 'Active'}
+                                                        </span>
+                                                        {user.isAdmin && (
+                                                            <span className="px-2 py-1 rounded-full border border-blue-500/40 text-blue-200 bg-blue-500/10">
+                                                                Admin
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 pr-3 text-gray-300">
+                                                    {format(new Date(user.createdAt), 'MMM d, yyyy')}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                            <div className="text-xs text-gray-400 font-medium">{stat.label}</div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-start justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Categories</CardTitle>
+                            <CardDescription>Top active themes</CardDescription>
                         </div>
-                    </MetricTooltip>
-                ))}
-            </div>
-
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                {/* User & Event Growth Over Time */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Growth Trends</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={timeData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-                            <YAxis stroke="#9ca3af" fontSize={12} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Legend />
-                            <Area
-                                type="monotone"
-                                dataKey="cumulativeUsers"
-                                stackId="1"
-                                stroke="#8884d8"
-                                fill="#8884d8"
-                                fillOpacity={0.6}
-                                name="Total Users"
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="cumulativeEvents"
-                                stackId="2"
-                                stroke="#82ca9d"
-                                fill="#82ca9d"
-                                fillOpacity={0.6}
-                                name="Total Events"
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Daily Activity */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Daily Activity ({timeRange})</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={timeData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-                            <YAxis stroke="#9ca3af" fontSize={12} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Legend />
-                            <Bar dataKey="users" fill="#8884d8" name="New Users" />
-                            <Bar dataKey="events" fill="#82ca9d" name="New Events" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Event Categories Distribution */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Top Event Categories</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={stats.categories} layout="horizontal">
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis type="number" stroke="#9ca3af" fontSize={12} />
-                            <YAxis dataKey="name" type="category" stroke="#9ca3af" fontSize={12} width={100} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Bar dataKey="count" fill="#ffc658" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Revenue Volume Trends */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Revenue Volume Trends</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={timeData.map(d => ({
-                            ...d,
-                            revenue: Math.round((d.users + d.events) * 0.1 * 100) / 100, // Mock revenue per day
-                            bets: Math.round((d.users + d.events) * 2.5), // Mock bets per day
-                        }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-                            <YAxis stroke="#9ca3af" fontSize={12} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Legend />
-                            <Line
-                                type="monotone"
-                                dataKey="revenue"
-                                stroke="#10b981"
-                                strokeWidth={3}
-                                name="Daily Revenue ($)"
-                                dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
-                            />
-                            <Line
-                                type="monotone"
-                                dataKey="bets"
-                                stroke="#f59e0b"
-                                strokeWidth={2}
-                                name="Daily Bets"
-                                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 3 }}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* User Activity Volume */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">User Activity Volume</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={timeData.map(d => ({
-                            ...d,
-                            activeUsers: Math.round(d.users * 0.7), // Estimate active users
-                            newBets: Math.round(d.users * 1.8), // Estimate new bets
-                            creators: Math.round(d.events * 0.4), // Estimate creators
-                        }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-                            <YAxis stroke="#9ca3af" fontSize={12} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Legend />
-                            <Area
-                                type="monotone"
-                                dataKey="activeUsers"
-                                stackId="1"
-                                stroke="#8884d8"
-                                fill="#8884d8"
-                                fillOpacity={0.8}
-                                name="Active Users"
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="newBets"
-                                stackId="2"
-                                stroke="#82ca9d"
-                                fill="#82ca9d"
-                                fillOpacity={0.8}
-                                name="New Bets"
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="creators"
-                                stackId="3"
-                                stroke="#ffc658"
-                                fill="#ffc658"
-                                fillOpacity={0.8}
-                                name="New Creators"
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Event Status Distribution */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Event Status Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={[
-                            { name: 'Active', count: stats.events.active, color: '#f59e0b' },
-                            { name: 'Resolved', count: stats.events.resolved, color: '#10b981' },
-                            { name: 'Hidden', count: stats.events.hidden, color: '#6b7280' },
-                        ]}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-                            <YAxis stroke="#9ca3af" fontSize={12} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Bar dataKey="count" fill="#8884d8" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* User Engagement Metrics */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">User Engagement Breakdown</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={[
-                                    { name: 'Active Bettors', value: stats.users.betEngagementRate, color: '#10b981' },
-                                    { name: 'Creators', value: stats.users.creatorEngagementRate, color: '#f59e0b' },
-                                    { name: 'Power Users', value: stats.users.total > 0 ? Math.round((stats.users.powerUsers / stats.users.total) * 100) : 0, color: '#8b5cf6' },
-                                    { name: 'Inactive', value: 100 - stats.users.betEngagementRate, color: '#6b7280' },
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={40}
-                                outerRadius={100}
-                                paddingAngle={5}
-                                dataKey="value"
-                                label={({ name, value }) => `${name}: ${value}%`}
-                            >
-                                {[
-                                    '#10b981',
-                                    '#f59e0b',
-                                    '#8b5cf6',
-                                    '#6b7280'
-                                ].map((color, index) => (
-                                    <Cell key={`cell-${index}`} fill={color} />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Market Health Indicators */}
-                <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Market Health Indicators</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={[
-                            { name: 'Event Participation', value: stats.events.eventParticipationRate, target: 70 },
-                            { name: 'User Retention', value: stats.productHealth.userRetention, target: 80 },
-                            { name: 'Event Success Rate', value: stats.productHealth.eventSuccessRate, target: 75 },
-                            { name: 'Creator Ratio', value: stats.productHealth.creatorRatio, target: 20 },
-                        ]}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} angle={-45} textAnchor="end" height={80} />
-                            <YAxis stroke="#9ca3af" fontSize={12} />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: '#1f2937',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#f9fafb'
-                                }}
-                            />
-                            <Bar dataKey="value" fill="#8884d8" name="Current" />
-                            <Bar dataKey="target" fill="#ef4444" name="Target" opacity={0.3} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Product Insights Dashboard */}
-            <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-white">Product Insights Dashboard</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-
-                    {/* User Engagement Metrics */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>👥</span> User Engagement Metrics
-                        </h3>
-                        <div className="space-y-3">
-                            <MetricTooltip description="Percentage of users who have placed at least one bet">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Bet Engagement Rate</span>
-                                    <span className="text-green-400 font-bold">{stats.users.betEngagementRate}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of users who have created prediction events">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Creator Engagement Rate</span>
-                                    <span className="text-blue-400 font-bold">{stats.users.creatorEngagementRate}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Users who have placed 10 or more bets (highly engaged)">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Power Users</span>
-                                    <span className="text-purple-400 font-bold">{stats.users.powerUsers}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Average number of bets placed per user">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Avg Bets/User</span>
-                                    <span className="text-cyan-400 font-bold">{stats.users.avgBetsPerUser}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of users who return within 24 hours">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">1-Day Retention</span>
-                                    <span className="text-emerald-400 font-bold">{stats.users.retentionRate1d}%</span>
-                                </div>
-                            </MetricTooltip>
-                        </div>
-                    </div>
-
-                    {/* Market Performance */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>📊</span> Market Performance
-                        </h3>
-                        <div className="space-y-3">
-                            <MetricTooltip description="Percentage of events that have received at least one bet">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Event Participation Rate</span>
-                                    <span className="text-green-400 font-bold">{stats.events.eventParticipationRate}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Average number of bets per event that has received bets">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Avg Bets/Active Event</span>
-                                    <span className="text-blue-400 font-bold">{stats.events.avgBetsPerActiveEvent}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Overall market depth - average bets across all events">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Market Liquidity</span>
-                                    <span className="text-purple-400 font-bold">{stats.productHealth.marketLiquidity}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Number of events that have received betting activity">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Events with Bets</span>
-                                    <span className="text-cyan-400 font-bold">{stats.events.eventsWithBets}</span>
-                                </div>
-                            </MetricTooltip>
-                        </div>
-                    </div>
-
-                    {/* 30-Day Growth */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>📈</span> 30-Day Growth
-                        </h3>
-                        <div className="space-y-3">
-                            <MetricTooltip description="New user registrations in the last 30 days">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">New Users</span>
-                                    <span className="text-green-400 font-bold">{stats.users.recentUsers}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="New prediction events created in the last 30 days">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">New Events</span>
-                                    <span className="text-blue-400 font-bold">{stats.events.recentEvents}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of recent events that have been resolved">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Resolution Rate</span>
-                                    <span className="text-purple-400 font-bold">{stats.productHealth.recentGrowth.resolutionRate}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Number of events resolved in the last 30 days">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Recent Resolutions</span>
-                                    <span className="text-cyan-400 font-bold">{stats.events.recentResolvedEvents}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Monthly growth rate of new users">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Growth Rate</span>
-                                    <span className="text-emerald-400 font-bold">{stats.productHealth.growthRate}%</span>
-                                </div>
-                            </MetricTooltip>
-                        </div>
-                    </div>
-
-                    {/* Top Categories */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>🏷️</span> Top Categories
-                        </h3>
-                        <div className="space-y-2">
-                            {stats.categories.slice(0, 5).map((cat, idx) => (
-                                <div key={cat.name} className="flex justify-between items-center">
-                                    <span className="text-gray-400">{cat.name}</span>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-16 bg-gray-700 rounded-full h-2">
-                                            <div
-                                                className="bg-blue-500 h-2 rounded-full"
-                                                style={{
-                                                    width: `${Math.max(...stats.categories.map(c => c.count)) > 0 ? (cat.count / Math.max(...stats.categories.map(c => c.count))) * 100 : 0}%`
-                                                }}
-                                            ></div>
+                        <BarChart2 className="h-5 w-5 text-gray-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading…</div>
+                        ) : (
+                            stats.categories.slice(0, 6).map((cat, idx) => {
+                                const max = stats.categories[0]?.count || 1;
+                                const width = Math.max((cat.count / max) * 100, 8);
+                                return (
+                                    <div key={cat.name} className="space-y-1">
+                                        <div className="flex items-center justify-between text-sm text-gray-200">
+                                            <span className="flex items-center gap-2">
+                                                <span className="text-gray-400">#{idx + 1}</span>
+                                                {cat.name}
+                                            </span>
+                                            <span className="text-gray-400">{cat.count}</span>
                                         </div>
-                                        <span className="text-white font-bold text-sm">{cat.count}</span>
+                                        <div className="h-2 w-full rounded-full bg-white/5">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
+                                                style={{ width: `${width}%` }}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                                );
+                            })
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
 
-                    {/* Platform Health Score */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>❤️</span> Platform Health Score
-                        </h3>
-                        <div className="space-y-3">
-                            <MetricTooltip description="Percentage of users who remain active (not banned)">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">User Retention</span>
-                                    <span className="text-green-400 font-bold">{stats.productHealth.userRetention}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of prediction events that reach resolution">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Event Success Rate</span>
-                                    <span className="text-blue-400 font-bold">{stats.productHealth.eventSuccessRate}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of users who create prediction events">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Creator Ratio</span>
-                                    <span className="text-purple-400 font-bold">{stats.productHealth.creatorRatio}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of users with administrative privileges">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Admin Ratio</span>
-                                    <span className="text-cyan-400 font-bold">{stats.users.total > 0 ? Math.round((stats.users.admins / stats.users.total) * 100) : 0}%</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Percentage of users who have stopped being active">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Churn Rate</span>
-                                    <span className="text-red-400 font-bold">{stats.users.churnRate}%</span>
-                                </div>
-                            </MetricTooltip>
+            <div className="grid gap-4 lg:grid-cols-3">
+                <Card className="border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-start justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Product health</CardTitle>
+                            <CardDescription>Reliability + liquidity</CardDescription>
                         </div>
-                    </div>
+                        <LineChartIcon className="h-5 w-5 text-gray-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading…</div>
+                        ) : (
+                            <>
+                                <HealthRow
+                                    label="User retention"
+                                    value={`${stats.health.userRetention}%`}
+                                    tone="emerald"
+                                />
+                                <HealthRow
+                                    label="Event success"
+                                    value={`${stats.health.eventSuccess}%`}
+                                    tone="blue"
+                                />
+                                <HealthRow
+                                    label="Creator ratio"
+                                    value={`${stats.health.creatorRatio}%`}
+                                    tone="purple"
+                                />
+                                <HealthRow
+                                    label="Market liquidity"
+                                    value={`${stats.health.liquidity}`}
+                                    tone="cyan"
+                                />
+                                <HealthRow
+                                    label="Growth rate"
+                                    value={`${stats.health.growthRate}%`}
+                                    tone="pink"
+                                />
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
 
-                    {/* Revenue Metrics */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>💰</span> Revenue Metrics
-                        </h3>
-                        <div className="space-y-3">
-                            <MetricTooltip description="Total platform revenue from all betting activity">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Total Revenue</span>
-                                    <span className="text-green-400 font-bold">${stats.revenue.totalRevenue.toFixed(2)}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Average revenue generated per paying user">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">ARPPU</span>
-                                    <span className="text-blue-400 font-bold">${stats.revenue.arppu}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Estimated lifetime value of a user">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">LTV</span>
-                                    <span className="text-purple-400 font-bold">${stats.revenue.ltv}</span>
-                                </div>
-                            </MetricTooltip>
-                            <MetricTooltip description="Number of users who have placed bets (paying users)">
-                                <div className="flex justify-between items-center cursor-help">
-                                    <span className="text-gray-400">Paying Users</span>
-                                    <span className="text-cyan-400 font-bold">{stats.revenue.payingUsers}</span>
-                                </div>
-                            </MetricTooltip>
+                <Card className="border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-start justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Revenue signals</CardTitle>
+                            <CardDescription>Mock monetization view</CardDescription>
                         </div>
-                    </div>
+                        <Activity className="h-5 w-5 text-gray-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading…</div>
+                        ) : (
+                            <>
+                                <HealthRow
+                                    label="Total revenue"
+                                    value={`$${stats.revenue.total.toFixed(2)}`}
+                                    tone="orange"
+                                />
+                                <HealthRow label="ARPPU" value={`$${stats.revenue.arppu}`} tone="yellow" />
+                                <HealthRow label="LTV (est.)" value={`$${stats.revenue.ltv}`} tone="purple" />
+                                <HealthRow
+                                    label="Paying users"
+                                    value={`${stats.revenue.payingUsers}`}
+                                    tone="blue"
+                                />
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
 
-                    {/* Quick Actions */}
-                    <div className="bg-[#2a2a2a] border border-white/10 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <span>⚡</span> Quick Actions
-                        </h3>
-                        <div className="space-y-3">
-                            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                                <span>📊</span> Export Data
-                            </button>
-                            <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                                <span>📋</span> Generate Report
-                            </button>
-                            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                                <span>📈</span> View Trends
-                            </button>
-                            <button className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                                <span>🔧</span> System Health
-                            </button>
+                <Card className="border-white/10 bg-[#0d0f14]">
+                    <CardHeader className="flex flex-row items-start justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-white">Retention</CardTitle>
+                            <CardDescription>Who keeps coming back</CardDescription>
                         </div>
-                    </div>
+                        <Users className="h-5 w-5 text-gray-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {isLoading ? (
+                            <div className="text-gray-400">Loading…</div>
+                        ) : (
+                            <>
+                                <HealthRow
+                                    label="30-day retention"
+                                    value={`${stats.health.userRetention}%`}
+                                    tone="emerald"
+                                />
+                                <HealthRow
+                                    label="Recent users"
+                                    value={`${stats.growth.recentUsers}`}
+                                    tone="blue"
+                                />
+                                <HealthRow
+                                    label="Recent events"
+                                    value={`${stats.growth.recentEvents}`}
+                                    tone="purple"
+                                />
+                                <HealthRow
+                                    label="Recent resolutions"
+                                    value={`${stats.growth.recentResolvedEvents}`}
+                                    tone="cyan"
+                                />
+                                <HealthRow label="Churn" value={`${stats.health.churnRate}%`} tone="red" />
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}
+
+type StatCardProps = {
+    title: string;
+    value: number | string;
+    helper: string;
+    gradient: string;
+};
+
+function StatCard({ title, value, helper, gradient }: StatCardProps) {
+    return (
+        <div
+            className={`rounded-xl border border-white/10 bg-gradient-to-br ${gradient} p-4 shadow-2xl shadow-black/20`}
+        >
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-sm text-gray-300">{title}</p>
+                    <p className="text-2xl font-bold text-white">{value}</p>
                 </div>
             </div>
+            <p className="text-xs text-gray-400 mt-2">{helper}</p>
         </div>
     );
 }

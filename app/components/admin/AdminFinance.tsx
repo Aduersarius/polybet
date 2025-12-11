@@ -109,13 +109,27 @@ export function AdminFinance() {
                         Platform-level deposits, withdrawals, balances, and ledger activity.
                     </p>
                 </div>
-                <button
-                    onClick={fetchData}
-                    className="inline-flex items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
-                >
-                    <RefreshCw className="h-4 w-4" />
-                    Refresh
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <a
+                        href="/admin/withdrawals"
+                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                    >
+                        Review withdrawals
+                    </a>
+                    <a
+                        href="/admin/withdraw"
+                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                    >
+                        New withdrawal
+                    </a>
+                    <button
+                        onClick={fetchData}
+                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                    >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             {/* Stats */}

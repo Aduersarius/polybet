@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
+import { updateUserTelemetry } from "./user-telemetry";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl = isProduction
@@ -247,7 +248,11 @@ export async function requireAuth(request: Request) {
             headers: { 'Content-Type': 'application/json' },
         });
     }
-    return session.user;
+    const user = session.user;
+    updateUserTelemetry(user.id, request.headers).catch((err) =>
+        console.error('[telemetry] update failed (non-blocking)', err)
+    );
+    return user;
 }
 
 // Utility function to require admin authentication in API routes
