@@ -236,88 +236,106 @@ export default function Home() {
               transition={{ delay: 0.3 }}
               className="relative mb-8"
             >
-              <div className="flex items-center gap-4">
-                <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
-                  {selectedCategory === 'FAVORITES' ? 'My Favorites' :
-                    selectedCategory === 'ALL' ? 'All Markets' :
-                      selectedCategory === 'NEW' ? 'New Markets' :
-                        selectedCategory === 'TRENDING' ? 'Trending Markets' :
-                          `${selectedCategory} Markets`}
-                  <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
-                </h2>
-              </div>
-
-              {/* Filters - Floating Right */}
-              <div className="absolute right-0 top-0 flex items-center gap-3">
-                {/* Time Horizon Filter */}
-                <div className="flex bg-white/5 rounded-lg border border-white/10 p-1">
-                  {[
-                    { key: 'all', label: 'All' },
-                    { key: '1d', label: '1D' },
-                    { key: '1w', label: '1W' },
-                    { key: '1m', label: '1M' }
-                  ].map((option) => (
-                    <button
-                      key={option.key}
-                      onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
-                      className={`px-2 py-1 text-xs font-medium rounded transition-all ${timeHorizon === option.key
-                        ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
-                        }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
+                    {selectedCategory === 'FAVORITES' ? 'My Favorites' :
+                      selectedCategory === 'ALL' ? 'All Markets' :
+                        selectedCategory === 'NEW' ? 'New Markets' :
+                          selectedCategory === 'TRENDING' ? 'Trending Markets' :
+                            `${selectedCategory} Markets`}
+                    <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
+                  </h2>
                 </div>
 
-                {/* Sort Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                    className="material-card px-3 py-1.5 text-xs text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                    </svg>
-                    {sortBy === 'newest' ? 'Newest' :
-                      sortBy === 'volume_high' ? 'Volume ↑' :
-                        sortBy === 'volume_low' ? 'Volume ↓' :
-                          sortBy === 'liquidity_high' ? 'Liquidity ↑' :
-                            sortBy === 'ending_soon' ? 'Ending Soon' : 'Newest'}
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {sortDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-40 material-card rounded-lg shadow-xl z-10 overflow-hidden">
-                      {[
-                        { key: 'newest', label: 'Newest' },
-                        { key: 'volume_high', label: 'Volume (High)' },
-                        { key: 'volume_low', label: 'Volume (Low)' },
-                        { key: 'liquidity_high', label: 'Liquidity (High)' },
-                        { key: 'ending_soon', label: 'Ending Soon' }
-                      ].map((option) => (
-                        <button
-                          key={option.key}
-                          onClick={() => {
-                            setSortBy(option.key as typeof sortBy);
-                            setSortDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortBy === option.key
-                            ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
-                            : 'text-gray-300 hover:bg-white/5'
-                            }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                {/* Filters */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 w-full sm:w-auto">
+                  {/* Time Horizon Filter */}
+                  <div className="flex flex-wrap items-center gap-2 bg-white/5 rounded-lg border border-white/10 p-2">
+                    {[
+                      { key: 'all', label: 'All' },
+                      { key: '1d', label: '1D' },
+                      { key: '1w', label: '1W' },
+                      { key: '1m', label: '1M' }
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
+                        className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${timeHorizon === option.key
+                          ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30'
+                          : 'text-gray-300 hover:text-gray-100 hover:bg-white/10'
+                          }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Sort - mobile select */}
+                  <div className="w-full sm:hidden">
+                    <label className="text-xs text-gray-400 block mb-1">Sort by</label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#bb86fc]"
+                    >
+                      <option value="newest">Newest</option>
+                      <option value="volume_high">Volume (High)</option>
+                      <option value="volume_low">Volume (Low)</option>
+                      <option value="liquidity_high">Liquidity (High)</option>
+                      <option value="ending_soon">Ending Soon</option>
+                    </select>
+                  </div>
+
+                  {/* Sort Dropdown - desktop */}
+                  <div className="relative hidden sm:block">
+                    <button
+                      onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                      className="material-card px-3 py-2 text-sm text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                      </svg>
+                      {sortBy === 'newest' ? 'Newest' :
+                        sortBy === 'volume_high' ? 'Volume ↑' :
+                          sortBy === 'volume_low' ? 'Volume ↓' :
+                            sortBy === 'liquidity_high' ? 'Liquidity ↑' :
+                              sortBy === 'ending_soon' ? 'Ending Soon' : 'Newest'}
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {sortDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-44 material-card rounded-lg shadow-xl z-10 overflow-hidden">
+                        {[
+                          { key: 'newest', label: 'Newest' },
+                          { key: 'volume_high', label: 'Volume (High)' },
+                          { key: 'volume_low', label: 'Volume (Low)' },
+                          { key: 'liquidity_high', label: 'Liquidity (High)' },
+                          { key: 'ending_soon', label: 'Ending Soon' }
+                        ].map((option) => (
+                          <button
+                            key={option.key}
+                            onClick={() => {
+                              setSortBy(option.key as typeof sortBy);
+                              setSortDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm transition-colors ${sortBy === option.key
+                              ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
+                              : 'text-gray-300 hover:bg-white/5'
+                              }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-12">
               {activeEvents.map((event) => (
                 <EventCard2
                   key={event.id}
@@ -347,7 +365,7 @@ export default function Home() {
                     Ended Markets
                     <div className="h-px bg-gray-800 flex-1" />
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {endedEvents.map((event) => (
                       <EventCard2
                         key={event.id}

@@ -225,7 +225,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: randomDelay }}
-        className={`group bg-[#1e1e1e] border border-transparent rounded-xl p-2.5 ${hoverColorClass} transition-all duration-300 flex flex-col justify-between shadow-lg h-[180px] gap-2 ${isEnded ? 'opacity-60' : ''
+        className={`group bg-[#1e1e1e] border border-transparent rounded-xl p-3 sm:p-2.5 ${hoverColorClass} transition-all duration-300 flex flex-col justify-between shadow-lg min-h-[180px] h-auto gap-2 ${isEnded ? 'opacity-60' : ''
           }`}
       >
         {/* 1. Header: Image & Title */}
@@ -235,7 +235,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               <img
                 src={event.imageUrl}
                 alt={event.title}
-                className="w-12 h-12 rounded-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
+                className="w-12 h-12 sm:w-12 sm:h-12 rounded-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                   (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
@@ -243,7 +243,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               />
             ) : null}
             <div
-              className={`w-12 h-12 rounded-full bg-[#2a2b36] border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400 transition-colors ${event.imageUrl ? 'hidden' : ''
+              className={`w-12 h-12 sm:w-12 sm:h-12 rounded-full bg-[#2a2b36] border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400 transition-colors ${event.imageUrl ? 'hidden' : ''
                 }`}
             >
               {(event as any).categories && (event as any).categories.length > 0
@@ -296,7 +296,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
         {/* 3. Stats Row */}
         <div className="flex items-center justify-between text-gray-500 px-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
               <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -374,7 +374,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               onClick={(e) => handleTradeClick(e, 'YES')}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex-1 bg-[#1E2A25] hover:bg-[#1E3A2F] rounded-lg flex items-center justify-between px-4 cursor-pointer transition-all group/yes"
+              className="flex-1 bg-[#1E2A25] hover:bg-[#1E3A2F] rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
             >
               <span className="text-[12px] font-bold text-green-500/90 group-hover/yes:text-green-400">YES</span>
               <span className="text-[12px] font-bold text-green-400">{yesOdds}%</span>
@@ -383,7 +383,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               onClick={(e) => handleTradeClick(e, 'NO')}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex-1 bg-[#2A1E1E] hover:bg-[#3A1E1E] rounded-lg flex items-center justify-between px-4 cursor-pointer transition-all group/no"
+              className="flex-1 bg-[#2A1E1E] hover:bg-[#3A1E1E] rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
             >
               <span className="text-[12px] font-bold text-red-500/90 group-hover/no:text-red-400">NO</span>
               <span className="text-[12px] font-bold text-red-400">{noOdds}%</span>

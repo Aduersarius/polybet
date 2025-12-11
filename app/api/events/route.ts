@@ -320,11 +320,27 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { title, description, resolutionDate, categories, imageUrl } = body;
+        const { title, description, resolutionDate, categories, imageUrl, type = 'BINARY', outcomes = [], isHidden = false } = body;
 
         // Basic validation
         if (!title || !description || !resolutionDate) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        if (!['BINARY', 'MULTIPLE'].includes(type)) {
+            return NextResponse.json({ error: 'Invalid event type' }, { status: 400 });
+        }
+
+        const parsedOutcomes = Array.isArray(outcomes)
+            ? outcomes.filter((o: any) => o?.name).map((o: any) => ({
+                name: o.name,
+                probability: o.probability ?? 0.5,
+                liquidity: o.liquidity ?? 0,
+            }))
+            : [];
+
+        if (type === 'MULTIPLE' && parsedOutcomes.length < 2) {
+            return NextResponse.json({ error: 'Please provide at least two outcomes' }, { status: 400 });
         }
 
         // 2. Create Event with Creator and AMM defaults
@@ -336,11 +352,18 @@ export async function POST(request: Request) {
                 categories: categories ?? [],
                 imageUrl,
                 creatorId: user.id,
+                isHidden: Boolean(isHidden),
+                type,
                 // Explicitly set AMM defaults (though schema has defaults)
-                liquidityParameter: 100.0,
+                liquidityParameter: type === 'MULTIPLE' ? 10000.0 : 20000.0,
                 qYes: 0.0,
                 qNo: 0.0,
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                outcomes: type === 'MULTIPLE' && parsedOutcomes.length > 0
+                    ? {
+                        create: parsedOutcomes
+                    }
+                    : undefined,
             },
             select: {
                 id: true,
@@ -350,7 +373,10 @@ export async function POST(request: Request) {
                 resolutionDate: true,
                 createdAt: true,
                 imageUrl: true,
-                status: true
+                status: true,
+                type: true,
+                isHidden: true,
+                outcomes: true,
             },
         });
 

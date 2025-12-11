@@ -47,6 +47,11 @@ export default function EventPage() {
     const eventId = params.id as string;
     const [liveEvent, setLiveEvent] = useState<any>(null);
     const [selectedCategory, setSelectedCategory] = useState('ALL');
+    const [collapsedSections, setCollapsedSections] = useState({
+        chart: false,
+        orderbook: false,
+        chat: false,
+    });
     const [tradeIntent, setTradeIntent] = useState<{
         side: 'buy' | 'sell';
         price: number;
@@ -80,6 +85,27 @@ export default function EventPage() {
             setLiveEvent(event);
         }
     }, [event]);
+
+    // Collapse larger sections by default on mobile, expand on desktop
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(max-width: 1024px)');
+        const setByViewport = (isMobile: boolean) => {
+            setCollapsedSections((prev) => ({
+                ...prev,
+                chart: isMobile,
+                orderbook: isMobile,
+                chat: isMobile,
+            }));
+        };
+        setByViewport(mediaQuery.matches);
+        const handler = (e: MediaQueryListEvent) => setByViewport(e.matches);
+        mediaQuery.addEventListener('change', handler);
+        return () => mediaQuery.removeEventListener('change', handler);
+    }, []);
+
+    const toggleSection = (section: 'chart' | 'orderbook' | 'chat') => {
+        setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+    };
 
     // Initialize selectedCategory from storage
     useEffect(() => {
@@ -140,7 +166,7 @@ export default function EventPage() {
     }
 
     return (
-        <main className="h-screen text-white relative overflow-hidden flex flex-col">
+        <main className="min-h-screen text-white relative overflow-hidden flex flex-col">
             {/* Animated Background */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#bb86fc]/5 via-transparent to-[#03dac6]/5" />
@@ -151,59 +177,86 @@ export default function EventPage() {
             <div className="relative z-10 flex flex-col h-full">
                 <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
-                <div className="flex-1 overflow-hidden">
-                    <div className="h-full px-4 max-w-7xl mx-auto">
+                <div className="flex-1">
+                    <div className="px-4 sm:px-5 max-w-7xl mx-auto pb-10">
 
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="h-full"
                         >
-                            <div className="grid grid-cols-[1fr_24rem] gap-6 h-full">
-                                {/* Left Column - Scrollable */}
-                                <div className="overflow-y-auto no-scrollbar h-full pb-6 pr-2 pt-4">
+                            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] h-full">
+                                {/* Left Column */}
+                                <div className="pb-6 lg:pr-2 pt-4 space-y-6 order-1">
                                     <div className="space-y-6">
                                         {/* Header Section - With Image on Right */}
                                         <div className="relative">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                {/* Display all categories as badges */}
-                                                {liveEvent.categories && liveEvent.categories.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {liveEvent.categories.map((cat: string, idx: number) => (
-                                                            <motion.span
-                                                                key={idx}
-                                                                whileHover={{ scale: 1.05 }}
-                                                                className="px-3 py-1 bg-gradient-to-r from-[#bb86fc] via-[#a66ef1] to-[#9965f4] rounded-full text-xs font-bold shadow-lg shadow-[#bb86fc]/20 backdrop-blur-sm"
-                                                            >
-                                                                {cat}
-                                                            </motion.span>
-                                                        ))}
+                                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6 lg:pr-32">
+                                                <div className="flex-1 space-y-3">
+                                                    <div className="flex items-center gap-3 flex-wrap">
+                                                        {/* Display all categories as badges */}
+                                                        {liveEvent.categories && liveEvent.categories.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {liveEvent.categories.map((cat: string, idx: number) => (
+                                                                    <motion.span
+                                                                        key={idx}
+                                                                        whileHover={{ scale: 1.05 }}
+                                                                        className="px-3 py-1 bg-gradient-to-r from-[#bb86fc] via-[#a66ef1] to-[#9965f4] rounded-full text-xs font-bold shadow-lg shadow-[#bb86fc]/20 backdrop-blur-sm"
+                                                                    >
+                                                                        {cat}
+                                                                    </motion.span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex items-center gap-2 text-xs text-gray-400 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                                                            <svg className="w-3 h-3 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            Ends {new Date(liveEvent.resolutionDate).toLocaleDateString()}
+                                                        </div>
                                                     </div>
-                                                )}
-                                                <div className="flex items-center gap-2 text-xs text-gray-400 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                                                    <svg className="w-3 h-3 text-[#03dac6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    Ends {new Date(liveEvent.resolutionDate).toLocaleDateString()}
+
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-start gap-3">
+                                                            <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent leading-tight drop-shadow-lg">
+                                                                {liveEvent.title}
+                                                            </h1>
+                                                        </div>
+                                                        <p className="text-gray-400 text-sm leading-relaxed">{liveEvent.description}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="shrink-0 lg:absolute lg:top-0 lg:right-0">
+                                                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg overflow-hidden border border-white/10 shadow-lg">
+                                                        <img
+                                                            src={liveEvent.imageUrl || getCategoryImage(liveEvent.categories)}
+                                                            alt={liveEvent.title}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
+                                        </div>
 
-                                            <div className="relative mb-4">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent leading-tight drop-shadow-lg">
-                                                        {liveEvent.title}
-                                                    </h1>
-                                                </div>
-                                                <p className="text-gray-400 text-sm leading-relaxed">{liveEvent.description}</p>
-                                            </div>
-
-                                            <div className="w-28 h-28 rounded-lg overflow-hidden border border-white/10 shadow-lg absolute top-0 right-0">
-                                                <img
-                                                    src={liveEvent.imageUrl || getCategoryImage(liveEvent.categories)}
-                                                    alt={liveEvent.title}
-                                                    className="w-full h-full object-cover"
+                                        {/* Trading panel on mobile (desktop keeps side placement) */}
+                                        <div className="lg:hidden">
+                                            {liveEvent.type === 'MULTIPLE' ? (
+                                                <MultipleTradingPanel
+                                                    outcomes={liveEvent.outcomes || []}
+                                                    liveOutcomes={liveEvent.outcomes || []}
+                                                    creationDate={liveEvent.createdAt || liveEvent.creationDate}
+                                                    resolutionDate={liveEvent.resolutionDate}
+                                                    onTrade={handleTrade}
+                                                    tradeIntent={tradeIntent}
                                                 />
-                                            </div>
+                                            ) : (
+                                                <TradingPanel
+                                                    creationDate={liveEvent.createdAt || liveEvent.creationDate}
+                                                    resolutionDate={liveEvent.resolutionDate}
+                                                    onTrade={handleTrade}
+                                                    tradeIntent={tradeIntent}
+                                                />
+                                            )}
                                         </div>
 
                                         <CompactEventPanel
@@ -215,10 +268,23 @@ export default function EventPage() {
                                         />
 
                                         {(liveEvent.type === 'BINARY' || liveEvent.type === 'MULTIPLE') && (
-                                            <>
-                                                {/* Chart Section */}
-                                                <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
-                                                    <div className="h-[500px] w-full">
+                                            <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                                <button
+                                                    className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
+                                                    onClick={() => toggleSection('chart')}
+                                                >
+                                                    <span className="font-semibold">Price chart</span>
+                                                    <svg
+                                                        className={`w-4 h-4 transition-transform ${collapsedSections.chart ? '-rotate-90' : 'rotate-0'}`}
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
+                                                {!collapsedSections.chart && (
+                                                    <div className="h-[260px] sm:h-[340px] lg:h-[460px] w-full transition-[max-height] duration-200">
                                                         <NewPolymarketChart
                                                             eventId={eventId.toString()}
                                                             eventType={liveEvent.type}
@@ -227,28 +293,69 @@ export default function EventPage() {
                                                             currentYesPrice={liveEvent.yesOdds}
                                                         />
                                                     </div>
-                                                </div>
-                                            </>
+                                                )}
+                                            </div>
                                         )}
 
-                                        <div className="h-[400px] w-full mt-6">
-                                            <OrderBook
-                                                eventId={eventId.toString()}
-                                                outcomes={liveEvent.outcomes}
-                                                eventType={liveEvent.type}
-                                                onOrderSelect={setTradeIntent}
-                                            />
+                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                            <button
+                                                className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
+                                                onClick={() => toggleSection('orderbook')}
+                                            >
+                                                <span className="font-semibold">Order book</span>
+                                                <svg
+                                                    className={`w-4 h-4 transition-transform ${collapsedSections.orderbook ? '-rotate-90' : 'rotate-0'}`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                            {!collapsedSections.orderbook && (
+                                                <div className="h-[260px] sm:h-[320px] lg:h-[400px] w-full">
+                                                    <OrderBook
+                                                        eventId={eventId.toString()}
+                                                        outcomes={liveEvent.outcomes}
+                                                        eventType={liveEvent.type}
+                                                        onOrderSelect={setTradeIntent}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Comments Section */}
-                                        <div>
-                                            <EventChat eventId={eventId.toString()} />
+                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                            <button
+                                                className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white"
+                                                onClick={() => toggleSection('chat')}
+                                            >
+                                                <span className="font-semibold">Discussion</span>
+                                                <svg
+                                                    className={`w-4 h-4 transition-transform ${collapsedSections.chat ? '-rotate-90' : 'rotate-0'}`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                            {!collapsedSections.chat && (
+                                                <div className="p-4">
+                                                    <EventChat eventId={eventId.toString()} />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Related markets on mobile (desktop in side column) */}
+                                        <div className="lg:hidden">
+                                            <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Right Column - Scrollable */}
-                                <div className="overflow-y-auto no-scrollbar h-full pb-6 pl-2 pt-4">
+                                {/* Right Column */}
+                                <div className="pb-6 lg:pl-2 pt-4 space-y-6 order-2 hidden lg:block">
                                     <div className="space-y-6">
                                         {liveEvent.type === 'MULTIPLE' ? (
                                             <MultipleTradingPanel
