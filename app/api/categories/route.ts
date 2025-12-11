@@ -15,7 +15,7 @@ export async function GET() {
 
         // Extract unique categories from the arrays
         const categorySet = new Set<string>();
-        events.forEach(event => {
+        events.forEach((event: (typeof events)[number]) => {
             event.categories.forEach((category: string) => {
                 categorySet.add(category);
             });

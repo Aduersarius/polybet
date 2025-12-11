@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireApiKeyAuth, checkInstitutionalRateLimit, hasPermission } from '@/lib/api-auth';
 import { redis } from '@/lib/redis';
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Build where clause
-    const where: any = {
+    const where: Prisma.OrderWhereInput = {
       userId: auth.userId,
     };
 
@@ -54,60 +55,62 @@ export async function GET(request: NextRequest) {
       where.orderType = orderType;
     }
 
-    // Get orders with execution summary
-    const orders = await prisma.order.findMany({
-      where,
-      select: {
-        id: true,
-        eventId: true,
-        outcomeId: true,
-        option: true,
-        side: true,
-        price: true,
-        amount: true,
-        amountFilled: true,
-        status: true,
-        orderType: true,
-        visibleAmount: true,
-        totalAmount: true,
-        timeWindow: true,
-        totalDuration: true,
-        executedSlices: true,
-        stopPrice: true,
-        stopType: true,
-        batchId: true,
-        createdAt: true,
-        updatedAt: true,
-        event: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            resolutionDate: true,
-          },
-        },
-        outcome: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        executions: {
-          select: {
-            amount: true,
-            price: true,
-            executedAt: true,
-          },
-          orderBy: {
-            executedAt: 'desc',
-          },
-        },
-        _count: {
-          select: {
-            executions: true,
-          },
+    const orderSelect = {
+      id: true,
+      eventId: true,
+      outcomeId: true,
+      option: true,
+      side: true,
+      price: true,
+      amount: true,
+      amountFilled: true,
+      status: true,
+      orderType: true,
+      visibleAmount: true,
+      totalAmount: true,
+      timeWindow: true,
+      totalDuration: true,
+      executedSlices: true,
+      stopPrice: true,
+      stopType: true,
+      batchId: true,
+      createdAt: true,
+      updatedAt: true,
+      event: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          resolutionDate: true,
         },
       },
+      outcome: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      executions: {
+        select: {
+          amount: true,
+          price: true,
+          executedAt: true,
+        },
+        orderBy: {
+          executedAt: 'desc',
+        },
+      },
+      _count: {
+        select: {
+          executions: true,
+        },
+      },
+    } as const;
+
+    // Get orders with execution summary
+    const orders: Prisma.OrderGetPayload<{ select: typeof orderSelect }>[] = await prisma.order.findMany({
+      where,
+      select: orderSelect,
       orderBy: {
         createdAt: 'desc',
       },

@@ -118,7 +118,7 @@ export async function POST(request: Request) {
                                 isAmmInteraction: true
                             }
                         })
-                    ]),
+                    ]) as Promise<[any, any, any]>,
                     8000 // 8 second timeout for transaction
                 );
 

@@ -163,7 +163,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             5000
         );
 
-        const message = await withTimeout(
+        const message = await withTimeout<Awaited<ReturnType<typeof prisma.message.create>>>(
             prisma.message.create({
                 data: {
                     text,

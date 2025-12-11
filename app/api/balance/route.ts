@@ -30,11 +30,17 @@ export async function GET(req: NextRequest) {
         });
 
         if (isDev) {
-            console.log('Balance API - Found balances:', balances.length, balances.map(b => `${b.tokenSymbol}: ${b.amount}`));
+            console.log(
+                'Balance API - Found balances:',
+                balances.length,
+                balances.map((b: (typeof balances)[number]) => `${b.tokenSymbol}: ${b.amount}`)
+            );
         }
 
         // Also include TUSD balance for backward compatibility
-        const tusdBalance = balances.find(b => b.tokenSymbol === 'TUSD' && !b.eventId && !b.outcomeId);
+        const tusdBalance = balances.find(
+            (b: (typeof balances)[number]) => b.tokenSymbol === 'TUSD' && !b.eventId && !b.outcomeId
+        );
 
         return NextResponse.json({
             balance: tusdBalance?.amount || 0,

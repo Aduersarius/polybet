@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
@@ -14,33 +15,35 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const favorites = await prisma.userFavorite.findMany({
+        const eventSelect = {
+            id: true,
+            title: true,
+            description: true,
+            categories: true,
+            resolutionDate: true,
+            imageUrl: true,
+            status: true,
+            type: true,
+            outcomes: {
+                select: {
+                    id: true,
+                    name: true,
+                    probability: true,
+                    color: true
+                },
+                orderBy: {
+                    probability: 'desc'
+                }
+            }
+        } as const;
+
+        const favorites: Prisma.UserFavoriteGetPayload<{ include: { event: { select: typeof eventSelect } } }>[] = await prisma.userFavorite.findMany({
             where: {
                 userId: user.id
             },
             include: {
                 event: {
-                    select: {
-                        id: true,
-                        title: true,
-                        description: true,
-                        categories: true,
-                        resolutionDate: true,
-                        imageUrl: true,
-                        status: true,
-                        type: true,
-                        outcomes: {
-                            select: {
-                                id: true,
-                                name: true,
-                                probability: true,
-                                color: true
-                            },
-                            orderBy: {
-                                probability: 'desc'
-                            }
-                        }
-                    }
+                    select: eventSelect
                 }
             },
             orderBy: {

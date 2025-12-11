@@ -12,7 +12,14 @@ export async function GET(request: NextRequest) {
         const userId = user.id;
 
         // Get user's balance records for outcome tokens (their positions)
-        let balances;
+        const balanceSelect = {
+            eventId: true,
+            outcomeId: true,
+            tokenSymbol: true,
+            amount: true
+        } as const;
+
+        let balances: Prisma.BalanceGetPayload<{ select: typeof balanceSelect }>[];
         try {
             balances = await prisma.balance.findMany({
                 where: {
@@ -20,9 +27,7 @@ export async function GET(request: NextRequest) {
                     eventId: { not: null },
                     amount: { gt: 0 }
                 },
-                include: {
-                    user: false
-                }
+                select: balanceSelect
             });
         } catch (err: any) {
             // Gracefully handle schema drift (e.g., missing columns in the current DB)
@@ -36,14 +41,14 @@ export async function GET(request: NextRequest) {
         // Get event details for positions
         const positions = await Promise.all(
             balances.map(async (balance) => {
-                const event = await prisma.event.findUnique({
+                const event: Prisma.EventGetPayload<{ select: { title: true; status: true; type: true } }> | null = await prisma.event.findUnique({
                     where: { id: balance.eventId! },
                     select: {
                         title: true,
                         status: true,
                         type: true
                     }
-                }) as any;
+                });
 
                 if (!event) return null;
 

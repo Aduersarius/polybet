@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { RiskManager } from './risk-manager';
 
@@ -72,19 +73,53 @@ function calculateSharesForCost(
 
 // --- HELPER: Update User Balance ---
 async function updateBalance(prisma: any, userId: string, tokenSymbol: string, eventId: string | null, amountDelta: number) {
-    const existing = await prisma.balance.findFirst({
-        where: { userId, tokenSymbol, eventId, outcomeId: null }
-    });
+    // Schema may differ across environments (older Balance tables). Gracefully skip if missing.
+    let existing: { id: string; amount: Prisma.Decimal | number } | null = null;
+    try {
+        existing = await prisma.balance.findFirst({
+            where: { userId, tokenSymbol, eventId, outcomeId: null },
+            select: { id: true, amount: true },
+        });
+    } catch (err) {
+        const code = (err as any)?.code;
+        if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
+            console.warn('[hybrid-trading] balance findFirst schema mismatch; aborting transaction:', (err as Error).message);
+            throw new Error('BALANCE_SCHEMA_MISMATCH');
+        }
+        throw err;
+    }
+
+    const toNumber = (val: Prisma.Decimal | number) =>
+        val instanceof Prisma.Decimal ? val.toNumber() : Number(val);
 
     if (existing) {
-        await prisma.balance.update({
-            where: { id: existing.id },
-            data: { amount: existing.amount + amountDelta }
-        });
+        const nextAmount = toNumber(existing.amount) + amountDelta;
+        try {
+            await prisma.balance.update({
+                where: { id: existing.id },
+                data: { amount: nextAmount },
+            });
+        } catch (err) {
+            const code = (err as any)?.code;
+            if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
+                console.warn('[hybrid-trading] balance update schema mismatch; aborting transaction:', (err as Error).message);
+                throw new Error('BALANCE_SCHEMA_MISMATCH');
+            }
+            throw err;
+        }
     } else {
-        await prisma.balance.create({
-            data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta }
-        });
+        try {
+            await prisma.balance.create({
+                data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta }
+            });
+        } catch (err) {
+            const code = (err as any)?.code;
+            if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
+                console.warn('[hybrid-trading] balance create schema mismatch; aborting transaction:', (err as Error).message);
+                throw new Error('BALANCE_SCHEMA_MISMATCH');
+            }
+            throw err;
+        }
     }
 }
 

@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         ]);
 
         // Normalize count property to match front-end expectation (_count.bets)
-        const normalized = events.map((e) => ({
+        const normalized = events.map((e: (typeof events)[number]) => ({
             ...e,
             _count: {
                 bets: (e as any)._count?.marketActivity ?? 0

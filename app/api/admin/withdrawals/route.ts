@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getCryptoService } from '@/lib/crypto-service';
 import { prisma } from '@/lib/prisma';
 import { requireAdminAuth } from '@/lib/auth';
+import { verifyTotpCode } from '@/lib/totp';
+import { assertSameOrigin } from '@/lib/csrf';
 
 // Status transition validation
 function validateWithdrawalStatusTransition(currentStatus: string, newStatus: string) {
@@ -38,22 +41,27 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        assertSameOrigin(req);
         // Admin authentication check
         const admin = await requireAdminAuth(req);
         const adminId = admin.id;
 
         const body = await req.json();
-        const { withdrawalId, action } = body;
+        const { withdrawalId, action, totpCode } = body;
 
         if (!withdrawalId || !action) {
             return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
         }
 
-        // Fetch withdrawal details for audit logging
+        // Fetch withdrawal details for audit logging and policy enforcement
         const withdrawalDetails = await prisma.withdrawal.findUnique({
             where: { id: withdrawalId },
-            select: { userId: true, amount: true, currency: true, toAddress: true }
+            select: { userId: true, amount: true, currency: true, toAddress: true, status: true, createdAt: true }
         });
+
+        if (!withdrawalDetails) {
+            return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 });
+        }
 
         // Audit logging
         console.log(JSON.stringify({
@@ -68,11 +76,57 @@ export async function POST(req: NextRequest) {
         }));
 
         if (action === 'APPROVE') {
+            const adminRecord = await prisma.user.findUnique({
+                where: { id: adminId },
+                select: { twoFactorEnabled: true }
+            });
+            const adminTwoFactor = await prisma.twoFactor.findUnique({
+                where: { userId: adminId },
+                select: { secret: true }
+            });
+
+            if (!adminRecord?.twoFactorEnabled || !adminTwoFactor?.secret) {
+                return NextResponse.json({ error: 'Admin 2FA is required to approve withdrawals' }, { status: 403 });
+            }
+
+            if (!totpCode || !verifyTotpCode(totpCode, adminTwoFactor.secret)) {
+                return NextResponse.json({ error: 'Invalid or missing TOTP code' }, { status: 401 });
+            }
+
+            const maxSingle = Number(process.env.ADMIN_WITHDRAW_MAX_SINGLE ?? 50000);
+            const maxDaily = Number(process.env.ADMIN_WITHDRAW_MAX_DAILY ?? 200000);
+            if (!Number.isFinite(maxSingle) || maxSingle <= 0 || !Number.isFinite(maxDaily) || maxDaily <= 0) {
+                return NextResponse.json({ error: 'Admin withdrawal limits misconfigured on server' }, { status: 503 });
+            }
+
+            if (withdrawalDetails && Number(withdrawalDetails.amount) > maxSingle) {
+                return NextResponse.json({ error: `Withdrawal exceeds admin per-request cap of ${maxSingle}` }, { status: 400 });
+            }
+
+            const startOfDay = new Date();
+            startOfDay.setUTCHours(0, 0, 0, 0);
+            const dailyTotals = await prisma.withdrawal.aggregate({
+                where: {
+                    status: { in: ['APPROVED', 'COMPLETED'] },
+                    approvedAt: { gte: startOfDay }
+                },
+                _sum: { amount: true }
+            });
+            const usedToday = Number(dailyTotals._sum.amount || 0);
+            const pendingAmount = Number(withdrawalDetails?.amount || 0);
+
+            if (usedToday + pendingAmount > maxDaily) {
+                const remaining = Math.max(0, maxDaily - usedToday);
+                return NextResponse.json({
+                    error: `Daily admin approval cap exceeded. Remaining today: ${remaining}`
+                }, { status: 400 });
+            }
+
             const service = getCryptoService();
             const txHash = await service.approveWithdrawal(withdrawalId, adminId);
             return NextResponse.json({ success: true, txHash });
         } else if (action === 'REJECT') {
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const withdrawal = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });
                 if (!withdrawal) throw new Error('Invalid withdrawal');
 

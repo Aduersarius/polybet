@@ -152,7 +152,7 @@ export async function GET(request: Request) {
         });
 
         // Get aggregations for volume and betCount
-        const eventIds = events.map(e => e.id);
+        const eventIds = events.map((e: (typeof events)[number]) => e.id);
         const activities = eventIds.length
             ? await prisma.marketActivity.findMany({
                 where: {
@@ -199,7 +199,7 @@ export async function GET(request: Request) {
         }
 
         // Process events with stats and filtering
-        let eventsWithStats = events.map(event => {
+        let eventsWithStats = events.map((event: (typeof events)[number]) => {
             const volume = volumeMap.get(event.id) || 0;
             const betCount = betCountMap.get(event.id) || 0;
 
@@ -249,7 +249,7 @@ export async function GET(request: Request) {
 
         // Apply keyword-based category filtering if needed
         if (effectiveCategory && getAllCategories().includes(effectiveCategory)) {
-            eventsWithStats = eventsWithStats.filter(event => {
+            eventsWithStats = eventsWithStats.filter((event: (typeof eventsWithStats)[number]) => {
                 const detectedCategories = categorizeEvent(event.title, event.description || '');
                 return detectedCategories.includes(effectiveCategory);
             });
@@ -257,11 +257,20 @@ export async function GET(request: Request) {
 
         // Apply volume/liquidity sorting
         if (effectiveSortBy === 'volume_high') {
-            eventsWithStats.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+            eventsWithStats.sort(
+                (a: (typeof eventsWithStats)[number], b: (typeof eventsWithStats)[number]) =>
+                    (b.volume || 0) - (a.volume || 0)
+            );
         } else if (effectiveSortBy === 'volume_low') {
-            eventsWithStats.sort((a, b) => (a.volume || 0) - (b.volume || 0));
+            eventsWithStats.sort(
+                (a: (typeof eventsWithStats)[number], b: (typeof eventsWithStats)[number]) =>
+                    (a.volume || 0) - (b.volume || 0)
+            );
         } else if (effectiveSortBy === 'liquidity_high') {
-            eventsWithStats.sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
+            eventsWithStats.sort(
+                (a: (typeof eventsWithStats)[number], b: (typeof eventsWithStats)[number]) =>
+                    (b.liquidity || 0) - (a.liquidity || 0)
+            );
         }
 
         // Apply limit after filtering and sorting

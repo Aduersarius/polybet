@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform to Trade interface format
-    const trades: Trade[] = marketActivities.map(activity => ({
+    const trades: Trade[] = marketActivities.map((activity: (typeof marketActivities)[number]) => ({
       id: activity.id,
       eventId: activity.eventId,
       outcomeId: activity.outcomeId || undefined,

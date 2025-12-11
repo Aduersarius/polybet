@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
+import { requireAdminAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const maxDuration = 60; // Increase timeout for large data generation
 
-export async function POST() {
+export async function POST(request: Request) {
     try {
+        if (process.env.NODE_ENV === 'production') {
+            return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        }
+
+        assertSameOrigin(request);
+        await requireAdminAuth(request);
+
         console.log('Starting trade regeneration...');
         const startTime = Date.now();
 

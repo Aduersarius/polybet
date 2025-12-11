@@ -1,6 +1,15 @@
+import { Prisma } from '@prisma/client';
 import { ethers } from 'ethers';
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
+
+const DEPOSIT_ADDRESS_SELECT = {
+    address: true,
+    derivationIndex: true,
+    userId: true,
+} as const;
+
+type DepositAddressLite = Prisma.DepositAddressGetPayload<{ select: typeof DEPOSIT_ADDRESS_SELECT }>;
 
 // Polygon RPC (e.g., https://polygon-rpc.com or Alchemy/Infura)
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL || 'https://polygon-rpc.com';
@@ -132,14 +141,15 @@ export class CryptoService {
 
     async checkDeposits() {
         this.log('Checking deposits...');
-        const addresses = await prisma.depositAddress.findMany({
-            where: { currency: 'USDC' }
+        const addresses: DepositAddressLite[] = await prisma.depositAddress.findMany({
+            where: { currency: 'USDC' },
+            select: DEPOSIT_ADDRESS_SELECT,
         });
 
         const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, this.provider);
 
         // Check balances in parallel to prevent blocking
-        const balancePromises = addresses.map(async (addr) => {
+        const balancePromises = addresses.map(async (addr: DepositAddressLite) => {
             try {
                 const balance = await usdcContract.balanceOf(addr.address);
                 return { addr, balance };
@@ -167,7 +177,7 @@ export class CryptoService {
         }
     }
 
-    private async sweepAndCredit(addr: any, tokenBalance: bigint) {
+    private async sweepAndCredit(addr: DepositAddressLite, tokenBalance: bigint) {
         if (!MASTER_WALLET_ADDRESS) {
             console.error('MASTER_WALLET_ADDRESS not set');
             return;
@@ -237,7 +247,7 @@ export class CryptoService {
 
             let dbTransactionSuccess = false;
             try {
-                await prisma.$transaction(async (txPrisma) => {
+                await prisma.$transaction(async (txPrisma: Prisma.TransactionClient) => {
                     // Create Deposit Record
                     await txPrisma.deposit.create({
                         data: {
@@ -389,7 +399,7 @@ export class CryptoService {
         }
 
         try {
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 // Lock the balance row for update
                 const balances = await tx.$queryRaw<Array<{ id: string; amount: any; locked: any }>>`
                     SELECT "id", "amount", "locked" FROM "Balance"
@@ -468,6 +478,31 @@ export class CryptoService {
             throw new Error(errorMsg);
         }
 
+        const maxSingle = Number(process.env.ADMIN_WITHDRAW_MAX_SINGLE ?? 50000);
+        const maxDaily = Number(process.env.ADMIN_WITHDRAW_MAX_DAILY ?? 200000);
+        if (!Number.isFinite(maxSingle) || maxSingle <= 0 || !Number.isFinite(maxDaily) || maxDaily <= 0) {
+            throw new Error('Admin withdrawal limits misconfigured on server');
+        }
+
+        if (Number(withdrawal.amount) > maxSingle) {
+            throw new Error(`Withdrawal exceeds admin per-request cap of ${maxSingle}`);
+        }
+
+        const startOfDay = new Date();
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const dailyTotals = await prisma.withdrawal.aggregate({
+            where: {
+                status: { in: ['APPROVED', 'COMPLETED'] },
+                approvedAt: { gte: startOfDay }
+            },
+            _sum: { amount: true }
+        });
+        const usedToday = Number(dailyTotals._sum.amount || 0);
+        if (usedToday + Number(withdrawal.amount) > maxDaily) {
+            const remaining = Math.max(0, maxDaily - usedToday);
+            throw new Error(`Daily admin approval cap exceeded. Remaining today: ${remaining}`);
+        }
+
         // Validate and update status to APPROVED (skip update on retry of already-approved with no txHash)
         if (!isRetryApproved) {
             this.validateWithdrawalStatusTransition(withdrawal.status, 'APPROVED');
@@ -525,7 +560,7 @@ export class CryptoService {
                     });
 
                     // Release locked funds (they were deducted from available at request time)
-                    await prisma.$transaction(async (tx) => {
+                    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                         const balances = await tx.$queryRaw<Array<{ id: string; locked: any }>>`
                             SELECT "id", "locked" FROM "Balance"
                             WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
@@ -561,7 +596,7 @@ export class CryptoService {
 
             // Attempt to mark as failed and refund
             try {
-                await prisma.$transaction(async (tx) => {
+                await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                     const currentWithdrawal = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });
                     if (currentWithdrawal) {
                         // Validate transition to FAILED

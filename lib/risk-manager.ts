@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 
 const GLOBAL_LIABILITY_CAP = 50000000; // $50M (increased for testing with existing data)
@@ -110,13 +111,28 @@ export class RiskManager {
      */
     static async calculateEventLiability(eventId: string): Promise<number> {
         // Get all balances for this event, excluding AMM Bot
-        const balances = await prisma.balance.findMany({
-            where: {
-                eventId: eventId,
-                userId: { not: AMM_BOT_USER_ID },
-                tokenSymbol: { not: 'TUSD' } // Only outcome tokens
+        let balances: Array<{ tokenSymbol: string; amount: Prisma.Decimal }>;
+        try {
+            balances = await prisma.balance.findMany({
+                where: {
+                    eventId: eventId,
+                    userId: { not: AMM_BOT_USER_ID },
+                    tokenSymbol: { not: 'TUSD' } // Only outcome tokens
+                },
+                select: {
+                    tokenSymbol: true,
+                    amount: true,
+                },
+            });
+        } catch (err) {
+            const code = (err as any)?.code;
+            // Gracefully handle schema drift (e.g., column missing in current DB)
+            if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
+                console.warn('[risk-manager] balance query skipped due to schema mismatch:', (err as Error).message);
+                return 0;
             }
-        });
+            throw err;
+        }
 
         // Group by outcome (tokenSymbol)
         const sharesByOutcome: Record<string, number> = {};

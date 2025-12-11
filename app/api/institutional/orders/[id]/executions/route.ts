@@ -76,11 +76,17 @@ export async function GET(
     });
 
     // Calculate summary statistics
-    const totalExecuted = executions.reduce((sum, exec) => sum + exec.amount, 0);
-    const totalValue = executions.reduce((sum, exec) => sum + (exec.amount * exec.price), 0);
+    const totalExecuted = executions.reduce(
+        (sum: number, exec: (typeof executions)[number]) => sum + exec.amount,
+        0
+    );
+    const totalValue = executions.reduce(
+        (sum: number, exec: (typeof executions)[number]) => sum + (exec.amount * exec.price),
+        0
+    );
     const avgExecutionPrice = executions.length > 0 ? totalValue / totalExecuted : 0;
-    const minPrice = executions.length > 0 ? Math.min(...executions.map(e => e.price)) : 0;
-    const maxPrice = executions.length > 0 ? Math.max(...executions.map(e => e.price)) : 0;
+    const minPrice = executions.length > 0 ? Math.min(...executions.map((e: (typeof executions)[number]) => e.price)) : 0;
+    const maxPrice = executions.length > 0 ? Math.max(...executions.map((e: (typeof executions)[number]) => e.price)) : 0;
 
     // Get total count for pagination
     const totalCount = await prisma.orderExecution.count({

@@ -82,7 +82,7 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ suggestion: updated });
         }
 
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const suggestion = await tx.eventSuggestion.findUnique({ where: { id: suggestionId } });
             if (!suggestion) {
                 throw new Error('Suggestion not found');

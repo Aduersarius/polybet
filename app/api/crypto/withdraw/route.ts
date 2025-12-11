@@ -4,11 +4,14 @@ import { getCryptoService } from '@/lib/crypto-service';
 import { auth } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
+import { verifyTotpCode } from '@/lib/totp';
+import { assertSameOrigin } from '@/lib/csrf';
 
 const ALLOWED_TOKENS = ['USDC'];
 
 export async function POST(req: NextRequest) {
     try {
+        assertSameOrigin(req);
         const session = await auth.api.getSession({
             headers: req.headers
         });
@@ -17,7 +20,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { amount, address, token, idempotencyKey } = await req.json();
+        const { amount, address, token, idempotencyKey, totpCode } = await req.json();
 
         const amountNumber = Number(amount);
         if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Validate idempotencyKey if provided
-        if (idempotencyKey && (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0)) {
+        if (idempotencyKey && (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0 || idempotencyKey.length > 200)) {
             return NextResponse.json({ error: 'Invalid idempotencyKey' }, { status: 400 });
         }
 
@@ -48,9 +51,62 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Email must be verified to withdraw' }, { status: 403 });
         }
 
-        const rateLimitOk = await checkRateLimit(userId);
-        if (!rateLimitOk) {
-            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+        const rateLimit = await checkRateLimit(userId, ip);
+        if (!rateLimit.allowed) {
+            const status = rateLimit.reason === 'UNAVAILABLE' ? 503 : 429;
+            const message = rateLimit.reason === 'UNAVAILABLE'
+                ? 'Rate limiting unavailable; please retry later'
+                : 'Rate limit exceeded';
+            return NextResponse.json({ error: message }, { status });
+        }
+
+        const userRecord = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { twoFactorEnabled: true }
+        });
+        const twoFactor = await prisma.twoFactor.findUnique({
+            where: { userId },
+            select: { secret: true }
+        });
+
+        if (!userRecord?.twoFactorEnabled || !twoFactor?.secret) {
+            return NextResponse.json({ error: 'Two-factor authentication is required to withdraw' }, { status: 403 });
+        }
+
+        if (!totpCode || !verifyTotpCode(totpCode, twoFactor.secret)) {
+            return NextResponse.json({ error: 'Invalid or missing TOTP code' }, { status: 401 });
+        }
+
+        const maxSingle = Number(process.env.WITHDRAW_MAX_SINGLE ?? 5000);
+        const maxDaily = Number(process.env.WITHDRAW_MAX_DAILY ?? 20000);
+
+        if (!Number.isFinite(maxSingle) || maxSingle <= 0 || !Number.isFinite(maxDaily) || maxDaily <= 0) {
+            return NextResponse.json({ error: 'Withdrawal limits misconfigured on server' }, { status: 503 });
+        }
+
+        if (amountNumber > maxSingle) {
+            return NextResponse.json({ error: `Withdrawal exceeds per-request limit of ${maxSingle}` }, { status: 400 });
+        }
+
+        const startOfDay = new Date();
+        startOfDay.setUTCHours(0, 0, 0, 0);
+
+        const dailyTotals = await prisma.withdrawal.aggregate({
+            where: {
+                userId,
+                status: { in: ['PENDING', 'APPROVED', 'COMPLETED'] },
+                createdAt: { gte: startOfDay }
+            },
+            _sum: { amount: true }
+        });
+
+        const usedToday = Number(dailyTotals._sum.amount || 0);
+        if (usedToday + amountNumber > maxDaily) {
+            const remaining = Math.max(0, maxDaily - usedToday);
+            return NextResponse.json({
+                error: `Daily withdrawal limit exceeded. Remaining today: ${remaining}`,
+            }, { status: 400 });
         }
 
         // Eligibility checks: user must have placed a bet/trade and have available balance

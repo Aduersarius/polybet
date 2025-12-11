@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
         };
 
         const transactions = [
-            ...depositRecords.map((d) => ({
+            ...depositRecords.map((d: (typeof depositRecords)[number]) => ({
                 id: d.id,
                 type: 'DEPOSIT' as const,
                 amount: toNumber(d.amount),
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
                 toAddress: d.toAddress,
                 user: d.user,
             })),
-            ...withdrawalRecords.map((w) => ({
+            ...withdrawalRecords.map((w: (typeof withdrawalRecords)[number]) => ({
                 id: w.id,
                 type: 'WITHDRAWAL' as const,
                 amount: toNumber(w.amount),
