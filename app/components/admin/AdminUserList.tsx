@@ -108,7 +108,7 @@ export function AdminUserList() {
 
     if (isLoading) {
         return (
-            <Card className="border-white/5 bg-[#111113]">
+            <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                 <CardHeader>
                     <CardTitle className="text-white">Users</CardTitle>
                     <CardDescription>Loading users…</CardDescription>
@@ -122,7 +122,7 @@ export function AdminUserList() {
 
     return (
         <div className="space-y-4 relative z-10">
-            <Card className="border-white/5 bg-[#111113]">
+                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                 <CardHeader className="gap-2">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -173,7 +173,7 @@ export function AdminUserList() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-gray-200">
-                            <thead className="bg-white/5 text-xs uppercase text-gray-400 border-b border-white/10">
+                            <thead className="bg-white/5 text-xs uppercase text-gray-400">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold">User</th>
                                     <th className="px-4 py-3 font-semibold">Email</th>
@@ -286,7 +286,7 @@ export function AdminUserList() {
                     </div>
 
                     {selectedUser && (
-                        <div className="border-t border-white/8 bg-[#0f1117] px-4 py-4">
+                        <div className="border-t-0 bg-gradient-to-b from-[#1c1c1c] via-[#171717] to-[#0f0f0f] px-4 py-4">
                             <div className="flex items-start justify-between">
                                 <div>
                                     <div className="text-sm text-gray-400">User details</div>
@@ -345,7 +345,7 @@ export function AdminUserList() {
 
 function InfoRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
     return (
-        <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-[#111113] p-3">
+        <div className="flex flex-col gap-1 rounded-lg border-0 bg-[#111113] p-3">
             <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
             <span className={`text-sm text-white ${mono ? 'font-mono break-all' : ''}`}>{value}</span>
         </div>

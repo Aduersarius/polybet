@@ -45,15 +45,16 @@ type StatRowProps = {
     tone: 'emerald' | 'blue' | 'purple' | 'cyan' | 'pink' | 'orange' | 'yellow' | 'red';
 };
 
+const neutralTone = 'text-[#e4e4e7] border-white/15 bg-white/8';
 const toneMap: Record<StatRowProps['tone'], string> = {
-    emerald: 'text-emerald-200 border-emerald-500/40 bg-emerald-500/10',
-    blue: 'text-blue-200 border-blue-500/40 bg-blue-500/10',
-    purple: 'text-purple-200 border-purple-500/40 bg-purple-500/10',
-    cyan: 'text-cyan-200 border-cyan-500/40 bg-cyan-500/10',
-    pink: 'text-pink-200 border-pink-500/40 bg-pink-500/10',
-    orange: 'text-orange-200 border-orange-500/40 bg-orange-500/10',
-    yellow: 'text-yellow-200 border-yellow-500/40 bg-yellow-500/10',
-    red: 'text-red-200 border-red-500/40 bg-red-500/10'
+    emerald: neutralTone,
+    blue: neutralTone,
+    purple: neutralTone,
+    cyan: neutralTone,
+    pink: neutralTone,
+    orange: neutralTone,
+    yellow: neutralTone,
+    red: neutralTone
 };
 
 function HealthRow({ label, value, tone }: StatRowProps) {
@@ -70,11 +71,11 @@ export function AdminStatistics() {
     const chartConfig: ChartConfig = {
         dailyUsers: {
             label: 'Total users',
-            color: 'hsl(var(--chart-1))'
+            color: '#d9d9df'
         },
         newUsers: {
             label: 'New users',
-            color: 'hsl(var(--chart-2))'
+            color: '#aeb0b8'
         }
     };
 
@@ -283,7 +284,7 @@ export function AdminStatistics() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-                <Card className="lg:col-span-2 border-white/10 bg-[#0d0f14]">
+                <Card className="lg:col-span-2 border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Engagement & growth</CardTitle>
@@ -291,11 +292,11 @@ export function AdminStatistics() {
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                             <span className="flex items-center gap-1">
-                                <span className="h-2 w-2 rounded-full bg-blue-400" />
+                                <span className="h-2 w-2 rounded-full bg-white/70" />
                                 Daily users
                             </span>
                             <span className="flex items-center gap-1">
-                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                <span className="h-2 w-2 rounded-full bg-white/50" />
                                 New users
                             </span>
                         </div>
@@ -308,15 +309,15 @@ export function AdminStatistics() {
                                 <AreaChart data={stats.chart}>
                                     <defs>
                                         <linearGradient id="fillDailyUsers" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-dailyUsers)" stopOpacity={0.7} />
-                                            <stop offset="95%" stopColor="var(--color-dailyUsers)" stopOpacity={0.08} />
+                                            <stop offset="5%" stopColor="var(--color-dailyUsers)" stopOpacity={0.65} />
+                                            <stop offset="95%" stopColor="var(--color-dailyUsers)" stopOpacity={0.05} />
                                         </linearGradient>
                                         <linearGradient id="fillNewUsers" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-newUsers)" stopOpacity={0.7} />
-                                            <stop offset="95%" stopColor="var(--color-newUsers)" stopOpacity={0.08} />
+                                            <stop offset="5%" stopColor="var(--color-newUsers)" stopOpacity={0.55} />
+                                            <stop offset="95%" stopColor="var(--color-newUsers)" stopOpacity={0.04} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid vertical={false} className="stroke-border/60" />
+                                    <CartesianGrid vertical={false} className="stroke-white/20" />
                                     <XAxis
                                         dataKey="date"
                                         tickLine={false}
@@ -354,7 +355,7 @@ export function AdminStatistics() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-white/10 bg-[#0d0f14]">
+                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-start justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Engagement quality</CardTitle>
@@ -399,7 +400,7 @@ export function AdminStatistics() {
             </div>
 
             <div className="grid gap-4 xl:grid-cols-3">
-                <Card className="xl:col-span-2 border-white/10 bg-[#0d0f14]">
+                <Card className="xl:col-span-2 border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Top users</CardTitle>
@@ -429,21 +430,15 @@ export function AdminStatistics() {
                                                     <div className="text-white font-semibold">{user.username}</div>
                                                     <div className="text-xs text-gray-400">{user.email || '—'}</div>
                                                 </td>
-                                                <td className="py-3 pr-3 text-blue-200 font-semibold">{user.bets}</td>
-                                                <td className="py-3 pr-3 text-emerald-200 font-semibold">{user.events}</td>
+                                                <td className="py-3 pr-3 text-gray-200 font-semibold">{user.bets}</td>
+                                                <td className="py-3 pr-3 text-gray-200 font-semibold">{user.events}</td>
                                                 <td className="py-3 pr-3">
                                                     <div className="flex items-center gap-2 text-xs">
-                                                        <span
-                                                            className={`px-2 py-1 rounded-full border ${
-                                                                user.isBanned
-                                                                    ? 'border-red-500/40 text-red-200 bg-red-500/10'
-                                                                    : 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
-                                                            }`}
-                                                        >
+                                                        <span className="px-2 py-1 rounded-full border border-white/15 bg-white/8 text-[#e4e4e7]">
                                                             {user.isBanned ? 'Banned' : 'Active'}
                                                         </span>
                                                         {user.isAdmin && (
-                                                            <span className="px-2 py-1 rounded-full border border-blue-500/40 text-blue-200 bg-blue-500/10">
+                                                            <span className="px-2 py-1 rounded-full border border-white/15 bg-white/8 text-[#e4e4e7]">
                                                                 Admin
                                                             </span>
                                                         )}
@@ -461,7 +456,7 @@ export function AdminStatistics() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-white/10 bg-[#0d0f14]">
+                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-start justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Categories</CardTitle>
@@ -487,7 +482,7 @@ export function AdminStatistics() {
                                         </div>
                                         <div className="h-2 w-full rounded-full bg-white/5">
                                             <div
-                                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
+                                                className="h-full rounded-full bg-gradient-to-r from-white/70 via-white/50 to-white/30"
                                                 style={{ width: `${width}%` }}
                                             />
                                         </div>
@@ -500,7 +495,7 @@ export function AdminStatistics() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-                <Card className="border-white/10 bg-[#0d0f14]">
+                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-start justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Product health</CardTitle>
@@ -543,7 +538,7 @@ export function AdminStatistics() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-white/10 bg-[#0d0f14]">
+                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-start justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Revenue signals</CardTitle>
@@ -573,7 +568,7 @@ export function AdminStatistics() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-white/10 bg-[#0d0f14]">
+                <Card className="border-white/6 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
                     <CardHeader className="flex flex-row items-start justify-between pb-2">
                         <div>
                             <CardTitle className="text-white">Retention</CardTitle>
@@ -624,10 +619,10 @@ type StatCardProps = {
 
 function StatCard({ title, value, helper }: StatCardProps) {
     return (
-        <div className="rounded-2xl border border-white/8 bg-gradient-to-b from-white/5 via-[#0f1117] to-[#0f1117] p-4 md:p-5 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.8)]">
-            <p className="text-xs uppercase tracking-[0.08em] text-gray-400">{title}</p>
-            <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-            <p className="mt-2 text-sm text-gray-400">{helper}</p>
+        <div className="rounded-2xl border-0 bg-gradient-to-b from-[#232323] via-[#171717] to-[#0f0f0f] p-4 md:p-5 shadow-[0_16px_48px_-32px_rgba(0,0,0,0.9)]">
+            <p className="text-xs uppercase tracking-[0.08em] text-gray-300">{title}</p>
+            <p className="mt-2 text-3xl font-semibold text-[#f4f4f5]">{value}</p>
+            <p className="mt-2 text-sm text-gray-300">{helper}</p>
         </div>
     );
 }
