@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
         const search = searchParams.get('search') || '';
+        const sortField = searchParams.get('sortField') || 'createdAt';
+        const sortDir = (searchParams.get('sortDir') as 'asc' | 'desc') || 'desc';
 
         const skip = (page - 1) * limit;
 
@@ -28,10 +30,23 @@ export async function GET(request: NextRequest) {
             ];
         }
 
+        const orderBy: Record<string, any> = {};
+        const sortableFields: Record<string, string> = {
+            createdAt: 'createdAt',
+            username: 'username',
+            name: 'name',
+            email: 'email',
+            lastVisitedAt: 'lastVisitedAt',
+            totalDeposited: 'totalDeposited',
+            totalWithdrawn: 'totalWithdrawn',
+        };
+        const sortKey = sortableFields[sortField] || 'createdAt';
+        orderBy[sortKey] = sortDir;
+
         const [users, total] = await Promise.all([
             prisma.user.findMany({
                 where,
-                orderBy: { createdAt: 'desc' },
+                orderBy,
                 skip,
                 take: limit,
                 include: {
@@ -46,11 +61,30 @@ export async function GET(request: NextRequest) {
             prisma.user.count({ where })
         ]);
 
+        const userIds = users.map((u: { id: string }) => u.id);
+
+        const betVolumeGroups = userIds.length
+            ? await prisma.marketActivity.groupBy({
+                by: ['userId'],
+                where: { userId: { in: userIds } },
+                _sum: { amount: true, price: true },
+            })
+            : [];
+
+        const betVolumeMap = betVolumeGroups.reduce((acc: Record<string, number>, g: { userId: string; _sum: { amount: any; price: any } }) => {
+            const sumAmount = Number(g._sum.amount || 0);
+            const avgPrice = Number(g._sum.price || 1);
+            acc[g.userId] = sumAmount * (avgPrice || 1);
+            return acc;
+        }, {});
+
         const serializedUsers = users.map((user: (typeof users)[number]) => ({
             ...user,
             currentBalance: Number(user.currentBalance || 0),
             totalDeposited: Number(user.totalDeposited || 0),
             totalWithdrawn: Number(user.totalWithdrawn || 0),
+            betVolume: betVolumeMap[user.id] || 0,
+            winRate: null, // not enough data to compute accurately here
         }));
 
         return NextResponse.json({ users: serializedUsers, total });

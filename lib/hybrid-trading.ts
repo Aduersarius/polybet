@@ -123,6 +123,36 @@ async function updateBalance(prisma: any, userId: string, tokenSymbol: string, e
     }
 }
 
+// --- HELPER: Fetch Balance Safely ---
+async function getBalanceAmount(
+    prisma: any,
+    userId: string,
+    tokenSymbol: string,
+    eventId: string | null
+): Promise<number> {
+    const record = await prisma.balance.findFirst({
+        where: { userId, tokenSymbol, eventId, outcomeId: null },
+        select: { amount: true },
+    });
+    if (!record) return 0;
+    return record.amount instanceof Prisma.Decimal ? record.amount.toNumber() : Number(record.amount);
+}
+
+// --- HELPER: Ensure Sufficient Balance (throws) ---
+async function ensureSufficientBalance(
+    prisma: any,
+    userId: string,
+    tokenSymbol: string,
+    eventId: string | null,
+    required: number,
+    assetLabel: string
+) {
+    const available = await getBalanceAmount(prisma, userId, tokenSymbol, eventId);
+    if (available < required) {
+        throw new Error(`Insufficient ${assetLabel}. Available: ${available.toFixed(4)}, Required: ${required.toFixed(4)}`);
+    }
+}
+
 // --- HELPER: Update Probabilities in DB ---
 // This ensures the frontend sees the new prices immediately after a trade
 async function updateOutcomeProbabilities(prisma: any, eventId: string) {
@@ -232,19 +262,41 @@ export async function placeHybridOrder(
         // 1. Limit Order Logic (Simplified placeholder)
         if (price) {
             const isMultiple = event.type === 'MULTIPLE';
-            const order = await (prisma as any).order.create({
-                data: {
-                    userId,
-                    eventId,
-                    outcomeId: isMultiple ? option : null,
-                    side,
-                    option: isMultiple ? null : option,
-                    price,
-                    amount, // Shares requested
-                    amountFilled: 0,
-                    status: 'open'
+            const tokenSymbol = isMultiple ? option : `${option}_${eventId}`;
+            const lockedTokenSymbol = side === 'buy' ? 'TUSD_LOCKED' : `${tokenSymbol}_LOCKED`;
+            const lockCost = side === 'buy' ? amount * price : amount; // buy: lock quote value; sell: lock shares
+
+            const limitResult = await prisma.$transaction(async (tx: any) => {
+                if (side === 'buy') {
+                    // Ensure spendable TUSD and lock it
+                    await ensureSufficientBalance(tx, userId, 'TUSD', null, lockCost, 'TUSD');
+                    await updateBalance(tx, userId, 'TUSD', null, -lockCost);
+                    await updateBalance(tx, userId, lockedTokenSymbol, null, lockCost);
+                } else {
+                    // Ensure shares and lock them
+                    await ensureSufficientBalance(tx, userId, tokenSymbol, eventId, lockCost, 'shares');
+                    await updateBalance(tx, userId, tokenSymbol, eventId, -lockCost);
+                    await updateBalance(tx, userId, lockedTokenSymbol, eventId, lockCost);
                 }
+
+                const order = await (tx as any).order.create({
+                    data: {
+                        userId,
+                        eventId,
+                        outcomeId: isMultiple ? option : null,
+                        side,
+                        option: isMultiple ? null : option,
+                        price,
+                        amount, // Shares requested (sell) or shares purchasable at price (buy)
+                        amountFilled: 0,
+                        status: 'open'
+                    }
+                });
+
+                return order;
             });
+
+            const order = limitResult;
             return { success: true, orderId: order.id, totalFilled: 0, averagePrice: 0 };
         }
 
@@ -320,10 +372,10 @@ export async function placeHybridOrder(
             predictedProb
         );
 
-        let warning: string | undefined;
         if (!riskCheck.allowed) {
-            warning = riskCheck.reason;
+            return { success: false, error: riskCheck.reason, totalFilled: 0, averagePrice: 0 };
         }
+        let warning: string | undefined;
 
         // --- END RISK MANAGEMENT ---
 
@@ -331,6 +383,14 @@ export async function placeHybridOrder(
         const effectivePrice = side === 'buy'
             ? quote.avgPrice * (1 + AMM_SPREAD)
             : quote.avgPrice * (1 - AMM_SPREAD);
+
+        // --- BALANCE SUFFICIENCY CHECKS (pre-transaction) ---
+        const tokenSymbol = event.type === 'MULTIPLE' ? option : `${option}_${eventId}`;
+        if (side === 'buy') {
+            await ensureSufficientBalance(prisma, userId, 'TUSD', null, amount, 'TUSD');
+        } else {
+            await ensureSufficientBalance(prisma, userId, tokenSymbol, eventId, quote.shares, 'shares');
+        }
 
         // DB Transaction to ensure atomicity with deadlock retry
         const maxRetries = 3;
@@ -361,7 +421,6 @@ export async function placeHybridOrder(
                     }
 
                     // 2. Transfers
-                    const tokenSymbol = event.type === 'MULTIPLE' ? option : `${option}_${eventId}`;
                     console.log(`[TRADE] Token symbol: ${tokenSymbol}`);
 
                     // User shares delta: + for buy, - for sell

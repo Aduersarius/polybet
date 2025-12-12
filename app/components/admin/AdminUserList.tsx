@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pagination } from './Pagination';
@@ -35,17 +36,22 @@ export function AdminUserList() {
     const queryClient = useQueryClient();
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 300);
     const [currentPage, setCurrentPage] = useState(1);
+    const [sortField, setSortField] = useState('createdAt');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const itemsPerPage = 10;
 
     const { data: usersData, isLoading } = useQuery({
-        queryKey: ['admin', 'users', adminId, currentPage, searchQuery],
+        queryKey: ['admin', 'users', adminId, currentPage, debouncedSearch, sortField, sortDir],
         queryFn: async () => {
             const params = new URLSearchParams({
                 adminId,
                 page: currentPage.toString(),
                 limit: itemsPerPage.toString(),
-                ...(searchQuery && { search: searchQuery })
+                ...(debouncedSearch && { search: debouncedSearch }),
+                sortField,
+                sortDir,
             });
             const res = await fetch(`/api/admin/users?${params}`);
             if (!res.ok) throw new Error('Failed to fetch users');
@@ -122,7 +128,7 @@ export function AdminUserList() {
 
     return (
         <div className="space-y-4 relative z-10">
-                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f] overflow-hidden max-w-full">
                 <CardHeader className="gap-2">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -144,7 +150,7 @@ export function AdminUserList() {
                             </Badge>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div className="flex-1 relative">
                             <input
                                 type="text"
@@ -167,122 +173,169 @@ export function AdminUserList() {
                                 Found {totalUsers} users
                             </div>
                         )}
+                        <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <span className="text-xs uppercase tracking-wide text-gray-500">Sort</span>
+                            <select
+                                value={sortField}
+                                onChange={(e) => setSortField(e.target.value)}
+                                className="rounded-md bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
+                            >
+                                <option value="createdAt">Joined</option>
+                                <option value="username">Username</option>
+                                <option value="email">Email</option>
+                                <option value="lastVisitedAt">Last seen</option>
+                                <option value="totalDeposited">Deposited</option>
+                                <option value="totalWithdrawn">Withdrawn</option>
+                            </select>
+                            <select
+                                value={sortDir}
+                                onChange={(e) => setSortDir(e.target.value as 'asc' | 'desc')}
+                                className="rounded-md bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
+                            >
+                                <option value="desc">Desc</option>
+                                <option value="asc">Asc</option>
+                            </select>
+                        </div>
                     </div>
                 </CardHeader>
 
                 <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-gray-200">
-                            <thead className="bg-white/5 text-xs uppercase text-gray-400">
-                                <tr>
-                                    <th className="px-4 py-3 font-semibold">User</th>
-                                    <th className="px-4 py-3 font-semibold">Email</th>
-                                    <th className="px-4 py-3 font-semibold">Events</th>
-                                    <th className="px-4 py-3 font-semibold">Activity</th>
-                                    <th className="px-4 py-3 font-semibold">Country</th>
-                                    <th className="px-4 py-3 font-semibold">Balance</th>
-                                    <th className="px-4 py-3 font-semibold">Joined</th>
-                                    <th className="px-4 py-3 font-semibold">Last seen</th>
-                                    <th className="px-4 py-3 font-semibold">Admin</th>
-                                    <th className="px-4 py-3 font-semibold">Status</th>
-                                    <th className="px-4 py-3 font-semibold">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {users.map((user) => (
-                                    <tr
-                                        key={user.id}
-                                        className="hover:bg-white/5 transition-colors"
-                                        onClick={() => setSelectedUser(user === selectedUser ? null : user)}
-                                    >
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-white">
-                                                    {user.name || user.username || (user.address ? `${user.address.slice(0, 12)}...` : '—')}
-                                                </span>
-                                                <span className="text-xs text-gray-400 font-mono">
-                                                    {user.address ? `${user.address.slice(0, 10)}…` : '—'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-300">{user.email || '—'}</td>
-                                        <td className="px-4 py-3">
-                                            <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-100">
-                                                {user._count.createdEvents}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-3">
+                    <div className="w-full px-4 pb-4 space-y-3">
+                        {users.map((user) => (
+                            <div
+                                key={user.id}
+                                className="rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition-colors p-3 md:p-4"
+                                onClick={() => setSelectedUser(user === selectedUser ? null : user)}
+                            >
+                                <div className="grid gap-3 md:grid-cols-12 md:items-center">
+                                    <div className="md:col-span-3 space-y-1">
+                                        <div className="text-sm text-gray-400">User</div>
+                                        <div className="font-semibold text-white">
+                                            {user.name || user.username || (user.address ? `${user.address.slice(0, 12)}...` : '—')}
+                                        </div>
+                                        <div className="text-xs text-gray-500 font-mono">
+                                            {user.address ? `${user.address.slice(0, 10)}…` : '—'}
+                                        </div>
+                                        <div className="text-xs text-gray-400 truncate">{user.email || '—'}</div>
+                                    </div>
+
+                                    <div className="md:col-span-2 space-y-1">
+                                        <div className="text-xs text-gray-400">Activity</div>
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-100">
-                                                {user._count.marketActivity}
+                                                Bets {user._count.marketActivity}
                                             </Badge>
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-gray-200">
-                                            {user.lastCountry || '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-gray-200">
-                                            {typeof user.currentBalance === 'number'
-                                                ? `$${user.currentBalance.toFixed(2)}`
-                                                : '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-300">
-                                            {new Date(user.createdAt).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-300">
-                                            {user.lastVisitedAt ? new Date(user.lastVisitedAt).toLocaleString() : '—'}
-                                        </td>
-                                        <td className="px-4 py-3">
+                                            <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-100">
+                                                Events {user._count.createdEvents}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-gray-300">
+                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/10">
+                                                Vol: ${ (user as any).betVolume?.toFixed ? (user as any).betVolume.toFixed(0) : '0' }
+                                            </span>
+                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/10">
+                                                Win rate: { (user as any).winRate != null ? `${(user as any).winRate}%` : '—' }
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="md:col-span-2 space-y-1">
+                                        <div className="text-xs text-gray-400">Balance</div>
+                                        <div className="text-sm text-gray-200">
+                                            {typeof user.currentBalance === 'number' ? `$${user.currentBalance.toFixed(2)}` : '—'}
+                                        </div>
+                                        <div className="text-xs text-gray-500 flex flex-wrap gap-2">
+                                            <span>
+                                                Dep: {typeof user.totalDeposited === 'number' ? `$${user.totalDeposited.toFixed(0)}` : '—'}
+                                            </span>
+                                            <span>
+                                                Wd: {typeof user.totalWithdrawn === 'number' ? `$${user.totalWithdrawn.toFixed(0)}` : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="md:col-span-2 space-y-1">
+                                        <div className="text-xs text-gray-400">Geo / Status</div>
+                                        <div className="text-sm text-gray-200">{user.lastCountry || '—'}</div>
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             {user.isAdmin ? (
                                                 <Badge variant="outline" className="border-purple-500/30 bg-purple-500/10 text-purple-100">
                                                     Admin
                                                 </Badge>
                                             ) : (
-                                                <span className="text-xs text-gray-500">—</span>
+                                                <Badge variant="outline" className="border-white/15 bg-white/5 text-gray-200">
+                                                    User
+                                                </Badge>
                                             )}
-                                        </td>
-                                        <td className="px-4 py-3">
                                             <Badge
                                                 variant="outline"
-                                                className={user.isBanned
-                                                    ? 'border-red-500/30 bg-red-500/10 text-red-100'
-                                                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'}
+                                                className={
+                                                    user.isBanned
+                                                        ? 'border-red-500/30 bg-red-500/10 text-red-100'
+                                                        : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                                                }
                                             >
                                                 {user.isBanned ? 'Banned' : 'Active'}
                                             </Badge>
-                                        </td>
-                                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        updateUserMutation.mutate({
-                                                            targetUserId: user.id,
-                                                            action: user.isBanned ? 'unban' : 'ban'
-                                                        });
-                                                    }}
-                                                    className={`text-xs px-2 py-1 rounded-md border transition-colors ${
-                                                        user.isBanned
-                                                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
-                                                            : 'border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20'
-                                                    }`}
-                                                >
-                                                    {user.isBanned ? 'Unban' : 'Ban'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteUser(user);
-                                                    }}
-                                                    disabled={deleteUserMutation.isPending}
-                                                    className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10 disabled:opacity-50"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    </div>
+
+                                    <div className="md:col-span-2 space-y-1">
+                                        <div className="text-xs text-gray-400">Timeline</div>
+                                        <div className="text-xs text-gray-300">
+                                            Joined: {new Date(user.createdAt).toLocaleDateString()}
+                                        </div>
+                                        <div className="text-xs text-gray-300 truncate">
+                                            Last: {user.lastVisitedAt ? new Date(user.lastVisitedAt).toLocaleString() : '—'}
+                                        </div>
+                                    </div>
+
+                                    <div className="md:col-span-1 flex md:justify-end gap-2 md:items-center">
+                                        <a
+                                            href={`/profile?address=${encodeURIComponent(user.address || user.id)}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10"
+                                        >
+                                            Profile
+                                        </a>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    updateUserMutation.mutate({
+                                                        targetUserId: user.id,
+                                                        action: user.isBanned ? 'unban' : 'ban',
+                                                    });
+                                                }}
+                                                className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                                                    user.isBanned
+                                                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
+                                                        : 'border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20'
+                                                }`}
+                                            >
+                                                {user.isBanned ? 'Unban' : 'Ban'}
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteUser(user);
+                                                }}
+                                                disabled={deleteUserMutation.isPending}
+                                                className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10 disabled:opacity-50"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+
+                        {users.length === 0 && (
+                            <div className="text-center py-12 text-gray-500">
+                                {searchQuery ? 'No users found matching your search.' : 'No users found.'}
+                            </div>
+                        )}
                     </div>
 
                     {selectedUser && (
@@ -319,12 +372,6 @@ export function AdminUserList() {
                                 <InfoRow label="Total deposited" value={typeof selectedUser.totalDeposited === 'number' ? `$${selectedUser.totalDeposited.toFixed(2)}` : '—'} />
                                 <InfoRow label="Total withdrawn" value={typeof selectedUser.totalWithdrawn === 'number' ? `$${selectedUser.totalWithdrawn.toFixed(2)}` : '—'} />
                             </div>
-                        </div>
-                    )}
-
-                    {users.length === 0 && (
-                        <div className="text-center py-12 text-gray-500">
-                            {searchQuery ? 'No users found matching your search.' : 'No users found.'}
                         </div>
                     )}
                 </CardContent>

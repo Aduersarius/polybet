@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
-import { AdminStatistics } from '../../components/admin/AdminStatistics';
+import { AdminOverview } from '../../components/admin/AdminOverview';
+import { AdminProductAnalytics } from '../../components/admin/AdminProductAnalytics';
 import { AdminFinance } from '../../components/admin/AdminFinance';
 import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
@@ -13,7 +14,7 @@ import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 import { AdminShell } from '../../components/admin/AdminShell';
 
-type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
 
 interface AdminEvent {
     id: string;
@@ -27,7 +28,7 @@ interface AdminEvent {
 }
 
 function AdminPageContent() {
-    const [activeView, setActiveView] = useState<AdminView>('events');
+    const [activeView, setActiveView] = useState<AdminView>('overview');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
 
@@ -46,7 +47,7 @@ function AdminPageContent() {
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
-        const allowed: AdminView[] = ['events', 'users', 'statistics', 'finance', 'withdraw', 'suggested'];
+        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested'];
         if (viewParam && allowed.includes(viewParam)) {
             setActiveView(viewParam);
         }
@@ -79,16 +80,11 @@ function AdminPageContent() {
             }}
         >
             <div className="space-y-6">
-                <div className="flex flex-col gap-2">
-                    <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Admin dashboard</p>
-                    <h1 className="text-3xl font-bold text-white">Overview</h1>
-                    <p className="text-sm text-gray-400">Monitor events, users, liquidity, and suggestions.</p>
-                </div>
-
                 <section className="relative z-10 space-y-6">
+                    {activeView === 'overview' && <AdminOverview />}
                     {activeView === 'events' && <AdminEventList onEditEvent={(event) => { setSelectedEvent(event as AdminEvent); setIsCreateModalOpen(true); }} />}
                     {activeView === 'users' && <AdminUserList />}
-                    {activeView === 'statistics' && <AdminStatistics />}
+                    {activeView === 'statistics' && <AdminProductAnalytics />}
                     {activeView === 'finance' && <AdminFinance />}
                     {activeView === 'withdraw' && <AdminWithdraw />}
                     {activeView === 'suggested' && <AdminSuggestedEvents />}

@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
         const [
             depositSum,
             depositCount,
-            withdrawalSum,
-            withdrawalCount,
+            completedWithdrawalSum,
+            completedWithdrawalCount,
             pendingWithdrawalSum,
             pendingWithdrawalCount,
             depositRecords,
@@ -27,8 +27,13 @@ export async function GET(req: NextRequest) {
         ] = await prisma.$transaction([
             prisma.deposit.aggregate({ _sum: { amount: true } }),
             prisma.deposit.count(),
-            prisma.withdrawal.aggregate({ _sum: { amount: true } }),
-            prisma.withdrawal.count(),
+            prisma.withdrawal.aggregate({
+                where: { status: 'COMPLETED' },
+                _sum: { amount: true },
+            }),
+            prisma.withdrawal.count({
+                where: { status: 'COMPLETED' },
+            }),
             prisma.withdrawal.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true } }),
             prisma.withdrawal.count({ where: { status: 'PENDING' } }),
             prisma.deposit.findMany({
@@ -79,7 +84,7 @@ export async function GET(req: NextRequest) {
         }
 
         const totalDeposits = toNumber(depositSum._sum.amount);
-        const totalWithdrawals = toNumber(withdrawalSum._sum.amount);
+        const totalWithdrawals = toNumber(completedWithdrawalSum._sum.amount);
         const lockedBalance = toNumber(balanceAgg._sum.locked);
         const platformBalance = toNumber(balanceAgg._sum.amount);
 
@@ -88,7 +93,7 @@ export async function GET(req: NextRequest) {
             totalWithdrawals,
             netFlow: totalDeposits - totalWithdrawals,
             depositCount,
-            withdrawalCount,
+            withdrawalCount: completedWithdrawalCount,
             pendingWithdrawalAmount: toNumber(pendingWithdrawalSum._sum.amount),
             pendingWithdrawalCount,
             platformBalance,
