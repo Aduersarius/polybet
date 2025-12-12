@@ -11,6 +11,7 @@ type TimeseriesPoint = {
     newUsers: number;
     activeBettors: number;
     bets: number;
+    volume: number;
     deposits: number;
     withdrawals: number;
 };
@@ -77,6 +78,13 @@ const chartConfigPayments: ChartConfig = {
     },
 };
 
+const chartConfigVolume: ChartConfig = {
+    volume: {
+        label: 'Bet volume',
+        color: '#c4f8d3',
+    },
+};
+
 export function AdminOverview() {
     const [data, setData] = useState<OverviewResponse | null>(null);
     const [loading, setLoading] = useState(false);
@@ -121,6 +129,11 @@ export function AdminOverview() {
         date: new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
         deposits: d.deposits,
         withdrawals: d.withdrawals,
+    }));
+
+    const volumeChartData = timeseries.map((d) => ({
+        date: new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        volume: d.volume,
     }));
 
     return (
@@ -301,54 +314,92 @@ export function AdminOverview() {
                         </Card>
                     </div>
 
-                    <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-white">Deposits vs withdrawals</CardTitle>
-                            <CardDescription>Completed amounts by day</CardDescription>
-                        </CardHeader>
-                        <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-                            {paymentsChartData.length === 0 ? (
-                                <div className="text-gray-400">No data</div>
-                            ) : (
-                                <ChartContainer config={chartConfigPayments} className="aspect-auto h-[260px] w-full">
-                                    <AreaChart data={paymentsChartData}>
-                                        <defs>
-                                            <linearGradient id="fillDeposits" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="var(--color-deposits)" stopOpacity={0.6} />
-                                                <stop offset="95%" stopColor="var(--color-deposits)" stopOpacity={0.05} />
-                                            </linearGradient>
-                                            <linearGradient id="fillWithdrawals" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="var(--color-withdrawals)" stopOpacity={0.6} />
-                                                <stop offset="95%" stopColor="var(--color-withdrawals)" stopOpacity={0.05} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid vertical={false} className="stroke-white/20" />
-                                        <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                                        <ChartTooltip
-                                            cursor={false}
-                                            content={<ChartTooltipContent indicator="dot" labelFormatter={(value) => value} />}
-                                        />
-                                        <Area
-                                            dataKey="deposits"
-                                            type="natural"
-                                            fill="url(#fillDeposits)"
-                                            stroke="var(--color-deposits)"
-                                            strokeWidth={2}
-                                            stackId="p"
-                                        />
-                                        <Area
-                                            dataKey="withdrawals"
-                                            type="natural"
-                                            fill="url(#fillWithdrawals)"
-                                            stroke="var(--color-withdrawals)"
-                                            strokeWidth={2}
-                                            stackId="p"
-                                        />
-                                    </AreaChart>
-                                </ChartContainer>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-white">Deposits vs withdrawals</CardTitle>
+                                <CardDescription>Completed amounts by day</CardDescription>
+                            </CardHeader>
+                            <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+                                {paymentsChartData.length === 0 ? (
+                                    <div className="text-gray-400">No data</div>
+                                ) : (
+                                    <ChartContainer config={chartConfigPayments} className="aspect-auto h-[260px] w-full">
+                                        <AreaChart data={paymentsChartData}>
+                                            <defs>
+                                                <linearGradient id="fillDeposits" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="var(--color-deposits)" stopOpacity={0.6} />
+                                                    <stop offset="95%" stopColor="var(--color-deposits)" stopOpacity={0.05} />
+                                                </linearGradient>
+                                                <linearGradient id="fillWithdrawals" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="var(--color-withdrawals)" stopOpacity={0.6} />
+                                                    <stop offset="95%" stopColor="var(--color-withdrawals)" stopOpacity={0.05} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid vertical={false} className="stroke-white/20" />
+                                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                                            <ChartTooltip
+                                                cursor={false}
+                                                content={<ChartTooltipContent indicator="dot" labelFormatter={(value) => value} />}
+                                            />
+                                            <Area
+                                                dataKey="deposits"
+                                                type="natural"
+                                                fill="url(#fillDeposits)"
+                                                stroke="var(--color-deposits)"
+                                                strokeWidth={2}
+                                                stackId="p"
+                                            />
+                                            <Area
+                                                dataKey="withdrawals"
+                                                type="natural"
+                                                fill="url(#fillWithdrawals)"
+                                                stroke="var(--color-withdrawals)"
+                                                strokeWidth={2}
+                                                stackId="p"
+                                            />
+                                        </AreaChart>
+                                    </ChartContainer>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-white">Bet volume</CardTitle>
+                                <CardDescription>Daily bet volume</CardDescription>
+                            </CardHeader>
+                            <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+                                {volumeChartData.length === 0 ? (
+                                    <div className="text-gray-400">No data</div>
+                                ) : (
+                                    <ChartContainer config={chartConfigVolume} className="aspect-auto h-[260px] w-full">
+                                        <AreaChart data={volumeChartData}>
+                                            <defs>
+                                                <linearGradient id="fillVolume" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="var(--color-volume)" stopOpacity={0.6} />
+                                                    <stop offset="95%" stopColor="var(--color-volume)" stopOpacity={0.05} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid vertical={false} className="stroke-white/20" />
+                                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                                            <ChartTooltip
+                                                cursor={false}
+                                                content={<ChartTooltipContent indicator="dot" labelFormatter={(value) => value} />}
+                                            />
+                                            <Area
+                                                dataKey="volume"
+                                                type="natural"
+                                                fill="url(#fillVolume)"
+                                                stroke="var(--color-volume)"
+                                                strokeWidth={2}
+                                            />
+                                        </AreaChart>
+                                    </ChartContainer>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
                 </>
             )}
         </div>

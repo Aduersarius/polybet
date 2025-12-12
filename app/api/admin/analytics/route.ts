@@ -237,6 +237,12 @@ export async function GET(req: NextRequest) {
             return acc;
         }, {});
 
+        const volumeByDay = activityItems.reduce<Record<number, number>>((acc, m) => {
+            const key = toKey(new Date(m.createdAt));
+            acc[key] = (acc[key] || 0) + m.amount * (m.price ?? 1);
+            return acc;
+        }, {});
+
         const activeBettorsByDay = activityItems.reduce<Record<number, Set<string>>>((acc, m) => {
             const key = toKey(new Date(m.createdAt));
             const set = acc[key] || new Set<string>();
@@ -264,6 +270,7 @@ export async function GET(req: NextRequest) {
                 newUsers: newUsersByDay[key] || 0,
                 activeBettors: activeBettorsByDay[key]?.size || 0,
                 bets: betsByDay[key] || 0,
+                volume: volumeByDay[key] || 0,
                 deposits: depositsByDay[key] || 0,
                 withdrawals: withdrawalsByDay[key] || 0,
             };

@@ -66,16 +66,7 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
 
                 <div className="flex-1 pl-64">
                     <header className="sticky top-0 z-20 bg-[#0b0b0f]/90 backdrop-blur border-b border-white/5">
-                        <div className="px-4 md:px-8 py-4 flex flex-wrap gap-3 items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <Search className="h-4 w-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                                    <input
-                                        className="w-72 rounded-lg bg-[#111113] border border-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/20"
-                                        placeholder="Search admin..."
-                                    />
-                                </div>
-                            </div>
+                        <div className="px-4 md:px-8 py-4 flex flex-wrap gap-3 items-center justify-end">
                             {activeView === 'events' && onCreateEvent && (
                                 <button
                                     onClick={onCreateEvent}
@@ -88,7 +79,7 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                         </div>
                     </header>
 
-                    <main className="px-4 md:px-8 py-8">
+                    <main className="px-4 md:px-8 py-4">
                         {children}
                     </main>
                 </div>
