@@ -3,9 +3,10 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, startOfDay, subDays, eachDayOfInterval, isSameDay } from 'date-fns';
-import { AreaChart, Area, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { AreaChart, Area, CartesianGrid, XAxis } from 'recharts';
 import { Activity, ArrowUpRight, BarChart2, LineChart as LineChartIcon, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 type AdminUser = {
     id: string;
@@ -66,6 +67,16 @@ function HealthRow({ label, value, tone }: StatRowProps) {
 
 export function AdminStatistics() {
     const adminId = 'dev-user';
+    const chartConfig: ChartConfig = {
+        dailyUsers: {
+            label: 'Total users',
+            color: 'hsl(var(--chart-1))'
+        },
+        newUsers: {
+            label: 'New users',
+            color: 'hsl(var(--chart-2))'
+        }
+    };
 
     const { data: usersData, isLoading: usersLoading } = useQuery({
         queryKey: ['admin', 'users', adminId],
@@ -253,25 +264,21 @@ export function AdminStatistics() {
                     title="Total users"
                     value={stats.totals.users}
                     helper={`Active ${stats.totals.activeUsers} · Admins ${stats.totals.adminUsers}`}
-                    gradient="from-blue-500/20 to-indigo-500/10"
                 />
                 <StatCard
                     title="Total events"
                     value={stats.totals.events}
                     helper={`Active ${stats.totals.activeEvents} · Resolved ${stats.totals.resolvedEvents}`}
-                    gradient="from-emerald-500/20 to-teal-500/10"
                 />
                 <StatCard
                     title="Total bets"
                     value={stats.totals.bets}
                     helper={`Engagement ${stats.engagement.engagementRate}%`}
-                    gradient="from-amber-500/20 to-orange-500/10"
                 />
                 <StatCard
                     title="Revenue (mock)"
                     value={`$${stats.revenue.total.toFixed(2)}`}
                     helper={`ARPPU $${stats.revenue.arppu}`}
-                    gradient="from-pink-500/20 to-rose-500/10"
                 />
             </div>
 
@@ -293,48 +300,56 @@ export function AdminStatistics() {
                             </span>
                         </div>
                     </CardHeader>
-                    <CardContent className="h-80">
+                    <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                         {isLoading ? (
                             <div className="text-gray-400">Loading chart…</div>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ChartContainer config={chartConfig} className="aspect-auto h-[260px] w-full">
                                 <AreaChart data={stats.chart}>
                                     <defs>
-                                        <linearGradient id="userArea" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.5} />
-                                            <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                                        <linearGradient id="fillDailyUsers" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="var(--color-dailyUsers)" stopOpacity={0.7} />
+                                            <stop offset="95%" stopColor="var(--color-dailyUsers)" stopOpacity={0.08} />
                                         </linearGradient>
-                                        <linearGradient id="newUserArea" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#34d399" stopOpacity={0.5} />
-                                            <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                                        <linearGradient id="fillNewUsers" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="var(--color-newUsers)" stopOpacity={0.7} />
+                                            <stop offset="95%" stopColor="var(--color-newUsers)" stopOpacity={0.08} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                                    <XAxis dataKey="date" stroke="#9ca3af" />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: '#0b0f19',
-                                            border: '1px solid #1f2937',
-                                            borderRadius: 12
-                                        }}
-                                        labelStyle={{ color: '#fff' }}
+                                    <CartesianGrid vertical={false} className="stroke-border/60" />
+                                    <XAxis
+                                        dataKey="date"
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickMargin={8}
+                                    />
+                                    <ChartTooltip
+                                        cursor={false}
+                                        content={
+                                            <ChartTooltipContent
+                                                indicator="dot"
+                                                labelFormatter={(value) => value}
+                                            />
+                                        }
                                     />
                                     <Area
-                                        type="monotone"
-                                        dataKey="dailyUsers"
-                                        stroke="#60a5fa"
-                                        fill="url(#userArea)"
-                                        strokeWidth={2}
-                                    />
-                                    <Area
-                                        type="monotone"
                                         dataKey="newUsers"
-                                        stroke="#34d399"
-                                        fill="url(#newUserArea)"
+                                        type="natural"
+                                        fill="url(#fillNewUsers)"
+                                        stroke="var(--color-newUsers)"
                                         strokeWidth={2}
+                                        stackId="a"
+                                    />
+                                    <Area
+                                        dataKey="dailyUsers"
+                                        type="natural"
+                                        fill="url(#fillDailyUsers)"
+                                        stroke="var(--color-dailyUsers)"
+                                        strokeWidth={2}
+                                        stackId="a"
                                     />
                                 </AreaChart>
-                            </ResponsiveContainer>
+                            </ChartContainer>
                         )}
                     </CardContent>
                 </Card>
@@ -605,21 +620,14 @@ type StatCardProps = {
     title: string;
     value: number | string;
     helper: string;
-    gradient: string;
 };
 
-function StatCard({ title, value, helper, gradient }: StatCardProps) {
+function StatCard({ title, value, helper }: StatCardProps) {
     return (
-        <div
-            className={`rounded-xl border border-white/10 bg-gradient-to-br ${gradient} p-4 shadow-2xl shadow-black/20`}
-        >
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm text-gray-300">{title}</p>
-                    <p className="text-2xl font-bold text-white">{value}</p>
-                </div>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">{helper}</p>
+        <div className="rounded-2xl border border-white/8 bg-gradient-to-b from-white/5 via-[#0f1117] to-[#0f1117] p-4 md:p-5 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.8)]">
+            <p className="text-xs uppercase tracking-[0.08em] text-gray-400">{title}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+            <p className="mt-2 text-sm text-gray-400">{helper}</p>
         </div>
     );
 }
