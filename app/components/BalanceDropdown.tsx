@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Wallet, History } from 'lucide-react';
+import { ChevronDown, Wallet, History, Briefcase } from 'lucide-react';
 
 interface BalanceDropdownProps {
     balance: number;
@@ -40,6 +40,18 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                         </div>
 
                         <div className="py-1">
+                            <Link
+                                href="/profile"
+                                onClick={() => setIsOpen(false)}
+                                className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                            >
+                                <Briefcase className="w-4 h-4 text-gray-200" />
+                                <div>
+                                    <div className="font-medium">Portfolio</div>
+                                    <div className="text-xs text-gray-500">Open positions & PnL</div>
+                                </div>
+                            </Link>
+
                             <Link
                                 href="/withdraw"
                                 onClick={() => setIsOpen(false)}

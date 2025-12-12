@@ -225,7 +225,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: randomDelay }}
-        className={`group bg-[#1e1e1e] border border-transparent rounded-xl p-3 sm:p-2.5 ${hoverColorClass} transition-all duration-300 flex flex-col justify-between shadow-lg min-h-[180px] h-auto gap-2 ${isEnded ? 'opacity-60' : ''
+        className={`group bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f] border-0 rounded-2xl p-3 sm:p-2.5 transition-all duration-300 flex flex-col justify-between shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)] min-h-[210px] h-full gap-2 ${isEnded ? 'opacity-60' : ''
           }`}
       >
         {/* 1. Header: Image & Title */}
@@ -254,7 +254,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-start gap-1">
-              <h3 className="text-[14px] font-bold text-white leading-snug line-clamp-3 tracking-tight group-hover:text-blue-400 transition-colors">
+              <h3 className="text-[14px] font-bold text-white leading-snug line-clamp-3 tracking-tight group-hover:text-gray-100 transition-colors">
                 {event.title}
               </h3>
               <button
@@ -285,7 +285,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             {(event as any).categories && (event as any).categories.length > 0 && (
               <Badge
                 variant="outline"
-                className="text-[10px] h-5 px-2 py-0 text-blue-300 border-blue-500/30 bg-blue-500/10 uppercase tracking-wide font-bold"
+                className="text-[10px] h-5 px-2 py-0 text-blue-200 border-blue-500/30 bg-blue-500/10 uppercase tracking-wide font-bold"
               >
                 {(event as any).categories[0]}
               </Badge>
@@ -318,7 +318,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
 
           {remainingOutcomes > 0 && event.type === 'MULTIPLE' && (
-            <span className="text-[10px] font-medium text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+            <span className="text-[10px] font-medium text-blue-200 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
               +{remainingOutcomes}
             </span>
           )}
@@ -329,8 +329,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           <div className="flex gap-2 min-h-[38px]">
             {(liveOutcomes || event.outcomes)?.slice(0, 2).map((outcome, idx) => {
               const probability = Math.round(outcome.probability * 100);
-              // Use random color if outcome.color is not defined (for demo)
-              const outcomeColor = outcome.color || (idx === 0 ? '#3b82f6' : '#8b5cf6');
+              const barColor = idx === 0 ? 'bg-emerald-400' : 'bg-red-400';
               return (
                 <motion.button
                   key={outcome.id}
@@ -344,22 +343,20 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="relative flex-1 overflow-hidden bg-[#2a2b36] hover:bg-[#353644] rounded-lg px-2 py-1.5 text-left cursor-pointer transition-colors group/btn flex flex-col justify-center"
+                  className="relative flex-1 overflow-hidden bg-white/6 hover:bg-white/10 rounded-lg px-2 py-1.5 text-left cursor-pointer transition-colors group/btn flex flex-col justify-center"
                 >
                   {/* Progress Bar Background */}
                   <div
-                    className="absolute top-0 left-0 h-full opacity-10 transition-all group-hover/btn:opacity-20"
-                    style={{ width: `${probability}%`, backgroundColor: outcomeColor }}
+                    className={`absolute top-0 left-0 h-full opacity-15 transition-all group-hover/btn:opacity-25 ${barColor}`}
+                    style={{ width: `${probability}%` }}
                   />
 
                   <div className="relative z-10 w-full">
-                    <div className="flex justify-between items-center mb-0.5">
-                      <span className="text-[11px] font-bold text-gray-200 truncate w-full pr-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-gray-100 truncate pr-2">
                         {outcome.name}
                       </span>
-                    </div>
-                    <div className="flex justify-end">
-                      <span className="text-[11px] font-bold" style={{ color: outcomeColor }}>
+                      <span className={`text-[11px] font-bold ${idx === 0 ? 'text-emerald-100' : 'text-red-100'}`}>
                         {probability}%
                       </span>
                     </div>
@@ -374,19 +371,19 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               onClick={(e) => handleTradeClick(e, 'YES')}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex-1 bg-[#1E2A25] hover:bg-[#1E3A2F] rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
+              className="flex-1 bg-green-500/10 hover:bg-green-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
             >
-              <span className="text-[12px] font-bold text-green-500/90 group-hover/yes:text-green-400">YES</span>
-              <span className="text-[12px] font-bold text-green-400">{yesOdds}%</span>
+              <span className="text-[12px] font-bold text-emerald-100">YES</span>
+              <span className="text-[12px] font-bold text-emerald-200">{yesOdds}%</span>
             </motion.button>
             <motion.button
               onClick={(e) => handleTradeClick(e, 'NO')}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex-1 bg-[#2A1E1E] hover:bg-[#3A1E1E] rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
+              className="flex-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
             >
-              <span className="text-[12px] font-bold text-red-500/90 group-hover/no:text-red-400">NO</span>
-              <span className="text-[12px] font-bold text-red-400">{noOdds}%</span>
+              <span className="text-[12px] font-bold text-red-100">NO</span>
+              <span className="text-[12px] font-bold text-red-200">{noOdds}%</span>
             </motion.button>
           </div>
         )}
