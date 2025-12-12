@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node start-hybrid-platform.js",
-    "build": "prisma generate && next build --webpack && node scripts/fix-client-reference-manifest.js",
+    "build": "prisma generate && next build --webpack && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
