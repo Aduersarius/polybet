@@ -73,7 +73,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
 
     if (isLoading) {
         return (
-            <Card className="border-white/10 bg-[#0d0f14]">
+            <Card className="border-0 bg-[#0d0f14]">
                 <CardHeader>
                     <CardTitle className="text-white">Events</CardTitle>
                     <CardDescription>Loading events…</CardDescription>
@@ -86,7 +86,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
     }
 
     return (
-        <Card className="border-white/5 bg-[#111113]">
+        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
             <CardHeader className="gap-2">
                 <div className="flex items-center justify-between gap-2">
                     <div>
@@ -121,7 +121,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-200">
-                        <thead className="bg-white/5 text-xs uppercase text-gray-400 border-b border-white/10">
+                        <thead className="bg-white/5 text-xs uppercase text-gray-400">
                             <tr>
                                 <th className="px-4 py-3 font-semibold">Title</th>
                                 <th className="px-4 py-3 font-semibold">Type</th>
