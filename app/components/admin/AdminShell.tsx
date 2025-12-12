@@ -13,7 +13,7 @@ import {
     Plus,
 } from 'lucide-react';
 
-type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
 
 interface AdminShellProps {
     activeView: AdminView;
@@ -23,6 +23,7 @@ interface AdminShellProps {
 }
 
 const navItems: { id: AdminView; label: string; icon: any }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'events', label: 'Events', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'statistics', label: 'Analytics', icon: LineChart },
