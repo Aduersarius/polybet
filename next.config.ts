@@ -10,9 +10,13 @@ const nextConfig: NextConfig = {
     webpackBuildWorker: false,
     optimizePackageImports: ['@prisma/client', 'ioredis'],
   },
+  // Ensure geoip-lite data files are traced into the serverless output
+  outputFileTracingIncludes: {
+    '*': ['node_modules/geoip-lite/data/**'],
+  },
   webpack: (config) => {
-    // Keep geoip-lite external so its data files remain available at runtime
-    config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream", "geoip-lite");
+    // Keep non-essential dependencies external
+    config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream");
     config.resolve.alias = {
       ...config.resolve.alias,
       '@react-native-async-storage/async-storage': false,
