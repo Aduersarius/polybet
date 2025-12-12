@@ -273,15 +273,12 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 {/* Admin Navigation Row */}
                 {
                     isAdminPage && (
-                        <div className="w-full bg-[#1e1e1e] backdrop-blur-sm border-t border-white/5">
-                            <div className="max-w-7xl mx-auto px-4 py-2">
-                                <div className="flex items-center justify-between">
-                                    {/* Left: Title + Tabs */}
-                                    <div className="flex items-center gap-6">
-                                        <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-                                            Admin
-                                        </h2>
-                                        <div className="flex gap-1">
+                        <div className="w-full border-t border-white/5 bg-black/30 backdrop-blur-sm">
+                            <div className="max-w-6xl mx-auto px-4 md:px-8 py-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-semibold text-white">Admin</span>
+                                        <div className="flex gap-2">
                                             {[
                                                 { id: 'events', label: 'Events', icon: '📊' },
                                                 { id: 'users', label: 'Users', icon: '👥' },
@@ -293,9 +290,9 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 <button
                                                     key={item.id}
                                                     onClick={() => onAdminViewChange?.(item.id)}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeAdminView === item.id
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${activeAdminView === item.id
+                                                        ? 'bg-white/10 border-white/20 text-white'
+                                                        : 'border-white/10 text-gray-300 hover:bg-white/5'
                                                         }`}
                                                 >
                                                     <span>{item.icon}</span>
@@ -305,11 +302,10 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         </div>
                                     </div>
 
-                                    {/* Right: Action Button */}
                                     {activeAdminView === 'events' && onCreateEvent && (
                                         <button
                                             onClick={onCreateEvent}
-                                            className="px-3 py-1.5 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center gap-1.5"
+                                            className="px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 transition-colors flex items-center gap-1.5 border border-blue-500/50"
                                         >
                                             <span>+</span>
                                             <span>Create Event</span>

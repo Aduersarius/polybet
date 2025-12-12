@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pagination } from './Pagination';
 
 
@@ -70,158 +71,175 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
     });
 
 
-    if (isLoading) return <div className="text-white">Loading events...</div>;
+    if (isLoading) {
+        return (
+            <Card className="border-white/10 bg-[#0d0f14]">
+                <CardHeader>
+                    <CardTitle className="text-white">Events</CardTitle>
+                    <CardDescription>Loading events…</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-24 rounded-lg bg-white/5 animate-pulse" />
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
-        <div className="space-y-4 relative z-10">
-            {/* Search Bar */}
-            <div className="flex items-center gap-3">
-                <div className="flex-1 relative">
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search by title, description, categories, creator, status, or type..."
-                        className="w-full bg-[#2a2a2a] border border-white/10 rounded-lg px-4 py-2 pl-10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
-                    />
-                    <svg
-                        className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
-                {searchQuery && (
-                    <div className="text-sm text-gray-400">
-                        Found {totalEvents} events
+        <Card className="border-white/5 bg-[#111113]">
+            <CardHeader className="gap-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div>
+                        <CardTitle className="text-white">Events</CardTitle>
+                        <CardDescription className="text-gray-400">Manage markets, visibility, and status</CardDescription>
                     </div>
-                )}
-            </div>
+                    {searchQuery && (
+                        <div className="text-sm text-gray-400">Found {totalEvents} events</div>
+                    )}
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by title, description, categories, creator, status, or type..."
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 pl-10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        />
+                        <svg
+                            className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                </div>
+            </CardHeader>
 
-            {/* Events Table */}
-            <div className="overflow-x-auto bg-[#1e1e1e]">
-                <table className="w-full text-left text-sm text-gray-400 bg-[#1e1e1e]">
-                    <thead className="bg-[#2a2a2a] text-gray-200 uppercase text-xs">
-                        <tr>
-                            <th className="px-4 py-3">Title</th>
-                            <th className="px-4 py-3">Type</th>
-                            <th className="px-4 py-3">Categories</th>
-                            <th className="px-4 py-3">Creator</th>
-                            <th className="px-4 py-3">Bets</th>
-                            <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3">Visibility</th>
-                            <th className="px-4 py-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10 bg-[#1e1e1e]">
-                        {events?.map((event, idx) => {
-                            if (!event) return null;
+            <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-200">
+                        <thead className="bg-white/5 text-xs uppercase text-gray-400 border-b border-white/10">
+                            <tr>
+                                <th className="px-4 py-3 font-semibold">Title</th>
+                                <th className="px-4 py-3 font-semibold">Type</th>
+                                <th className="px-4 py-3 font-semibold">Categories</th>
+                                <th className="px-4 py-3 font-semibold">Creator</th>
+                                <th className="px-4 py-3 font-semibold">Bets</th>
+                                <th className="px-4 py-3 font-semibold">Status</th>
+                                <th className="px-4 py-3 font-semibold">Visibility</th>
+                                <th className="px-4 py-3 font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {events?.map((event, idx) => {
+                                if (!event) return null;
 
-                            const addr = event.creator?.address || '';
-                            const shortAddress = addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : 'Unknown';
-                            const creatorLabel = event.creator?.username || shortAddress;
-                            const categories = Array.isArray(event.categories) ? event.categories : [];
+                                const addr = event.creator?.address || '';
+                                const shortAddress = addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : 'Unknown';
+                                const creatorLabel = event.creator?.username || shortAddress;
+                                const categories = Array.isArray(event.categories) ? event.categories : [];
 
-                            return (
-                            <tr
-                                key={event.id || `event-${idx}`}
-                                className="hover:bg-[#2a2a2a] cursor-pointer transition-colors group bg-[#1e1e1e]"
-                                onClick={() => onEditEvent(event)}
-                            >
-                                <td className="px-4 py-3">
-                                    <div className="font-medium text-white group-hover:text-blue-400 transition-colors">
-                                        {event.title}
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-cyan-400`}>
-                                        {event.type === 'BINARY' ? 'Binary' : 'Multiple'}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex flex-wrap gap-1">
-                                        {categories.slice(0, 2).map((cat, idx) => (
-                                            <span key={idx} className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-gray-300">
-                                                {cat}
-                                            </span>
-                                        ))}
-                                        {categories.length > 2 && (
-                                            <span className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-gray-400">
-                                                +{categories.length - 2}
-                                            </span>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 text-gray-300">
-                                    {creatorLabel}
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="px-2 py-1 rounded-full text-xs bg-[#2a2a2a] text-blue-400">
-                                        {event._count.bets}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs ${event.status === 'ACTIVE'
-                                        ? 'bg-[#2a2a2a] text-green-400'
-                                        : 'bg-[#2a2a2a] text-gray-400'
-                                        }`}>
-                                        {event.status}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs ${event.isHidden
-                                        ? 'bg-[#2a2a2a] text-red-400'
-                                        : 'bg-[#2a2a2a] text-green-400'
-                                        }`}>
-                                        {event.isHidden ? 'Hidden' : 'Public'}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                updateEventMutation.mutate({
-                                                    eventId: event.id,
-                                                    action: 'toggleHide',
-                                                    value: !event.isHidden
-                                                });
-                                            }}
-                                            className="text-xs px-2 py-1 rounded-md bg-[#374151] text-gray-200 hover:bg-[#4b5563] active:bg-[#374151] transition-all duration-150 shadow-sm hover:shadow-md border border-gray-600"
-                                        >
-                                            {event.isHidden ? '👁️ Show' : '🚫 Hide'}
-                                        </button>
-                                        {event.status === 'ACTIVE' && (
-                                            <>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (confirm('Resolve this event as YES?')) {
-                                                            updateEventMutation.mutate({
-                                                                eventId: event.id,
-                                                                action: 'resolve',
-                                                                value: 'YES'
-                                                            });
-                                                        }
-                                                    }}
-                                                    className="text-xs px-2 py-1 rounded-md bg-[#065f46] text-gray-200 hover:bg-[#047857] active:bg-[#065f46] transition-all duration-150 shadow-sm hover:shadow-md border border-gray-600"
+                                return (
+                                <tr
+                                    key={event.id || `event-${idx}`}
+                                    className="hover:bg-white/5 cursor-pointer transition-colors"
+                                    onClick={() => onEditEvent(event)}
+                                >
+                                    <td className="px-4 py-3">
+                                        <div className="font-semibold text-white hover:text-blue-400 transition-colors">
+                                            {event.title}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-cyan-300 border border-cyan-500/20">
+                                            {event.type === 'BINARY' ? 'Binary' : 'Multiple'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-wrap gap-1">
+                                            {categories.slice(0, 2).map((cat, idx) => (
+                                                <span key={idx} className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-200 border border-white/10">
+                                                    {cat}
+                                                </span>
+                                            ))}
+                                            {categories.length > 2 && (
+                                                <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-400 border border-white/10">
+                                                    +{categories.length - 2}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-300">
+                                        {creatorLabel}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="px-2 py-1 rounded-full text-xs bg-blue-500/10 border border-blue-500/30 text-blue-100">
+                                            {event._count.bets}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`px-2 py-1 rounded-full text-xs border ${event.status === 'ACTIVE'
+                                            ? 'bg-emerald-500/10 text-emerald-100 border-emerald-500/30'
+                                            : 'bg-white/5 text-gray-400 border-white/10'
+                                            }`}>
+                                            {event.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`px-2 py-1 rounded-full text-xs border ${event.isHidden
+                                            ? 'bg-red-500/10 text-red-100 border-red-500/30'
+                                            : 'bg-emerald-500/10 text-emerald-100 border-emerald-500/30'
+                                            }`}>
+                                            {event.isHidden ? 'Hidden' : 'Public'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    updateEventMutation.mutate({
+                                                        eventId: event.id,
+                                                        action: 'toggleHide',
+                                                        value: !event.isHidden
+                                                    });
+                                                }}
+                                                className="text-xs px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
+                                            >
+                                                {event.isHidden ? 'Show' : 'Hide'}
+                                            </button>
+                                            {event.status === 'ACTIVE' && (
+                                                <>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Resolve this event as YES?')) {
+                                                                updateEventMutation.mutate({
+                                                                    eventId: event.id,
+                                                                    action: 'resolve',
+                                                                    value: 'YES'
+                                                                });
+                                                            }
+                                                        }}
+                                                    className="text-xs px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors"
                                                 >
                                                     ✓ YES
                                                 </button>
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        if (confirm('Resolve this event as NO?')) {
-                                                            updateEventMutation.mutate({
-                                                                eventId: event.id,
-                                                                action: 'resolve',
-                                                                value: 'NO'
-                                                            });
-                                                        }
-                                                    }}
-                                                    className="text-xs px-2 py-1 rounded-md bg-[#991b1b] text-gray-200 hover:bg-[#dc2626] active:bg-[#991b1b] transition-all duration-150 shadow-sm hover:shadow-md border border-gray-600"
+                                                            if (confirm('Resolve this event as NO?')) {
+                                                                updateEventMutation.mutate({
+                                                                    eventId: event.id,
+                                                                    action: 'resolve',
+                                                                    value: 'NO'
+                                                                });
+                                                            }
+                                                        }}
+                                                    className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
                                                 >
                                                     ✗ NO
                                                 </button>
@@ -252,6 +270,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                     onPageChange={setCurrentPage}
                 />
             )}
-        </div>
+            </CardContent>
+        </Card>
     );
 }

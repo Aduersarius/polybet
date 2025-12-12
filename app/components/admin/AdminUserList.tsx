@@ -108,7 +108,7 @@ export function AdminUserList() {
 
     if (isLoading) {
         return (
-            <Card className="border-white/10 bg-[#0d0f14]">
+            <Card className="border-white/5 bg-[#111113]">
                 <CardHeader>
                     <CardTitle className="text-white">Users</CardTitle>
                     <CardDescription>Loading users…</CardDescription>
@@ -122,7 +122,7 @@ export function AdminUserList() {
 
     return (
         <div className="space-y-4 relative z-10">
-            <Card className="border-white/10 bg-[#0d0f14]">
+            <Card className="border-white/5 bg-[#111113]">
                 <CardHeader className="gap-2">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -286,7 +286,7 @@ export function AdminUserList() {
                     </div>
 
                     {selectedUser && (
-                        <div className="border-t border-white/10 bg-white/5 px-4 py-4">
+                        <div className="border-t border-white/8 bg-[#0f1117] px-4 py-4">
                             <div className="flex items-start justify-between">
                                 <div>
                                     <div className="text-sm text-gray-400">User details</div>
@@ -345,7 +345,7 @@ export function AdminUserList() {
 
 function InfoRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
     return (
-        <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-white/5 p-3">
+        <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-[#111113] p-3">
             <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
             <span className={`text-sm text-white ${mono ? 'font-mono break-all' : ''}`}>{value}</span>
         </div>

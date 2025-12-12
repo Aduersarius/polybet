@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Navbar } from '../../components/Navbar';
 import { AdminEventList } from '../../components/admin/AdminEventList';
 import { AdminUserList } from '../../components/admin/AdminUserList';
 import { AdminStatistics } from '../../components/admin/AdminStatistics';
@@ -10,9 +9,9 @@ import { AdminFinance } from '../../components/admin/AdminFinance';
 import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
-import { Footer } from '../../components/Footer';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
+import { AdminShell } from '../../components/admin/AdminShell';
 
 type AdminView = 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
 
@@ -64,51 +63,38 @@ function AdminPageContent() {
     // }
 
     if (isAdmin === false) {
-        return (
-            <div className="min-h-screen bg-[#0a0a0a] text-white">
-                <Navbar />
-                <div className="flex items-center justify-center min-h-[80vh]">
-                    <div className="text-center">
-                        <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
-                        <p className="text-gray-400">You don't have permission to access this page.</p>
-                    </div>
-                </div>
-                <Footer />
-            </div>
-        );
+        return null;
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
-            <Navbar
-                isAdminPage={true}
-                activeAdminView={activeView}
-                onAdminViewChange={(view) => {
-                    const nextView = view as AdminView;
-                    setActiveView(nextView);
-                    router.replace(`/admin?view=${nextView}`);
-                }}
-                onCreateEvent={() => {
-                    setSelectedEvent(null);
-                    setIsCreateModalOpen(true);
-                }}
-            />
-
-            {/* Main Content */}
-            <div className="flex-1">
-                <div className="max-w-7xl mx-auto px-4 py-6">
-                    <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-6 relative z-10">
-                        {activeView === 'events' && <AdminEventList onEditEvent={(event) => { setSelectedEvent(event as AdminEvent); setIsCreateModalOpen(true); }} />}
-                        {activeView === 'users' && <AdminUserList />}
-                        {activeView === 'statistics' && <AdminStatistics />}
-                        {activeView === 'finance' && <AdminFinance />}
-                        {activeView === 'withdraw' && <AdminWithdraw />}
-                        {activeView === 'suggested' && <AdminSuggestedEvents />}
-                    </div>
+        <AdminShell
+            activeView={activeView}
+            onChangeView={(view) => {
+                setActiveView(view);
+                router.replace(`/admin?view=${view}`);
+            }}
+            onCreateEvent={() => {
+                setSelectedEvent(null);
+                setIsCreateModalOpen(true);
+            }}
+        >
+            <div className="space-y-6">
+                <div className="flex flex-col gap-2">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Admin dashboard</p>
+                    <h1 className="text-3xl font-bold text-white">Overview</h1>
+                    <p className="text-sm text-gray-400">Monitor events, users, liquidity, and suggestions.</p>
                 </div>
+
+                <section className="relative z-10 space-y-6">
+                    {activeView === 'events' && <AdminEventList onEditEvent={(event) => { setSelectedEvent(event as AdminEvent); setIsCreateModalOpen(true); }} />}
+                    {activeView === 'users' && <AdminUserList />}
+                    {activeView === 'statistics' && <AdminStatistics />}
+                    {activeView === 'finance' && <AdminFinance />}
+                    {activeView === 'withdraw' && <AdminWithdraw />}
+                    {activeView === 'suggested' && <AdminSuggestedEvents />}
+                </section>
             </div>
 
-            {/* Create/Edit Event Modal */}
             <CreateEventModal
                 isOpen={isCreateModalOpen}
                 onClose={() => {
@@ -117,9 +103,7 @@ function AdminPageContent() {
                 }}
                 event={selectedEvent}
             />
-
-            <Footer />
-        </div>
+        </AdminShell>
     );
 }
 
