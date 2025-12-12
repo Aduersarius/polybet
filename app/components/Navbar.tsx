@@ -11,7 +11,6 @@ import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
 import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
-import { PositionsDropdown } from './PositionsDropdown';
 import { BalanceDropdown } from './BalanceDropdown';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { OnboardingTour } from './OnboardingTour';
@@ -116,22 +115,18 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                     <div className="flex items-center justify-between h-16 gap-3">
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-2 group">
-                            <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-9 w-auto object-contain group-hover:scale-105 transition-transform" />
-                            <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-blue-500 bg-clip-text text-transparent group-hover:from-blue-300 group-hover:via-purple-300 group-hover:to-blue-400 transition-all">
+                            <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="h-9 w-auto object-contain group-hover:scale-105 transition-transform brightness-0 invert" />
+                            <span className="text-xl sm:text-2xl font-bold text-white group-hover:text-gray-100 transition-colors">
                                 PolyBet
                             </span>
                         </Link>
 
                         {/* Search */}
-                        <div className="flex-1 ml-4 sm:ml-6 lg:ml-10 mr-4 hidden md:block">
+                        <div className="flex-1 ml-4 sm:ml-6 lg:ml-10 mr-2 hidden md:flex items-center gap-3">
                             <SearchBar onSearch={handleSearch} />
-                        </div>
-
-                        {/* Right Side */}
-                        <div className="flex items-center gap-2 sm:gap-3">
                             <button
                                 onClick={() => setShowOnboarding(true)}
-                                className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 text-sm text-gray-200 hover:text-white hover:border-blue-400/50 hover:bg-white/5 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-sm text-gray-200 hover:text-white transition-colors whitespace-nowrap"
                                 aria-label="Get started"
                                 title="Get started"
                             >
@@ -140,6 +135,10 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25h.008v.008h-.008v-.008ZM12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm-.75-9.75h1.5v4.5h-1.5v-4.5Zm0-3h1.5v1.5h-1.5v-1.5Z" />
                                 </svg>
                             </button>
+                        </div>
+
+                        {/* Right Side */}
+                        <div className="flex items-center gap-2 sm:gap-3 ml-1">
                             {session && (
                                 <>
                                     <button
@@ -149,7 +148,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         <Wallet className="w-4 h-4" />
                                         Deposit
                                     </button>
-                                    <PositionsDropdown />
+                                    {/* Portfolio moved into balance dropdown */}
                                 </>
                             )}
                             {session && <NotificationBell />}
@@ -243,8 +242,8 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                     key={cat.id}
                                                     onClick={() => onCategoryChange(cat.id)}
                                                     className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${selectedCategory === cat.id
-                                                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                                        ? 'bg-[#d6dae3]/25 border border-[#d6dae3]/40 text-white shadow-[0_8px_24px_-18px_rgba(214,218,227,0.35)]'
+                                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-transparent'
                                                         }`}
                                                 >
                                                     {cat.label}
@@ -255,8 +254,8 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         <button
                                             onClick={() => onCategoryChange('FAVORITES')}
                                             className={`p-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
-                                                ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
-                                                : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                                                ? 'bg-[#d6dae3]/25 border border-[#d6dae3]/40 text-white shadow-[0_8px_24px_-18px_rgba(214,218,227,0.35)]'
+                                                : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-transparent'
                                                 }`}
                                         >
                                             <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">

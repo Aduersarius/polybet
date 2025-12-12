@@ -245,14 +245,14 @@ export default function Home() {
                         selectedCategory === 'NEW' ? 'New Markets' :
                           selectedCategory === 'TRENDING' ? 'Trending Markets' :
                             `${selectedCategory} Markets`}
-                    <div className="h-px bg-gradient-to-r from-[#bb86fc] to-transparent flex-1 hidden sm:block" />
+                    <div className="h-px bg-gradient-to-r from-white/20 via-white/5 to-transparent flex-1 hidden sm:block" />
                   </h2>
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 w-full sm:w-auto">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 w-full sm:w-auto">
                   {/* Time Horizon Filter */}
-                  <div className="flex flex-wrap items-center gap-2 bg-white/5 rounded-lg border border-white/10 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {[
                       { key: 'all', label: 'All' },
                       { key: '1d', label: '1D' },
@@ -262,9 +262,9 @@ export default function Home() {
                       <button
                         key={option.key}
                         onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
-                        className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${timeHorizon === option.key
-                          ? 'bg-[#bb86fc]/20 text-[#bb86fc] border border-[#bb86fc]/30'
-                          : 'text-gray-300 hover:text-gray-100 hover:bg-white/10'
+                        className={`h-10 px-4 text-sm font-medium rounded-full transition-all border ${timeHorizon === option.key
+                          ? 'bg-white/10 text-white border-white/20 shadow-[0_6px_22px_-18px_rgba(0,0,0,0.6)]'
+                          : 'bg-transparent text-gray-300 hover:text-white hover:bg-white/5 border-transparent'
                           }`}
                       >
                         {option.label}
@@ -272,65 +272,26 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* Sort - mobile select */}
-                  <div className="w-full sm:hidden">
-                    <label className="text-xs text-gray-400 block mb-1">Sort by</label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#bb86fc]"
-                    >
-                      <option value="newest">Newest</option>
-                      <option value="volume_high">Volume (High)</option>
-                      <option value="volume_low">Volume (Low)</option>
-                      <option value="liquidity_high">Liquidity (High)</option>
-                      <option value="ending_soon">Ending Soon</option>
-                    </select>
-                  </div>
-
-                  {/* Sort Dropdown - desktop */}
-                  <div className="relative hidden sm:block">
-                    <button
-                      onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                      className="material-card px-3 py-2 text-sm text-gray-300 flex items-center gap-1.5 hover:text-white transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                      </svg>
-                      {sortBy === 'newest' ? 'Newest' :
-                        sortBy === 'volume_high' ? 'Volume ↑' :
-                          sortBy === 'volume_low' ? 'Volume ↓' :
-                            sortBy === 'liquidity_high' ? 'Liquidity ↑' :
-                              sortBy === 'ending_soon' ? 'Ending Soon' : 'Newest'}
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {sortDropdownOpen && (
-                      <div className="absolute right-0 mt-2 w-44 material-card rounded-lg shadow-xl z-10 overflow-hidden">
-                        {[
-                          { key: 'newest', label: 'Newest' },
-                          { key: 'volume_high', label: 'Volume (High)' },
-                          { key: 'volume_low', label: 'Volume (Low)' },
-                          { key: 'liquidity_high', label: 'Liquidity (High)' },
-                          { key: 'ending_soon', label: 'Ending Soon' }
-                        ].map((option) => (
-                          <button
-                            key={option.key}
-                            onClick={() => {
-                              setSortBy(option.key as typeof sortBy);
-                              setSortDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-sm transition-colors ${sortBy === option.key
-                              ? 'bg-[#bb86fc]/20 text-[#bb86fc]'
-                              : 'text-gray-300 hover:bg-white/5'
-                              }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  {/* Sort Controls */}
+                  <div className="flex items-center gap-2">
+                    {[
+                      { key: 'newest', label: 'Newest' },
+                      { key: 'volume_high', label: 'Vol ↑' },
+                      { key: 'volume_low', label: 'Vol ↓' },
+                      { key: 'liquidity_high', label: 'Liq ↑' },
+                      { key: 'ending_soon', label: 'Ending' }
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        onClick={() => setSortBy(option.key as typeof sortBy)}
+                        className={`h-10 px-3 text-sm font-medium rounded-full transition-all border ${sortBy === option.key
+                          ? 'bg-white/10 text-white border-white/20 shadow-[0_6px_22px_-18px_rgba(0,0,0,0.6)]'
+                          : 'bg-transparent text-gray-300 hover:text-white hover:bg-white/5 border-transparent'
+                          }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
