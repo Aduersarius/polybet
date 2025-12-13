@@ -10,7 +10,10 @@
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "stress": "npx tsx stress-test.ts",
-    "orderbook-activity": "npx tsx scripts/generate-orderbook-activity.ts"
+    "orderbook-activity": "npx tsx scripts/generate-orderbook-activity.ts",
+    "simulate-bets": "npx tsx scripts/simulate-bets.ts",
+    "simulate-batch": "npx tsx scripts/simulate-batch.ts",
+    "simulate-app": "npx tsx scripts/simulate-app.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
