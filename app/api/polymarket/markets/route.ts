@@ -44,6 +44,7 @@ type PolymarketEvent = {
 };
 
 const MAX_MARKETS = 100;
+const MAX_FETCH = 800;
 
 const toNum = (v: any, fallback = 0) => {
     const n = Number(v);
@@ -130,11 +131,13 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
         title: market.question ?? parent?.title ?? 'Untitled market',
         description: market.description ?? parent?.description ?? '',
         category: market.category ?? market.categories?.[0] ?? parent?.category ?? 'General',
-        categories: parent?.categories && parent.categories.length > 0
-            ? parent.categories
-            : (market.categories && market.categories.length > 0
-                ? market.categories
-                : (market.category ?? parent?.category ? [market.category ?? parent?.category as string] : [])),
+        categories: (() => {
+            const fromParent = parent?.categories?.filter(Boolean) ?? [];
+            const fromMarket = market.categories?.filter(Boolean) ?? [];
+            const fromCategory = (market.category ?? parent?.category) ? [market.category ?? (parent?.category as string)] : [];
+            const merged = [...fromParent, ...fromMarket, ...fromCategory].filter(Boolean);
+            return merged.length ? Array.from(new Set(merged)) : [];
+        })(),
         resolutionDate: market.endDate ?? market.closeTime ?? parent?.endDate ?? parent?.startDate ?? new Date().toISOString(),
         createdAt: market.createdAt ?? parent?.createdAt ?? new Date().toISOString(),
         imageUrl: market.image ?? parent?.image ?? parent?.icon ?? null,
@@ -146,9 +149,11 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
         outcomes: outs.map((o, idx) => ({
             id: o.id || `${market.id || market.slug || 'pm'}-${idx}`,
             name: o.name,
-            probability: normalizeProbValue(
-                o.price ?? (prices[idx] != null ? prices[idx] : undefined),
-                0.5
+            probability: clamp01(
+                normalizeProbValue(
+                    o.price ?? (prices[idx] != null ? prices[idx] : undefined),
+                    0.5
+                )
             ), // keep 0–1 for multi
             color: undefined
         }))
@@ -178,9 +183,8 @@ async function fetchEvents(params: Record<string, string>) {
     }
 }
 
-function flattenAndMap(events: PolymarketEvent[]) {
-    const seen = new Set<string>();
-    const mapped = events.flatMap((evt) => {
+function flattenAndMap(events: PolymarketEvent[], seen: Set<string>) {
+    return events.flatMap((evt) => {
         const markets = normalizeMarkets(evt.markets);
         return markets
             .filter((mkt) => {
@@ -189,53 +193,54 @@ function flattenAndMap(events: PolymarketEvent[]) {
             })
             .map((mkt) => toDbEvent(mkt, evt))
             .filter((mkt) => {
-                const key = mkt.id;
+                const key = mkt.id || `${mkt.title}-${mkt.category}`;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
             });
     });
-    return mapped;
 }
 
 export async function GET() {
     try {
-        // Primary: active, non-archived, open markets ordered by volume desc
-        const primaryEvents = await fetchEvents({
-            limit: '600',
-            active: 'true',
-            archived: 'false',
-            closed: 'false',
-            order: 'volume',
-            ascending: 'false'
-        });
+        const seen = new Set<string>();
 
-        let mapped = flattenAndMap(primaryEvents);
-
-        // If we still lack diversity (e.g., missing multis), pull a fallback without the closed filter
-        if (mapped.length < MAX_MARKETS) {
-            const fallbackEvents = await fetchEvents({
-                limit: '600',
+        const passes: Record<string, string>[] = [
+            {
+                limit: `${MAX_FETCH}`,
+                active: 'true',
+                archived: 'false',
+                closed: 'false',
+                order: 'volume',
+                ascending: 'false'
+            },
+            {
+                limit: `${MAX_FETCH}`,
                 active: 'true',
                 archived: 'false',
                 order: 'volume',
                 ascending: 'false'
-            });
-            const merged = flattenAndMap([...primaryEvents, ...fallbackEvents]);
-            mapped = merged;
-        }
-
-        // Final fallback: allow archived to surface high-volume historical multis
-        if (mapped.length < MAX_MARKETS) {
-            const archivedEvents = await fetchEvents({
-                limit: '600',
-                active: 'true',
+            },
+            {
+                limit: `${MAX_FETCH}`,
+                order: 'volume',
+                ascending: 'false'
+            },
+            {
+                limit: `${MAX_FETCH}`,
                 archived: 'true',
                 order: 'volume',
                 ascending: 'false'
-            });
-            const merged = flattenAndMap([...primaryEvents, ...archivedEvents]);
-            mapped = merged;
+            }
+        ];
+
+        let mapped: ReturnType<typeof toDbEvent>[] = [];
+
+        for (const pass of passes) {
+            const evts = await fetchEvents(pass);
+            if (!evts.length) continue;
+            mapped.push(...flattenAndMap(evts, seen));
+            if (mapped.length >= MAX_MARKETS) break;
         }
 
         const topByVolume = mapped
