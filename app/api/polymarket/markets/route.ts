@@ -22,6 +22,9 @@ type PolymarketMarket = {
     trades?: number | string;
     outcomes?: PolymarketOutcome[] | string;
     outcomePrices?: number[] | string;
+    active?: boolean;
+    closed?: boolean;
+    archived?: boolean;
 };
 
 type PolymarketEvent = {
@@ -95,6 +98,13 @@ function normalizeMarkets(raw: PolymarketEvent['markets']): PolymarketMarket[] {
     return [];
 }
 
+function clamp01(n: number) {
+    if (!Number.isFinite(n)) return 0;
+    if (n < 0) return 0;
+    if (n > 1) return 1;
+    return n;
+}
+
 // Normalize Polymarket market into the shape consumed by EventCard2 (DbEvent)
 function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
     const outs = normalizeOutcomes(market.outcomes);
@@ -111,8 +121,8 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
         1 - yesPrice
     );
 
-    const yesProb = Math.round(yesPrice * 100);
-    const noProb = Math.round(noPrice * 100);
+    const yesProb = Math.round(clamp01(yesPrice) * 100);
+    const noProb = Math.round(clamp01(noPrice) * 100);
 
     return {
         id: market.id || market.slug || crypto.randomUUID(),
@@ -139,52 +149,81 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
     };
 }
 
+async function fetchEvents(params: Record<string, string>) {
+    const search = new URLSearchParams(params);
+    const upstream = await fetch(`https://gamma-api.polymarket.com/events?${search.toString()}`, {
+        cache: 'no-store',
+        headers: {
+            'User-Agent': 'polybet/1.0',
+            'Accept': 'application/json'
+        }
+    });
+    if (!upstream.ok) {
+        console.error('Polymarket upstream not ok', upstream.status);
+        return [];
+    }
+    const text = await upstream.text();
+    try {
+        const data: PolymarketEvent[] = JSON.parse(text);
+        return Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.error('Polymarket parse failed, raw head:', text.slice(0, 400));
+        return [];
+    }
+}
+
+function flattenAndMap(events: PolymarketEvent[]) {
+    const seen = new Set<string>();
+    const mapped = events.flatMap((evt) => {
+        const markets = normalizeMarkets(evt.markets);
+        return markets
+            .filter((mkt) => {
+                const outs = normalizeOutcomes(mkt.outcomes);
+                return outs.length >= 2;
+            })
+            .map((mkt) => toDbEvent(mkt, evt))
+            .filter((mkt) => {
+                const key = mkt.id;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    });
+    return mapped;
+}
+
 export async function GET() {
     try {
-        const params = new URLSearchParams({
-            limit: '600', // fetch enough to sort top 100 by volume
+        // Primary: active, non-archived, open markets ordered by volume desc
+        const primaryEvents = await fetchEvents({
+            limit: '600',
             active: 'true',
-            archived: 'false'
-            // do NOT filter closed so we can surface multi-outcome markets that may be closed
+            archived: 'false',
+            closed: 'false',
+            order: 'volume',
+            ascending: 'false'
         });
 
-        const upstream = await fetch(`https://gamma-api.polymarket.com/events?${params.toString()}`, {
-            cache: 'no-store',
-            headers: {
-                'User-Agent': 'polybet/1.0',
-                'Accept': 'application/json'
-            }
-        });
+        let mapped = flattenAndMap(primaryEvents);
 
-        if (!upstream.ok) {
-            console.error('Polymarket upstream not ok', upstream.status);
-            return NextResponse.json([], { status: 200 });
-        }
-
-        const text = await upstream.text();
-        try {
-            const data: PolymarketEvent[] = JSON.parse(text);
-            const events = Array.isArray(data) ? data : [];
-
-            const flattened = events.flatMap((evt) => {
-                const markets = normalizeMarkets(evt.markets);
-                return markets
-                    .filter((mkt) => {
-                        const outs = normalizeOutcomes(mkt.outcomes);
-                        return outs.length >= 2;
-                    })
-                    .map((mkt) => toDbEvent(mkt, evt));
+        // If we still lack diversity (e.g., missing multis), pull a fallback without the closed filter
+        if (mapped.length < MAX_MARKETS) {
+            const fallbackEvents = await fetchEvents({
+                limit: '600',
+                active: 'true',
+                archived: 'false',
+                order: 'volume',
+                ascending: 'false'
             });
-
-            const topByVolume = flattened
-                .sort((a, b) => (b.volume || 0) - (a.volume || 0))
-                .slice(0, MAX_MARKETS);
-
-            return NextResponse.json(topByVolume);
-        } catch (err) {
-            console.error('Polymarket parse failed, raw head:', text.slice(0, 400));
-            return NextResponse.json([], { status: 200 });
+            const merged = flattenAndMap([...primaryEvents, ...fallbackEvents]);
+            mapped = merged;
         }
+
+        const topByVolume = mapped
+            .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+            .slice(0, MAX_MARKETS);
+
+        return NextResponse.json(topByVolume);
     } catch (error) {
         console.error('Polymarket fetch failed', error);
         return NextResponse.json([], { status: 200 }); // soft-fail
