@@ -77,7 +77,7 @@ export default function Home() {
     setSelectedCategory(category);
   };
 
-  // Fetch events from database
+  // Fetch events from database + Polymarket
   const { data: eventsData, isLoading, error } = useQuery({
     queryKey: ['events', selectedCategory, timeHorizon, sortBy],
     queryFn: async () => {
@@ -87,11 +87,23 @@ export default function Home() {
         sortBy,
         limit: '50' // Fetch more for better filtering
       });
-      const res = await fetch(`/api/events?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch events');
-      const data = await res.json();
-      // Handle both array (legacy) and paginated response (new)
-      return (Array.isArray(data) ? data : data.data) as DbEvent[];
+
+      const [nativeRes, polyRes] = await Promise.all([
+        fetch(`/api/events?${params}`),
+        fetch(`/api/polymarket/markets`)
+      ]);
+
+      if (!nativeRes.ok) throw new Error('Failed to fetch events');
+      if (!polyRes.ok) throw new Error('Failed to fetch polymarket events');
+
+      const nativeJson = await nativeRes.json();
+      const polyJson = await polyRes.json();
+
+      const nativeEvents = (Array.isArray(nativeJson) ? nativeJson : nativeJson.data) as DbEvent[];
+      const polyEvents = (Array.isArray(polyJson) ? polyJson : []) as DbEvent[];
+
+      // Optionally merge; could add de-dupe by id if needed
+      return [...nativeEvents, ...polyEvents];
     },
   });
 
