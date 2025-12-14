@@ -142,10 +142,10 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
 export async function GET() {
     try {
         const params = new URLSearchParams({
-            limit: '400', // fetch enough to sort top 100 by volume
+            limit: '600', // fetch enough to sort top 100 by volume
             active: 'true',
-            closed: 'false',
             archived: 'false'
+            // do NOT filter closed so we can surface multi-outcome markets that may be closed
         });
 
         const upstream = await fetch(`https://gamma-api.polymarket.com/events?${params.toString()}`, {
@@ -168,7 +168,12 @@ export async function GET() {
 
             const flattened = events.flatMap((evt) => {
                 const markets = normalizeMarkets(evt.markets);
-                return markets.map((mkt) => toDbEvent(mkt, evt));
+                return markets
+                    .filter((mkt) => {
+                        const outs = normalizeOutcomes(mkt.outcomes);
+                        return outs.length >= 2;
+                    })
+                    .map((mkt) => toDbEvent(mkt, evt));
             });
 
             const topByVolume = flattened
