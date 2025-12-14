@@ -50,6 +50,16 @@ function normalizeOutcomePrices(raw: PolymarketMarket['outcomePrices']): number[
     return [];
 }
 
+function normalizeProbValue(raw: unknown, fallback = 0.5) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return fallback;
+    // Handle inputs expressed as percentages (0–100)
+    if (n > 1 && n <= 100) return n / 100;
+    if (n < 0) return 0;
+    if (n > 1) return 1;
+    return n;
+}
+
 // Normalize Polymarket market into the shape consumed by EventCard2 (DbEvent)
 function toDbEvent(market: PolymarketMarket) {
     const outs = normalizeOutcomes(market.outcomes);
@@ -62,8 +72,14 @@ function toDbEvent(market: PolymarketMarket) {
         return Number.isFinite(n) ? n : fallback;
     };
 
-    const yesPrice = yesOutcome?.price != null ? toNum(yesOutcome.price, 0.5) : (prices[0] != null ? toNum(prices[0], 0.5) : 0.5);
-    const noPrice = noOutcome?.price != null ? toNum(noOutcome.price, 0.5) : (prices[1] != null ? toNum(prices[1], 0.5) : 1 - yesPrice);
+    const yesPrice = normalizeProbValue(
+        yesOutcome?.price ?? (prices[0] != null ? prices[0] : undefined),
+        0.5
+    );
+    const noPrice = normalizeProbValue(
+        noOutcome?.price ?? (prices[1] != null ? prices[1] : 1 - yesPrice),
+        1 - yesPrice
+    );
 
     const yesProb = Math.round(yesPrice * 100);
     const noProb = Math.round(noPrice * 100);
@@ -84,11 +100,10 @@ function toDbEvent(market: PolymarketMarket) {
         outcomes: outs.map((o, idx) => ({
             id: o.id || `${market.id || market.slug || 'pm'}-${idx}`,
             name: o.name,
-            probability: o.price != null
-                ? toNum(o.price, 0.5)
-                : prices[idx] != null
-                    ? toNum(prices[idx], 0.5)
-                    : 0.5, // keep 0–1 for multi
+            probability: normalizeProbValue(
+                o.price ?? (prices[idx] != null ? prices[idx] : undefined),
+                0.5
+            ), // keep 0–1 for multi
             color: undefined
         }))
     };
