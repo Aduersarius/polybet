@@ -33,6 +33,7 @@ type PolymarketEvent = {
     title?: string;
     description?: string;
     category?: string;
+    categories?: string[];
     endDate?: string;
     startDate?: string;
     createdAt?: string;
@@ -129,6 +130,11 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
         title: market.question ?? parent?.title ?? 'Untitled market',
         description: market.description ?? parent?.description ?? '',
         category: market.category ?? market.categories?.[0] ?? parent?.category ?? 'General',
+        categories: parent?.categories && parent.categories.length > 0
+            ? parent.categories
+            : (market.categories && market.categories.length > 0
+                ? market.categories
+                : (market.category ?? parent?.category ? [market.category ?? parent?.category as string] : [])),
         resolutionDate: market.endDate ?? market.closeTime ?? parent?.endDate ?? parent?.startDate ?? new Date().toISOString(),
         createdAt: market.createdAt ?? parent?.createdAt ?? new Date().toISOString(),
         imageUrl: market.image ?? parent?.image ?? parent?.icon ?? null,
@@ -216,6 +222,19 @@ export async function GET() {
                 ascending: 'false'
             });
             const merged = flattenAndMap([...primaryEvents, ...fallbackEvents]);
+            mapped = merged;
+        }
+
+        // Final fallback: allow archived to surface high-volume historical multis
+        if (mapped.length < MAX_MARKETS) {
+            const archivedEvents = await fetchEvents({
+                limit: '600',
+                active: 'true',
+                archived: 'true',
+                order: 'volume',
+                ascending: 'false'
+            });
+            const merged = flattenAndMap([...primaryEvents, ...archivedEvents]);
             mapped = merged;
         }
 
