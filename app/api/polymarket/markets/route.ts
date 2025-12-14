@@ -24,6 +24,28 @@ type PolymarketMarket = {
     outcomePrices?: number[] | string;
 };
 
+type PolymarketEvent = {
+    id?: string;
+    slug?: string;
+    title?: string;
+    description?: string;
+    category?: string;
+    endDate?: string;
+    startDate?: string;
+    createdAt?: string;
+    image?: string | null;
+    icon?: string | null;
+    volume?: number | string;
+    markets?: PolymarketMarket[] | string;
+};
+
+const MAX_MARKETS = 100;
+
+const toNum = (v: any, fallback = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+};
+
 function normalizeOutcomes(raw: PolymarketMarket['outcomes']): PolymarketOutcome[] {
     if (Array.isArray(raw)) return raw;
     if (typeof raw === 'string') {
@@ -60,17 +82,25 @@ function normalizeProbValue(raw: unknown, fallback = 0.5) {
     return n;
 }
 
+function normalizeMarkets(raw: PolymarketEvent['markets']): PolymarketMarket[] {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
 // Normalize Polymarket market into the shape consumed by EventCard2 (DbEvent)
-function toDbEvent(market: PolymarketMarket) {
+function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
     const outs = normalizeOutcomes(market.outcomes);
     const prices = normalizeOutcomePrices(market.outcomePrices);
     const yesOutcome = outs.find((o) => /yes/i.test(o.name));
     const noOutcome = outs.find((o) => /no/i.test(o.name));
-
-    const toNum = (v: any, fallback = 0) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : fallback;
-    };
 
     const yesPrice = normalizeProbValue(
         yesOutcome?.price ?? (prices[0] != null ? prices[0] : undefined),
@@ -86,12 +116,12 @@ function toDbEvent(market: PolymarketMarket) {
 
     return {
         id: market.id || market.slug || crypto.randomUUID(),
-        title: market.question ?? 'Untitled market',
-        description: market.description ?? '',
-        category: market.category ?? market.categories?.[0] ?? 'General',
-        resolutionDate: market.endDate ?? market.closeTime ?? new Date().toISOString(),
-        createdAt: market.createdAt ?? new Date().toISOString(),
-        imageUrl: market.image ?? null,
+        title: market.question ?? parent?.title ?? 'Untitled market',
+        description: market.description ?? parent?.description ?? '',
+        category: market.category ?? market.categories?.[0] ?? parent?.category ?? 'General',
+        resolutionDate: market.endDate ?? market.closeTime ?? parent?.endDate ?? parent?.startDate ?? new Date().toISOString(),
+        createdAt: market.createdAt ?? parent?.createdAt ?? new Date().toISOString(),
+        imageUrl: market.image ?? parent?.image ?? parent?.icon ?? null,
         volume: toNum(market.volume, 0),
         betCount: toNum(market.trades, 0),
         yesOdds: yesProb,
@@ -111,7 +141,14 @@ function toDbEvent(market: PolymarketMarket) {
 
 export async function GET() {
     try {
-        const upstream = await fetch('https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&archived=false', {
+        const params = new URLSearchParams({
+            limit: '400', // fetch enough to sort top 100 by volume
+            active: 'true',
+            closed: 'false',
+            archived: 'false'
+        });
+
+        const upstream = await fetch(`https://gamma-api.polymarket.com/events?${params.toString()}`, {
             cache: 'no-store',
             headers: {
                 'User-Agent': 'polybet/1.0',
@@ -126,9 +163,19 @@ export async function GET() {
 
         const text = await upstream.text();
         try {
-            const data: PolymarketMarket[] = JSON.parse(text);
-            const mapped = Array.isArray(data) ? data.map(toDbEvent) : [];
-            return NextResponse.json(mapped);
+            const data: PolymarketEvent[] = JSON.parse(text);
+            const events = Array.isArray(data) ? data : [];
+
+            const flattened = events.flatMap((evt) => {
+                const markets = normalizeMarkets(evt.markets);
+                return markets.map((mkt) => toDbEvent(mkt, evt));
+            });
+
+            const topByVolume = flattened
+                .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+                .slice(0, MAX_MARKETS);
+
+            return NextResponse.json(topByVolume);
         } catch (err) {
             console.error('Polymarket parse failed, raw head:', text.slice(0, 400));
             return NextResponse.json([], { status: 200 });
