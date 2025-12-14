@@ -242,8 +242,8 @@ export async function GET(request: Request) {
                 volume,
                 betCount,
                 liquidity,
-                yesOdds,
-                noOdds
+                yesOdds: Math.round(yesOdds * 100),
+                noOdds: Math.round(noOdds * 100)
             };
         });
 
