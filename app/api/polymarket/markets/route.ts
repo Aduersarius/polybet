@@ -1,9 +1,10 @@
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 
 type PolymarketOutcome = {
     id?: string;
     name: string;
-    price?: number;
+    price?: number | string;
 };
 
 type PolymarketMarket = {
@@ -17,24 +18,55 @@ type PolymarketMarket = {
     closeTime?: string;
     createdAt?: string;
     image?: string | null;
-    volume?: number;
-    trades?: number;
-    outcomes?: PolymarketOutcome[];
+    volume?: number | string;
+    trades?: number | string;
+    outcomes?: PolymarketOutcome[] | string;
+    outcomePrices?: number[] | string;
 };
+
+function normalizeOutcomes(raw: PolymarketMarket['outcomes']): PolymarketOutcome[] {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function normalizeOutcomePrices(raw: PolymarketMarket['outcomePrices']): number[] {
+    if (Array.isArray(raw)) return raw.map((v) => Number(v));
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.map((v) => Number(v)) : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
 
 // Normalize Polymarket market into the shape consumed by EventCard2 (DbEvent)
 function toDbEvent(market: PolymarketMarket) {
-    const yesOutcome = market.outcomes?.find((o) => /yes/i.test(o.name));
-    const noOutcome = market.outcomes?.find((o) => /no/i.test(o.name));
+    const outs = normalizeOutcomes(market.outcomes);
+    const prices = normalizeOutcomePrices(market.outcomePrices);
+    const yesOutcome = outs.find((o) => /yes/i.test(o.name));
+    const noOutcome = outs.find((o) => /no/i.test(o.name));
 
-    const yesProb =
-        yesOutcome?.price != null
-            ? Math.round(yesOutcome.price * 100)
-            : 50;
-    const noProb =
-        noOutcome?.price != null
-            ? Math.round(noOutcome.price * 100)
-            : 100 - yesProb;
+    const toNum = (v: any, fallback = 0) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+    };
+
+    const yesPrice = yesOutcome?.price != null ? toNum(yesOutcome.price, 0.5) : (prices[0] != null ? toNum(prices[0], 0.5) : 0.5);
+    const noPrice = noOutcome?.price != null ? toNum(noOutcome.price, 0.5) : (prices[1] != null ? toNum(prices[1], 0.5) : 1 - yesPrice);
+
+    const yesProb = Math.round(yesPrice * 100);
+    const noProb = Math.round(noPrice * 100);
 
     return {
         id: market.id || market.slug || crypto.randomUUID(),
@@ -44,15 +76,19 @@ function toDbEvent(market: PolymarketMarket) {
         resolutionDate: market.endDate ?? market.closeTime ?? new Date().toISOString(),
         createdAt: market.createdAt ?? new Date().toISOString(),
         imageUrl: market.image ?? null,
-        volume: market.volume ?? 0,
-        betCount: market.trades ?? 0,
+        volume: toNum(market.volume, 0),
+        betCount: toNum(market.trades, 0),
         yesOdds: yesProb,
         noOdds: noProb,
-        type: (market.outcomes?.length ?? 0) > 2 ? 'MULTIPLE' : 'BINARY',
-        outcomes: (market.outcomes || []).map((o, idx) => ({
+        type: outs.length > 2 ? 'MULTIPLE' : 'BINARY',
+        outcomes: outs.map((o, idx) => ({
             id: o.id || `${market.id || market.slug || 'pm'}-${idx}`,
             name: o.name,
-            probability: o.price != null ? o.price : 0.5, // keep 0–1 for multi
+            probability: o.price != null
+                ? toNum(o.price, 0.5)
+                : prices[idx] != null
+                    ? toNum(prices[idx], 0.5)
+                    : 0.5, // keep 0–1 for multi
             color: undefined
         }))
     };
@@ -60,18 +96,28 @@ function toDbEvent(market: PolymarketMarket) {
 
 export async function GET() {
     try {
-        const upstream = await fetch('https://gamma-api.polymarket.com/markets?limit=50', {
-            cache: 'no-store'
+        const upstream = await fetch('https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&archived=false', {
+            cache: 'no-store',
+            headers: {
+                'User-Agent': 'polybet/1.0',
+                'Accept': 'application/json'
+            }
         });
 
         if (!upstream.ok) {
-            return NextResponse.json([], { status: 200 }); // soft-fail to keep UI up
+            console.error('Polymarket upstream not ok', upstream.status);
+            return NextResponse.json([], { status: 200 });
         }
 
-        const data: PolymarketMarket[] = await upstream.json();
-        const mapped = Array.isArray(data) ? data.map(toDbEvent) : [];
-
-        return NextResponse.json(mapped);
+        const text = await upstream.text();
+        try {
+            const data: PolymarketMarket[] = JSON.parse(text);
+            const mapped = Array.isArray(data) ? data.map(toDbEvent) : [];
+            return NextResponse.json(mapped);
+        } catch (err) {
+            console.error('Polymarket parse failed, raw head:', text.slice(0, 400));
+            return NextResponse.json([], { status: 200 });
+        }
     } catch (error) {
         console.error('Polymarket fetch failed', error);
         return NextResponse.json([], { status: 200 }); // soft-fail
