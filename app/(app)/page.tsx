@@ -90,14 +90,13 @@ export default function Home() {
 
       const [nativeRes, polyRes] = await Promise.all([
         fetch(`/api/events?${params}`),
-        fetch(`/api/polymarket/markets`)
+        fetch(`/api/polymarket/markets`).catch(() => null) // soft-fail polymarket
       ]);
 
       if (!nativeRes.ok) throw new Error('Failed to fetch events');
-      if (!polyRes.ok) throw new Error('Failed to fetch polymarket events');
 
       const nativeJson = await nativeRes.json();
-      const polyJson = await polyRes.json();
+      const polyJson = polyRes && polyRes.ok ? await polyRes.json() : [];
 
       const nativeEvents = (Array.isArray(nativeJson) ? nativeJson : nativeJson.data) as DbEvent[];
       const polyEvents = (Array.isArray(polyJson) ? polyJson : []) as DbEvent[];

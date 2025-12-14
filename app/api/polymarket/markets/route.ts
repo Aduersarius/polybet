@@ -65,7 +65,7 @@ export async function GET() {
         });
 
         if (!upstream.ok) {
-            return NextResponse.json({ error: 'Upstream error' }, { status: 502 });
+            return NextResponse.json([], { status: 200 }); // soft-fail to keep UI up
         }
 
         const data: PolymarketMarket[] = await upstream.json();
@@ -74,6 +74,6 @@ export async function GET() {
         return NextResponse.json(mapped);
     } catch (error) {
         console.error('Polymarket fetch failed', error);
-        return NextResponse.json({ error: 'Failed to fetch polymarket data' }, { status: 500 });
+        return NextResponse.json([], { status: 200 }); // soft-fail
     }
 }
