@@ -2,7 +2,7 @@
 import { Navbar } from '@/app/components/Navbar';
 import { CompactEventPanel } from '@/app/components/CompactEventPanel';
 import { EventChat } from '@/app/components/EventChat';
-import { OddsChartV2 } from '@/app/components/charts/OddsChartV2';
+import { NewPolymarketChart } from '@/app/components/OddsChart';
 import { OrderBook } from '@/app/components/OrderBook';
 import { SuggestedEvents } from '@/app/components/SuggestedEvents';
 import { TradingPanel } from '@/app/components/TradingPanel';
@@ -285,7 +285,7 @@ export default function EventPage() {
                                                 </button>
                                                 {!collapsedSections.chart && (
                                                     <div className="h-[260px] sm:h-[340px] lg:h-[460px] w-full transition-[max-height] duration-200">
-                                                        <OddsChartV2
+                                                        <NewPolymarketChart
                                                             eventId={eventId.toString()}
                                                             eventType={liveEvent.type}
                                                             outcomes={liveEvent.outcomes || []}
