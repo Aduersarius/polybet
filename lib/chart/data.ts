@@ -4,6 +4,7 @@ export type OddsHistoryPoint = {
   timestamp: number;
   yesPrice?: number;
   outcomes?: Array<{ id: string; name: string; probability: number; color?: string }>;
+  [key: string]: any; // Allow flat format with outcome_xxx keys
 };
 
 export type BinaryChartPoint = { timestamp: number; value: number };
@@ -23,8 +24,16 @@ export function toMultiChartData(
   return history.map((d) => {
     const base: any = { timestamp: d.timestamp };
     coloredOutcomes.forEach((o) => {
-      const match = d.outcomes?.find((x) => x.id === o.id);
-      base[`outcome_${o.id}`] = (match?.probability || 0) * 100;
+      // Check if data is in flat format (already has outcome_xxx keys)
+      const flatKey = `outcome_${o.id}`;
+      if ((d as any)[flatKey] !== undefined) {
+        // Data is already in flat format, just convert to percentage
+        base[flatKey] = (d as any)[flatKey] * 100;
+      } else {
+        // Data is in nested outcomes array format
+        const match = d.outcomes?.find((x) => x.id === o.id);
+        base[flatKey] = (match?.probability || 0) * 100;
+      }
     });
     return base as MultiChartPoint;
   });

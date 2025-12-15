@@ -57,7 +57,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   console.log('selectedCategory state initialized to:', selectedCategory);
   const [timeHorizon, setTimeHorizon] = useState<'all' | '1d' | '1w' | '1m'>('all');
-  const [sortBy, setSortBy] = useState<'newest' | 'volume_high' | 'volume_low' | 'liquidity_high' | 'ending_soon'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'volume_high' | 'volume_low' | 'liquidity_high' | 'ending_soon'>('volume_high');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
@@ -77,36 +77,17 @@ export default function Home() {
     setSelectedCategory(category);
   };
 
-  // Fetch events from database + Polymarket
-  const { data: eventsData, isLoading, error } = useQuery({
-    queryKey: ['events', selectedCategory, timeHorizon, sortBy],
+  // Fetch top Polymarket markets only (remove locally created events)
+  const { data: eventsData } = useQuery<DbEvent[]>({
+    queryKey: ['polymarket-events'],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        category: selectedCategory,
-        timeHorizon,
-        sortBy,
-        limit: '50' // Fetch more for better filtering
-      });
-
-      const [nativeRes, polyRes] = await Promise.all([
-        fetch(`/api/events?${params}`),
-        fetch(`/api/polymarket/markets`).catch(() => null) // soft-fail polymarket
-      ]);
-
-      if (!nativeRes.ok) throw new Error('Failed to fetch events');
-
-      const nativeJson = await nativeRes.json();
-      const polyJson = polyRes && polyRes.ok ? await polyRes.json() : [];
-
-      const nativeEvents = (Array.isArray(nativeJson) ? nativeJson : nativeJson.data) as DbEvent[];
-      const polyEvents = (Array.isArray(polyJson) ? polyJson : []) as DbEvent[];
-
-      // Optionally merge; could add de-dupe by id if needed
-      return [...nativeEvents, ...polyEvents];
+      const polyRes = await fetch(`/api/polymarket/markets?limit=100`);
+      if (!polyRes.ok) throw new Error('Failed to fetch markets');
+      const polyJson = await polyRes.json();
+      return (Array.isArray(polyJson) ? polyJson : []) as DbEvent[];
     },
+    staleTime: 60_000,
   });
-
-  const events = eventsData || [];
 
 
   // Listen for global search events
@@ -171,24 +152,41 @@ export default function Home() {
   }, []);
 
 
-  // Fetch user's favorites for filtering
-  const { data: userFavorites } = useQuery({
-    queryKey: ['user-favorites'],
-    queryFn: async () => {
-      const res = await fetch('/api/user/favorites');
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.data || [];
-    },
-  });
-
   const { activeEvents, endedEvents } = useMemo(() => {
-    let filtered = events;
+    const now = new Date();
+    let filtered = (eventsData || []).slice();
 
-    // Client-side filters that can't be done on API
-    // Note: FAVORITES filtering is handled by the API, not client-side
+    // Apply category filters client-side for Polymarket data
+    if (selectedCategory === 'FAVORITES') {
+      filtered = [];
+    } else if (selectedCategory !== 'ALL' && selectedCategory !== 'TRENDING' && selectedCategory !== 'NEW') {
+      const catLower = selectedCategory.toLowerCase();
+      filtered = filtered.filter((e: DbEvent) => {
+        const categories = [
+          e.category,
+          ...(((e as any).categories as string[] | undefined) || []),
+        ]
+          .filter(Boolean)
+          .map((c) => String(c).toLowerCase());
+        return categories.some((c) => c.includes(catLower));
+      });
+    }
 
-    // Apply search filter (client-side for now)
+    // Time horizon filtering
+    if (timeHorizon !== 'all') {
+      const horizonMs =
+        timeHorizon === '1d'
+          ? 24 * 60 * 60 * 1000
+          : timeHorizon === '1w'
+            ? 7 * 24 * 60 * 60 * 1000
+            : 30 * 24 * 60 * 60 * 1000;
+      filtered = filtered.filter((e: DbEvent) => {
+        const end = new Date(e.resolutionDate).getTime();
+        return end >= now.getTime() && end <= now.getTime() + horizonMs;
+      });
+    }
+
+    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((e: DbEvent) =>
@@ -197,13 +195,24 @@ export default function Home() {
       );
     }
 
-    // API already handles category, time horizon, and sorting
-    const now = new Date();
+    // Sort locally based on selection
+    const effectiveSort =
+      selectedCategory === 'TRENDING' ? 'volume_high' :
+        selectedCategory === 'NEW' ? 'newest' : sortBy;
+
+    filtered.sort((a: DbEvent, b: DbEvent) => {
+      if (effectiveSort === 'volume_high') return (b.volume || 0) - (a.volume || 0);
+      if (effectiveSort === 'volume_low') return (a.volume || 0) - (b.volume || 0);
+      if (effectiveSort === 'liquidity_high') return (b.betCount || 0) - (a.betCount || 0);
+      if (effectiveSort === 'ending_soon') return new Date(a.resolutionDate).getTime() - new Date(b.resolutionDate).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); // newest
+    });
+
     return {
       activeEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) > now),
       endedEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
     };
-  }, [selectedCategory, searchQuery, events]);
+  }, [selectedCategory, searchQuery, eventsData, timeHorizon, sortBy]);
 
 
   const getTimeRemaining = (endDate: Date) => {

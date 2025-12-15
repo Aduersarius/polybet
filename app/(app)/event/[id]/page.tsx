@@ -69,13 +69,24 @@ export default function EventPage() {
         router.push(`/?category=${category}`);
     };
 
-    // Fetch event from database
+    // Fetch event (DB first, fallback to Polymarket)
     const { data: event, isLoading, refetch } = useQuery({
         queryKey: ['event', eventId],
         queryFn: async () => {
-            const res = await fetch(`/api/events/${eventId}`);
-            if (!res.ok) throw new Error('Failed to fetch event');
-            return res.json();
+            try {
+                const res = await fetch(`/api/events/${eventId}`);
+                if (res.ok) return res.json();
+            } catch (e) {
+                // ignore and fallback
+            }
+
+            const polyRes = await fetch(`/api/polymarket/markets?id=${eventId}&limit=1`);
+            if (polyRes.ok) {
+                const data = await polyRes.json();
+                if (Array.isArray(data) && data.length) return data[0];
+            }
+
+            throw new Error('Failed to fetch event');
         },
     });
 

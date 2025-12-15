@@ -328,7 +328,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
           <div className="flex gap-2 min-h-[38px]">
             {(liveOutcomes || event.outcomes)?.slice(0, 2).map((outcome, idx) => {
-              const probability = Math.round(outcome.probability * 100);
+              const probValue = outcome.probability ?? 0;
+              const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
               const barColor = idx === 0 ? 'bg-emerald-400' : 'bg-red-400';
               return (
                 <motion.button
@@ -343,7 +344,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="relative flex-1 overflow-hidden bg-white/6 hover:bg-white/10 rounded-lg px-2 py-1.5 text-left cursor-pointer transition-colors group/btn flex flex-col justify-center"
+                  className="relative flex-1 overflow-hidden bg-white/6 hover:bg-white/10 rounded-lg px-2 py-1.5 text-left cursor-pointer transition-all group/btn flex flex-col justify-center border border-white/10 hover:border-white/20"
+                  style={{
+                    boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.2)'
+                  }}
                 >
                   {/* Progress Bar Background */}
                   <div
@@ -367,6 +371,13 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
         ) : (
           <div className="flex gap-2 min-h-[38px]">
+            {(() => {
+              const yesVal = event.yesOdds ?? 0;
+              const noVal = event.noOdds ?? 0;
+              const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
+              const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+              return (
+                <>
             <motion.button
               onClick={(e) => handleTradeClick(e, 'YES')}
               whileHover={{ scale: 1.02 }}
@@ -374,7 +385,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               className="flex-1 bg-green-500/10 hover:bg-green-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
             >
               <span className="text-[12px] font-bold text-emerald-100">YES</span>
-              <span className="text-[12px] font-bold text-emerald-200">{yesOdds}%</span>
+                  <span className="text-[12px] font-bold text-emerald-200">{yesDisplay}%</span>
             </motion.button>
             <motion.button
               onClick={(e) => handleTradeClick(e, 'NO')}
@@ -383,8 +394,11 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               className="flex-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
             >
               <span className="text-[12px] font-bold text-red-100">NO</span>
-              <span className="text-[12px] font-bold text-red-200">{noOdds}%</span>
+                  <span className="text-[12px] font-bold text-red-200">{noDisplay}%</span>
             </motion.button>
+                </>
+              );
+            })()}
           </div>
         )}
       </motion.div>
