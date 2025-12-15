@@ -8,8 +8,9 @@ export function useOddsRealtime(opts: {
   eventType: 'BINARY' | 'MULTIPLE';
   isMultipleOutcomes: boolean;
   setData: React.Dispatch<React.SetStateAction<OddsHistoryPoint[]>>;
+  maxPoints?: number;
 }) {
-  const { eventId, eventType, isMultipleOutcomes, setData } = opts;
+  const { eventId, eventType, isMultipleOutcomes, setData, maxPoints = 2000 } = opts;
 
   useEffect(() => {
     if (!eventId) return;
@@ -26,7 +27,16 @@ export function useOddsRealtime(opts: {
           timestamp: update.timestamp,
           ...(isMultipleOutcomes ? { outcomes: update.outcomes } : { yesPrice: update.yesPrice }),
         };
-        return [...prev, newPoint];
+
+        // Dedupe identical timestamp
+        const last = prev[prev.length - 1];
+        if (last && last.timestamp === newPoint.timestamp) return prev;
+
+        const next = [...prev, newPoint];
+        if (next.length > maxPoints) {
+          return next.slice(next.length - maxPoints);
+        }
+        return next;
       });
     };
 

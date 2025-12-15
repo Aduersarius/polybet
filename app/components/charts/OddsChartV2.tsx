@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -43,22 +43,13 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   const coloredOutcomes = useMemo(() => (isMultipleOutcomes ? assignOutcomeColors(effectiveOutcomes) : []), [effectiveOutcomes, isMultipleOutcomes]);
 
   const { data: history, setData, isLoading } = useOddsHistory(eventId, period);
-  useOddsRealtime({ eventId, eventType, isMultipleOutcomes, setData });
+  useOddsRealtime({ eventId, eventType, isMultipleOutcomes, setData, maxPoints: 2000 });
 
   const chartData = useMemo(() => {
-    console.log('[Chart Debug] Raw history data:', history);
-    console.log('[Chart Debug] isMultipleOutcomes:', isMultipleOutcomes);
-    console.log('[Chart Debug] coloredOutcomes:', coloredOutcomes);
-    
-    let data;
     if (isMultipleOutcomes) {
-      data = toMultiChartData(history as any, coloredOutcomes as any);
-    } else {
-      data = toBinaryChartData(history as any);
+      return toMultiChartData(history as any, coloredOutcomes as any);
     }
-    
-    console.log('[Chart Debug] Transformed chartData:', data);
-    return data;
+    return toBinaryChartData(history as any);
   }, [history, isMultipleOutcomes, coloredOutcomes]);
 
   const outcomeKeys = useMemo(() => coloredOutcomes.map((o) => `outcome_${o.id}`), [coloredOutcomes]);
@@ -92,6 +83,17 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   const showCurrentPulse = hoveredDataPoint == null;
   const lastPoint: any | undefined = (chartData as any[]).length ? (chartData as any[])[(chartData as any[]).length - 1] : undefined;
+
+  const handleHover = useCallback(
+    (dp: any | null) => {
+      setHoveredDataPoint((prev: any) => {
+        if (!dp) return null;
+        if (prev?.timestamp != null && dp?.timestamp != null && prev.timestamp === dp.timestamp) return prev;
+        return dp;
+      });
+    },
+    [],
+  );
 
   const PulseDotShape = ({ cx, cy, stroke }: any) => {
     if (typeof cx !== 'number' || typeof cy !== 'number') return <g />;
@@ -173,17 +175,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
               <Tooltip
                 content={
                   <ChartTooltipBridge
-                    onHover={(dp) =>
-                      setTimeout(
-                        () =>
-                          setHoveredDataPoint((prev: any) => {
-                            if (!dp) return null;
-                            if (prev?.timestamp != null && dp?.timestamp != null && prev.timestamp === dp.timestamp) return prev;
-                            return dp;
-                          }),
-                        0,
-                      )
-                    }
+                    onHover={handleHover}
                   />
                 }
                 cursor={

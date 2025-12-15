@@ -1,43 +1,52 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import type React from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OddsHistoryPoint } from '@/lib/chart/data';
 import type { OddsPeriod } from '@/app/components/charts/axis/TimelineTick';
 
+/**
+ * Odds history with react-query caching/deduping.
+ * Real-time updates can push data via the returned `setData`, which writes
+ * through to the query cache so other consumers stay in sync.
+ */
 export function useOddsHistory(eventId: string, period: OddsPeriod) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState<OddsHistoryPoint[]>([]);
-  const [error, setError] = useState<unknown>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!eventId) return;
+  const query = useQuery<OddsHistoryPoint[]>({
+    queryKey: ['odds-history', eventId, period],
+    enabled: Boolean(eventId),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    queryFn: async () => {
+      const controller = new AbortController();
+      const res = await fetch(`/api/events/${eventId}/odds-history?period=${period}`, {
+        signal: controller.signal,
+        headers: { 'x-cache-prefetch': '1' },
+      });
+      if (!res.ok) throw new Error(`odds-history ${res.status}`);
+      const json = await res.json();
+      return Array.isArray(json?.data) ? (json.data as OddsHistoryPoint[]) : [];
+    },
+  });
 
-    const controller = new AbortController();
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/events/${eventId}/odds-history?period=${period}`, {
-          signal: controller.signal,
-        });
-        const json = await res.json();
-        const history = json?.data || [];
-        setData(history);
-      } catch (e) {
-        // Ignore aborts
-        if ((e as any)?.name === 'AbortError') return;
-        setError(e);
-        setData([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const setData = useMemo(
+    () =>
+      (updater: React.SetStateAction<OddsHistoryPoint[]>) => {
+        queryClient.setQueryData<OddsHistoryPoint[]>(
+          ['odds-history', eventId, period],
+          (prev = []) => (typeof updater === 'function' ? (updater as any)(prev) : updater),
+        );
+      },
+    [eventId, period, queryClient],
+  );
 
-    fetchData();
-    return () => controller.abort();
-  }, [eventId, period]);
-
-  return { data, setData, isLoading, error };
+  return {
+    data: query.data || [],
+    setData,
+    isLoading: query.isFetching && !query.data,
+    error: query.error,
+  };
 }
-
 
