@@ -15,7 +15,7 @@ export async function GET(
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
 
-        // Use Redis caching with 30s TTL
+        // Use Redis caching with longer TTL (but still low to keep freshness)
         const eventWithOdds = await getOrSet(
             id,
             async () => {
@@ -45,22 +45,23 @@ export async function GET(
                     throw new Error('Event not found');
                 }
 
-                const bets = await (prisma as any).marketActivity.findMany({
-                    where: {
-                        eventId: id,
-                        type: { in: ['BET', 'TRADE'] }
-                    },
-                    select: { amount: true, price: true },
-                });
-
-                const volume = bets.reduce((sum: number, bet: { amount: number, price: number | null }) =>
-                    sum + (bet.amount * (bet.price ?? 1)), 0);
+                const [volumeRow, betCount] = await Promise.all([
+                    prisma.$queryRaw<{ volume: number }[]>`
+                        SELECT COALESCE(SUM("amount" * COALESCE("price", 1)), 0)::float AS volume
+                        FROM "MarketActivity"
+                        WHERE "eventId" = ${id} AND "type" IN ('BET', 'TRADE')
+                    `,
+                    prisma.marketActivity.count({
+                        where: { eventId: id, type: { in: ['BET', 'TRADE'] } },
+                    }),
+                ]);
+                const volume = volumeRow?.[0]?.volume ?? 0;
 
                 let response: any = {
                     ...event,
                     rules: (event as any).rules,
                     volume,
-                    betCount: bets.length,
+                    betCount,
                 };
 
                 if ((event as any).type === 'MULTIPLE') {
@@ -123,7 +124,7 @@ export async function GET(
 
                 return response;
             },
-            { ttl: 10, prefix: 'event' } // Reduced to 10s for development testing
+            { ttl: 120, prefix: 'event' }
         );
 
         const queryTime = Date.now() - startTime;

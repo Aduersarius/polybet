@@ -25,9 +25,6 @@ function createPrismaClient() {
         log: isProd ? ['error'] : ['query', 'error', 'warn'],
         adapter: new PrismaPg(pool),
     });
-    if (typeof (candidate as any).$use !== 'function') {
-        console.warn('[prisma] Prisma adapter client missing $use; continuing without middleware hooks.');
-    }
     return candidate;
 }
 

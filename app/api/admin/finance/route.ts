@@ -13,7 +13,9 @@ export async function GET(req: NextRequest) {
         await requireAdminAuth(req);
 
         const { searchParams } = new URL(req.url);
-        const limit = Math.min(parseInt(searchParams.get('limit') || '200', 10), 500);
+        const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
+        const before = searchParams.get('before');
+        const mode = searchParams.get('mode'); // mode=stats returns only stats to reduce payload
 
         const [
             depositSum,
@@ -22,8 +24,6 @@ export async function GET(req: NextRequest) {
             completedWithdrawalCount,
             pendingWithdrawalSum,
             pendingWithdrawalCount,
-            depositRecords,
-            withdrawalRecords,
         ] = await prisma.$transaction([
             prisma.deposit.aggregate({ _sum: { amount: true } }),
             prisma.deposit.count(),
@@ -36,20 +36,6 @@ export async function GET(req: NextRequest) {
             }),
             prisma.withdrawal.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true } }),
             prisma.withdrawal.count({ where: { status: 'PENDING' } }),
-            prisma.deposit.findMany({
-                orderBy: { createdAt: 'desc' },
-                take: limit,
-                include: {
-                    user: { select: { id: true, username: true, email: true } },
-                },
-            }),
-            prisma.withdrawal.findMany({
-                orderBy: { createdAt: 'desc' },
-                take: limit,
-                include: {
-                    user: { select: { id: true, username: true, email: true } },
-                },
-            }),
         ]);
 
         let ledgerCount = 0;
@@ -102,7 +88,34 @@ export async function GET(req: NextRequest) {
             ledgerEntries: ledgerCount,
         };
 
-        const transactions = [
+        if (mode === 'stats') {
+            return NextResponse.json({ stats, transactions: [] });
+        }
+
+        const whereClause = before
+            ? { createdAt: { lt: new Date(before) } }
+            : undefined;
+
+        const [depositRecords, withdrawalRecords] = await prisma.$transaction([
+            prisma.deposit.findMany({
+                where: whereClause,
+                orderBy: { createdAt: 'desc' },
+                take: limit + 1,
+                include: {
+                    user: { select: { id: true, username: true, email: true } },
+                },
+            }),
+            prisma.withdrawal.findMany({
+                where: whereClause,
+                orderBy: { createdAt: 'desc' },
+                take: limit + 1,
+                include: {
+                    user: { select: { id: true, username: true, email: true } },
+                },
+            }),
+        ]);
+
+        const combined = [
             ...depositRecords.map((d: (typeof depositRecords)[number]) => ({
                 id: d.id,
                 type: 'DEPOSIT' as const,
@@ -127,14 +140,16 @@ export async function GET(req: NextRequest) {
                 toAddress: w.toAddress,
                 user: w.user,
             })),
-        ]
-            .sort(
-                (a, b) =>
-                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            )
-            .slice(0, limit);
+        ].sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
-        return NextResponse.json({ stats, transactions });
+        const transactions = combined.slice(0, limit);
+        const hasMore = combined.length > limit;
+        const nextCursor = hasMore ? combined[limit - 1]?.createdAt : null;
+
+        return NextResponse.json({ stats, transactions, hasMore, nextCursor });
     } catch (error) {
         console.error('Error fetching admin finance data:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

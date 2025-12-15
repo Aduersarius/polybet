@@ -47,6 +47,8 @@ interface FinanceStats {
 interface FinanceResponse {
     stats: FinanceStats;
     transactions: Transaction[];
+    hasMore?: boolean;
+    nextCursor?: string | null;
 }
 
 const formatCurrency = (value: number) =>
@@ -70,35 +72,69 @@ const statusColors: Record<string, string> = {
 };
 
 export function AdminFinance() {
-    const [data, setData] = useState<FinanceResponse | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState<FinanceStats | null>(null);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingStats, setLoadingStats] = useState(true);
+    const [loadingTx, setLoadingTx] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [typeFilter, setTypeFilter] = useState<'ALL' | TransactionType>('ALL');
 
-    const fetchData = async () => {
+    const fetchStats = async () => {
         try {
-            setLoading(true);
             setError(null);
-            const res = await fetch('/api/admin/finance');
-            if (!res.ok) throw new Error('Failed to load finance data');
+            setLoadingStats(true);
+            const res = await fetch('/api/admin/finance?mode=stats');
+            if (!res.ok) throw new Error('Failed to load finance stats');
             const json = await res.json();
-            setData(json);
+            setStats(json.stats);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load finance data');
+            setError(err instanceof Error ? err.message : 'Failed to load finance stats');
         } finally {
-            setLoading(false);
+            setLoadingStats(false);
+        }
+    };
+
+    const fetchTransactions = async (opts?: { append?: boolean; before?: string | null }) => {
+        const append = opts?.append ?? false;
+        const cursor = opts?.before;
+        try {
+            setError(null);
+            setLoadingTx(true);
+            const url = new URL('/api/admin/finance', window.location.origin);
+            if (cursor) url.searchParams.set('before', cursor);
+            const res = await fetch(url.toString());
+            if (!res.ok) throw new Error('Failed to load finance transactions');
+            const json: FinanceResponse = await res.json();
+            setTransactions((prev) => (append ? [...prev, ...json.transactions] : json.transactions));
+            setNextCursor(json.nextCursor ?? null);
+            setHasMore(Boolean(json.hasMore));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load finance transactions');
+        } finally {
+            setLoadingTx(false);
         }
     };
 
     useEffect(() => {
-        fetchData();
+        fetchStats();
+        fetchTransactions();
     }, []);
 
     const filteredTransactions = useMemo(() => {
-        if (!data?.transactions) return [];
-        if (typeFilter === 'ALL') return data.transactions;
-        return data.transactions.filter((tx) => tx.type === typeFilter);
-    }, [data, typeFilter]);
+        if (!transactions) return [];
+        if (typeFilter === 'ALL') return transactions;
+        return transactions.filter((tx) => tx.type === typeFilter);
+    }, [transactions, typeFilter]);
+
+    const onRefresh = () => {
+        setTransactions([]);
+        setNextCursor(null);
+        setHasMore(false);
+        fetchStats();
+        fetchTransactions();
+    };
 
     return (
         <div className="space-y-6">
@@ -123,7 +159,7 @@ export function AdminFinance() {
                         New withdrawal
                     </a>
                     <button
-                        onClick={fetchData}
+                        onClick={onRefresh}
                         className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
                     >
                         <RefreshCw className="h-4 w-4" />
@@ -134,7 +170,7 @@ export function AdminFinance() {
 
             {/* Stats */}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {loading ? (
+                {loadingStats ? (
                     <div className="col-span-full flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#161616] p-6 text-gray-400">
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
                         Loading finance stats...
@@ -143,53 +179,53 @@ export function AdminFinance() {
                     <div className="col-span-full rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
                         {error}
                     </div>
-                ) : data ? (
+                ) : stats ? (
                     [
                         {
                             label: 'Total Deposits',
-                            value: formatCurrency(data.stats.totalDeposits),
-                            sub: `${data.stats.depositCount.toLocaleString()} deposits`,
+                            value: formatCurrency(stats.totalDeposits),
+                            sub: `${stats.depositCount.toLocaleString()} deposits`,
                             icon: <ArrowDownCircle className="h-5 w-5 text-emerald-300" />,
                         },
                         {
                             label: 'Total Withdrawals',
-                            value: formatCurrency(data.stats.totalWithdrawals),
-                            sub: `${data.stats.withdrawalCount.toLocaleString()} withdrawals`,
+                            value: formatCurrency(stats.totalWithdrawals),
+                            sub: `${stats.withdrawalCount.toLocaleString()} withdrawals`,
                             icon: <ArrowUpCircle className="h-5 w-5 text-orange-300" />,
                         },
                         {
                             label: 'Net Flow',
-                            value: formatCurrency(data.stats.netFlow),
-                            sub: data.stats.netFlow >= 0 ? 'Inflow positive' : 'Outflow exceeds inflow',
+                            value: formatCurrency(stats.netFlow),
+                            sub: stats.netFlow >= 0 ? 'Inflow positive' : 'Outflow exceeds inflow',
                             icon: <Activity className="h-5 w-5 text-blue-300" />,
                         },
                         {
                             label: 'Pending Withdrawals',
-                            value: formatCurrency(data.stats.pendingWithdrawalAmount),
-                            sub: `${data.stats.pendingWithdrawalCount} pending`,
+                            value: formatCurrency(stats.pendingWithdrawalAmount),
+                            sub: `${stats.pendingWithdrawalCount} pending`,
                             icon: <AlertTriangle className="h-5 w-5 text-yellow-300" />,
                         },
                         {
                             label: 'Platform Balance',
-                            value: formatCurrency(data.stats.platformBalance),
+                            value: formatCurrency(stats.platformBalance),
                             sub: 'Base token (TUSD) balance',
                             icon: <Wallet className="h-5 w-5 text-cyan-300" />,
                         },
                         {
                             label: 'Locked Funds',
-                            value: formatCurrency(data.stats.lockedBalance),
+                            value: formatCurrency(stats.lockedBalance),
                             sub: 'Held for withdrawals / bets',
                             icon: <ShieldCheck className="h-5 w-5 text-purple-300" />,
                         },
                         {
                             label: 'Available Balance',
-                            value: formatCurrency(data.stats.availableBalance),
+                            value: formatCurrency(stats.availableBalance),
                             sub: 'Platform available liquidity',
                             icon: <Wallet className="h-5 w-5 text-emerald-300" />,
                         },
                         {
                             label: 'Ledger Entries',
-                            value: data.stats.ledgerEntries.toLocaleString(),
+                            value: stats.ledgerEntries.toLocaleString(),
                             sub: 'Historical money movements',
                             icon: <Activity className="h-5 w-5 text-indigo-300" />,
                         },
@@ -234,7 +270,7 @@ export function AdminFinance() {
                     </div>
                 </div>
 
-                {loading ? (
+                {loadingTx ? (
                     <div className="flex items-center justify-center gap-2 p-6 text-gray-400">
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
                         Loading transactions...
@@ -299,6 +335,16 @@ export function AdminFinance() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+                {!loadingTx && !error && hasMore && (
+                    <div className="border-t border-white/5 p-4 text-center">
+                        <button
+                            onClick={() => fetchTransactions({ append: true, before: nextCursor })}
+                            className="inline-flex items-center justify-center rounded-md bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition-colors"
+                        >
+                            Load more
+                        </button>
                     </div>
                 )}
             </div>
