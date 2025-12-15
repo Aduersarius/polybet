@@ -46,8 +46,19 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   useOddsRealtime({ eventId, eventType, isMultipleOutcomes, setData });
 
   const chartData = useMemo(() => {
-    if (isMultipleOutcomes) return toMultiChartData(history as any, coloredOutcomes as any);
-    return toBinaryChartData(history as any);
+    console.log('[Chart Debug] Raw history data:', history);
+    console.log('[Chart Debug] isMultipleOutcomes:', isMultipleOutcomes);
+    console.log('[Chart Debug] coloredOutcomes:', coloredOutcomes);
+    
+    let data;
+    if (isMultipleOutcomes) {
+      data = toMultiChartData(history as any, coloredOutcomes as any);
+    } else {
+      data = toBinaryChartData(history as any);
+    }
+    
+    console.log('[Chart Debug] Transformed chartData:', data);
+    return data;
   }, [history, isMultipleOutcomes, coloredOutcomes]);
 
   const outcomeKeys = useMemo(() => coloredOutcomes.map((o) => `outcome_${o.id}`), [coloredOutcomes]);
