@@ -11,9 +11,10 @@ import {
     Lightbulb,
     Search,
     Plus,
+    Shield,
 } from 'lucide-react';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging';
 
 interface AdminShellProps {
     activeView: AdminView;
@@ -28,6 +29,7 @@ const navItems: { id: AdminView; label: string; icon: any }[] = [
     { id: 'users', label: 'Users', icon: Users },
     { id: 'statistics', label: 'Analytics', icon: LineChart },
     { id: 'finance', label: 'Finance', icon: Wallet },
+    { id: 'hedging', label: 'Hedging', icon: Shield },
     { id: 'withdraw', label: 'Withdrawals', icon: ShieldQuestion },
     { id: 'suggested', label: 'Suggested', icon: Lightbulb },
 ];

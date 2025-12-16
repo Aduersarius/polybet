@@ -20,9 +20,10 @@ interface TradingPanelProps {
     tradeIntent?: { side: 'buy' | 'sell', price: number, amount: number, outcomeId?: string } | null;
     preselectedOption?: 'YES' | 'NO';
     variant?: 'default' | 'modal';
+    eventData?: any; // Pass event data from parent to avoid refetching
 }
 
-export function TradingPanel({ eventId: propEventId, creationDate, resolutionDate, onTrade, tradeIntent, preselectedOption, variant = 'default' }: TradingPanelProps) {
+export function TradingPanel({ eventId: propEventId, creationDate, resolutionDate, onTrade, tradeIntent, preselectedOption, variant = 'default', eventData: propEventData }: TradingPanelProps) {
     const params = useParams();
     const routeEventId = (params as any)?.id as string | undefined;
     const eventId = (propEventId || routeEventId) as string | undefined;
@@ -68,16 +69,20 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         }
     }, [tradeIntent]);
 
-    // Fetch event data for initial odds calculation
-    const { data: eventData } = useQuery({
+    // Fetch event data for initial odds calculation (only if not provided via props)
+    const { data: fetchedEventData } = useQuery({
         queryKey: ['event', eventId],
         queryFn: async () => {
             const response = await fetch(`/api/events/${eventId}`);
             if (!response.ok) throw new Error('Failed to fetch event');
             return await response.json();
         },
+        enabled: !propEventData && !!eventId, // Only fetch if not provided as prop
         staleTime: 30000, // 30 seconds
     });
+    
+    // Use prop data if available, otherwise use fetched data
+    const eventData = propEventData || fetchedEventData;
 
     // Refetch when switching to sell tab
     useEffect(() => {

@@ -9,12 +9,13 @@ import { AdminProductAnalytics } from '../../components/admin/AdminProductAnalyt
 import { AdminFinance } from '../../components/admin/AdminFinance';
 import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
+import { AdminHedging } from '../../components/admin/AdminHedging';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 import { AdminShell } from '../../components/admin/AdminShell';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging';
 
 interface AdminEvent {
     id: string;
@@ -47,7 +48,7 @@ function AdminPageContent() {
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
-        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested'];
+        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging'];
         if (viewParam && allowed.includes(viewParam)) {
             setActiveView(viewParam);
         }
@@ -88,6 +89,7 @@ function AdminPageContent() {
                     {activeView === 'finance' && <AdminFinance />}
                     {activeView === 'withdraw' && <AdminWithdraw />}
                     {activeView === 'suggested' && <AdminSuggestedEvents />}
+                    {activeView === 'hedging' && <AdminHedging />}
                 </section>
             </div>
 

@@ -289,6 +289,7 @@ model Order {
    marketActivity MarketActivity[]
    executions    OrderExecution[]
    batch         BatchOrder? @relation(fields: [batchId], references: [id])
+   hedgePosition HedgePosition?
 
    @@index([eventId, side])
    @@index([userId])
@@ -516,4 +517,79 @@ model ApiKey {
 
   @@index([key])
   @@index([accountId])
+}
+
+// Hedging and Risk Management Models
+model HedgePosition {
+  id                  String   @id @default(cuid())
+  userOrderId         String   @unique
+  polymarketOrderId   String?  
+  polymarketMarketId  String
+  side                String   // 'buy' or 'sell' on Polymarket
+  amount              Float    // Number of shares/contracts
+  userPrice           Float    // Price user got on our platform
+  hedgePrice          Float    // Price we got on Polymarket
+  spreadCaptured      Float    // Our profit: abs(userPrice - hedgePrice)
+  status              String   // 'pending', 'hedged', 'partial', 'failed', 'closed'
+  failureReason       String?  // If hedge failed, why?
+  hedgedAt            DateTime?
+  closedAt            DateTime?
+  polymarketFees      Float    @default(0.0)
+  gasCost             Float    @default(0.0)
+  netProfit           Float    @default(0.0) // spreadCaptured - fees - gas
+  retryCount          Int      @default(0)
+  metadata            Json?    // Additional data (slippage, liquidity snapshot, etc.)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  userOrder           Order    @relation(fields: [userOrderId], references: [id])
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([polymarketMarketId])
+  @@index([hedgedAt])
+}
+
+model PolymarketMarketMapping {
+  id                  String   @id @default(cuid())
+  internalEventId     String   @unique
+  polymarketId        String   // Polymarket event/market ID
+  polymarketConditionId String? // CLOB condition ID for trading
+  polymarketTokenId   String?  // Token contract address
+  outcomeMapping      Json?    // Map our outcome IDs to Polymarket outcome IDs
+  isActive            Boolean  @default(true)
+  lastSyncedAt        DateTime?
+  liquiditySnapshot   Json?    // Recent liquidity data
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([polymarketId])
+  @@index([internalEventId])
+}
+
+model RiskSnapshot {
+  id                  String   @id @default(cuid())
+  timestamp           DateTime @default(now())
+  totalUnhedgedValue  Float    // Total USD value of unhedged positions
+  totalHedgedValue    Float    // Total USD value of hedged positions
+  netExposure         Float    // Net directional exposure
+  totalSpreadCaptured Float    // Cumulative profit from spreads
+  hedgeSuccessRate    Float    // % of successful hedges
+  averageHedgeTime    Int?     // Average time to hedge in milliseconds
+  openPositionsCount  Int      // Number of open unhedged positions
+  failedHedgesCount   Int      // Number of failed hedges in period
+  marketExposure      Json     // Per-market exposure breakdown
+  
+  @@index([timestamp])
+}
+
+model HedgeConfig {
+  id                  String   @id @default(cuid())
+  key                 String   @unique // Config key
+  value               Json     // Config value (can be number, string, object, etc.)
+  description         String?
+  updatedAt           DateTime @updatedAt
+  updatedBy           String?  // Admin user who updated
+  
+  @@index([key])
 }

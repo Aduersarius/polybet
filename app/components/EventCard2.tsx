@@ -12,6 +12,7 @@ interface DbEvent {
   title: string;
   description: string;
   category: string;
+  categories?: string[]; // Multiple categories from Polymarket
   resolutionDate: string;
   createdAt: string;
   imageUrl?: string | null;
@@ -210,6 +211,28 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     setRandomDelay(Math.random() * 0.3); // 0 to 0.3s delay
   }, []);
 
+  // Category-specific colors
+  const getCategoryColor = (category: string): string => {
+    const cat = category.toUpperCase();
+    const colorMap: Record<string, string> = {
+      'CRYPTO': 'text-orange-200 border-orange-500/30 bg-orange-500/10',
+      'POLITICS': 'text-red-200 border-red-500/30 bg-red-500/10',
+      'ELECTIONS': 'text-red-200 border-red-500/30 bg-red-500/10',
+      'SPORTS': 'text-green-200 border-green-500/30 bg-green-500/10',
+      'BUSINESS': 'text-indigo-200 border-indigo-500/30 bg-indigo-500/10',
+      'FINANCE': 'text-indigo-200 border-indigo-500/30 bg-indigo-500/10',
+      'ECONOMY': 'text-indigo-200 border-indigo-500/30 bg-indigo-500/10',
+      'TECH': 'text-cyan-200 border-cyan-500/30 bg-cyan-500/10',
+      'SCIENCE': 'text-purple-200 border-purple-500/30 bg-purple-500/10',
+      'ENTERTAINMENT': 'text-pink-200 border-pink-500/30 bg-pink-500/10',
+      'CULTURE': 'text-pink-200 border-pink-500/30 bg-pink-500/10',
+      'POP CULTURE': 'text-pink-200 border-pink-500/30 bg-pink-500/10',
+      'WORLD': 'text-yellow-200 border-yellow-500/30 bg-yellow-500/10',
+    };
+    
+    return colorMap[cat] || 'text-blue-200 border-blue-500/30 bg-blue-500/10'; // Default blue
+  };
+
   return (
     <Link
       key={event.id}
@@ -246,8 +269,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               className={`w-12 h-12 sm:w-12 sm:h-12 rounded-full bg-[#2a2b36] border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400 transition-colors ${event.imageUrl ? 'hidden' : ''
                 }`}
             >
-              {(event as any).categories && (event as any).categories.length > 0
-                ? (event as any).categories[0][0]
+              {event.categories && event.categories.length > 0
+                ? event.categories[0][0]
+                : event.category 
+                ? event.category[0]
                 : '?'}
             </div>
           </div>
@@ -279,17 +304,29 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
         </div>
 
-        {/* 2. Info Row: Category & Time */}
+        {/* 2. Info Row: Categories & Time */}
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            {(event as any).categories && (event as any).categories.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {event.categories && event.categories.length > 0 ? (
+              // Show up to 2 categories with color-coding
+              event.categories.slice(0, 2).map((cat, idx) => (
+                <Badge
+                  key={idx}
+                  variant="outline"
+                  className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold ${getCategoryColor(cat)}`}
+                >
+                  {cat}
+                </Badge>
+              ))
+            ) : event.category ? (
+              // Fallback to single category if categories array not available
               <Badge
                 variant="outline"
-                className="text-[10px] h-5 px-2 py-0 text-blue-200 border-blue-500/30 bg-blue-500/10 uppercase tracking-wide font-bold"
+                className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold ${getCategoryColor(event.category)}`}
               >
-                {(event as any).categories[0]}
+                {event.category}
               </Badge>
-            )}
+            ) : null}
           </div>
           <span className="text-[10px] font-mono text-gray-500">{getTimeRemaining(new Date(event.resolutionDate))}</span>
         </div>

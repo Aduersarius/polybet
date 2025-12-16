@@ -1,0 +1,42 @@
+
+> polybet@0.1.0 build
+> prisma generate && next build --webpack && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v7.0.0) to ./node_modules/@prisma/client in 411ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+   ▲ Next.js 16.0.7 (webpack)
+   - Environments: .env
+   - Experiments (use with caution):
+     · optimizePackageImports
+     ⨯ webpackBuildWorker
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 25.3s
+   Running TypeScript ...
+Failed to compile.
+
+./app/api/hedge/dashboard/route.ts:83:43
+Type error: Parameter 'stat' implicitly has an 'any' type.
+
+[0m [90m 81 |[39m
+ [90m 82 |[39m     [36mconst[39m marketDetails [33m=[39m [36mawait[39m [33mPromise[39m[33m.[39mall(
+[31m[1m>[22m[39m[90m 83 |[39m       marketStats[33m.[39mslice([35m0[39m[33m,[39m [35m10[39m)[33m.[39mmap([36masync[39m (stat) [33m=>[39m {
+ [90m    |[39m                                           [31m[1m^[22m[39m
+ [90m 84 |[39m         [36mconst[39m mapping [33m=[39m [36mawait[39m prisma[33m.[39mpolymarketMarketMapping[33m.[39mfindFirst({
+ [90m 85 |[39m           where[33m:[39m { polymarketId[33m:[39m stat[33m.[39mpolymarketMarketId }[33m,[39m
+ [90m 86 |[39m         })[33m;[39m[0m
+Next.js build worker exited with code: 1 and signal: null
+uncaughtException Error: kill EPERM
+    at ignore-listed frames {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'kill'
+}
