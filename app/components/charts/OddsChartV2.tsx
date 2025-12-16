@@ -34,6 +34,41 @@ export type OddsChartV2Props = {
   currentYesPrice?: number;
 };
 
+function limitPoints<T>(data: T[], maxPoints: number): T[] {
+  if (!Array.isArray(data) || data.length <= maxPoints) return data;
+  const stride = Math.ceil(data.length / maxPoints);
+  const result: T[] = [];
+  for (let i = 0; i < data.length; i += stride) {
+    result.push(data[i]);
+  }
+  const last = data[data.length - 1];
+  if (result[result.length - 1] !== last) {
+    result[result.length - 1] = last;
+  }
+  return result;
+}
+
+function renderCapForPeriod(period: OddsPeriod) {
+  // Lower the render budget on longer ranges to keep UI responsive on older events
+  // while still fetching/storing the full 500-point history.
+  switch (period) {
+    case '6h':
+      return 440;
+    case '1d':
+      return 420;
+    case '1w':
+      return 400;
+    case '1m':
+      return 360;
+    case '3m':
+      return 320;
+    case 'all':
+      return 260;
+    default:
+      return 480;
+  }
+}
+
 export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, currentYesPrice }: OddsChartV2Props) {
   const [period, setPeriod] = useState<OddsPeriod>('all');
   const [hoveredDataPoint, setHoveredDataPoint] = useState<any | null>(null);
@@ -42,8 +77,10 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   const isMultipleOutcomes = eventType === 'MULTIPLE' && Array.isArray(effectiveOutcomes) && effectiveOutcomes.length > 0;
   const coloredOutcomes = useMemo(() => (isMultipleOutcomes ? assignOutcomeColors(effectiveOutcomes) : []), [effectiveOutcomes, isMultipleOutcomes]);
 
+  const renderCap = useMemo(() => renderCapForPeriod(period), [period]);
+
   const { data: history, setData, isLoading } = useOddsHistory(eventId, period);
-  useOddsRealtime({ eventId, eventType, isMultipleOutcomes, setData, maxPoints: 2000 });
+  useOddsRealtime({ eventId, eventType, isMultipleOutcomes, setData, maxPoints: 500 });
 
   const chartData = useMemo(() => {
     if (isMultipleOutcomes) {
@@ -51,6 +88,8 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
     }
     return toBinaryChartData(history as any);
   }, [history, isMultipleOutcomes, coloredOutcomes]);
+
+  const renderData = useMemo(() => limitPoints(chartData as any[], renderCap), [chartData, renderCap]);
 
   const outcomeKeys = useMemo(() => coloredOutcomes.map((o) => `outcome_${o.id}`), [coloredOutcomes]);
 
@@ -60,7 +99,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   );
 
   const xAxisDomain = useMemo(() => computeXAxisDomain(chartData as any[]), [chartData]);
-  const customTicks = useMemo(() => computeCustomDailyTicks(chartData as any[], period), [chartData, period]);
+  const customTicks = useMemo(() => computeCustomDailyTicks(renderData as any[], period), [renderData, period]);
 
   const currentValues = useMemo(() => {
     if (!isMultipleOutcomes || chartData.length === 0) return {};
@@ -81,7 +120,8 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
     return found ? { name: found.name, color: found.color } : { name: dataKey, color: '#BB86FC' };
   };
 
-  const showCurrentPulse = hoveredDataPoint == null;
+  // Show pulses when not hovered and dataset is reasonably small to avoid DOM cost.
+  const showCurrentPulse = hoveredDataPoint == null && renderData.length <= Math.max(420, renderCap + 20);
   const lastPoint: any | undefined = (chartData as any[]).length ? (chartData as any[])[(chartData as any[]).length - 1] : undefined;
 
   const handleHover = useCallback(
@@ -121,7 +161,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData as any[]} margin={{ top: 0, right: 0, left: 0, bottom: 15 }}>
+            <AreaChart data={renderData as any[]} margin={{ top: 0, right: 0, left: -40, bottom: 15 }}>
               <defs>
                 {isMultipleOutcomes ? (
                   coloredOutcomes.map((o) => (
@@ -146,6 +186,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
                 domain={xAxisDomain as any}
                 tick={(props: any) => <TimelineTick {...props} period={period} />}
                 ticks={customTicks}
+                padding={{ left: 0, right: 0 }}
                 tickLine={false}
                 axisLine={{ stroke: '#3B4048', strokeWidth: 2 }}
                 height={45}
@@ -198,7 +239,8 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
                     stroke={o.color}
                     strokeWidth={2.5}
                     fill={`url(#gradient_${o.id})`}
-                    animationDuration={300}
+                    isAnimationActive={false}
+                    animationDuration={0}
                     dot={false}
                     activeDot={{ r: 5, strokeWidth: 2, stroke: o.color, fill: '#1a1d29' }}
                   />
@@ -210,7 +252,8 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
                   stroke="#8B5CF6"
                   strokeWidth={2.5}
                   fill="url(#gradientValue)"
-                  animationDuration={300}
+                  isAnimationActive={false}
+                  animationDuration={0}
                   dot={false}
                   activeDot={{ r: 5, strokeWidth: 2, stroke: '#8B5CF6', fill: '#1a1d29' }}
                 />

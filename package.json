@@ -8,6 +8,7 @@
     "vercel-build": "npm run build",
     "start": "next start",
     "lint": "next lint",
+    "analyze": "ANALYZE=true next build --webpack",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "stress": "npx tsx stress-test.ts",
@@ -71,6 +72,7 @@
     "ua-parser-js": "^1.0.41"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.0.10",
     "@types/geoip-lite": "^1.4.4",
     "@types/node": "^20",
     "@types/react": "^19",
