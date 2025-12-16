@@ -15,6 +15,7 @@ const AMM_SPREAD = 0.01; // 1% instead of 2%
 export interface HybridOrderResult {
     success: boolean;
     orderId?: string;
+    placeholderOrderId?: string; // Internal order ID for hedging
     trades?: Array<{
         price: number;
         amount: number;
@@ -489,6 +490,7 @@ export async function placeHybridOrder(
                     return {
                         success: true,
                         orderId: marketActivity.id,
+                        placeholderOrderId: placeholderOrder.id,
                         totalFilled: quote.shares,
                         averagePrice: quote.avgPrice,
                         warning
@@ -497,6 +499,50 @@ export async function placeHybridOrder(
                     maxWait: 5000,
                     timeout: 20000
                 });
+
+                // Attempt hedge asynchronously (don't block user order)
+                if (result.success && result.placeholderOrderId) {
+                    // Import hedgeManager dynamically to avoid circular dependencies
+                    import('./hedge-manager').then(({ hedgeManager }) => {
+                        hedgeManager.loadConfig().then(() => {
+                            // Check if we should hedge this order
+                            hedgeManager.canHedge({
+                                eventId,
+                                size: quote.shares,
+                                price: quote.avgPrice,
+                                side,
+                            }).then((canHedge) => {
+                                if (canHedge.feasible) {
+                                    console.log(`[HEDGE] Attempting to hedge order ${result.placeholderOrderId}`);
+                                    // Execute hedge asynchronously
+                                    hedgeManager.executeHedge({
+                                        userOrderId: result.placeholderOrderId!,
+                                        eventId,
+                                        size: quote.shares,
+                                        userPrice: quote.avgPrice,
+                                        side,
+                                    }).then((hedgeResult) => {
+                                        if (hedgeResult.success) {
+                                            console.log(`[HEDGE] Successfully hedged order ${result.placeholderOrderId}`);
+                                        } else {
+                                            console.warn(`[HEDGE] Failed to hedge order ${result.placeholderOrderId}:`, hedgeResult.error);
+                                        }
+                                    }).catch((err) => {
+                                        console.error(`[HEDGE] Error executing hedge:`, err);
+                                    });
+                                } else {
+                                    console.log(`[HEDGE] Skipping hedge for order ${result.placeholderOrderId}:`, canHedge.reason);
+                                }
+                            }).catch((err) => {
+                                console.error(`[HEDGE] Error checking hedge feasibility:`, err);
+                            });
+                        }).catch((err) => {
+                            console.error(`[HEDGE] Error loading config:`, err);
+                        });
+                    }).catch((err) => {
+                        console.error(`[HEDGE] Error importing hedge manager:`, err);
+                    });
+                }
 
                 return result;
 

@@ -69,25 +69,36 @@ export default function EventPage() {
         router.push(`/?category=${category}`);
     };
 
-    // Fetch event (DB first, fallback to Polymarket)
+    // Fetch event - detect if it's a Polymarket ID (numeric) or local UUID
+    const isPolymarketId = /^\d+$/.test(eventId);
+    
     const { data: event, isLoading, refetch } = useQuery({
         queryKey: ['event', eventId],
         queryFn: async () => {
-            try {
-                const res = await fetch(`/api/events/${eventId}`);
-                if (res.ok) return res.json();
-            } catch (e) {
-                // ignore and fallback
-            }
-
-            const polyRes = await fetch(`/api/polymarket/markets?id=${eventId}&limit=1`);
-            if (polyRes.ok) {
+            // For Polymarket IDs (numeric strings), ONLY use Polymarket API (don't try local DB)
+            if (isPolymarketId) {
+                const polyRes = await fetch(`/api/polymarket/markets?id=${eventId}&limit=1`);
+                if (!polyRes.ok) {
+                    throw new Error(`Polymarket API error: ${polyRes.status}`);
+                }
                 const data = await polyRes.json();
                 if (Array.isArray(data) && data.length) return data[0];
+                throw new Error('Polymarket event not found');
             }
-
-            throw new Error('Failed to fetch event');
+            
+            // For UUIDs, ONLY try local DB (these are never in Polymarket)
+            const res = await fetch(`/api/events/${eventId}`);
+            if (!res.ok) {
+                throw new Error(`Event API error: ${res.status}`);
+            }
+            return res.json();
         },
+        // Aggressive caching for better performance
+        staleTime: 30000, // Data stays fresh for 30 seconds
+        gcTime: 5 * 60 * 1000, // Cache for 5 minutes
+        refetchOnWindowFocus: false, // Don't refetch on tab focus
+        refetchOnMount: false, // Don't refetch if cache exists
+        retry: 1, // Only retry once to fail fast
     });
 
     // Initialize live event data
@@ -262,6 +273,7 @@ export default function EventPage() {
                                                 />
                                             ) : (
                                                 <TradingPanel
+                                                    eventData={liveEvent}
                                                     creationDate={liveEvent.createdAt || liveEvent.creationDate}
                                                     resolutionDate={liveEvent.resolutionDate}
                                                     onTrade={handleTrade}
@@ -379,6 +391,7 @@ export default function EventPage() {
                                             />
                                         ) : (
                                             <TradingPanel
+                                                eventData={liveEvent}
                                                 creationDate={liveEvent.createdAt || liveEvent.creationDate}
                                                 resolutionDate={liveEvent.resolutionDate}
                                                 onTrade={handleTrade}

@@ -39,7 +39,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [showSuggestModal, setShowSuggestModal] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [balance, setBalance] = useState<number>(0);
-    const [mounted, setMounted] = useState(false);
+    const [isMounted, setIsMounted] = useState(false); // Prevent hydration mismatch
     const categories: Category[] = [
         { id: 'ALL', label: 'All' },
         { id: 'TRENDING', label: 'Trending' },
@@ -57,54 +57,21 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
         { id: 'WORLD', label: 'World' },
     ];
     const { data: session } = useSession();
-    const showSession = mounted && Boolean(session);
-
+    
+    // Only render session-dependent UI after mounting on client
     useEffect(() => {
-        setMounted(true);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'H2',
-                location: 'Navbar.tsx:mount',
-                message: 'Navbar mounted',
-                data: { mounted: true },
-                timestamp: Date.now(),
-            }),
-        }).catch(() => {});
-        // #endregion
+        setIsMounted(true);
     }, []);
 
-    // #region agent log
+    // Fetch balance when user logs in
     useEffect(() => {
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'H1',
-                location: 'Navbar.tsx:session-effect',
-                message: 'useSession value changed',
-                data: { hasSession: Boolean(session), mounted, showSession },
-                timestamp: Date.now(),
-            }),
-        }).catch(() => {});
-    }, [session, mounted, showSession]);
-    // #endregion
-
-    // Fetch balance when user logs in (post-mount to keep SSR/CSR markup aligned)
-    useEffect(() => {
-        if (showSession && (session as any)?.user) {
+        if ((session as any)?.user) {
             fetch('/api/balance')
                 .then(res => res.json())
                 .then(data => setBalance(data.balance))
                 .catch(err => console.error('Failed to fetch balance:', err));
         }
-    }, [showSession, session]);
+    }, [session]);
 
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -178,22 +145,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
 
                         {/* Right Side */}
                         <div className="flex items-center gap-2 sm:gap-3 ml-1">
-                            {showSession && (
-                                // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        sessionId: 'debug-session',
-                                        runId: 'run1',
-                                        hypothesisId: 'H1',
-                                        location: 'Navbar.tsx:render-branch',
-                                        message: 'Rendering session branch',
-                                        data: { hasSession: true, showSession, mounted },
-                                        timestamp: Date.now(),
-                                    }),
-                                }).catch(() => {}),
-                                // #endregion
+                            {isMounted && session && (
                                 <>
                                     <button
                                         onClick={() => setShowDepositModal(true)}
@@ -205,26 +157,11 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     {/* Portfolio moved into balance dropdown */}
                                 </>
                             )}
-                            {showSession && <NotificationBell />}
+                            {isMounted && session && <NotificationBell />}
 
 
                             {/* Authentication */}
-                            {showSession ? (
-                                // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        sessionId: 'debug-session',
-                                        runId: 'run1',
-                                        hypothesisId: 'H1',
-                                        location: 'Navbar.tsx:render-auth-branch',
-                                        message: 'Rendering authenticated controls',
-                                        data: { hasSession: true, showSession, mounted },
-                                        timestamp: Date.now(),
-                                    }),
-                                }).catch(() => {}),
-                                // #endregion
+                            {isMounted && session ? (
                                 <div className="flex items-center gap-2 sm:gap-3">
                                     {/* Balance Display */}
                                     <BalanceDropdown balance={balance} />
@@ -277,22 +214,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         </div>
                                     </div >
                                 </div >
-                            ) : (
-                                // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        sessionId: 'debug-session',
-                                        runId: 'run1',
-                                        hypothesisId: 'H1',
-                                        location: 'Navbar.tsx:render-guest-branch',
-                                        message: 'Rendering guest controls',
-                                        data: { hasSession: false, showSession, mounted },
-                                        timestamp: Date.now(),
-                                    }),
-                                }).catch(() => {}),
-                                // #endregion
+                            ) : isMounted ? (
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setShowLoginModal(true)}
@@ -306,6 +228,11 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     >
                                         Sign Up
                                     </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    {/* Placeholder to prevent hydration mismatch */}
+                                    <div className="h-10 w-20 bg-transparent" />
                                 </div>
                             )
                             }
