@@ -10,7 +10,7 @@ export function useOddsRealtime(opts: {
   setData: React.Dispatch<React.SetStateAction<OddsHistoryPoint[]>>;
   maxPoints?: number;
 }) {
-  const { eventId, eventType, isMultipleOutcomes, setData, maxPoints = 2000 } = opts;
+  const { eventId, eventType, isMultipleOutcomes, setData, maxPoints = 500 } = opts;
 
   useEffect(() => {
     if (!eventId) return;

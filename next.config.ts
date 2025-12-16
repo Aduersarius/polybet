@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
-import path from 'path';
+import bundleAnalyzer from '@next/bundle-analyzer';
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false,
+});
 
 const nextConfig: NextConfig = {
   // Enable compression for better performance
@@ -24,6 +29,8 @@ const nextConfig: NextConfig = {
     return config;
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
     remotePatterns: [
       {
         protocol: 'https',
@@ -49,4 +56,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

@@ -5,14 +5,8 @@ import { getOrSet } from '@/lib/cache';
 
 // Generate mock historical data for Polymarket events
 function choosePointCount(period: string) {
-    switch (period) {
-        case '6h': return 60;
-        case '1d': return 120;
-        case '1w': return 160;
-        case '1m': return 200;
-        case '3m': return 240;
-        default: return 240;
-    }
+    // Standardize to 500 points for every granularity
+    return 500;
 }
 
 function generateMockHistory(period: string, currentProbs: Record<string, number>) {
@@ -56,7 +50,7 @@ function generateMockHistory(period: string, currentProbs: Record<string, number
     return points;
 }
 
-function downsample<T extends { timestamp: number }>(points: T[], maxPoints = 300): T[] {
+function downsample<T extends { timestamp: number }>(points: T[], maxPoints = 500): T[] {
     if (points.length <= maxPoints) return points;
     const stride = points.length / maxPoints;
     const result: T[] = [];
@@ -131,11 +125,16 @@ export async function GET(
             { ttl: HISTORY_TTL_SECONDS, prefix: 'odds-history' }
         );
 
-        return NextResponse.json({
+        const res = NextResponse.json({
             eventId,
             period,
             data,
         });
+
+        // Cache on the edge/CDN while keeping data reasonably fresh for realtime charts.
+        res.headers.set('Cache-Control', 'public, max-age=15, s-maxage=60, stale-while-revalidate=300');
+
+        return res;
     } catch (error) {
         console.error('Error fetching odds history:', error);
         return NextResponse.json(

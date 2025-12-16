@@ -19,11 +19,12 @@ export function useOddsHistory(eventId: string, period: OddsPeriod) {
     enabled: Boolean(eventId),
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    queryFn: async () => {
-      const controller = new AbortController();
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }) => {
       const res = await fetch(`/api/events/${eventId}/odds-history?period=${period}`, {
-        signal: controller.signal,
+        signal,
         headers: { 'x-cache-prefetch': '1' },
+        cache: 'force-cache',
       });
       if (!res.ok) throw new Error(`odds-history ${res.status}`);
       const json = await res.json();
