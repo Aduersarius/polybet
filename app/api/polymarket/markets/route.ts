@@ -5,6 +5,7 @@ type PolymarketOutcome = {
     id?: string;
     name: string;
     price?: number | string;
+    probability?: number;
 };
 
 type PolymarketMarket = {
@@ -100,11 +101,15 @@ function normalizeOutcomePrices(raw: PolymarketMarket['outcomePrices']): number[
     return [];
 }
 
-function normalizeProbValue(raw: unknown, fallback = 0.5) {
+function normalizeProbValue(raw: unknown, fallback: number | undefined = 0.5): number | undefined {
+    if (raw == null) return fallback;
     const n = Number(raw);
     if (!Number.isFinite(n)) return fallback;
     // Handle inputs expressed as percentages (0–100)
     if (n > 1 && n <= 100) return n / 100;
+    // Anything > 100 is almost certainly NOT a probability (e.g. strike levels like 120000),
+    // so treat it as invalid and return undefined (caller should handle fallback)
+    if (n > 100) return undefined;
     if (n < 0) return 0;
     if (n > 1) return 1;
     return n;
@@ -134,6 +139,8 @@ function probFromValue(raw: unknown, fallback = 0.5) {
     const n = Number(raw);
     if (!Number.isFinite(n)) return fallback;
     if (n > 1 && n <= 100) return clamp01(n / 100);
+    // Guard: huge numbers are not probabilities; fall back instead of clamping to 1.
+    if (n > 100) return clamp01(fallback);
     return clamp01(n);
 }
 
@@ -162,6 +169,9 @@ function extractYesProbability(market: PolymarketMarket, prices: number[], fallb
     // Prefer first price from outcomePrices (most reliable from Polymarket)
     const candidates = [
         prices[0],
+        (market as any).lastTradePrice,
+        (market as any).bestBid,
+        (market as any).bestAsk,
         outs.find((o) => /yes/i.test(o.name))?.price,
         outs[0]?.price
     ];
@@ -343,13 +353,45 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
 
     if (type === 'MULTIPLE') {
         const shortNames = parseShortOutcomes(market);
+        const outcomeCount = shortNames.length || outs.length;
+        
+        // First pass: collect all valid probabilities
+        const validProbabilities: number[] = [];
+        for (let idx = 0; idx < outcomeCount; idx++) {
+            const rawPrice = prices[idx] ?? outs[idx]?.price ?? outs[idx]?.probability;
+            const prob = normalizeProbValue(rawPrice, undefined);
+            if (prob !== undefined) {
+                validProbabilities.push(prob);
+            }
+        }
+        
+        // Calculate fallback probability (equal distribution if no valid probs, or average if some valid)
+        const fallbackProb = validProbabilities.length > 0
+            ? validProbabilities.reduce((a, b) => a + b, 0) / validProbabilities.length
+            : 1.0 / outcomeCount;
+        
         const mapped = (shortNames.length ? shortNames : outs.map((o) => o.name))
             .map((name, idx) => {
-                const rawPrice =
-                    prices[idx] != null
-                        ? prices[idx]
-                        : outs[idx]?.price;
-                const probability = clamp01(normalizeProbValue(rawPrice, 0.5));
+                // Try multiple sources for probability
+                const rawPrice = prices[idx] ?? outs[idx]?.price ?? outs[idx]?.probability;
+                
+                // Use normalizeProbValue which rejects values > 100 (strike levels)
+                let probability = normalizeProbValue(rawPrice, fallbackProb);
+                // If we got undefined (invalid value > 100), use fallback only if we have no valid probs
+                if (probability === undefined) {
+                    // Only use fallback if we truly have no valid probabilities
+                    // Otherwise, leave undefined so UI can show "—"
+                    probability = validProbabilities.length === 0 ? fallbackProb : undefined;
+                }
+                
+                // Ensure probability is in valid range (0-1), not a percentage
+                if (probability !== undefined) {
+                    probability = clamp01(probability);
+                    // Double-check: if it's > 1, it might be a percentage, convert it
+                    if (probability > 1) {
+                        probability = clamp01(probability / 100);
+                    }
+                }
                 return {
                     id: outs[idx]?.id || `${market.id || market.slug || 'pm'}-${idx}`,
                     name,
@@ -361,6 +403,29 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
             })
             .sort((a, b) => (b.probability || 0) - (a.probability || 0))
             .slice(0, 5);
+        
+        // Normalize probabilities to sum to 1 (for display purposes)
+        // But only if we have valid probabilities (not all fallbacks)
+        const validMapped = mapped.filter(o => o.probability !== undefined && o.probability >= 0);
+        const totalProb = validMapped.reduce((sum, o) => sum + (o.probability ?? 0), 0);
+        const hasValidProbs = validMapped.length > 0 && totalProb > 0;
+        
+        if (hasValidProbs && totalProb !== 1) {
+            // Only normalize if we have at least some valid probabilities
+            validMapped.forEach(o => {
+                const currentProb = o.probability ?? 0;
+                o.probability = clamp01(currentProb / totalProb);
+                o.price = o.probability;
+            });
+        }
+        
+        // For outcomes without valid probabilities, set to sentinel value
+        mapped.forEach(o => {
+            if (o.probability === undefined || o.probability < 0) {
+                o.probability = -1 as any; // Sentinel value for "no valid probability"
+                o.price = -1 as any;
+            }
+        });
 
         return { ...base, outcomes: mapped };
     }
@@ -368,12 +433,11 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
     return {
         ...base,
         outcomes: outs.slice(0, 5).map((o, idx) => {
-            const probability = clamp01(
-                normalizeProbValue(
-                    o.price ?? (prices[idx] != null ? prices[idx] : undefined),
-                    0.5
-                )
+            const normalizedProb = normalizeProbValue(
+                o.price ?? (prices[idx] != null ? prices[idx] : undefined),
+                0.5
             );
+            const probability = normalizedProb !== undefined ? clamp01(normalizedProb) : 0.5;
             return {
                 id: o.id || `${market.id || market.slug || 'pm'}-${idx}`,
                 name: o.name,
@@ -419,31 +483,24 @@ function flattenAndMap(events: PolymarketEvent[], seen: Set<string>) {
         });
         if (!allMarkets.length) continue;
 
-        // Filter out inactive/zero-volume/closed/resolved markets
-        const activeMarkets = allMarkets.filter((mkt) => {
-            const vol = bestVolume(mkt, evt);
+        // Check if this is a multi-market grouped event (e.g., Super Bowl teams, companies).
+        // IMPORTANT: do NOT require volume>0 here — many group variants are illiquid, and the old filter
+        // was collapsing these into a single binary market (making "multiple outcomes" appear binary).
+        const groupedMarketsAll = allMarkets.filter((m) => (m as any).groupItemTitle);
+        const groupedMarkets = groupedMarketsAll.filter((mkt) => {
             const prices = normalizeOutcomePrices(mkt.outcomePrices);
-            // Exclude if: inactive, closed, zero volume, or has 100% probability (likely resolved)
-            return mkt.active !== false && 
-                   mkt.closed !== true && 
-                   vol > 0 && 
-                   prices[0] < 0.99; // Exclude markets with ≥99% (likely resolved)
+            return mkt.active !== false && mkt.closed !== true && prices[0] < 0.99;
         });
+        const groupedMarketsEffective = groupedMarkets.length > 1 ? groupedMarkets : groupedMarketsAll;
 
-        const markets = activeMarkets.length > 0 ? activeMarkets : allMarkets;
-
-        // Check if this is a multi-market grouped event (e.g., Super Bowl teams, companies)
-        // These have groupItemTitle and are binary Yes/No markets
-        const groupedMarkets = markets.filter((m) => (m as any).groupItemTitle);
-        
-        if (groupedMarkets.length > 1) {
+        if (groupedMarketsEffective.length > 1) {
             // Multi-market event: aggregate using groupItemTitle as outcome names
-            const outcomes = groupedMarkets.map((mkt) => {
+            const outcomes = groupedMarketsEffective.map((mkt) => {
                 const prices = normalizeOutcomePrices(mkt.outcomePrices);
                 // For binary markets in a group, the Yes price is the probability
-                const probability = probFromValue(prices[0], 0.5);
+                const probability = extractYesProbability(mkt, prices, 0.5);
                 const name = (mkt as any).groupItemTitle || deriveShortName(mkt, evt);
-                
+
                 return {
                     id: mkt.id || mkt.slug || crypto.randomUUID(),
                     name,
@@ -457,17 +514,17 @@ function flattenAndMap(events: PolymarketEvent[], seen: Set<string>) {
             if (outcomes.length < 2) continue;
 
             const volume = Math.max(
-                ...groupedMarkets.map((mkt) => bestVolume(mkt, evt)),
+                ...groupedMarketsEffective.map((mkt) => bestVolume(mkt, evt)),
                 bestVolume({} as any, evt)
             );
-            const betCount = groupedMarkets.reduce((sum, mkt) => sum + toNum(mkt.trades, 0), 0);
+            const betCount = groupedMarketsEffective.reduce((sum, mkt) => sum + toNum(mkt.trades, 0), 0);
 
             const eventTitle = evt.title ?? 'Untitled event';
             const eventDescription = evt.description ?? '';
             const polyCategory = evt.category ?? evt.categories?.[0];
             const shouldInfer = !polyCategory || polyCategory.toLowerCase() === 'general';
             const eventCategory = shouldInfer ? inferCategory(eventTitle, eventDescription) : polyCategory;
-            
+
             const aggregated = {
                 id: evt.id || evt.slug || crypto.randomUUID(),
                 title: eventTitle,
@@ -499,6 +556,19 @@ function flattenAndMap(events: PolymarketEvent[], seen: Set<string>) {
             }
             continue;
         }
+
+        // Filter out inactive/zero-volume/closed/resolved markets
+        const activeMarkets = allMarkets.filter((mkt) => {
+            const vol = bestVolume(mkt, evt);
+            const prices = normalizeOutcomePrices(mkt.outcomePrices);
+            // Exclude if: inactive, closed, zero volume, or has 100% probability (likely resolved)
+            return mkt.active !== false && 
+                   mkt.closed !== true && 
+                   vol > 0 && 
+                   prices[0] < 0.99; // Exclude markets with ≥99% (likely resolved)
+        });
+
+        const markets = activeMarkets.length > 0 ? activeMarkets : allMarkets;
 
         // Single market or multi-outcome market: map directly
         if (markets.length === 1) {

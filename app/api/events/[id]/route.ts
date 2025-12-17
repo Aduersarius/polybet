@@ -34,8 +34,9 @@ export async function GET(
         // #endregion
 
         // Use Redis caching with longer TTL (but still low to keep freshness)
+        const cacheKey = `${lookupByPolymarket ? 'poly' : 'evt'}:${id}`;
         const eventWithOdds = await getOrSet(
-            `${lookupByPolymarket ? 'poly' : 'evt'}:${id}`,
+            cacheKey,
             async () => {
                 const { prisma } = await import('@/lib/prisma');
 
@@ -180,14 +181,18 @@ export async function GET(
                 ]);
                 const volume = volumeRow?.[0]?.volume ?? 0;
 
+                // If outcomes > 2, enforce MULTIPLE to avoid stale binary type
+                const inferredType = (event as any).outcomes?.length > 2 ? 'MULTIPLE' : (event as any).type;
+
                 let response: any = {
                     ...event,
+                    type: inferredType,
                     rules: (event as any).rules,
                     volume,
                     betCount,
                 };
 
-                if ((event as any).type === 'MULTIPLE') {
+                if (inferredType === 'MULTIPLE') {
                     // For multiple outcomes, calculate probabilities using LMSR
                     const { calculateMultipleLMSRProbabilities } = await import('@/lib/amm');
                     const b = (event as any).liquidityParameter || 10000.0;
@@ -252,6 +257,35 @@ export async function GET(
 
         const queryTime = Date.now() - startTime;
         console.log(`✅ Event ${(await params).id} fetched in ${queryTime}ms`);
+
+        // If inferred MULTIPLE but cached payload still binary, bust cache and retry once
+        if ((eventWithOdds as any)?.type === 'BINARY' && Array.isArray((eventWithOdds as any)?.outcomes) && (eventWithOdds as any).outcomes.length > 2) {
+            try {
+                const { invalidate } = await import('@/lib/cache');
+                await invalidate(cacheKey, 'event');
+            } catch {
+                // ignore cache errors
+            }
+            const refreshed = await getOrSet(
+                `${cacheKey}:bust`,
+                async () => {
+                    const { prisma } = await import('@/lib/prisma');
+                    const whereClause: any = lookupByPolymarket ? { polymarketId: id } : { id };
+                    const freshEvent = await prisma.event.findUnique({
+                        where: whereClause,
+                        include: {
+                            creator: { select: { id: true, username: true, address: true } },
+                            outcomes: true,
+                        },
+                    });
+                    if (!freshEvent) throw new Error('Event not found');
+                    const inferred = (freshEvent as any).outcomes?.length > 2 ? 'MULTIPLE' : (freshEvent as any).type;
+                    return { ...freshEvent, type: inferred };
+                },
+                { ttl: 60, prefix: 'event' },
+            );
+            return NextResponse.json(refreshed);
+        }
 
         return NextResponse.json(eventWithOdds);
     } catch (error) {

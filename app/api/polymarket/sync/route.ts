@@ -135,10 +135,56 @@ export async function POST(request: Request) {
       }
 
       const outcomes = Array.isArray(evt.outcomes) ? evt.outcomes.slice(0, 8) : [];
+      
+      // For binary events, extract YES/NO probabilities to set qYes/qNo
+      let yesProb = 0.5;
+      let noProb = 0.5;
+      if (type === 'BINARY' && outcomes.length >= 2) {
+        const yesOutcome = outcomes.find((o: any) => /yes/i.test(o.name || ''));
+        const noOutcome = outcomes.find((o: any) => /no/i.test(o.name || ''));
+        yesProb = clamp01(Number(yesOutcome?.probability ?? outcomes[0]?.probability ?? 0.5));
+        noProb = clamp01(Number(noOutcome?.probability ?? outcomes[1]?.probability ?? 1 - yesProb));
+        // Ensure they sum to 1
+        const sum = yesProb + noProb;
+        if (sum > 0) {
+          yesProb = yesProb / sum;
+          noProb = noProb / sum;
+        }
+      }
+      
+      // Update qYes/qNo for binary events if we have valid probabilities
+      if (type === 'BINARY' && (yesProb !== 0.5 || noProb !== 0.5)) {
+        const b = dbEvent.liquidityParameter || 20000.0;
+        // Convert probabilities to qYes/qNo using inverse LMSR
+        // For small probabilities, approximate: q ≈ b * ln(p / (1-p))
+        const qYes = yesProb > 0.01 && yesProb < 0.99 ? b * Math.log(yesProb / (1 - yesProb)) : 0;
+        const qNo = noProb > 0.01 && noProb < 0.99 ? b * Math.log(noProb / (1 - noProb)) : 0;
+        
+        await prisma.event.update({
+          where: { id: dbEvent.id },
+          data: { qYes, qNo },
+        });
+      }
+      
       for (const outcome of outcomes) {
         const polymarketOutcomeId = outcome.id?.toString();
-        const probability = clamp01(Number(outcome.probability ?? 0.5));
-        const name = outcome.name || 'Outcome';
+        // Only use probability if it's valid (0-1 range), otherwise leave undefined
+        const rawProb = outcome.probability;
+        const probability = rawProb != null && typeof rawProb === 'number' && rawProb >= 0 && rawProb <= 1 
+          ? clamp01(rawProb) 
+          : undefined;
+        
+        // For binary events, try to infer YES/NO from name or position
+        let name = outcome.name || '';
+        if (type === 'BINARY' && !name) {
+          // Try to infer from position or existing outcomes
+          const idx = outcomes.indexOf(outcome);
+          if (idx === 0) name = 'YES';
+          else if (idx === 1) name = 'NO';
+          else name = `Outcome ${idx + 1}`;
+        } else if (!name) {
+          name = `Outcome ${outcomes.indexOf(outcome) + 1}`;
+        }
 
         const existingOutcome = polymarketOutcomeId
           ? await prisma.outcome.findFirst({
@@ -150,27 +196,41 @@ export async function POST(request: Request) {
               select: { id: true },
             });
 
+        // Only update probability if we have a valid value (0-1 range)
+        // Ensure we never store percentages (> 1) or invalid values
+        let finalProbability = probability;
+        if (finalProbability !== undefined) {
+          // Double-check: if it's > 1, it might be a percentage, convert it
+          if (finalProbability > 1 && finalProbability <= 100) {
+            finalProbability = finalProbability / 100;
+          }
+          // Clamp to valid range
+          finalProbability = clamp01(finalProbability);
+        }
+        
+        const updateData: any = {
+          eventId: dbEvent.id,
+          name,
+          polymarketOutcomeId,
+          polymarketMarketId: polymarketId,
+          source: 'POLYMARKET',
+        };
+        if (finalProbability !== undefined) {
+          updateData.probability = finalProbability;
+        }
+
         if (existingOutcome) {
           await prisma.outcome.update({
             where: { id: existingOutcome.id },
-            data: {
-              eventId: dbEvent.id,
-              name,
-              probability,
-              polymarketOutcomeId,
-              polymarketMarketId: polymarketId,
-              source: 'POLYMARKET',
-            },
+            data: updateData,
           });
         } else {
           await prisma.outcome.create({
             data: {
-              eventId: dbEvent.id,
-              name,
-              probability,
-              polymarketOutcomeId,
-              polymarketMarketId: polymarketId,
-              source: 'POLYMARKET',
+              ...updateData,
+              // For binary events, we'll recalc from qYes/qNo below
+              // For multiple, use the probability if we have it, otherwise 0.5 as placeholder
+              probability: finalProbability ?? (type === 'BINARY' ? 0.5 : 0.5),
             },
           });
         }
