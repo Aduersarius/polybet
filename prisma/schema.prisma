@@ -120,6 +120,12 @@ model Event {
   isHidden           Boolean                  @default(false)
   liquidityParameter Float                    @default(20000.0) // Higher for stability with low users
   type               String                   @default("BINARY") // "BINARY" or "MULTIPLE"
+  source             String                   @default("LOCAL") // LOCAL | POLYMARKET | OTHER
+  polymarketId       String?                  @unique
+  resolutionSource   String?                  // e.g. POLYMARKET, MANUAL
+  resolvedAt         DateTime?
+  externalVolume     Float?                   @default(0.0) // Upstream market volume (e.g., Polymarket)
+  externalBetCount   Int?                     @default(0)
   // Legacy binary fields (still used for backward compatibility)
   noOdds             Float?
   qNo                Float                    @default(0.0)
@@ -132,6 +138,9 @@ model Event {
   orders             Order[]
   favorites          UserFavorite[]
   creator            User                     @relation(fields: [creatorId], references: [id])
+  polyOrders         PolyOrder[] @relation("PolyOrderEvent")
+  polyPositions      PolyPosition[] @relation("PolyPositionEvent")
+  oddsHistory        OddsHistory[]
 
   @@index([status, createdAt])
   @@index([categories], type: Gin)
@@ -172,13 +181,39 @@ model Outcome {
   color       String?  // Hex color for UI display
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  polymarketMarketId String?
+  polymarketOutcomeId String? @unique
+  source       String? // LOCAL | POLYMARKET | OTHER
 
   event       Event    @relation(fields: [eventId], references: [id])
   orders      Order[]
   marketActivity MarketActivity[]
+  polyOrders  PolyOrder[] @relation("PolyOrderOutcome")
+  polyPositions PolyPosition[] @relation("PolyPositionOutcome")
+  oddsHistory OddsHistory[]
 
   @@index([eventId])
   @@unique([eventId, name])
+  @@index([polymarketOutcomeId])
+}
+
+model OddsHistory {
+  id                String   @id @default(cuid())
+  eventId           String
+  outcomeId         String
+  polymarketTokenId String?
+  timestamp         DateTime
+  price             Float
+  probability       Float
+  source            String   @default("POLYMARKET")
+  createdAt         DateTime @default(now())
+
+  event    Event   @relation(fields: [eventId], references: [id])
+  outcome  Outcome @relation(fields: [outcomeId], references: [id])
+
+  @@unique([eventId, outcomeId, timestamp])
+  @@index([polymarketTokenId, timestamp])
+  @@index([eventId, outcomeId, timestamp])
 }
 
 model MarketActivity {
@@ -290,6 +325,7 @@ model Order {
    executions    OrderExecution[]
    batch         BatchOrder? @relation(fields: [batchId], references: [id])
    hedgePosition HedgePosition?
+   polyOrder     PolyOrder? @relation("PolyOrderOrder")
 
    @@index([eventId, side])
    @@index([userId])
@@ -560,11 +596,71 @@ model PolymarketMarketMapping {
   isActive            Boolean  @default(true)
   lastSyncedAt        DateTime?
   liquiditySnapshot   Json?    // Recent liquidity data
+  status              String   @default("approved") // approved | rejected
+  updatedBy           String?
+  decisionAt          DateTime?
+  notes               String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@index([polymarketId])
   @@index([internalEventId])
+}
+
+model PolyOrder {
+  id                  String   @id @default(cuid())
+  userOrderId         String   @unique
+  eventId             String
+  outcomeId           String?
+  polymarketOrderId   String?
+  polymarketMarketId  String
+  polymarketOutcomeId String?
+  side                String   // buy | sell
+  price               Float
+  amount              Float
+  amountFilled        Float    @default(0.0)
+  status              String   @default("pending") // pending | placed | filled | partial | cancelled | failed
+  error               String?
+  placedAt            DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  userOrder           Order    @relation("PolyOrderOrder", fields: [userOrderId], references: [id])
+  event               Event    @relation("PolyOrderEvent", fields: [eventId], references: [id])
+  outcome             Outcome? @relation("PolyOrderOutcome", fields: [outcomeId], references: [id])
+
+  @@index([status])
+  @@index([polymarketMarketId])
+  @@index([polymarketOutcomeId])
+  @@index([eventId])
+}
+
+model PolyPosition {
+  id                  String   @id @default(cuid())
+  eventId             String
+  outcomeId           String?
+  polymarketMarketId  String
+  polymarketOutcomeId String?
+  netExposure         Float    @default(0.0) // User-side exposure
+  hedgedExposure      Float    @default(0.0) // How much we've hedged on Polymarket
+  lastHedgeAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  event               Event    @relation("PolyPositionEvent", fields: [eventId], references: [id])
+  outcome             Outcome? @relation("PolyPositionOutcome", fields: [outcomeId], references: [id])
+
+  @@unique([eventId, outcomeId])
+  @@index([polymarketMarketId])
+  @@index([polymarketOutcomeId])
+}
+
+model PolySyncCursor {
+  id                  String   @id @default(cuid())
+  lastMarketUpdatedAt DateTime?
+  lastCursor          String?
+  lastRunAt           DateTime?
+  note                String?
 }
 
 model RiskSnapshot {

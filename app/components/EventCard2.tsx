@@ -81,6 +81,39 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     setLiveOutcomes(event.outcomes);
   }, [event.yesOdds, event.noOdds, event.outcomes]);
 
+  // Fetch latest odds history to seed with freshest point (binary or multiple)
+  const { data: latestHistory } = useQuery({
+    queryKey: ['event-latest-odds', event.id],
+    enabled: Boolean(event.id),
+    staleTime: 15_000,
+    gcTime: 60_000,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/events/${event.id}/odds-history?period=all`, { signal, cache: 'no-store' });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json?.data) ? json.data : [];
+    },
+  });
+
+  useEffect(() => {
+    if (!latestHistory || latestHistory.length === 0) return;
+    const last = latestHistory[latestHistory.length - 1];
+    if (event.type === 'MULTIPLE' && Array.isArray(last?.outcomes)) {
+      setLiveOutcomes(last.outcomes);
+      return;
+    }
+    const latestYes = typeof last?.yesPrice === 'number' ? last.yesPrice : undefined;
+    const latestNo = typeof last?.noPrice === 'number' ? last.noPrice : undefined;
+    if (latestYes != null) {
+      setLiveYesOdds(latestYes);
+      setLiveNoOdds(latestNo != null ? latestNo : 1 - latestYes);
+    } else if (latestNo != null) {
+      setLiveNoOdds(latestNo);
+      setLiveYesOdds(1 - latestNo);
+    }
+  }, [latestHistory, event.type]);
+
   // Listen for real-time updates
   useEffect(() => {
     const { socket } = require('@/lib/socket');
@@ -409,30 +442,30 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         ) : (
           <div className="flex gap-2 min-h-[38px]">
             {(() => {
-              const yesVal = event.yesOdds ?? 0;
-              const noVal = event.noOdds ?? 0;
+              const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
+              const noVal = liveNoOdds ?? event.noOdds ?? 0;
               const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
               const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
               return (
                 <>
-            <motion.button
-              onClick={(e) => handleTradeClick(e, 'YES')}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex-1 bg-green-500/10 hover:bg-green-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
-            >
-              <span className="text-[12px] font-bold text-emerald-100">YES</span>
-                  <span className="text-[12px] font-bold text-emerald-200">{yesDisplay}%</span>
-            </motion.button>
-            <motion.button
-              onClick={(e) => handleTradeClick(e, 'NO')}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
-            >
-              <span className="text-[12px] font-bold text-red-100">NO</span>
-                  <span className="text-[12px] font-bold text-red-200">{noDisplay}%</span>
-            </motion.button>
+                  <motion.button
+                    onClick={(e) => handleTradeClick(e, 'YES')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 bg-green-500/10 hover:bg-green-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
+                  >
+                    <span className="text-[12px] font-bold text-emerald-100">YES</span>
+                    <span className="text-[12px] font-bold text-emerald-200">{yesDisplay}%</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={(e) => handleTradeClick(e, 'NO')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
+                  >
+                    <span className="text-[12px] font-bold text-red-100">NO</span>
+                    <span className="text-[12px] font-bold text-red-200">{noDisplay}%</span>
+                  </motion.button>
                 </>
               );
             })()}

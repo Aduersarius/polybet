@@ -22,7 +22,8 @@ const pool = new Pool({
 function createPrismaClient() {
     // Prefer the pg adapter pool, but fall back to default client if middleware is unavailable.
     const candidate = new PrismaClient({
-        log: isProd ? ['error'] : ['query', 'error', 'warn'],
+        // Keep logs minimal to avoid noisy prisma:query output in dev.
+        log: isProd ? ['error'] : ['error', 'warn'],
         adapter: new PrismaPg(pool),
     });
     return candidate;

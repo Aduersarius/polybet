@@ -245,6 +245,24 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                                                 </button>
                                             </>
                                         )}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (confirm('Delete this event? This will unmap any Polymarket link.')) {
+                                                        updateEventMutation.mutate({
+                                                            eventId: event.id,
+                                                            action: 'delete',
+                                                            value: true
+                                                        });
+                                                        // Refresh events and polymarket intake views
+                                                        queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+                                                        queryClient.invalidateQueries({ queryKey: ['polymarket', 'intake'] });
+                                                    }
+                                                }}
+                                                className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                                            >
+                                                Delete
+                                            </button>
                                     </div>
                                 </td>
                             </tr>

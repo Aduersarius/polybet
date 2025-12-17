@@ -6,9 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { hedgeManager } from '@/lib/hedge-manager';
+import { requireAdminAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export async function GET(request: NextRequest) {
   try {
+    await requireAdminAuth(request);
     await hedgeManager.loadConfig();
     const config = hedgeManager.getConfig();
 
@@ -24,6 +27,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    assertSameOrigin(request);
+    await requireAdminAuth(request);
     const body = await request.json();
     const { key, value, updatedBy } = body;
 

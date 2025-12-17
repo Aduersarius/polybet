@@ -84,6 +84,21 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     // Use prop data if available, otherwise use fetched data
     const eventData = propEventData || fetchedEventData;
 
+    // Fetch latest odds history to seed prices with freshest point (helps when page loads before ws update)
+    const { data: latestHistory } = useQuery({
+        queryKey: ['odds-history-latest', eventId],
+        enabled: Boolean(eventId),
+        staleTime: 15_000,
+        gcTime: 60_000,
+        refetchOnWindowFocus: false,
+        queryFn: async ({ signal }) => {
+            const res = await fetch(`/api/events/${eventId}/odds-history?period=all`, { signal, cache: 'no-store' });
+            if (!res.ok) return [];
+            const json = await res.json();
+            return Array.isArray(json?.data) ? json.data : [];
+        },
+    });
+
     // Refetch when switching to sell tab
     useEffect(() => {
         if (selectedTab === 'sell') {
@@ -100,6 +115,26 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
             setNoPrice(odds.noPrice);
         }
     }, [eventData]);
+
+    // Seed prices from latest odds history when available
+    useEffect(() => {
+        if (!latestHistory || latestHistory.length === 0) return;
+        const last = latestHistory[latestHistory.length - 1];
+        const latestYes = typeof last?.yesPrice === 'number' ? last.yesPrice : undefined;
+        const latestNo = typeof last?.noPrice === 'number' ? last.noPrice : undefined;
+        if (latestYes != null) {
+            setYesPrice(latestYes);
+            if (latestNo == null) {
+                setNoPrice(1 - latestYes);
+            }
+        }
+        if (latestNo != null) {
+            setNoPrice(latestNo);
+            if (latestYes == null) {
+                setYesPrice(1 - latestNo);
+            }
+        }
+    }, [latestHistory]);
 
     // Find balance for the selected outcome
     // For binary events, tokenSymbol is `YES_${eventId}` or `NO_${eventId}`

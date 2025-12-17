@@ -543,7 +543,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const requestedLimit = Number(searchParams.get('limit'));
         const idParam = searchParams.get('id') || undefined;
-        const autoCreateMappings = searchParams.get('automap') !== 'false'; // Enable by default
+        const autoCreateMappings = searchParams.get('automap') === 'true'; // Disabled by default
         const nowIso = new Date().toISOString();
         const targetCount = Math.min(
             Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_LIMIT),
@@ -582,7 +582,7 @@ export async function GET(request: Request) {
             .sort((a, b) => (b.volume || 0) - (a.volume || 0))
             .slice(0, targetCount);
 
-        // Auto-create Polymarket market mappings for hedging (async, non-blocking)
+        // Auto-create Polymarket market mappings for hedging (explicit opt-in only)
         if (autoCreateMappings) {
             // Fire and forget - don't block the response!
             (async () => {

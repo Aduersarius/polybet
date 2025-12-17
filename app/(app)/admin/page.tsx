@@ -10,12 +10,13 @@ import { AdminFinance } from '../../components/admin/AdminFinance';
 import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
 import { AdminHedging } from '../../components/admin/AdminHedging';
+import { AdminPolymarketIntake } from '../../components/admin/AdminPolymarketIntake';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 import { AdminShell } from '../../components/admin/AdminShell';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake';
 
 interface AdminEvent {
     id: string;
@@ -48,7 +49,7 @@ function AdminPageContent() {
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
-        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging'];
+        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging', 'polymarket-intake'];
         if (viewParam && allowed.includes(viewParam)) {
             setActiveView(viewParam);
         }
@@ -90,6 +91,7 @@ function AdminPageContent() {
                     {activeView === 'withdraw' && <AdminWithdraw />}
                     {activeView === 'suggested' && <AdminSuggestedEvents />}
                     {activeView === 'hedging' && <AdminHedging />}
+                    {activeView === 'polymarket-intake' && <AdminPolymarketIntake />}
                 </section>
             </div>
 

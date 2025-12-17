@@ -7,11 +7,13 @@ import { prisma } from '@/lib/prisma';
 import { placeHybridOrder, getOrderBook } from '@/lib/hybrid-trading';
 import { requireAuth } from '@/lib/auth';
 import { redis } from '@/lib/redis';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
 
     try {
+        assertSameOrigin(request);
         const body = await request.json();
         const {
             eventId,

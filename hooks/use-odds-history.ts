@@ -24,7 +24,7 @@ export function useOddsHistory(eventId: string, period: OddsPeriod) {
       const res = await fetch(`/api/events/${eventId}/odds-history?period=${period}`, {
         signal,
         headers: { 'x-cache-prefetch': '1' },
-        cache: 'force-cache',
+        cache: 'no-store', // avoid stale ms timestamps for long ranges
       });
       if (!res.ok) throw new Error(`odds-history ${res.status}`);
       const json = await res.json();

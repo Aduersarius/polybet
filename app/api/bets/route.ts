@@ -7,11 +7,13 @@ import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
 
     // Authentication check
+    assertSameOrigin(request);
     const user = await requireAuth(request);
 
     try {
@@ -25,6 +27,22 @@ export async function POST(request: Request) {
         }
 
         const targetUserId = user.id;
+        const numericAmount = parseFloat(amount);
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+            return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+        }
+
+        const eventMeta = await prisma.event.findUnique({
+            where: { id: eventId },
+            select: { id: true, source: true, polymarketId: true, type: true },
+        });
+        if (!eventMeta) {
+            return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+        }
+        const matchedOutcome = await prisma.outcome.findFirst({
+            where: { eventId, name: { equals: option, mode: 'insensitive' } },
+            select: { id: true, polymarketOutcomeId: true },
+        });
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
@@ -54,6 +72,8 @@ export async function POST(request: Request) {
                             qYes: true,
                             qNo: true,
                             status: true,
+                            source: true,
+                            polymarketId: true,
                         }
                     }),
                     3000 // 3 second timeout for single record
@@ -72,7 +92,7 @@ export async function POST(request: Request) {
                 const tokensReceived = calculateTokensForCost(
                     currentQYes,
                     currentQNo,
-                    parseFloat(amount),
+                    numericAmount,
                     option as 'YES' | 'NO',
                     b
                 );
@@ -86,7 +106,7 @@ export async function POST(request: Request) {
 
                 // 3. Atomic User Upsert + Bet Transaction
                 // OPTIMIZATION: Use upsert to find-or-create user in 1 query instead of 2-3
-                const [upsertedUser, updatedEvent, newBet] = await withTimeout(
+                const [upsertedUser, updatedEvent, newBet, orderRecord] = await withTimeout(
                     prisma.$transaction([
                         prisma.user.upsert({
                             where: { id: targetUserId },
@@ -117,17 +137,51 @@ export async function POST(request: Request) {
                                 price: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
                                 isAmmInteraction: true
                             }
+                        }),
+                        prisma.order.create({
+                            data: {
+                                userId: targetUserId,
+                                eventId,
+                                outcomeId: matchedOutcome?.id || null,
+                                option,
+                                side: option === 'YES' ? 'buy' : 'sell',
+                                price: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
+                                amount: numericAmount,
+                                amountFilled: numericAmount,
+                                status: 'filled',
+                                orderType: 'market',
+                            },
                         })
-                    ]) as Promise<[any, any, any]>,
+                    ]) as Promise<[any, any, any, any]>,
                     8000 // 8 second timeout for transaction
                 );
 
-                return { user, updatedEvent, newBet, tokensReceived, newOdds };
+                return { user, updatedEvent, newBet, tokensReceived, newOdds, orderRecord };
             },
             { timeout: 10000 } // 10 second queue timeout
         );
 
-        const { newBet, tokensReceived, newOdds } = result;
+        const { newBet, tokensReceived, newOdds, orderRecord } = result;
+
+        // 5. Trigger hedging for Polymarket-backed events (fire-and-forget)
+        if (eventMeta.source === 'POLYMARKET' && orderRecord?.id) {
+            (async () => {
+                try {
+                    const { hedgeUserOrder } = await import('@/lib/hedging/per-order');
+                    await hedgeUserOrder({
+                        orderId: orderRecord.id,
+                        eventId,
+                        option: option as 'YES' | 'NO',
+                        amount: numericAmount,
+                        price: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
+                        userId: targetUserId,
+                        polymarketOutcomeId: matchedOutcome?.polymarketOutcomeId || undefined,
+                    });
+                } catch (err) {
+                    console.error('[Hedging] Failed to trigger per-order hedge', err);
+                }
+            })();
+        }
 
         // 4. Publish to Redis for Real-time Updates (non-blocking)
         if (redis) {
@@ -171,6 +225,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             betId: newBet.id,
+            orderId: orderRecord?.id,
             tokensReceived,
             priceAtTrade: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
             newYesPrice: newOdds.yesPrice,
