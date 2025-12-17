@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
 import { MultipleTradingPanelModal } from "../components/MultipleTradingPanelModal";
 import { EventCard2 } from "../components/EventCard2";
@@ -37,6 +37,7 @@ interface DbEvent {
   title: string;
   description: string;
   category: string;
+  categories?: string[];
   resolutionDate: string;
   createdAt: string;
   imageUrl?: string | null;
@@ -45,6 +46,10 @@ interface DbEvent {
   yesOdds?: number;
   noOdds?: number;
   type?: string;
+  source?: string;
+  polymarketId?: string;
+  externalVolume?: number;
+  externalBetCount?: number;
   outcomes?: Array<{
     id: string;
     name: string;
@@ -77,16 +82,50 @@ export default function Home() {
     setSelectedCategory(category);
   };
 
-  // Fetch top Polymarket markets only (remove locally created events)
+  // Fetch events from DB (includes synced Polymarket markets)
   const { data: eventsData } = useQuery<DbEvent[]>({
-    queryKey: ['polymarket-events'],
+    queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy],
     queryFn: async () => {
-      const polyRes = await fetch(`/api/polymarket/markets?limit=100`);
-      if (!polyRes.ok) throw new Error('Failed to fetch markets');
-      const polyJson = await polyRes.json();
-      return (Array.isArray(polyJson) ? polyJson : []) as DbEvent[];
+      const params = new URLSearchParams({
+        category: selectedCategory === 'ALL' ? '' : selectedCategory,
+        timeHorizon,
+        sortBy,
+        limit: '120',
+      });
+      const res = await fetch(`/api/events?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch events');
+      const json = await res.json();
+      const data = Array.isArray(json) ? json : json.data;
+      const normalized = (data || []).map((evt: any) => ({
+        ...evt,
+        category: evt.category || (evt.categories?.[0] ?? 'General'),
+      }));
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId: 'H-client-fetch',
+          location: 'app/(app)/page.tsx:queryFn',
+          message: 'fetched events',
+          data: {
+            selectedCategory,
+            timeHorizon,
+            sortBy,
+            fetchedCount: (data || []).length,
+            normalizedCount: normalized.length
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => { });
+      // #endregion
+      return normalized as DbEvent[];
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
+    gcTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 
 
@@ -213,6 +252,34 @@ export default function Home() {
       endedEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
     };
   }, [selectedCategory, searchQuery, eventsData, timeHorizon, sortBy]);
+
+  // #region agent log
+  useEffect(() => {
+    const now = new Date();
+    fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId: 'H-client-filter',
+        location: 'app/(app)/page.tsx:useMemo',
+        message: 'client filter result',
+        data: {
+          selectedCategory,
+          timeHorizon,
+          sortBy,
+          searchQuery,
+          eventsDataCount: eventsData?.length ?? 0,
+          activeCount: activeEvents.length,
+          endedCount: endedEvents.length,
+          nowIso: now.toISOString(),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => { });
+  }, [selectedCategory, timeHorizon, sortBy, searchQuery, eventsData, activeEvents.length, endedEvents.length]);
+  // #endregion
 
 
   const getTimeRemaining = (endDate: Date) => {

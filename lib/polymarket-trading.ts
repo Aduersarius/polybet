@@ -1,13 +1,14 @@
 /**
  * Polymarket Trading Service
- * 
+ *
  * Handles all interactions with Polymarket's CLOB (Central Limit Order Book) API
  * for automated hedging operations.
- * 
+ *
  * API Documentation: https://docs.polymarket.com
  */
 
-import { ethers } from 'ethers';
+import { Wallet } from 'ethers';
+import { ClobClient, Side as ClobSide, OrderType, TickSize } from '@polymarket/clob-client';
 
 // Types
 export interface PolymarketOrderRequest {
@@ -54,8 +55,9 @@ class PolymarketTradingService {
   private apiSecret: string;
   private passphrase: string;
   private privateKey: string;
-  private wallet: ethers.Wallet | null = null;
+  private wallet: Wallet | null = null;
   private chainId: number;
+  private clobClient: ClobClient | null = null;
 
   constructor() {
     this.apiUrl = process.env.POLYMARKET_CLOB_API_URL || 'https://clob.polymarket.com';
@@ -67,10 +69,34 @@ class PolymarketTradingService {
 
     if (this.privateKey && this.privateKey !== 'YOUR_PRIVATE_KEY_HERE') {
       try {
-        this.wallet = new ethers.Wallet(this.privateKey);
+        this.wallet = new Wallet(this.privateKey);
       } catch (error) {
         console.error('[Polymarket] Failed to initialize wallet:', error);
       }
+    }
+
+    this.initializeClient();
+  }
+
+  /**
+   * Initialize the Polymarket CLOB client using provided credentials
+   */
+  private initializeClient() {
+    if (!this.wallet) return;
+
+    try {
+      const creds =
+        this.apiKey && this.apiSecret && this.passphrase
+          ? { key: this.apiKey, secret: this.apiSecret, passphrase: this.passphrase }
+          : undefined;
+
+      // signatureType: 0 = browser wallet, 1 = magic/email. We default to 0.
+      const signatureType = 0;
+      // clob-client typings expect an ethers v5 wallet; cast v6 wallet for compatibility.
+      this.clobClient = new ClobClient(this.apiUrl, this.chainId, this.wallet as any, creds, signatureType);
+    } catch (error) {
+      console.error('[Polymarket] Failed to initialize CLOB client:', error);
+      this.clobClient = null;
     }
   }
 
@@ -78,93 +104,33 @@ class PolymarketTradingService {
    * Check if trading is enabled (credentials configured)
    */
   isEnabled(): boolean {
-    return !!(
-      this.apiKey && 
-      this.apiKey !== 'YOUR_API_KEY_HERE' &&
-      this.wallet
-    );
-  }
-
-  /**
-   * Generate authentication headers for API requests
-   */
-  private getAuthHeaders(method: string, path: string, body?: any): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'POLY-API-KEY': this.apiKey,
-    };
-
-    // If secret and passphrase are provided, add signature
-    if (this.apiSecret && this.passphrase) {
-      const timestamp = Date.now().toString();
-      const message = timestamp + method + path + (body ? JSON.stringify(body) : '');
-      
-      // Create HMAC signature
-      const crypto = require('crypto');
-      const signature = crypto
-        .createHmac('sha256', this.apiSecret)
-        .update(message)
-        .digest('base64');
-
-      headers['POLY-SIGNATURE'] = signature;
-      headers['POLY-TIMESTAMP'] = timestamp;
-      headers['POLY-PASSPHRASE'] = this.passphrase;
-    }
-
-    return headers;
+    return !!(this.wallet && this.clobClient);
   }
 
   /**
    * Get current orderbook depth for a market
    */
   async getOrderbook(marketId: string): Promise<OrderbookSnapshot> {
+    if (!this.clobClient) {
+      throw new Error('Polymarket trading not initialized');
+    }
+
     try {
-      // Try different possible endpoints
-      const endpoints = [
-        { url: `${this.apiUrl}/book?token_id=${marketId}`, method: 'GET' },
-        { url: `${this.apiUrl}/book/${marketId}`, method: 'GET' },
-        { url: `${this.apiUrl}/markets/${marketId}/book`, method: 'GET' },
-        { url: `${this.apiUrl}/book`, method: 'POST' },
-      ];
+      const ob = await this.clobClient.getOrderBook(marketId);
 
-      let lastError: Error | null = null;
-
-      for (const { url, method } of endpoints) {
-        try {
-          const options: RequestInit = {
-            method,
-            headers: this.getAuthHeaders(method, url.replace(this.apiUrl, ''), method === 'POST' ? { market: marketId } : undefined),
-          };
-
-          if (method === 'POST') {
-            options.body = JSON.stringify({ market: marketId });
-          }
-
-          const response = await fetch(url, options);
-
-          if (response.ok) {
-            const data = await response.json();
-            
-            return {
-              bids: data.bids?.map((b: any) => ({ 
-                price: parseFloat(b.price), 
-                size: parseFloat(b.size) 
-              })) || [],
-              asks: data.asks?.map((a: any) => ({ 
-                price: parseFloat(a.price), 
-                size: parseFloat(a.size) 
-              })) || [],
-              timestamp: Date.now(),
-            };
-          }
-        } catch (err) {
-          lastError = err as Error;
-          continue; // Try next endpoint
-        }
-      }
-
-      // If all endpoints failed, throw the last error
-      throw lastError || new Error('Failed to fetch orderbook from all endpoints');
+      return {
+        bids:
+          ob.bids?.map((b: any) => ({
+            price: parseFloat(b.price),
+            size: parseFloat(b.size),
+          })) || [],
+        asks:
+          ob.asks?.map((a: any) => ({
+            price: parseFloat(a.price),
+            size: parseFloat(a.size),
+          })) || [],
+        timestamp: Date.now(),
+      };
     } catch (error) {
       console.error('[Polymarket] Failed to fetch orderbook:', error);
       throw error;
@@ -243,46 +209,31 @@ class PolymarketTradingService {
    * Place a limit order on Polymarket
    */
   async placeOrder(request: PolymarketOrderRequest): Promise<PolymarketOrder> {
-    if (!this.isEnabled()) {
+    if (!this.clobClient || !this.wallet) {
       throw new Error('Polymarket trading not enabled - missing credentials');
     }
 
     try {
-      // Create order payload
-      const orderPayload = {
-        market: request.marketId,
-        tokenID: request.tokenId,
-        side: request.side,
-        size: request.size.toString(),
-        price: request.price.toString(),
-        expiration: request.expiration || Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days
-        nonce: request.nonce || Date.now(),
-      };
+      // Fetch orderbook to derive tick size / neg risk
+      const ob = await this.clobClient.getOrderBook(request.tokenId);
+      const tickSize: TickSize | undefined = (ob as any).tick_size ?? undefined;
+      const negRisk = ob.neg_risk ?? false;
 
-      // Sign the order
-      const signature = await this.signOrder(orderPayload);
-
-      // Submit to CLOB
-      const fullPayload = {
-        ...orderPayload,
-        signature,
-      };
-      
-      const response = await fetch(`${this.apiUrl}/order`, {
-        method: 'POST',
-        headers: this.getAuthHeaders('POST', '/order', fullPayload),
-        body: JSON.stringify(fullPayload),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to place order: ${error}`);
-      }
-
-      const data = await response.json();
+      const orderResponse = await this.clobClient.createAndPostOrder(
+        {
+          tokenID: request.tokenId,
+          price: request.price,
+          side: request.side === 'BUY' ? ClobSide.BUY : ClobSide.SELL,
+          size: request.size,
+          expiration: request.expiration,
+          nonce: request.nonce,
+        },
+        { tickSize, negRisk },
+        OrderType.GTC
+      );
 
       return {
-        orderId: data.orderID || data.id,
+        orderId: orderResponse.orderID || orderResponse.id,
         marketId: request.marketId,
         side: request.side,
         size: request.size,
@@ -337,17 +288,13 @@ class PolymarketTradingService {
    * Cancel an order
    */
   async cancelOrder(orderId: string): Promise<boolean> {
-    if (!this.isEnabled()) {
+    if (!this.clobClient) {
       throw new Error('Polymarket trading not enabled');
     }
 
     try {
-      const response = await fetch(`${this.apiUrl}/order/${orderId}`, {
-        method: 'DELETE',
-        headers: this.getAuthHeaders('DELETE', `/order/${orderId}`),
-      });
-
-      return response.ok;
+      const res = await this.clobClient.cancelOrder({ orderID: orderId });
+      return !!res;
     } catch (error) {
       console.error('[Polymarket] Failed to cancel order:', error);
       return false;
@@ -358,47 +305,41 @@ class PolymarketTradingService {
    * Get order status
    */
   async getOrderStatus(orderId: string): Promise<PolymarketOrder | null> {
+    if (!this.clobClient) return null;
+
     try {
-      const response = await fetch(`${this.apiUrl}/order/${orderId}`, {
-        headers: this.getAuthHeaders('GET', `/order/${orderId}`),
-      });
+      const data = await this.clobClient.getOrder(orderId);
 
-      if (!response.ok) return null;
-
-      const data = await response.json();
+      const raw = data as any;
+      const normalizedSide = (raw.side || '').toUpperCase() === 'BUY' ? 'BUY' : 'SELL';
+      const originalSize = raw.originalSize ?? raw.original_size ?? raw.size ?? 0;
+      const sizeMatched = raw.sizeMatched ?? raw.size_matched ?? 0;
+      const sizeRemaining = raw.sizeRemaining ?? raw.size ?? 0;
+      const createdAt = raw.createdAt ?? raw.created_at ?? Date.now();
+      const updatedAt = raw.updatedAt ?? raw.updated_at ?? Date.now();
+      const normalizedStatus = (() => {
+        const s = (raw.status || '').toUpperCase();
+        if (s === 'MATCHED') return 'MATCHED';
+        if (s === 'CANCELLED') return 'CANCELLED';
+        return 'OPEN';
+      })();
 
       return {
-        orderId: data.orderID || data.id,
+        orderId: data.id,
         marketId: data.market,
-        side: data.side,
-        size: parseFloat(data.originalSize || data.size),
+        side: normalizedSide,
+        size: parseFloat(originalSize),
         price: parseFloat(data.price),
-        status: data.status,
-        filledSize: parseFloat(data.sizeMatched || 0),
-        remainingSize: parseFloat(data.sizeRemaining || data.size),
-        createdAt: data.createdAt || Date.now(),
-        updatedAt: data.updatedAt || Date.now(),
+        status: normalizedStatus,
+        filledSize: parseFloat(sizeMatched),
+        remainingSize: parseFloat(sizeRemaining),
+        createdAt,
+        updatedAt,
       };
     } catch (error) {
       console.error('[Polymarket] Failed to get order status:', error);
       return null;
     }
-  }
-
-  /**
-   * Sign an order (simplified - real implementation needs proper EIP-712 signing)
-   */
-  private async signOrder(orderPayload: any): Promise<string> {
-    if (!this.wallet) {
-      throw new Error('Wallet not initialized');
-    }
-
-    // This is a simplified version. Real implementation should use EIP-712
-    // structured data signing as specified by Polymarket CLOB API
-    const message = JSON.stringify(orderPayload);
-    const signature = await this.wallet.signMessage(message);
-    
-    return signature;
   }
 
   /**

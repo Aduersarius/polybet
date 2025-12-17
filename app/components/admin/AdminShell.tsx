@@ -14,7 +14,7 @@ import {
     Shield,
 } from 'lucide-react';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake';
 
 interface AdminShellProps {
     activeView: AdminView;
@@ -30,6 +30,7 @@ const navItems: { id: AdminView; label: string; icon: any }[] = [
     { id: 'statistics', label: 'Analytics', icon: LineChart },
     { id: 'finance', label: 'Finance', icon: Wallet },
     { id: 'hedging', label: 'Hedging', icon: Shield },
+    { id: 'polymarket-intake', label: 'Polymarket Intake', icon: Search },
     { id: 'withdraw', label: 'Withdrawals', icon: ShieldQuestion },
     { id: 'suggested', label: 'Suggested', icon: Lightbulb },
 ];

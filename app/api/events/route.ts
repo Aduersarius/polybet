@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,23 @@ export async function GET(request: Request) {
     const sortBy = searchParams.get('sortBy') || 'newest'; // 'newest', 'volume_high', 'volume_low', 'liquidity_high', 'ending_soon'
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Cap at 100
     const offset = parseInt(searchParams.get('offset') || '0');
+    const source = searchParams.get('source'); // optional source filter (e.g., POLYMARKET)
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            sessionId: 'debug-session',
+            runId: 'pre-fix',
+            hypothesisId: 'H1',
+            location: 'app/api/events/route.ts:17',
+            message: 'incoming params',
+            data: { category, timeHorizon, sortBy, limit, offset, source },
+            timestamp: Date.now(),
+        })
+    }).catch(() => {});
+    // #endregion
 
     // Handle special categories
     let effectiveCategory = category;
@@ -98,14 +116,6 @@ export async function GET(request: Request) {
             where.id = { in: eventIds };
         }
 
-        // Get total count
-        const totalCount = await prisma.event.count({
-            where: {
-                ...where,
-                status: 'ACTIVE'
-            }
-        });
-
         // Build orderBy based on effectiveSortBy parameter
         let orderBy: any = { createdAt: 'desc' }; // default
         if (effectiveSortBy === 'newest') {
@@ -116,6 +126,26 @@ export async function GET(request: Request) {
         // For volume and liquidity sorting, we'll sort in JavaScript after calculating stats
 
         // Get events with bets
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H2',
+                location: 'app/api/events/route.ts:108',
+                message: 'select fields and where prior to findMany',
+                data: {
+                    whereHasSource: !!source,
+                    selectFields: ['id','title','description','categories','resolutionDate','imageUrl','createdAt','qYes','qNo','liquidityParameter','type','source','polymarketId','externalVolume','externalBetCount','outcomes'],
+                },
+                timestamp: Date.now(),
+            })
+        }).catch(() => {});
+        // #endregion
+
         const events = await prisma.event.findMany({
             where: {
                 ...where,
@@ -151,6 +181,28 @@ export async function GET(request: Request) {
             skip: offset,
         });
 
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H-api-findMany',
+                location: 'app/api/events/route.ts:findMany',
+                message: 'findMany results',
+                data: {
+                    effectiveCategory: effectiveCategory || 'ALL',
+                    whereKeys: Object.keys(where || {}),
+                    count: events.length,
+                    sampleId: events[0]?.id,
+                    sourceFilter: source || null
+                },
+                timestamp: Date.now(),
+            })
+        }).catch(() => { });
+        // #endregion
+
         // Get aggregations for volume and betCount
         const eventIds = events.map((e: (typeof events)[number]) => e.id);
         const activities = eventIds.length
@@ -166,6 +218,25 @@ export async function GET(request: Request) {
                 }
             })
             : [];
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H-api-activity',
+                location: 'app/api/events/route.ts:activity',
+                message: 'activity stats',
+                data: {
+                    eventIdsCount: eventIds.length,
+                    activitiesCount: activities.length
+                },
+                timestamp: Date.now(),
+            })
+        }).catch(() => { });
+        // #endregion
 
         const volumeMap = new Map<string, number>();
         const betCountMap = new Map<string, number>();
@@ -200,8 +271,8 @@ export async function GET(request: Request) {
 
         // Process events with stats and filtering
         let eventsWithStats = events.map((event: (typeof events)[number]) => {
-            const volume = volumeMap.get(event.id) || 0;
-            const betCount = betCountMap.get(event.id) || 0;
+            const volume = volumeMap.get(event.id) ?? event.externalVolume ?? 0;
+            const betCount = betCountMap.get(event.id) ?? event.externalBetCount ?? 0;
 
             // Calculate liquidity (total tokens in the market)
             let liquidity = 0;
@@ -247,11 +318,45 @@ export async function GET(request: Request) {
             };
         });
 
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H-api-map',
+                location: 'app/api/events/route.ts:map',
+                message: 'mapped eventsWithStats',
+                data: {
+                    mappedCount: eventsWithStats.length,
+                    sample: eventsWithStats[0] ? {
+                        id: eventsWithStats[0].id,
+                        title: eventsWithStats[0].title,
+                        source: eventsWithStats[0].source,
+                        categories: eventsWithStats[0].categories,
+                    } : null
+                },
+                timestamp: Date.now(),
+            })
+        }).catch(() => { });
+        // #endregion
+
         // Apply keyword-based category filtering if needed
         if (effectiveCategory && getAllCategories().includes(effectiveCategory)) {
             eventsWithStats = eventsWithStats.filter((event: (typeof eventsWithStats)[number]) => {
                 const detectedCategories = categorizeEvent(event.title, event.description || '');
                 return detectedCategories.includes(effectiveCategory);
+            });
+        }
+
+        // Apply source filtering client-side to avoid schema drift errors
+        if (source) {
+            eventsWithStats = eventsWithStats.filter((event: any) => {
+                if (event.source === source) return true;
+                // Fallback: treat presence of polymarketId as Polymarket source
+                if (source === 'POLYMARKET' && event.polymarketId) return true;
+                return false;
             });
         }
 
@@ -273,11 +378,39 @@ export async function GET(request: Request) {
             );
         }
 
+        const totalCount = eventsWithStats.length;
+
         // Apply limit after filtering and sorting
-        eventsWithStats = eventsWithStats.slice(0, limit);
+        const paged = eventsWithStats.slice(0, limit);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H-api-results',
+                location: 'app/api/events/route.ts:result',
+                message: 'events api result counts',
+                data: {
+                    category: category || 'ALL',
+                    effectiveCategory: effectiveCategory || 'ALL',
+                    timeHorizon,
+                    sortBy: effectiveSortBy,
+                    limit,
+                    offset,
+                    fetchedCount: events.length,
+                    filteredCount: eventsWithStats.length,
+                    pagedCount: paged.length
+                },
+                timestamp: Date.now(),
+            })
+        }).catch(() => { });
+        // #endregion
 
         const result = {
-            data: eventsWithStats,
+            data: paged,
             pagination: {
                 limit,
                 offset,
@@ -288,6 +421,22 @@ export async function GET(request: Request) {
 
         return NextResponse.json(result);
     } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H3',
+                location: 'app/api/events/route.ts:307',
+                message: 'catch block error',
+                data: { error: error instanceof Error ? error.message : String(error) },
+                timestamp: Date.now(),
+            })
+        }).catch(() => {});
+        // #endregion
+
         const errorTime = Date.now() - startTime;
         console.error(`❌ Events API failed after ${errorTime}ms:`, error);
 
@@ -308,6 +457,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        assertSameOrigin(request);
         const { prisma } = await import('@/lib/prisma');
         const { requireAuth } = await import('@/lib/auth');
 

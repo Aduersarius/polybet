@@ -23,8 +23,12 @@ export function useOddsRealtime(opts: {
       if (update?.eventId !== eventId) return;
 
       setData((prev) => {
+        const rawTs = Number(update?.timestamp ?? Date.now());
+        const tsSeconds = rawTs >= 1e11 ? Math.floor(rawTs / 1000) : Math.floor(rawTs);
+
         const newPoint: OddsHistoryPoint = {
-          timestamp: update.timestamp,
+          // Normalize to seconds to match history API and chart ticks
+          timestamp: tsSeconds,
           ...(isMultipleOutcomes ? { outcomes: update.outcomes } : { yesPrice: update.yesPrice }),
         };
 

@@ -9,12 +9,6 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
-// Load .env from project root
-config({ path: resolve(__dirname, '../.env') });
-
-import { polymarketTrading } from '../lib/polymarket-trading';
-import { hedgeManager } from '../lib/hedge-manager';
-
 const COLORS = {
   reset: '\x1b[0m',
   green: '\x1b[32m',
@@ -44,10 +38,62 @@ function warning(message: string) {
   log(`⚠ ${message}`, COLORS.yellow);
 }
 
+async function getTestMarketId(): Promise<string> {
+  if (process.env.POLYMARKET_TEST_TOKEN_ID) {
+    return process.env.POLYMARKET_TEST_TOKEN_ID;
+  }
+
+  const apiUrl = process.env.POLYMARKET_CLOB_API_URL || 'https://clob.polymarket.com';
+
+  try {
+    const res = await fetch(`${apiUrl}/markets`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch markets: ${res.status} ${res.statusText}`);
+    }
+    const data = await res.json();
+    const markets = data.data || data.markets || [];
+    const activeWithOrderbook = markets.find(
+      (m: any) =>
+        m.accepting_orders === true &&
+        m.enable_order_book === true &&
+        Array.isArray(m.tokens) &&
+        m.tokens.length > 0
+    );
+    const fallbackActive = markets.find(
+      (m: any) =>
+        m.accepting_orders === true &&
+        Array.isArray(m.tokens) &&
+        m.tokens.length > 0
+    );
+
+    const chosen = activeWithOrderbook || fallbackActive;
+    if (!chosen) {
+      throw new Error('No accepting markets found');
+    }
+
+    if (!activeWithOrderbook) {
+      warning('No enable_order_book markets found; using first accepting market token');
+    }
+
+    const tokenId = chosen.tokens[0].token_id || chosen.token_id || chosen.id;
+    if (!tokenId) {
+      throw new Error('Active market missing token_id');
+    }
+    return tokenId.toString();
+  } catch (err: any) {
+    throw new Error(`Unable to auto-detect test market: ${err.message}`);
+  }
+}
+
 async function testPolymarketConnection() {
   console.log('\n' + '='.repeat(60));
   log('🧪 TESTING POLYMARKET CONNECTION', COLORS.blue);
   console.log('='.repeat(60) + '\n');
+
+  // Load env before importing trading/hedge modules so they pick up credentials
+  config({ path: resolve(__dirname, '../.env') });
+  const { polymarketTrading } = await import('../lib/polymarket-trading');
+  const { hedgeManager } = await import('../lib/hedge-manager');
 
   let allTestsPassed = true;
 
@@ -119,8 +165,7 @@ async function testPolymarketConnection() {
   console.log('-'.repeat(60));
   
   try {
-    // Use a well-known Polymarket market ID for testing
-    const testMarketId = '21742'; // A popular market
+    const testMarketId = await getTestMarketId();
     info(`Fetching orderbook for market ${testMarketId}...`);
     
     const orderbook = await polymarketTrading.getOrderbook(testMarketId);
@@ -155,7 +200,7 @@ async function testPolymarketConnection() {
   console.log('-'.repeat(60));
   
   try {
-    const testMarketId = '21742';
+    const testMarketId = await getTestMarketId();
     const testSize = 10; // Small test size
     
     info(`Checking liquidity for ${testSize} shares...`);

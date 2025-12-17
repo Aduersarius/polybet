@@ -78,7 +78,7 @@ export async function PUT(request: NextRequest) {
         const body = await request.json();
         const { eventId, action, value } = body;
 
-        if (!eventId || !['toggleHide', 'resolve'].includes(action)) {
+        if (!eventId || !['toggleHide', 'resolve', 'delete'].includes(action)) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
         }
 
@@ -92,6 +92,21 @@ export async function PUT(request: NextRequest) {
             // Use the new resolution logic that handles payouts and commissions
             const result = await resolveMarket(eventId, value);
             return NextResponse.json(result);
+        } else if (action === 'delete') {
+            // Soft-delete the event and drop any polymarket mappings so it can reappear in intake
+            const [event] = await prisma.$transaction([
+                prisma.event.update({
+                    where: { id: eventId },
+                    data: {
+                        status: 'DELETED',
+                        isHidden: true,
+                    },
+                }),
+                prisma.polymarketMarketMapping.deleteMany({
+                    where: { internalEventId: eventId },
+                }),
+            ]);
+            updatedEvent = event;
         }
 
         return NextResponse.json(updatedEvent);

@@ -77,6 +77,13 @@ export default function EventPage() {
         queryFn: async () => {
             // For Polymarket IDs (numeric strings), ONLY use Polymarket API (don't try local DB)
             if (isPolymarketId) {
+                // Prefer local DB cache first
+                const dbRes = await fetch(`/api/events/${eventId}?by=polymarket`);
+                if (dbRes.ok) {
+                    const dbData = await dbRes.json();
+                    if (!dbData?.error) return dbData;
+                }
+
                 const polyRes = await fetch(`/api/polymarket/markets?id=${eventId}&limit=1`);
                 if (!polyRes.ok) {
                     throw new Error(`Polymarket API error: ${polyRes.status}`);

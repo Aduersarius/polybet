@@ -14,32 +14,155 @@ export async function GET(
     try {
         const { getOrSet } = await import('@/lib/cache');
         const { id } = await params;
+        const { searchParams } = new URL(request.url);
+        const lookupByPolymarket = searchParams.get('by') === 'polymarket';
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix',
+                hypothesisId: 'H-event-entry',
+                location: 'app/api/events/[id]/route.ts:entry',
+                message: 'event route entry',
+                data: { id, lookupByPolymarket },
+                timestamp: Date.now(),
+            })
+        }).catch(() => { });
+        // #endregion
 
         // Use Redis caching with longer TTL (but still low to keep freshness)
         const eventWithOdds = await getOrSet(
-            id,
+            `${lookupByPolymarket ? 'poly' : 'evt'}:${id}`,
             async () => {
                 const { prisma } = await import('@/lib/prisma');
 
-                const queryPromise = prisma.event.findUnique({
-                    where: { id },
-                    include: {
-                        creator: {
-                            select: {
-                                id: true,
-                                username: true,
-                                address: true,
+                const whereClause: any = lookupByPolymarket ? { polymarketId: id } : { id };
+
+                const queryPromise = (async () => {
+                    if (lookupByPolymarket) {
+                        const byPoly = await prisma.event.findUnique({
+                            where: { polymarketId: id },
+                            include: {
+                                creator: {
+                                    select: {
+                                        id: true,
+                                        username: true,
+                                        address: true,
+                                    },
+                                },
+                                outcomes: true,
                             },
+                        });
+
+                        if (byPoly) {
+                            // #region agent log
+                            fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    sessionId: 'debug-session',
+                                    runId: 'pre-fix',
+                                    hypothesisId: 'H-event-query',
+                                    location: 'app/api/events/[id]/route.ts:byPoly',
+                                    message: 'polymarket lookup hit',
+                                    data: {
+                                        id,
+                                        polymarketId: byPoly?.polymarketId ?? null,
+                                        eventId: byPoly?.id ?? null,
+                                    },
+                                    timestamp: Date.now(),
+                                })
+                            }).catch(() => { });
+                            // #endregion
+                            return byPoly;
+                        }
+
+                        // Fallback: if the caller passed our internal event id with by=polymarket, try id lookup.
+                        const fallbackById = await prisma.event.findUnique({
+                            where: { id },
+                            include: {
+                                creator: {
+                                    select: {
+                                        id: true,
+                                        username: true,
+                                        address: true,
+                                    },
+                                },
+                                outcomes: true,
+                            },
+                        });
+
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sessionId: 'debug-session',
+                                runId: 'pre-fix',
+                                hypothesisId: 'H-event-fallback',
+                                location: 'app/api/events/[id]/route.ts:fallback',
+                                message: 'polymarket lookup miss; fallback by id',
+                                data: {
+                                    id,
+                                    fallbackFound: !!fallbackById,
+                                    fallbackEventId: fallbackById?.id ?? null,
+                                    fallbackPolymarketId: (fallbackById as any)?.polymarketId ?? null,
+                                },
+                                timestamp: Date.now(),
+                            })
+                        }).catch(() => { });
+                        // #endregion
+
+                        return fallbackById;
+                    }
+
+                    return prisma.event.findUnique({
+                        where: whereClause,
+                        include: {
+                            creator: {
+                                select: {
+                                    id: true,
+                                    username: true,
+                                    address: true,
+                                },
+                            },
+                            outcomes: true,
                         },
-                        outcomes: true,
-                    },
-                });
+                    });
+                })();
 
                 const timeoutPromise = new Promise((_, reject) => {
                     setTimeout(() => reject(new Error('Database query timeout')), 8000);
                 });
 
                 const event = await Promise.race([queryPromise, timeoutPromise]);
+
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: 'debug-session',
+                        runId: 'pre-fix',
+                        hypothesisId: 'H-event-postquery',
+                        location: 'app/api/events/[id]/route.ts:postQuery',
+                        message: 'event query result',
+                        data: {
+                            id,
+                            lookupByPolymarket,
+                            whereClause,
+                            found: !!event,
+                            eventId: (event as any)?.id ?? null,
+                            polymarketId: (event as any)?.polymarketId ?? null,
+                            source: (event as any)?.source ?? null,
+                        },
+                        timestamp: Date.now(),
+                    })
+                }).catch(() => { });
+                // #endregion
 
                 if (!event) {
                     throw new Error('Event not found');
