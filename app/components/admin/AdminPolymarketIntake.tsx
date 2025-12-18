@@ -114,17 +114,32 @@ export function AdminPolymarketIntake() {
     }
   }, []);
 
+  const resolveTokenForOutcome = (item: IntakeItem, idx: number, name?: string) => {
+    const tokens = item.tokens || [];
+    const normalizedName = name?.trim().toLowerCase();
+    const byName = normalizedName
+      ? tokens.find((t) => t.outcome && t.outcome.trim().toLowerCase() === normalizedName)
+      : undefined;
+    if (byName?.tokenId) return byName.tokenId;
+    if (tokens[idx]?.tokenId) return tokens[idx].tokenId;
+    if (tokens.length === 1) return tokens[0]?.tokenId;
+    return undefined;
+  };
+
   const approveAllOutcomes = async (item: IntakeItem) => {
     try {
       setLoading(true);
       const internalEventId = item.internalEventId || makeRandomInternalId();
       const outcomeMapping =
-        item.outcomes?.map((o, idx) => ({
-          internalOutcomeId: `${internalEventId}-${idx}`,
-          polymarketTokenId: item.tokens[idx]?.tokenId || item.tokens[0]?.tokenId,
-          name: o.name || `Outcome ${idx + 1}`,
-          probability: typeof o.probability === 'number' ? o.probability : o.price,
-        })) || [];
+        item.outcomes?.map((o, idx) => {
+          const tokenId = resolveTokenForOutcome(item, idx, o.name);
+          return {
+            internalOutcomeId: `${internalEventId}-${idx}`,
+            polymarketTokenId: tokenId,
+            name: o.name || `Outcome ${idx + 1}`,
+            probability: typeof o.probability === 'number' ? o.probability : o.price,
+          };
+        }) || [];
 
       const eventData = {
         title: item.title || item.question,
@@ -139,10 +154,15 @@ export function AdminPolymarketIntake() {
         betCount: item.volume24hr, // fallback
       };
 
+      const legacyTokenId =
+        resolveTokenForOutcome(item, 0, item.outcomes?.[0]?.name) ||
+        item.tokens[0]?.tokenId ||
+        item.polymarketId;
+
       const payload = {
         polymarketId: item.polymarketId,
         polymarketConditionId: item.conditionId,
-        polymarketTokenId: item.tokens[0]?.tokenId || item.polymarketId, // legacy field
+        polymarketTokenId: legacyTokenId, // legacy field
         internalEventId,
         outcomeMapping,
         eventData,
@@ -220,8 +240,17 @@ export function AdminPolymarketIntake() {
   const filtered = useMemo(() => items, [items]);
 
   const formatProb = (p?: number) => {
-    if (p == null || Number.isNaN(p)) return '—';
-    return `${(p * 100).toFixed(1)}%`;
+    if (p == null || Number.isNaN(p) || p === undefined) return '—';
+    // If p > 100, it's likely not a probability (e.g., price target like 120000)
+    if (p > 100) return '—';
+    // If p is already a percentage (0-100), convert to probability first, then back to percentage for display
+    if (p > 1 && p <= 100) {
+      const prob = Math.max(0, Math.min(1, p / 100));
+      return `${(prob * 100).toFixed(1)}%`;
+    }
+    // Otherwise treat as probability (0-1) and convert to percentage
+    const clamped = Math.max(0, Math.min(1, p));
+    return `${(clamped * 100).toFixed(1)}%`;
   };
 
   const formatUsd = (v?: number) => {

@@ -296,6 +296,16 @@ export async function GET(request: Request) {
                 const yesPrice = 1 / (1 + Math.exp(diff));
                 yesOdds = yesPrice;
                 noOdds = 1 - yesOdds;
+            } else if (event.source === 'POLYMARKET' && event.type === 'BINARY' && event.outcomes && event.outcomes.length >= 2) {
+                // For Polymarket binary events without bets, use outcome probabilities
+                const yesOutcome = event.outcomes.find((o: any) => /yes/i.test(o.name || ''));
+                const noOutcome = event.outcomes.find((o: any) => /no/i.test(o.name || ''));
+                const yesProb = yesOutcome?.probability ?? event.outcomes[0]?.probability ?? 0.5;
+                const noProb = noOutcome?.probability ?? event.outcomes[1]?.probability ?? (1 - yesProb);
+                // Normalize to ensure they sum to 1
+                const sum = yesProb + noProb;
+                yesOdds = sum > 0 ? yesProb / sum : 0.5;
+                noOdds = sum > 0 ? noProb / sum : 0.5;
             } else {
                 // Mock odds logic for demo if no bets
                 const mockScenarios = [

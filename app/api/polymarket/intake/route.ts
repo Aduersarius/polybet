@@ -39,6 +39,8 @@ type IntakeMarket = {
   tokens: Array<{ tokenId: string; outcome?: string; price?: number }>;
   outcomes: GammaOutcome[];
   variantCount?: number;
+  groupItemTitle?: string;
+  groupItemThreshold?: string;
   status: string;
   internalEventId?: string;
   notes?: string | null;
@@ -81,11 +83,15 @@ function normalizeOutcomes(raw: any): GammaOutcome[] {
     .map((o: any) => {
       const name = o?.name ?? o?.label ?? o?.ticker ?? o?.outcome ?? 'Outcome';
       const price = o?.price ?? o?.probability ?? o?.p;
+      const priceNum = price != null ? toNumber(price, undefined as any) : undefined;
+      // Only extract probability if price is a valid probability value (0-1 or 0-100)
+      // Don't use clamp01 on undefined - leave it undefined if probFromValue can't determine it
+      const prob = priceNum != null ? probFromValue(priceNum, undefined) : undefined;
       return {
         id: o?.id ?? o?.slug ?? o?.ticker,
         name,
-        price: price != null ? toNumber(price, undefined as any) : undefined,
-        probability: price != null ? clamp01(probFromValue(price, 0.5)) : undefined,
+        price: priceNum,
+        probability: prob !== undefined ? clamp01(prob) : undefined,
       } as GammaOutcome;
     })
     .filter((o) => !!o.name);
@@ -95,10 +101,14 @@ function normalizeOutcomePrices(raw: any): number[] {
   return toArray(raw).map((v: any) => toNumber(v));
 }
 
-function probFromValue(raw: unknown, fallback = 0.5) {
+function probFromValue(raw: unknown, fallback: number | undefined = 0.5): number | undefined {
+  if (raw == null) return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
   if (n > 1 && n <= 100) return clamp01(n / 100);
+  // Guard: huge numbers are not probabilities (e.g. strike levels like 120000),
+  // so return undefined to indicate invalid value (caller should handle fallback)
+  if (n > 100) return undefined;
   return clamp01(n);
 }
 
@@ -112,6 +122,12 @@ function clamp01(n: number) {
 function parseClobTokenIds(raw: any): string[] {
   const arr = toArray<string>(raw);
   return arr.map((t) => String(t)).filter(Boolean);
+}
+
+function findYesToken(tokens: Array<{ tokenId: string; outcome?: string; price?: number }>) {
+  if (!Array.isArray(tokens) || tokens.length === 0) return undefined;
+  const byName = tokens.find((t) => typeof t?.outcome === 'string' && /(^|\s)yes(\s|$)/i.test(t.outcome));
+  return byName || tokens[0];
 }
 
 export async function GET() {
@@ -166,19 +182,92 @@ export async function GET() {
             bestAsk: toNumber(m.bestAsk, 0),
             acceptingOrders: m.active !== false && m.closed !== true,
             enableOrderBook: clobTokenIds.length > 0,
+            groupItemTitle: (m as any).groupItemTitle || undefined,
+            groupItemThreshold: (m as any).groupItemThreshold || undefined,
             tokens: clobTokenIds.map((tokenId, idx) => ({
               tokenId,
               outcome: outcomes[idx]?.name,
-              price: outcomes[idx]?.probability ?? (prices[idx] != null ? probFromValue(prices[idx], 0.5) : undefined),
+              // Gamma sometimes omits outcomePrices on grouped markets; fall back to lastTrade/bid/ask for the YES token.
+              price:
+                outcomes[idx]?.probability ??
+                (prices[idx] != null
+                  ? probFromValue(prices[idx], 0.5)
+                  : idx === 0
+                  ? probFromValue(m.lastTradePrice ?? m.bestBid ?? m.bestAsk ?? 0.5, 0.5)
+                  : undefined),
             })),
-            outcomes: outcomes.length
-              ? outcomes
-              : prices.map((p, idx) => ({
-                  id: outcomes[idx]?.id ?? `${m.id || m.slug || 'pm'}-${idx}`,
-                  name: outcomes[idx]?.name ?? (idx === 0 ? 'Yes' : idx === 1 ? 'No' : `Outcome ${idx + 1}`),
-                  price: p,
-                  probability: probFromValue(p, 0.5),
-                })),
+            outcomes: (() => {
+              // Prioritize outcomePrices array (prices) over individual outcome.price fields
+              // because outcome.price might be a strike level (e.g., 120000) not a probability
+              if (prices.length > 0 && prices.length === outcomes.length) {
+                // Use prices array from outcomePrices - these are the actual probabilities
+                return prices.map((p, idx) => {
+                  const prob = probFromValue(p, undefined);
+                  return {
+                    id: outcomes[idx]?.id ?? `${m.id || m.slug || 'pm'}-${idx}`,
+                    name: outcomes[idx]?.name ?? (idx === 0 ? 'Yes' : idx === 1 ? 'No' : `Outcome ${idx + 1}`),
+                    price: prob !== undefined ? prob : undefined,
+                    probability: prob !== undefined ? prob : undefined,
+                  };
+                });
+              } else if (outcomes.length > 0) {
+                // Fallback: use outcomes array, but prioritize probability field
+                return outcomes.map((o, idx) => {
+                  // If outcome already has a valid probability, use it
+                  if (o.probability != null && o.probability >= 0 && o.probability <= 1) {
+                    return o;
+                  }
+                  // Try to get probability from prices array if available
+                  if (prices[idx] != null) {
+                    const prob = probFromValue(prices[idx], undefined);
+                    if (prob !== undefined) {
+                      return {
+                        ...o,
+                        price: prob,
+                        probability: prob,
+                      };
+                    }
+                  }
+                  // Last resort: try to extract from outcome.price (but this might be a strike level)
+                  const prob = probFromValue(o.price, undefined);
+                  return {
+                    ...o,
+                    probability: prob !== undefined ? prob : undefined,
+                  };
+                });
+              } else {
+                // No outcomes array, create from prices
+                return prices.map((p, idx) => {
+                  const prob = probFromValue(p, undefined);
+                  return {
+                    id: `${m.id || m.slug || 'pm'}-${idx}`,
+                    name: idx === 0 ? 'Yes' : idx === 1 ? 'No' : `Outcome ${idx + 1}`,
+                    price: prob !== undefined ? prob : undefined,
+                    probability: prob !== undefined ? prob : undefined,
+                  };
+                });
+              }
+            })().map((o, idx, arr) => {
+              // Normalize probabilities to ensure they sum to 1.0 for multiple outcomes
+              // This is critical for markets with 3+ outcomes where probabilities must sum to 1.0
+              if (arr.length >= 2 && o.probability != null && o.probability >= 0 && o.probability <= 1) {
+                const validProbs = arr.filter((a) => a.probability != null && a.probability >= 0 && a.probability <= 1);
+                // Only normalize if we have valid probabilities for at least 2 outcomes
+                if (validProbs.length >= 2) {
+                  const sum = validProbs.reduce((acc, a) => acc + (a.probability ?? 0), 0);
+                  // Normalize if sum is > 0 (avoid division by zero) and different from 1.0
+                  if (sum > 0.001 && Math.abs(sum - 1.0) > 0.001) {
+                    const normalized = (o.probability ?? 0) / sum;
+                    return {
+                      ...o,
+                      probability: clamp01(normalized),
+                      price: clamp01(normalized),
+                    };
+                  }
+                }
+              }
+              return o;
+            }),
             status: 'unmapped',
             internalEventId: undefined,
             notes: undefined,
@@ -186,7 +275,13 @@ export async function GET() {
         });
     });
 
-    const ids = markets.map((m) => m.polymarketId).filter(Boolean);
+    const ids = Array.from(
+      new Set(
+        markets
+          .flatMap((m) => [m.polymarketId, m.polymarketEventId].filter(Boolean) as string[])
+          .filter(Boolean)
+      )
+    );
 
     const { prisma } = await import('@/lib/prisma');
     const mappings: PolymarketMapping[] = ids.length
@@ -209,6 +304,96 @@ export async function GET() {
     const results: IntakeMarket[] = [];
 
     for (const [, group] of grouped) {
+      // If this Polymarket "event" is actually a grouped set of many binary markets
+      // (team/nominee/company style), aggregate into a MULTIPLE-style intake item.
+      const groupItemMarkets = group.filter((m) => typeof m.groupItemTitle === 'string' && m.groupItemTitle.trim().length > 0);
+      const canAggregateGroupItems =
+        Boolean(group[0]?.polymarketEventId) && groupItemMarkets.length >= 2;
+
+      if (canAggregateGroupItems) {
+        const eventPolyId = group[0].polymarketEventId as string;
+        const mapping =
+          mapByPoly.get(eventPolyId) ||
+          group.map((g) => mapByPoly.get(g.polymarketId)).find(Boolean);
+
+        // Choose a representative market for non-outcome fields (title/image/etc.)
+        const byLiquidity = [...group].sort((a, b) => {
+          const aHasBook = (a.tokens?.length || 0) > 0 ? 1 : 0;
+          const bHasBook = (b.tokens?.length || 0) > 0 ? 1 : 0;
+          if (aHasBook !== bHasBook) return bHasBook - aHasBook;
+          return (b.volume || 0) - (a.volume || 0);
+        });
+        const primary = byLiquidity[0];
+
+        const aggregatedCategories = Array.from(
+          new Set(
+            group
+              .flatMap((g) => g.categories || [])
+              .concat(primary.category ? [primary.category] : [])
+              .filter(Boolean)
+          )
+        );
+
+        const maxVolume = Math.max(...group.map((g) => g.volume || 0));
+        const maxVolume24 = Math.max(...group.map((g) => g.volume24hr || 0));
+
+        const aggregated = [...groupItemMarkets]
+          .map((mkt) => {
+            const yes = findYesToken(mkt.tokens || []);
+            // Try multiple sources for probability, using probFromValue to reject invalid values
+            // Prioritize outcomePrices if available
+            const prices = normalizeOutcomePrices((mkt as any).outcomePrices);
+            const rawProb =
+              (prices.length > 0 ? prices[0] : undefined) ??
+              yes?.price ??
+              // Fallbacks for cases where Gamma doesn't include outcomePrices
+              mkt.lastTradePrice ??
+              mkt.bestBid ??
+              mkt.bestAsk;
+            const probability = probFromValue(rawProb, undefined);
+            const name = String(mkt.groupItemTitle).trim();
+            return {
+              id: mkt.polymarketId,
+              name,
+              probability: probability !== undefined ? clamp01(probability) : undefined,
+              price: probability !== undefined ? clamp01(probability) : undefined,
+              tokenId: yes?.tokenId,
+            };
+          })
+          // For group aggregation we only keep outcomes we can actually trade/map (need tokenId).
+          .filter((o) => o.name.length > 0 && typeof o.tokenId === 'string' && o.tokenId.length > 0)
+          .sort((a, b) => (b.probability || 0) - (a.probability || 0));
+
+        // Need at least 2 outcomes after token filtering, otherwise this isn't a valid "multiple" mapping.
+        if (aggregated.length < 2) {
+          // fall through to the old "pick a primary market" logic
+        } else {
+          const tokens = aggregated.map((o) => ({ tokenId: o.tokenId as string, outcome: o.name, price: o.probability }));
+
+          results.push({
+            ...primary,
+            // Use the Polymarket event id as the stable identifier for this aggregated intake item
+            polymarketId: eventPolyId,
+            categories: aggregatedCategories,
+            volume: maxVolume,
+            volume24hr: maxVolume24,
+            variantCount: group.length,
+            enableOrderBook: tokens.length > 0,
+            tokens,
+            outcomes: aggregated.map((o) => ({
+              id: o.id,
+              name: o.name,
+              probability: o.probability,
+              price: o.price,
+            })),
+            status: mapping?.status || 'unmapped',
+            internalEventId: mapping?.internalEventId ?? undefined,
+            notes: mapping?.notes,
+          });
+          continue;
+        }
+      }
+
       // If any market in the group already has a mapping, prefer that market as primary
       const mapped = group.find((m) => mapByPoly.has(m.polymarketId));
 
