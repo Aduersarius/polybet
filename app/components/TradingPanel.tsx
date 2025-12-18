@@ -111,11 +111,19 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
     // Calculate initial prices from event data on mount
     useEffect(() => {
-        if (eventData && eventData.qYes !== undefined && eventData.qNo !== undefined) {
-            const b = eventData.liquidityParameter || 10000.0;
-            const odds = calculateLMSROdds(eventData.qYes, eventData.qNo, b);
-            setYesPrice(odds.yesPrice);
-            setNoPrice(odds.noPrice);
+        if (eventData) {
+            // For internal AMM events (qYes, qNo)
+            if (eventData.qYes !== undefined && eventData.qNo !== undefined) {
+                const b = eventData.liquidityParameter || 10000.0;
+                const odds = calculateLMSROdds(eventData.qYes, eventData.qNo, b);
+                setYesPrice(odds.yesPrice);
+                setNoPrice(odds.noPrice);
+            }
+            // For Polymarket events (yesOdds, noOdds) - direct probabilities
+            else if (eventData.yesOdds !== undefined && eventData.noOdds !== undefined) {
+                setYesPrice(eventData.yesOdds);
+                setNoPrice(eventData.noOdds);
+            }
         }
     }, [eventData]);
 

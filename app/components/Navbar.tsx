@@ -256,18 +256,28 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <div className="overflow-x-auto scrollbar-hide">
                                     <div className="flex items-center gap-2 category-nav">
                                         <div className="flex gap-1.5 min-w-max">
-                                            {categories.map((cat) => (
-                                                <button
-                                                    key={cat.id}
-                                                    onClick={() => onCategoryChange(cat.id)}
-                                                    className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 whitespace-nowrap uppercase tracking-wide ${selectedCategory === cat.id
-                                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.4)] scale-105'
-                                                        : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15)]'
-                                                        }`}
-                                                >
-                                                    {cat.label}
-                                                </button>
-                                            ))}
+                                            {categories.map((cat) => 
+                                                cat.id === 'SPORTS' ? (
+                                                    <Link key={cat.id} href="/sports">
+                                                        <button
+                                                            className="px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 whitespace-nowrap uppercase tracking-wide bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15)]"
+                                                        >
+                                                            {cat.label}
+                                                        </button>
+                                                    </Link>
+                                                ) : (
+                                                    <button
+                                                        key={cat.id}
+                                                        onClick={() => onCategoryChange(cat.id)}
+                                                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 whitespace-nowrap uppercase tracking-wide ${selectedCategory === cat.id
+                                                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.4)] scale-105'
+                                                            : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15)]'
+                                                            }`}
+                                                    >
+                                                        {cat.label}
+                                                    </button>
+                                                )
+                                            )}
                                         </div>
                                         <div className="h-5 w-px bg-blue-400/20"></div>
                                         <button

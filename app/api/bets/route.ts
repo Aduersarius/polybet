@@ -202,6 +202,8 @@ export async function POST(request: Request) {
 
         // 5. Minimal cache invalidation + WebSocket publish (non-blocking)
         // Fire and forget to avoid blocking the response
+        // Note: For sports events (Polymarket), the SSE stream at /api/sports/live/stream
+        // will automatically pick up this bet within 3 seconds and recalculate hybrid odds
         Promise.all([
             (async () => {
                 if (redis) {
