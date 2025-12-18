@@ -14,11 +14,14 @@ import { SportsTradingSidebar } from '@/app/components/sports/SportsTradingSideb
 import { motion } from 'framer-motion';
 import type { SportsEvent } from '@/types/sports';
 import { Menu, X } from 'lucide-react';
+import { socket } from '@/lib/socket';
 
 export default function SportsPage() {
   const [selectedSport, setSelectedSport] = useState('popular');
   const [selectedCategory, setSelectedCategory] = useState('SPORTS');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [showConnectedBadge, setShowConnectedBadge] = useState(false);
   const queryClient = useQueryClient();
   const router = useRouter();
   
@@ -94,64 +97,114 @@ export default function SportsPage() {
   
   const eventCounts = countsData?.counts || {};
   
-  // Connect to SSE for real-time odds updates
+  // Connect to WebSocket for real-time odds updates (<500ms latency)
   useEffect(() => {
-    // Connect for both live and upcoming events (not just live)
-    const eventSource = new EventSource('/api/sports/live/stream');
+    console.log('🔌 Connecting to WebSocket for sports odds...');
     
-    eventSource.onmessage = (event) => {
-      try {
-        const update = JSON.parse(event.data);
-        
-        // Update the query cache with new odds
-        queryClient.setQueryData(
-          ['sports-events', selectedSport],
-          (oldData: any) => {
-            if (!oldData || !update.events) return oldData;
-            
-            // Create a map of updated events by ID
-            const updatedEventsMap = new Map(
-              update.events.map((e: SportsEvent) => [e.id, e])
-            );
-            
-            // Update existing events with new odds
-            const updatedEvents = oldData.events.map((event: SportsEvent) => {
-              const updated = updatedEventsMap.get(event.id);
-              if (updated) {
-                return {
-                  ...event,
-                  yesOdds: updated.yesOdds,
-                  noOdds: updated.noOdds,
-                  score: updated.score,
-                  period: updated.period,
-                  elapsed: updated.elapsed,
-                  live: updated.live,
-                  gameStatus: updated.gameStatus,
-                };
-              }
-              return event;
-            });
-            
-            return {
-              ...oldData,
-              events: updatedEvents,
-            };
-          }
-        );
-      } catch (error) {
-        console.error('Failed to parse SSE update:', error);
+    // Connect to WebSocket
+    socket.connect();
+
+    // Connection handlers
+    const handleConnect = () => {
+      console.log('✅ WebSocket connected for sports');
+      setIsConnected(true);
+      setShowConnectedBadge(true);
+      
+      // Hide the "connected" badge after 3 seconds
+      setTimeout(() => {
+        setShowConnectedBadge(false);
+      }, 3000);
+      
+      // Join sport room if not 'popular'
+      if (selectedSport !== 'popular') {
+        socket.emit('join-sport', selectedSport);
+        console.log(`📡 Joined sport room: ${selectedSport}`);
       }
     };
-    
-    eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      eventSource.close();
+
+    const handleDisconnect = () => {
+      console.log('❌ WebSocket disconnected');
+      setIsConnected(false);
     };
+
+    // Listen for sports odds updates
+    const handleOddsUpdate = (data: any) => {
+      console.log(`📊 Received odds update: ${data.count} events, latency: ${Date.now() - new Date(data.timestamp).getTime()}ms`);
+      
+      // Update React Query cache with new odds
+      queryClient.setQueryData(
+        ['sports-events', selectedSport],
+        (oldData: any) => {
+          if (!oldData || !data.events) return oldData;
+          
+          // Create a map of updated events by ID for faster lookup
+          const updatedEventsMap = new Map(
+            data.events.map((e: SportsEvent) => [e.id, e])
+          );
+          
+          // Update existing events with new odds
+          const updatedEvents = oldData.events.map((event: SportsEvent) => {
+            const updated = updatedEventsMap.get(event.id) as SportsEvent | undefined;
+            if (updated && updated.yesOdds !== undefined) {
+              return {
+                ...event,
+                yesOdds: updated.yesOdds,
+                noOdds: updated.noOdds,
+                score: updated.score,
+                period: updated.period,
+                elapsed: updated.elapsed,
+                live: updated.live,
+                gameStatus: updated.gameStatus,
+              };
+            }
+            return event;
+          });
+          
+          return {
+            ...oldData,
+            events: updatedEvents,
+          };
+        }
+      );
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('sports:odds-update', handleOddsUpdate);
+
+    // Cleanup
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('sports:odds-update', handleOddsUpdate);
+      
+      // Leave sport room
+      if (selectedSport !== 'popular') {
+        socket.emit('leave-sport', selectedSport);
+      }
+      
+      socket.disconnect();
+    };
+  }, [queryClient]);
+  
+  // Handle sport changes - join/leave rooms
+  useEffect(() => {
+    if (!isConnected) return;
+    
+    console.log(`🔄 Switching to sport: ${selectedSport}`);
+    
+    // Leave old sport room, join new one
+    if (selectedSport !== 'popular') {
+      socket.emit('join-sport', selectedSport);
+      console.log(`📡 Joined sport room: ${selectedSport}`);
+    }
     
     return () => {
-      eventSource.close();
+      if (selectedSport !== 'popular') {
+        socket.emit('leave-sport', selectedSport);
+      }
     };
-  }, [selectedSport, queryClient]);
+  }, [selectedSport, isConnected]);
   
   // Handle category change from navbar
   const handleCategoryChange = (category: string) => {
@@ -187,6 +240,31 @@ export default function SportsPage() {
       </div>
       
       <div className="min-h-screen">
+        {/* WebSocket Connection Status Indicator */}
+        {!isConnected && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="fixed top-20 right-4 z-50 bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/30 text-yellow-300 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+          >
+            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+            <span className="text-sm font-medium">Reconnecting...</span>
+          </motion.div>
+        )}
+        
+        {showConnectedBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-20 right-4 z-50 bg-green-500/20 backdrop-blur-sm border border-green-500/30 text-green-300 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+          >
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            <span className="text-sm font-medium">Live • &lt;500ms</span>
+          </motion.div>
+        )}
+        
         <div className="flex">
           {/* Mobile Sidebar Toggle */}
           <button

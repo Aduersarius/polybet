@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       // Keep the first (most recent), delete the rest
       if (events.length > 1) {
         const keepId = events[0].id;
-        const deleteIds = events.slice(1).map(e => e.id);
+        const deleteIds = events.slice(1).map((e: { id: string }) => e.id);
         
         console.log(`[Sports Cleanup] Keeping ${events[0].title} (${keepId}), deleting ${deleteIds.length} duplicates`);
         
