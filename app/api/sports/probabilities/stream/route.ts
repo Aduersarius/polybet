@@ -74,7 +74,7 @@ export async function GET(request: Request) {
           
           // 2. Fetch fresh probabilities from Polymarket for events with mappings
           const updates = await Promise.all(
-            events.map(async (event) => {
+            events.map(async (event: any) => {
               // If no mapping, use database odds
               if (!event.polymarketMapping || !event.polymarketMapping.yesTokenId || !event.polymarketMapping.noTokenId) {
                 return {

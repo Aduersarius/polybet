@@ -39,7 +39,7 @@ export function LiveGameCard({ event, gameNumber }: LiveGameCardProps) {
   return (
     <div 
       onClick={() => openEvent(event)}
-      className="bg-[#22303f] rounded-xl p-4 border border-white/5 hover:border-white/10 transition-all cursor-pointer"
+      className="bg-zinc-800 rounded-xl p-4 border border-white/5 hover:border-white/10 transition-all cursor-pointer"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">

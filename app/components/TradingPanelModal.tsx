@@ -49,7 +49,7 @@ export function TradingPanelModal({
                             exit={{ opacity: 0, y: 100, scale: 0.9 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-xl bg-gradient-to-b from-[#111111]/95 via-[#0b0b0b]/95 to-[#0a0a0a]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
+                            className="w-full max-w-xl bg-[#1a1d28] backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
                         >
                             {/* Header */}
                             <div className="border-b border-white/10 px-5 py-4 flex items-start justify-between gap-4 shrink-0">

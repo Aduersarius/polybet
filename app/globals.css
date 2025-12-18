@@ -4,19 +4,20 @@
 
 :root {
   /* 2026 Design - Warm, Professional, Human-Centered */
-  --background: #0f1419;
-  /* Warm deep slate */
-  --surface: #1a1f2e;
-  /* Rich navy surface */
-  --primary: #3b82f6;
-  /* Vibrant trust blue */
-  --secondary: #10b981;
-  /* Success emerald */
-  --accent: #8b5cf6;
-  /* Purposeful purple for highlights */
+  /* 
+   * IMPORTANT: These CSS variables MUST match the values in lib/colors/tokens.ts
+   * When updating colors, update both this file AND lib/colors/tokens.ts
+   * TODO: Consider generating this file from tokens.ts to ensure sync
+   */
+  --background: #0f1117; /* Must match colorTokens.background - Premium deep rich navy */
+  --surface: #1a1d28; /* Must match colorTokens.surface - Elevated surface with rich navy undertones */
+  --surface-elevated: #232736; /* Higher elevation for modals/dialogs - lighter navy */
+  --primary: #3b82f6; /* Must match colorTokens.primary[500] - Vibrant trust blue */
+  --secondary: #10b981; /* Must match colorTokens.secondary[500] */
+  --accent: #8b5cf6; /* Must match colorTokens.accent[500] */
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 15, 20, 25;
-  --background-end-rgb: 20, 25, 35;
+  --background-start-rgb: 24, 24, 27;
+  --background-end-rgb: 24, 24, 27;
 
   /* Shadcn Chart Colors - Modern */
   --chart-1: 217 91% 60%;
@@ -36,16 +37,39 @@
 }
 
 html {
-  background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
+  background: var(--background);
   min-height: 100%;
 }
 
 body {
   color: var(--on-background);
-  background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
+  background: var(--background);
   font-family: var(--font-sans), sans-serif;
+  font-weight: 200; /* Even thinner default font weight */
   overflow-x: hidden;
   min-height: 100vh;
+}
+
+/* Make headings and bold text thinner */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 300; /* Thinner headings */
+}
+
+/* Override common font-weight classes to be even thinner */
+.font-medium {
+  font-weight: 300 !important; /* Was 500, now very thin */
+}
+
+.font-semibold {
+  font-weight: 400 !important; /* Was 600, now thinner */
+}
+
+.font-bold {
+  font-weight: 500 !important; /* Was 700, now much thinner */
+}
+
+.font-black {
+  font-weight: 800 !important; /* Keep black weight heavy for titles */
 }
 
 /* Ensure all direct page content is above particles background */
@@ -56,38 +80,38 @@ body > div:not([class*="fixed"]) {
 
 /* 2026 Modern Card - Glassmorphism with Depth */
 .material-card {
-  background: rgba(26, 31, 46, 0.6);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
   backdrop-filter: blur(12px);
   border-radius: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 
-              0 0 0 1px rgba(59, 130, 246, 0.1),
+              0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
               inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(59, 130, 246, 0.15);
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .material-card:hover {
-  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15),
-              0 0 0 1px rgba(59, 130, 246, 0.2),
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--primary) 15%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
               inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-2px);
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .material-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 90%, black) 100%);
+  color: var(--on-primary);
   border-radius: 10px;
-  font-weight: 600;
+  font-weight: 300; /* Even thinner button text */
   letter-spacing: 0.3px;
   padding: 12px 24px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .material-btn:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 90%, black) 0%, color-mix(in srgb, var(--primary) 80%, black) 100%);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 40%, transparent);
   transform: translateY(-1px);
 }
 
@@ -102,35 +126,35 @@ body > div:not([class*="fixed"]) {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(59, 130, 246, 0.05);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.4) 0%, rgba(16, 185, 129, 0.4) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 40%, transparent) 0%, color-mix(in srgb, var(--secondary) 40%, transparent) 100%);
   border-radius: 4px;
   transition: all 0.3s;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.6) 0%, rgba(16, 185, 129, 0.6) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 60%, transparent) 0%, color-mix(in srgb, var(--secondary) 60%, transparent) 100%);
 }
 
 /* 2026 Modern Gradients */
 .gradient-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 90%, black) 100%);
 }
 
 .gradient-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, var(--success) 0%, color-mix(in srgb, var(--success) 90%, black) 100%);
 }
 
 .gradient-accent {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 90%, black) 100%);
 }
 
 .gradient-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: linear-gradient(135deg, var(--error) 0%, color-mix(in srgb, var(--error) 90%, black) 100%);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {

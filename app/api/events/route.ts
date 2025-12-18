@@ -70,8 +70,8 @@ export async function GET(request: Request) {
         const { prisma } = await import('@/lib/prisma');
         const { categorizeEvent, getAllCategories } = await import('@/lib/category-filters');
 
-        // Build where clause
-        let where: any = { isHidden: false, status: 'ACTIVE' };
+        // Build where clause - only filter by isHidden, show all non-hidden events regardless of status
+        let where: any = { isHidden: false };
 
         // Category filtering
         if (effectiveCategory && effectiveCategory !== 'ALL') {
@@ -148,8 +148,7 @@ export async function GET(request: Request) {
 
         const events = await prisma.event.findMany({
             where: {
-                ...where,
-                status: 'ACTIVE'
+                ...where
             },
             orderBy,
             select: {
@@ -254,7 +253,12 @@ export async function GET(request: Request) {
 
         const queryTime = Date.now() - startTime;
 
-        console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`);
+        console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`, {
+            whereClause: where,
+            category: effectiveCategory,
+            timeHorizon,
+            sortBy: effectiveSortBy
+        });
 
         // Log events fetch to Braintrust
         try {

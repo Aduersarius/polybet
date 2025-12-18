@@ -1,11 +1,12 @@
-.profile-container>div[class*="bg-[#1e1e1e]"] {
-    background-color: #1e1e1e !important;
+/* Using centralized color system - zinc-800 matches the surface color */
+.profile-container>div[class*="bg-zinc-800"] {
+    background-color: var(--surface, #27272a) !important;
 }
 
 .profile-stat-card {
-    background-color: #1e1e1e !important;
+    background-color: var(--surface, #27272a) !important;
 }
 
 .profile-section {
-    background-color: #1e1e1e !important;
+    background-color: var(--surface, #27272a) !important;
 }

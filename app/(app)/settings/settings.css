@@ -1,3 +1,4 @@
-.settings-container>div[class*="bg-[#1e1e1e]"] {
-    background-color: #1e1e1e !important;
+/* Using centralized color system - zinc-800 matches the surface color */
+.settings-container>div[class*="bg-zinc-800"] {
+    background-color: var(--surface, #27272a) !important;
 }

@@ -293,7 +293,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     const maxBid = useMemo(() => Math.max(...orderBook.bids.map(b => b.amount), 0), [orderBook.bids]);
 
     return (
-        <div className="flex flex-col h-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/5 select-none">
+        <div className="flex flex-col h-full bg-[#1a1d28] rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/5 select-none">
             {/* Header */}
             <div className="flex items-center justify-between p-3 border-b border-white/5 bg-white/[0.02]">
                 <div className="flex flex-col">

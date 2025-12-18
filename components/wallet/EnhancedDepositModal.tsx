@@ -263,7 +263,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                             </button>
 
                             {showNetworkDropdown && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1f2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
+                                <div className="absolute top-full left-0 right-0 mt-2 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden" style={{ backgroundColor: 'var(--surface)' }}>
                                     {cryptoNetworks.map((network) => (
                                         <button
                                             key={network.id}

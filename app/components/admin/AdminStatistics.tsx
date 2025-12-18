@@ -7,6 +7,7 @@ import { AreaChart, Area, CartesianGrid, XAxis } from 'recharts';
 import { Activity, ArrowUpRight, BarChart2, LineChart as LineChartIcon, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { colors } from '@/lib/colors';
 
 type AdminUser = {
     id: string;
@@ -71,11 +72,11 @@ export function AdminStatistics() {
     const chartConfig: ChartConfig = {
         dailyUsers: {
             label: 'Total users',
-            color: '#d9d9df'
+            color: colors.gray[300]
         },
         newUsers: {
             label: 'New users',
-            color: '#aeb0b8'
+            color: colors.gray[400]
         }
     };
 

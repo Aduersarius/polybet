@@ -21,7 +21,7 @@ export default function Landing() {
                         className="material-card p-8 sm:p-12 !rounded-[32px] max-w-2xl mx-auto"
                     >
                         <div className="relative z-10 mb-8">
-                            <h1 className="text-4xl sm:text-5xl font-black mb-4 bg-gradient-to-r from-white via-[#bb86fc] to-[#03dac6] bg-clip-text text-transparent drop-shadow-2xl">
+                            <h1 className="text-3xl sm:text-4xl font-black mb-4 bg-gradient-to-r from-blue-200 via-cyan-200 via-purple-200 to-blue-200 bg-clip-text text-transparent drop-shadow-2xl" style={{fontWeight: 800}}>
                                 PolyBet
                             </h1>
                             <p className="text-lg sm:text-xl text-white/80 mb-6 font-light leading-relaxed">

@@ -20,7 +20,7 @@ export function PeriodSelector({
   onChange: (p: OddsPeriod) => void;
 }) {
   return (
-    <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1e1e1e]/80 backdrop-blur-sm p-1">
+    <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1a1d28]/80 backdrop-blur-sm p-1">
       {TIME_PERIODS.map((tp) => (
         <motion.button
           key={tp.value}

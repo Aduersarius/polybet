@@ -272,7 +272,7 @@ function ProfileContent() {
                     <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="lg:col-span-4 bg-[#1e1e1e] rounded-2xl border border-transparent p-6 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-lg min-h-[260px] hover:border-pink-500/50 transition-all duration-300 group"
+                        className="lg:col-span-4 bg-zinc-800 rounded-2xl border border-transparent p-6 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-lg min-h-[260px] hover:border-pink-500/50 transition-all duration-300 group"
                     >
                         {/* Organic Background Blobs - Subtle */}
                         <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none group-hover:bg-pink-500/10 transition-all duration-500"></div>
@@ -282,7 +282,7 @@ function ProfileContent() {
                             {/* Avatar */}
                             <div className="relative group/avatar shrink-0">
                                 <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-blue-500 p-0.5 shadow-lg group-hover/avatar:shadow-2xl transition-all duration-300">
-                                    <div className="w-full h-full rounded-full bg-[#1e1e1e] flex items-center justify-center overflow-hidden border-2 border-[#1e1e1e]">
+                                    <div className="w-full h-full rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border-2 border-[#1e1e1e]">
                                         {displayUser?.image ? (
                                             <img src={displayUser.image} alt={displayUser.name || 'User'} className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />
                                         ) : (
@@ -359,7 +359,7 @@ function ProfileContent() {
                     >
                         <PnLChart
                             data={pnlData}
-                            className="w-full h-full bg-[#1e1e1e] rounded-2xl border border-transparent hover:border-emerald-500/50 transition-all duration-300"
+                            className="w-full h-full bg-zinc-800 rounded-2xl border border-transparent hover:border-emerald-500/50 transition-all duration-300"
                             title="PORTFOLIO PERFORMANCE"
                         />
                     </motion.div>
@@ -371,7 +371,7 @@ function ProfileContent() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="bg-[#1e1e1e] p-4 rounded-2xl border border-transparent hover:border-blue-500/50 transition-all duration-300 group"
+                        className="bg-zinc-800 p-4 rounded-2xl border border-transparent hover:border-blue-500/50 transition-all duration-300 group"
                     >
                         <div className="flex justify-between items-start mb-2">
                             <Wallet className="w-5 h-5 text-blue-400" />
@@ -389,7 +389,7 @@ function ProfileContent() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="bg-[#1e1e1e] p-4 rounded-2xl border border-transparent hover:border-green-500/50 transition-all duration-300 group"
+                        className="bg-zinc-800 p-4 rounded-2xl border border-transparent hover:border-green-500/50 transition-all duration-300 group"
                     >
                         <div className="flex justify-between items-start mb-2">
                             <TrendingUp className="w-5 h-5 text-green-400" />
@@ -405,7 +405,7 @@ function ProfileContent() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="bg-[#1e1e1e] p-4 rounded-2xl border border-transparent hover:border-purple-500/50 transition-all duration-300 group"
+                        className="bg-zinc-800 p-4 rounded-2xl border border-transparent hover:border-purple-500/50 transition-all duration-300 group"
                     >
                         <div className="flex justify-between items-start mb-2">
                             <Trophy className="w-5 h-5 text-purple-400" />
@@ -421,7 +421,7 @@ function ProfileContent() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 }}
-                        className="bg-[#1e1e1e] p-4 rounded-2xl border border-transparent hover:border-cyan-500/50 transition-all duration-300 group"
+                        className="bg-zinc-800 p-4 rounded-2xl border border-transparent hover:border-cyan-500/50 transition-all duration-300 group"
                     >
                         <div className="flex justify-between items-start mb-2">
                             <Activity className="w-5 h-5 text-cyan-400" />
@@ -445,10 +445,9 @@ function ProfileContent() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.2 }}
-                                    className="bg-[#1e1e1e] rounded-xl border border-transparent overflow-hidden hover:border-blue-500/50 transition-all duration-300 group"
-                                    style={{ backgroundColor: '#1e1e1e' }}
+                                    className="bg-zinc-800 rounded-xl border border-transparent overflow-hidden hover:border-blue-500/50 transition-all duration-300 group"
                                 >
-                                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1a1b26]/50">
+                                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-zinc-900/50">
                                         <h2 className="text-lg font-bold text-white flex items-center gap-2">
                                             <BarChart3 className="w-5 h-5 text-blue-400" />
                                             Active Positions
@@ -524,10 +523,9 @@ function ProfileContent() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.3 }}
-                                    className="bg-[#1e1e1e] rounded-xl border border-transparent overflow-hidden hover:border-purple-500/50 transition-all duration-300 group"
-                                    style={{ backgroundColor: '#1e1e1e' }}
+                                    className="bg-zinc-800 rounded-xl border border-transparent overflow-hidden hover:border-purple-500/50 transition-all duration-300 group"
                                 >
-                                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1a1b26]/50">
+                                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-zinc-900/50">
                                         <h2 className="text-lg font-bold text-white flex items-center gap-2">
                                             <Clock className="w-5 h-5 text-purple-400" />
                                             Recent Bets
@@ -603,7 +601,7 @@ function ProfileContent() {
                                 </motion.div>
                             </>
                         ) : (
-                            <div className="bg-[#1e1e1e] rounded-xl border border-transparent p-12 text-center text-gray-500 hover:border-gray-500/50 transition-all duration-300">
+                            <div className="bg-zinc-800 rounded-xl border border-transparent p-12 text-center text-gray-500 hover:border-gray-500/50 transition-all duration-300">
                                 <Lock className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                 <h3 className="text-lg font-bold text-white mb-2">Private Portfolio</h3>
                                 <p>Positions and betting history are hidden for other users.</p>
@@ -619,8 +617,7 @@ function ProfileContent() {
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: 0.2 }}
-                                className="bg-[#1e1e1e] rounded-xl border border-transparent p-6 hover:border-orange-500/50 transition-all duration-300 group"
-                                style={{ backgroundColor: '#1e1e1e' }}
+                                className="bg-zinc-800 rounded-xl border border-transparent p-6 hover:border-orange-500/50 transition-all duration-300 group"
                             >
                                 <div className="flex justify-between items-center mb-4">
                                     <h2 className="text-lg font-bold text-white">Account Details</h2>
@@ -661,8 +658,7 @@ function ProfileContent() {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.3 }}
-                            className="bg-[#1e1e1e] rounded-xl border border-transparent p-6 hover:border-yellow-500/50 transition-all duration-300 group"
-                            style={{ backgroundColor: '#1e1e1e' }}
+                            className="bg-zinc-800 rounded-xl border border-transparent p-6 hover:border-yellow-500/50 transition-all duration-300 group"
                         >
                             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                                 <Trophy className="w-5 h-5 text-yellow-400" />

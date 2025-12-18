@@ -12,6 +12,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 const outfit = Outfit({
     subsets: ["latin"],
     variable: '--font-outfit',
+    weight: ['200', '300', '400', '500', '600', '700', '800', '900'], // Include all weights for title
 });
 
 export const metadata: Metadata = {
@@ -42,7 +43,7 @@ export default function RootLayout({
                         className="w-full h-full"
                         particleColor="#3b82f6"
                     />
-                    <div className="fixed inset-0 bg-gradient-to-br from-[#0f1419] via-[#1a1f2e] to-[#0f1419] pointer-events-none z-[1]" />
+                    <div className="fixed inset-0 bg-zinc-900 pointer-events-none z-[1]" />
                     <div className="relative z-10 min-h-screen flex flex-col">
                         {children}
                     </div>

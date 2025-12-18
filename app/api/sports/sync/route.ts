@@ -228,8 +228,8 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
     });
   }
   
-  // Skip ONLY finished/cancelled games (but keep scheduled and live)
-  if (gameStatus === 'finished' || gameStatus === 'cancelled') {
+  // Skip ONLY finished games (but keep scheduled and live)
+  if (gameStatus === 'finished') {
     console.log(`[Sync] Skipping ${gameStatus} game: ${title.substring(0, 60)}`);
     return null;
   }
@@ -245,9 +245,6 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
   if (gameStatus === 'live') {
     // Polymarket explicitly says the game is live
     live = true;
-  } else if (gameStatus === 'finished') {
-    // Explicitly finished - not live
-    live = false;
   } else if (startTime && endTime) {
     // Check time boundaries
     if (startTime < now && endTime > now) {
