@@ -221,7 +221,7 @@ export async function GET(request: Request) {
     
     // Check for duplicates by polymarketId
     if (sport === 'cs2') {
-      const polymarketIds = events.map((e: any) => (e as any).polymarketId).filter(Boolean);
+      const polymarketIds = events.map((e: any) => e.polymarketId).filter(Boolean);
       const uniqueIds = new Set(polymarketIds);
       if (polymarketIds.length !== uniqueIds.size) {
         console.warn('[Sports API] DUPLICATES DETECTED:', {

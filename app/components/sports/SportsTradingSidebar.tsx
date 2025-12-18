@@ -112,7 +112,7 @@ export function SportsTradingSidebar() {
                   Place Your Bet
                 </h3>
                 <TradingPanel 
-                  eventId={selectedEvent.id} 
+                  eventId={selectedEvent.id}
                   variant="modal"
                   eventData={selectedEvent}
                 />
