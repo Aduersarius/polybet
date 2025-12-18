@@ -19,7 +19,7 @@ const io = new Server(3001, {
 console.log('🚀 WebSocket Server running on port 3001');
 
 // 3. Handle Redis Events
-redis.subscribe('event-updates', 'chat-messages', 'admin-events', 'user-updates', (err, count) => {
+redis.subscribe('event-updates', 'chat-messages', 'admin-events', 'user-updates', 'sports-odds', (err, count) => {
     if (err) console.error('Failed to subscribe: %s', err.message);
     else console.log(`Subscribed to ${count} Redis channels.`);
 });
@@ -49,6 +49,18 @@ redis.on('message', (channel, message) => {
             io.to(`user:${data.userId}`).emit('user-update', data);
         }
     }
+    else if (channel === 'sports-odds') {
+        // Broadcast sports odds updates to all clients watching sports
+        // data: { timestamp: '...', events: [...], count: ... }
+        io.emit('sports:odds-update', data);
+        
+        // Also broadcast to specific sport rooms if needed
+        if (data.eventsBySport) {
+            Object.entries(data.eventsBySport).forEach(([sport, events]) => {
+                io.to(`sport:${sport}`).emit('sports:odds-update', { sport, events });
+            });
+        }
+    }
 });
 
 // 4. Handle Client Connections
@@ -66,6 +78,20 @@ io.on('connection', (socket) => {
         if (userId) {
             console.log(`Socket ${socket.id} leaving user room: user:${userId}`);
             socket.leave(`user:${userId}`);
+        }
+    });
+
+    socket.on('join-sport', (sport) => {
+        if (sport) {
+            console.log(`Socket ${socket.id} joining sport room: sport:${sport}`);
+            socket.join(`sport:${sport}`);
+        }
+    });
+
+    socket.on('leave-sport', (sport) => {
+        if (sport) {
+            console.log(`Socket ${socket.id} leaving sport room: sport:${sport}`);
+            socket.leave(`sport:${sport}`);
         }
     });
 

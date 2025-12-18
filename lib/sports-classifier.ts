@@ -195,7 +195,7 @@ export function parseTeams(title: string): { teamA?: string; teamB?: string } {
 /**
  * Normalize game status from various formats
  */
-export function normalizeGameStatus(status?: string): 'scheduled' | 'live' | 'finished' | 'postponed' | undefined {
+export function normalizeGameStatus(status?: string): 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled' | undefined {
   if (!status) return undefined;
   
   const normalized = status.toLowerCase();
@@ -205,6 +205,9 @@ export function normalizeGameStatus(status?: string): 'scheduled' | 'live' | 'fi
   }
   if (normalized.includes('finished') || normalized.includes('final') || normalized.includes('ended')) {
     return 'finished';
+  }
+  if (normalized.includes('cancelled') || normalized.includes('canceled')) {
+    return 'cancelled';
   }
   if (normalized.includes('postponed') || normalized.includes('delayed')) {
     return 'postponed';
