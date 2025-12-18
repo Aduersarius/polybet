@@ -61,6 +61,11 @@ interface NormalizedSportsEvent {
   startTime?: Date;
   isEsports: boolean;
   eventType: string; // 'live' | 'upcoming' | 'futures'
+  
+  // WebSocket subscription tokens
+  yesTokenId?: string;
+  noTokenId?: string;
+  clobTokenIds?: string[];
 }
 
 /**
@@ -152,13 +157,19 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
   const title = event.title || 'Untitled Event';
   const description = event.description || '';
   
-  // Parse outcome prices (probabilities)
-  // Prices are in the markets array, typically in the first market
+  // Parse outcome prices (probabilities) AND condition token IDs for WebSocket subscriptions
+  // Prices and tokens are in the markets array, typically in the first market
   let yesOdds = 0.5;
   let noOdds = 0.5;
+  let yesTokenId: string | undefined;
+  let noTokenId: string | undefined;
+  let clobTokenIds: string[] | undefined;
+  
   try {
     if (event.markets && Array.isArray(event.markets) && event.markets.length > 0) {
       const market = event.markets[0];
+      
+      // Extract odds
       if (market.outcomePrices) {
         const prices = typeof market.outcomePrices === 'string' 
           ? JSON.parse(market.outcomePrices) 
@@ -168,9 +179,21 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
           noOdds = parseFloat(prices[1]);
         }
       }
+      
+      // Extract condition token IDs for WebSocket subscriptions
+      if (market.clobTokenIds && Array.isArray(market.clobTokenIds)) {
+        clobTokenIds = market.clobTokenIds;
+        yesTokenId = market.clobTokenIds[0]; // First token is typically YES
+        noTokenId = market.clobTokenIds[1];   // Second token is typically NO
+      } else if (market.tokens && Array.isArray(market.tokens)) {
+        // Fallback: some API responses use 'tokens' instead
+        clobTokenIds = market.tokens;
+        yesTokenId = market.tokens[0];
+        noTokenId = market.tokens[1];
+      }
     }
   } catch (e) {
-    console.warn(`Failed to parse outcomePrices for event ${event.id}:`, e);
+    console.warn(`Failed to parse market data for event ${event.id}:`, e);
   }
   
   // Parse team names from title
@@ -203,13 +226,31 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
     category = isEsportsEvent ? 'Esports' : 'Sports';
   }
   
-  // Parse dates
+  // Parse dates - CRITICAL FIX: Extract date from slug as it's more reliable than startDate
+  // Polymarket's startDate field can be inaccurate, but the slug always contains the correct date
+  // Example slug: "dota2-flc-xtreme-2025-12-19" -> extract "2025-12-19"
+  let startTime: Date | null = null;
+  
+  // Try to extract date from slug first (most reliable source)
+  if (event.slug) {
+    const slugDateMatch = event.slug.match(/(\d{4}-\d{2}-\d{2})/);
+    if (slugDateMatch) {
+      const slugDate = slugDateMatch[1]; // e.g., "2025-12-19"
+      startTime = new Date(slugDate + 'T00:00:00Z'); // Use UTC midnight
+      console.log(`[Sync] Extracted date from slug: ${slugDate} for "${title.substring(0, 40)}"`);
+    }
+  }
+  
+  // Fallback to API startDate if slug parsing failed
+  if (!startTime && event.startDate) {
+    startTime = new Date(event.startDate);
+  }
+  
   const resolutionDate = event.endDate ? new Date(event.endDate) : 
-                        event.startDate ? new Date(event.startDate) : 
+                        startTime ? new Date(startTime.getTime() + 24 * 60 * 60 * 1000) : // Default: 24h after start
                         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
   
   const createdAt = event.createdAt ? new Date(event.createdAt) : new Date();
-  const startTime = event.startDate ? new Date(event.startDate) : null;
   const endTime = event.endDate ? new Date(event.endDate) : null;
   
   // Parse volume
@@ -242,12 +283,10 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
   
   // Determine if game is actually live (in progress right now)
   let live = false;
+  
   if (gameStatus === 'live') {
     // Polymarket explicitly says the game is live
     live = true;
-  } else if (gameStatus === 'finished') {
-    // Explicitly finished - not live
-    live = false;
   } else if (startTime && endTime) {
     // Check time boundaries
     if (startTime < now && endTime > now) {
@@ -328,6 +367,11 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
     startTime: startTime || undefined,
     isEsports: isEsportsEvent,
     eventType,
+    
+    // WebSocket subscription tokens
+    yesTokenId,
+    noTokenId,
+    clobTokenIds,
   };
 }
 
@@ -338,6 +382,29 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
 export async function POST(request: Request) {
   try {
     const start = Date.now();
+    
+    // STEP 1: Clean up stale events BEFORE syncing new data
+    // Remove events that appear to be live but started >3 hours ago (likely finished or have wrong dates)
+    const now = new Date();
+    const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    
+    const staleLiveEvents = await prisma.event.deleteMany({
+      where: {
+        source: 'POLYMARKET',
+        live: true,
+        startTime: {
+          lt: threeHoursAgo,
+        },
+        OR: [
+          { gameStatus: null },
+          { gameStatus: { notIn: ['finished', 'cancelled'] } },
+        ],
+      },
+    });
+    
+    if (staleLiveEvents.count > 0) {
+      console.log(`[Sports Sync] Cleaned up ${staleLiveEvents.count} stale live events (started >3h ago)`);
+    }
     
     // Fetch sports events from Polymarket
     console.log('[Sports Sync] Fetching events from Polymarket...');
@@ -443,11 +510,30 @@ export async function POST(request: Request) {
               updatedAt: new Date(),
             },
           });
+          
+          // Update token IDs for WebSocket subscriptions
+          if (event.yesTokenId || event.noTokenId) {
+            await prisma.polymarketMarketMapping.upsert({
+              where: {
+                eventId: existing.id,
+              },
+              create: {
+                eventId: existing.id,
+                yesTokenId: event.yesTokenId || '',
+                noTokenId: event.noTokenId || '',
+              },
+              update: {
+                yesTokenId: event.yesTokenId || '',
+                noTokenId: event.noTokenId || '',
+              },
+            });
+          }
+          
           updated++;
         } else {
           // Create new event
-          const { category, volume, betCount, ...eventData } = event; // Remove fields that don't match schema
-          await prisma.event.create({
+          const { category, volume, betCount, yesTokenId, noTokenId, clobTokenIds, ...eventData } = event; // Remove fields that don't match schema
+          const newEvent = await prisma.event.create({
             data: {
               ...eventData,
               externalVolume: volume,
@@ -456,6 +542,25 @@ export async function POST(request: Request) {
               status: 'ACTIVE',
             },
           });
+          
+          // Store token IDs for WebSocket subscriptions
+          if (yesTokenId || noTokenId) {
+            await prisma.polymarketMarketMapping.upsert({
+              where: {
+                eventId: newEvent.id,
+              },
+              create: {
+                eventId: newEvent.id,
+                yesTokenId: yesTokenId || '',
+                noTokenId: noTokenId || '',
+              },
+              update: {
+                yesTokenId: yesTokenId || '',
+                noTokenId: noTokenId || '',
+              },
+            });
+          }
+          
           created++;
         }
       } catch (error) {
