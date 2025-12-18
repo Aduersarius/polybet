@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from '@/components/ui/use-toast';
+import { getUserFriendlyError } from '@/lib/error-messages';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { HelpBanner } from '@/components/ui/HelpBanner';
 
 interface Outcome {
     id: string;
@@ -132,7 +136,11 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
         onSuccess: (result) => {
             if (result.warning) {
                 // Display user-friendly notification for risk concern
-                alert(`Trade Warning: ${result.warning}`);
+                toast({
+                    variant: 'warning',
+                    title: '⚠️ Trade Warning',
+                    description: result.warning,
+                });
             }
 
             setLastTrade({
@@ -156,13 +164,12 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
         },
         onError: (error) => {
             console.error('Trade error:', error);
-            const message = error instanceof Error ? error.message : 'Failed to place trade';
-            if (message.startsWith('Risk Check Failed')) {
-                // Show user-friendly notification for risk check failures
-                alert(`Trade Warning: ${message.replace('Risk Check Failed: ', '')}. The trade was not executed to protect your position.`);
-            } else {
-                alert(message);
-            }
+            const { title, description, variant } = getUserFriendlyError(error);
+            toast({
+                variant,
+                title,
+                description,
+            });
         },
         onSettled: () => {
             setIsLoading(false);
@@ -170,7 +177,62 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     });
 
     const handleTrade = () => {
-        if (!amount || parseFloat(amount) <= 0 || !selectedOutcomeId) return;
+        // Validate amount exists and is positive
+        if (!amount || parseFloat(amount) <= 0) {
+            toast({
+                variant: 'warning',
+                title: '🔢 Invalid Amount',
+                description: 'Please enter an amount greater than $0',
+            });
+            return;
+        }
+
+        // Validate outcome is selected
+        if (!selectedOutcomeId) {
+            toast({
+                variant: 'warning',
+                title: '🎯 Select an Outcome',
+                description: 'Please select which outcome you want to trade',
+            });
+            return;
+        }
+
+        const amountNum = parseFloat(amount);
+        const MIN_BET = 0.10;
+
+        // Check minimum bet
+        if (amountNum < MIN_BET) {
+            toast({
+                variant: 'warning',
+                title: '📊 Bet Too Small',
+                description: `Minimum bet is $${MIN_BET.toFixed(2)}. Please increase your amount.`,
+            });
+            return;
+        }
+
+        // Check maximum bet
+        if (amountNum > MAX_BET_AMOUNT) {
+            toast({
+                variant: 'warning',
+                title: '📊 Bet Too Large',
+                description: `Maximum bet is $${MAX_BET_AMOUNT.toLocaleString()}. Please reduce your amount.`,
+            });
+            return;
+        }
+
+        // For sell orders, check if user has enough outcome tokens
+        if (selectedTab === 'sell') {
+            if (amountNum > selectedOutcomeBalance) {
+                toast({
+                    variant: 'warning',
+                    title: '💰 Insufficient Position',
+                    description: `You only have ${selectedOutcomeBalance.toFixed(2)} shares of this outcome. Please reduce your sell amount to ${selectedOutcomeBalance.toFixed(2)} or less.`,
+                });
+                return;
+            }
+        }
+
+        // All validations passed - proceed with trade
         setIsLoading(true);
         tradeMutation.mutate();
     };
@@ -200,9 +262,25 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
             </div>
 
             <div className="p-4 space-y-4">
+                {/* Help Banner */}
+                <HelpBanner
+                    type="tip"
+                    message={selectedTab === 'buy' 
+                        ? "This is a multiple-choice market. Choose the outcome you believe will happen and buy shares. If that outcome wins, each share is worth $1." 
+                        : "Sell shares from your current position. You can only sell outcomes you own shares in."
+                    }
+                    storageKey={`multi-trading-${selectedTab}-help`}
+                />
+                
                 {/* Outcome Selector */}
                 <div className="space-y-2">
-                    <div className="text-sm text-gray-400">Select Outcome</div>
+                    <div className="text-sm text-gray-400 flex items-center gap-1.5">
+                        Select Outcome
+                        <InfoTooltip 
+                            content="Choose which outcome you want to trade. Each outcome shows its current probability of occurring."
+                            side="top"
+                        />
+                    </div>
                     <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
                         {currentOutcomes.map((outcome) => {
                             const outcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === outcome.id)?.amount || 0;
@@ -241,7 +319,16 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                 {/* Amount/Shares Input */}
                 <div className="space-y-2">
                     <div className="flex justify-between text-sm text-gray-400">
-                        <span>{selectedTab === 'buy' ? 'Amount' : 'Shares'}</span>
+                        <span className="flex items-center gap-1.5">
+                            {selectedTab === 'buy' ? 'Amount' : 'Shares'}
+                            <InfoTooltip 
+                                content={selectedTab === 'buy' 
+                                    ? "Enter the dollar amount you want to spend. Minimum $0.10, maximum $10,000." 
+                                    : "Enter the number of shares you want to sell from your position."
+                                }
+                                side="top"
+                            />
+                        </span>
                         <span className="text-white font-medium">
                             {selectedTab === 'buy'
                                 ? `$${currentAmount.toFixed(2)}`

@@ -11,16 +11,34 @@ interface OnboardingTourProps {
 
 const steps = [
     {
-        title: 'Pick a market',
-        description: `Buy 'Yes' or 'No' shares based on your view. Shares track live odds that update in real time as traders place bets.`,
+        title: '🎯 Browse Markets',
+        description: 'Explore various prediction markets across sports, politics, crypto, and more. Use categories to filter events or search for specific topics.',
+        icon: '🎯',
     },
     {
-        title: 'Make a prediction',
-        description: 'Top up with crypto quickly and safely, then place your prediction on the outcome you believe in.',
+        title: '📊 Understand Odds',
+        description: 'Odds show market confidence. 70% YES means the market thinks there\'s a 70% chance it happens. Lower odds = higher potential profit if you\'re right.',
+        icon: '📊',
     },
     {
-        title: 'Get profit',
-        description: 'Sell your shares anytime or hold to settlement—if your call is right, you keep the profits.',
+        title: '💰 Deposit Funds',
+        description: 'Click "Deposit" to add funds via crypto (USDC on Polygon). Your balance appears instantly and you can start trading.',
+        icon: '💰',
+    },
+    {
+        title: '🎲 Place Your Trade',
+        description: 'Buy YES if you think it will happen, NO if you don\'t. Enter your amount ($0.10-$10,000) and confirm. You can use market or limit orders.',
+        icon: '🎲',
+    },
+    {
+        title: '📈 Track Your Positions',
+        description: 'View your active bets in "My Bets". Watch odds change in real-time. Sell anytime before the event ends to lock in profits or cut losses.',
+        icon: '📈',
+    },
+    {
+        title: '💸 Withdraw Winnings',
+        description: 'When markets resolve, winning shares pay $1 each. Withdraw funds anytime to your Polygon wallet (requires 2FA and at least 1 bet placed).',
+        icon: '💸',
     },
 ];
 
@@ -57,28 +75,37 @@ export function OnboardingTour({ isOpen, onClose }: OnboardingTourProps) {
                                                 </svg>
                                             </div>
                                         </div>
-                                        <h2 className="text-3xl sm:text-3xl font-bold text-white leading-tight">Trade what you believe</h2>
+                                        <h2 className="text-3xl sm:text-3xl font-bold text-white leading-tight">Welcome to Polybet!</h2>
                                         <p className="text-sm text-blue-100/90 max-w-md">
-                                            Learn how PolyBet works in three simple steps. You can close this anytime and return later.
+                                            Learn how to trade on prediction markets in 6 simple steps. This guide will help you get started quickly and confidently.
                                         </p>
                                     </div>
-                                    <div className="hidden md:block rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-blue-50/90 mt-6">
-                                        Odds move with demand. When more traders buy “Yes”, the price rises; when they buy “No”, the price falls.
+                                    <div className="hidden md:block rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-blue-50/90 mt-6 space-y-2">
+                                        <p className="font-semibold">💡 Quick Tips:</p>
+                                        <ul className="space-y-1 text-blue-100/80">
+                                            <li>• Odds move with demand - prices change as traders buy/sell</li>
+                                            <li>• You can sell anytime before an event ends</li>
+                                            <li>• Winning shares always pay exactly $1.00</li>
+                                            <li>• Use favorites ❤️ to track markets you care about</li>
+                                        </ul>
                                     </div>
                                 </div>
                                 <div className="bg-[#0a0c12] p-6 sm:p-8 space-y-4">
-                                    <div className="space-y-3">
+                                    <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
                                         {content.map((step, idx) => (
-                                            <div key={step.title} className="flex gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:border-blue-500/50 transition-colors">
-                                                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold flex items-center justify-center">
+                                            <div key={step.title} className="flex gap-3 p-3 rounded-xl border border-white/5 bg-white/5 hover:border-blue-500/30 transition-colors group">
+                                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold flex items-center justify-center text-sm group-hover:scale-110 transition-transform">
                                                     {idx + 1}
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <h3 className="text-lg font-semibold text-white">{step.title}</h3>
-                                                    <p className="text-sm text-gray-300 leading-relaxed">{step.description}</p>
+                                                <div className="space-y-1 min-w-0">
+                                                    <h3 className="text-base font-semibold text-white">{step.title}</h3>
+                                                    <p className="text-xs text-gray-300 leading-relaxed">{step.description}</p>
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                    <div className="text-xs text-center text-gray-400 mt-2">
+                                        💡 Tip: You can restart this tour anytime from your profile menu
                                     </div>
                                     <div className="flex justify-end">
                                         <button
@@ -97,6 +124,7 @@ export function OnboardingTour({ isOpen, onClose }: OnboardingTourProps) {
         </AnimatePresence>
     );
 }
+
 
 
 

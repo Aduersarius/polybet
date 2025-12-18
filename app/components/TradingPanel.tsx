@@ -11,6 +11,9 @@ import { useSession } from '@/lib/auth-client';
 import { Slider } from '@/components/ui/slider';
 import { useSettings } from '@/lib/settings-context';
 import { AlertTriangle, X } from 'lucide-react';
+import { getUserFriendlyError, getBalanceError, getMinimumBetError, getMaximumBetError } from '@/lib/error-messages';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { HelpBanner } from '@/components/ui/HelpBanner';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -274,21 +277,12 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         },
         onError: (error) => {
             console.error('Trade error:', error);
-            const message = error instanceof Error ? error.message : 'Failed to place trade';
-
-            if (message.toLowerCase().includes('authentication required')) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Sign in required',
-                    description: 'You need to be logged in to place trades.',
-                });
-            } else {
-                toast({
-                    variant: 'destructive',
-                    title: 'Trade failed',
-                    description: message,
-                });
-            }
+            const { title, description, variant } = getUserFriendlyError(error);
+            toast({
+                variant,
+                title,
+                description,
+            });
         },
         onSettled: () => {
             setIsLoading(false);
@@ -296,15 +290,63 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     });
 
     const handleTrade = () => {
-        if (!amount || parseFloat(amount) <= 0) return;
+        // Validate amount exists and is positive
+        if (!amount || parseFloat(amount) <= 0) {
+            toast({
+                variant: 'warning',
+                title: '🔢 Invalid Amount',
+                description: 'Please enter an amount greater than $0',
+            });
+            return;
+        }
 
+        // Check authentication
         if (!isAuthenticated) {
             toast({
-                variant: 'destructive',
-                title: 'Sign in required',
+                variant: 'info',
+                title: '🔐 Sign in required',
                 description: 'You need to be logged in to place trades.',
             });
             return;
+        }
+
+        const amountNum = parseFloat(amount);
+        const MIN_BET = 0.10;
+        const MAX_BET = 10000;
+
+        // Check minimum bet
+        if (amountNum < MIN_BET) {
+            const { title, description, variant } = getMinimumBetError(MIN_BET);
+            toast({ variant, title, description });
+            return;
+        }
+
+        // Check maximum bet
+        if (amountNum > MAX_BET) {
+            const { title, description, variant } = getMaximumBetError(MAX_BET);
+            toast({ variant, title, description });
+            return;
+        }
+
+        // For buy orders, check balance
+        if (selectedTab === 'buy' && stablecoinBalance > 0) {
+            if (amountNum > stablecoinBalance) {
+                const { title, description, variant } = getBalanceError(stablecoinBalance, amountNum);
+                toast({ variant, title, description });
+                return;
+            }
+        }
+
+        // For sell orders, check if user has enough shares
+        if (selectedTab === 'sell') {
+            if (amountNum > availableShares) {
+                toast({
+                    variant: 'warning',
+                    title: '💰 Insufficient Position',
+                    description: `You only have ${availableShares.toFixed(2)} shares of ${selectedOption}. Please reduce your sell amount to ${availableShares.toFixed(2)} or less.`,
+                });
+                return;
+            }
         }
 
         // Show confirmation dialog if setting is enabled
@@ -361,8 +403,20 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
             </div>
 
             <div className={contentPadding}>
+                {/* Help Banner */}
+                {variant === 'default' && (
+                    <HelpBanner
+                        type="info"
+                        message={selectedTab === 'buy' 
+                            ? "Buy YES if you think the event will happen, or NO if you think it won't. Your payout depends on the outcome and your entry price." 
+                            : "Sell your shares to lock in profits or cut losses. You can only sell shares you currently own."
+                        }
+                        storageKey={`trading-${selectedTab}-help`}
+                    />
+                )}
+                
                 {/* Outcome Selector */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 outcome-selector">
                     <button
                         onClick={() => setSelectedOption('YES')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'YES'
@@ -388,7 +442,16 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 {/* Amount/Shares Input */}
                 <div className="space-y-2">
                     <div className="flex justify-between text-sm text-gray-400">
-                        <span>{selectedTab === 'buy' ? 'Amount' : 'Shares'}</span>
+                        <span className="flex items-center gap-1.5">
+                            {selectedTab === 'buy' ? 'Amount' : 'Shares'}
+                            <InfoTooltip 
+                                content={selectedTab === 'buy' 
+                                    ? "Enter the dollar amount you want to spend on this trade. Minimum $0.10, maximum $10,000." 
+                                    : "Enter the number of shares you want to sell from your position."
+                                }
+                                side="top"
+                            />
+                        </span>
                         <span className="text-white font-medium">
                             {selectedTab === 'buy'
                                 ? `$${currentAmount.toFixed(2)}`
@@ -404,7 +467,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             type="number"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            className={`w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium`}
+                            className={`amount-input w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium`}
                             placeholder="0"
                         />
                     </div>

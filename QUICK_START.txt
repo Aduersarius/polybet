@@ -52,3 +52,4 @@ EVENT MAPPING:
 ✅ AUTO-CREATED! No action needed!
 Since you're already pulling from Polymarket, 
 mappings are created automatically when events are fetched.
+

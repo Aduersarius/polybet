@@ -19,19 +19,19 @@ export async function GET(request: Request) {
     const source = searchParams.get('source'); // optional source filter (e.g., POLYMARKET)
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            sessionId: 'debug-session',
-            runId: 'pre-fix',
-            hypothesisId: 'H1',
-            location: 'app/api/events/route.ts:17',
-            message: 'incoming params',
-            data: { category, timeHorizon, sortBy, limit, offset, source },
-            timestamp: Date.now(),
-        })
-    }).catch(() => {});
+    // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({
+    //         sessionId: 'debug-session',
+    //         runId: 'pre-fix',
+    //         hypothesisId: 'H1',
+    //         location: 'app/api/events/route.ts:17',
+    //         message: 'incoming params',
+    //         data: { category, timeHorizon, sortBy, limit, offset, source },
+    //         timestamp: Date.now(),
+    //     })
+    // }).catch(() => {});
     // #endregion
 
     // Handle special categories
@@ -128,22 +128,22 @@ export async function GET(request: Request) {
         // Get events with bets
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H2',
-                location: 'app/api/events/route.ts:108',
-                message: 'select fields and where prior to findMany',
-                data: {
-                    whereHasSource: !!source,
-                    selectFields: ['id','title','description','categories','resolutionDate','imageUrl','createdAt','qYes','qNo','liquidityParameter','type','source','polymarketId','externalVolume','externalBetCount','outcomes'],
-                },
-                timestamp: Date.now(),
-            })
-        }).catch(() => {});
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H2',
+        //         location: 'app/api/events/route.ts:108',
+        //         message: 'select fields and where prior to findMany',
+        //         data: {
+        //             whereHasSource: !!source,
+        //             selectFields: ['id','title','description','categories','resolutionDate','imageUrl','createdAt','qYes','qNo','liquidityParameter','type','source','polymarketId','externalVolume','externalBetCount','outcomes'],
+        //         },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => {});
         // #endregion
 
         const events = await prisma.event.findMany({
@@ -182,25 +182,25 @@ export async function GET(request: Request) {
         });
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H-api-findMany',
-                location: 'app/api/events/route.ts:findMany',
-                message: 'findMany results',
-                data: {
-                    effectiveCategory: effectiveCategory || 'ALL',
-                    whereKeys: Object.keys(where || {}),
-                    count: events.length,
-                    sampleId: events[0]?.id,
-                    sourceFilter: source || null
-                },
-                timestamp: Date.now(),
-            })
-        }).catch(() => { });
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H-api-findMany',
+        //         location: 'app/api/events/route.ts:findMany',
+        //         message: 'findMany results',
+        //         data: {
+        //             effectiveCategory: effectiveCategory || 'ALL',
+        //             whereKeys: Object.keys(where || {}),
+        //             count: events.length,
+        //             sampleId: events[0]?.id,
+        //             sourceFilter: source || null
+        //         },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => { });
         // #endregion
 
         // Get aggregations for volume and betCount
@@ -220,22 +220,22 @@ export async function GET(request: Request) {
             : [];
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H-api-activity',
-                location: 'app/api/events/route.ts:activity',
-                message: 'activity stats',
-                data: {
-                    eventIdsCount: eventIds.length,
-                    activitiesCount: activities.length
-                },
-                timestamp: Date.now(),
-            })
-        }).catch(() => { });
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H-api-activity',
+        //         location: 'app/api/events/route.ts:activity',
+        //         message: 'activity stats',
+        //         data: {
+        //             eventIdsCount: eventIds.length,
+        //             activitiesCount: activities.length
+        //         },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => { });
         // #endregion
 
         const volumeMap = new Map<string, number>();
@@ -319,27 +319,27 @@ export async function GET(request: Request) {
         });
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H-api-map',
-                location: 'app/api/events/route.ts:map',
-                message: 'mapped eventsWithStats',
-                data: {
-                    mappedCount: eventsWithStats.length,
-                    sample: eventsWithStats[0] ? {
-                        id: eventsWithStats[0].id,
-                        title: eventsWithStats[0].title,
-                        source: eventsWithStats[0].source,
-                        categories: eventsWithStats[0].categories,
-                    } : null
-                },
-                timestamp: Date.now(),
-            })
-        }).catch(() => { });
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H-api-map',
+        //         location: 'app/api/events/route.ts:map',
+        //         message: 'mapped eventsWithStats',
+        //         data: {
+        //             mappedCount: eventsWithStats.length,
+        //             sample: eventsWithStats[0] ? {
+        //                 id: eventsWithStats[0].id,
+        //                 title: eventsWithStats[0].title,
+        //                 source: eventsWithStats[0].source,
+        //                 categories: eventsWithStats[0].categories,
+        //             } : null
+        //         },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => { });
         // #endregion
 
         // Apply keyword-based category filtering if needed
@@ -384,29 +384,29 @@ export async function GET(request: Request) {
         const paged = eventsWithStats.slice(0, limit);
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H-api-results',
-                location: 'app/api/events/route.ts:result',
-                message: 'events api result counts',
-                data: {
-                    category: category || 'ALL',
-                    effectiveCategory: effectiveCategory || 'ALL',
-                    timeHorizon,
-                    sortBy: effectiveSortBy,
-                    limit,
-                    offset,
-                    fetchedCount: events.length,
-                    filteredCount: eventsWithStats.length,
-                    pagedCount: paged.length
-                },
-                timestamp: Date.now(),
-            })
-        }).catch(() => { });
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H-api-results',
+        //         location: 'app/api/events/route.ts:result',
+        //         message: 'events api result counts',
+        //         data: {
+        //             category: category || 'ALL',
+        //             effectiveCategory: effectiveCategory || 'ALL',
+        //             timeHorizon,
+        //             sortBy: effectiveSortBy,
+        //             limit,
+        //             offset,
+        //             fetchedCount: events.length,
+        //             filteredCount: eventsWithStats.length,
+        //             pagedCount: paged.length
+        //         },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => { });
         // #endregion
 
         const result = {
@@ -422,19 +422,19 @@ export async function GET(request: Request) {
         return NextResponse.json(result);
     } catch (error) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H3',
-                location: 'app/api/events/route.ts:307',
-                message: 'catch block error',
-                data: { error: error instanceof Error ? error.message : String(error) },
-                timestamp: Date.now(),
-            })
-        }).catch(() => {});
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H3',
+        //         location: 'app/api/events/route.ts:307',
+        //         message: 'catch block error',
+        //         data: { error: error instanceof Error ? error.message : String(error) },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => {});
         // #endregion
 
         const errorTime = Date.now() - startTime;

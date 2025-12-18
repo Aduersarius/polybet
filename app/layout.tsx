@@ -36,13 +36,13 @@ export default function RootLayout({
                     <Sparks
                         id="tsparticlesfullpage"
                         background="transparent"
-                        minSize={0.6}
-                        maxSize={1.4}
-                        particleDensity={100}
+                        minSize={0.4}
+                        maxSize={0.8}
+                        particleDensity={20}
                         className="w-full h-full"
-                        particleColor="#FFFFFF"
+                        particleColor="#3b82f6"
                     />
-                    <div className="fixed inset-0 bg-[#0a0a0a]/85 pointer-events-none z-[1]" />
+                    <div className="fixed inset-0 bg-gradient-to-br from-[#0f1419] via-[#1a1f2e] to-[#0f1419] pointer-events-none z-[1]" />
                     <div className="relative z-10 min-h-screen flex flex-col">
                         {children}
                     </div>

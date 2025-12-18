@@ -18,19 +18,19 @@ export async function GET(
         const lookupByPolymarket = searchParams.get('by') === 'polymarket';
 
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H-event-entry',
-                location: 'app/api/events/[id]/route.ts:entry',
-                message: 'event route entry',
-                data: { id, lookupByPolymarket },
-                timestamp: Date.now(),
-            })
-        }).catch(() => { });
+        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         sessionId: 'debug-session',
+        //         runId: 'pre-fix',
+        //         hypothesisId: 'H-event-entry',
+        //         location: 'app/api/events/[id]/route.ts:entry',
+        //         message: 'event route entry',
+        //         data: { id, lookupByPolymarket },
+        //         timestamp: Date.now(),
+        //     })
+        // }).catch(() => { });
         // #endregion
 
         // Use Redis caching with longer TTL (but still low to keep freshness)
@@ -59,23 +59,23 @@ export async function GET(
 
                         if (byPoly) {
                             // #region agent log
-                            fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    sessionId: 'debug-session',
-                                    runId: 'pre-fix',
-                                    hypothesisId: 'H-event-query',
-                                    location: 'app/api/events/[id]/route.ts:byPoly',
-                                    message: 'polymarket lookup hit',
-                                    data: {
-                                        id,
-                                        polymarketId: byPoly?.polymarketId ?? null,
-                                        eventId: byPoly?.id ?? null,
-                                    },
-                                    timestamp: Date.now(),
-                                })
-                            }).catch(() => { });
+                            // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+                            //     method: 'POST',
+                            //     headers: { 'Content-Type': 'application/json' },
+                            //     body: JSON.stringify({
+                            //         sessionId: 'debug-session',
+                            //         runId: 'pre-fix',
+                            //         hypothesisId: 'H-event-query',
+                            //         location: 'app/api/events/[id]/route.ts:byPoly',
+                            //         message: 'polymarket lookup hit',
+                            //         data: {
+                            //             id,
+                            //             polymarketId: byPoly?.polymarketId ?? null,
+                            //             eventId: byPoly?.id ?? null,
+                            //         },
+                            //         timestamp: Date.now(),
+                            //     })
+                            // }).catch(() => { });
                             // #endregion
                             return byPoly;
                         }
@@ -96,24 +96,24 @@ export async function GET(
                         });
 
                         // #region agent log
-                        fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                sessionId: 'debug-session',
-                                runId: 'pre-fix',
-                                hypothesisId: 'H-event-fallback',
-                                location: 'app/api/events/[id]/route.ts:fallback',
-                                message: 'polymarket lookup miss; fallback by id',
-                                data: {
-                                    id,
-                                    fallbackFound: !!fallbackById,
-                                    fallbackEventId: fallbackById?.id ?? null,
-                                    fallbackPolymarketId: (fallbackById as any)?.polymarketId ?? null,
-                                },
-                                timestamp: Date.now(),
-                            })
-                        }).catch(() => { });
+                        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+                        //     method: 'POST',
+                        //     headers: { 'Content-Type': 'application/json' },
+                        //     body: JSON.stringify({
+                        //         sessionId: 'debug-session',
+                        //         runId: 'pre-fix',
+                        //         hypothesisId: 'H-event-fallback',
+                        //         location: 'app/api/events/[id]/route.ts:fallback',
+                        //         message: 'polymarket lookup miss; fallback by id',
+                        //         data: {
+                        //             id,
+                        //             fallbackFound: !!fallbackById,
+                        //             fallbackEventId: fallbackById?.id ?? null,
+                        //             fallbackPolymarketId: (fallbackById as any)?.polymarketId ?? null,
+                        //         },
+                        //         timestamp: Date.now(),
+                        //     })
+                        // }).catch(() => { });
                         // #endregion
 
                         return fallbackById;
@@ -141,27 +141,27 @@ export async function GET(
                 const event = await Promise.race([queryPromise, timeoutPromise]);
 
                 // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sessionId: 'debug-session',
-                        runId: 'pre-fix',
-                        hypothesisId: 'H-event-postquery',
-                        location: 'app/api/events/[id]/route.ts:postQuery',
-                        message: 'event query result',
-                        data: {
-                            id,
-                            lookupByPolymarket,
-                            whereClause,
-                            found: !!event,
-                            eventId: (event as any)?.id ?? null,
-                            polymarketId: (event as any)?.polymarketId ?? null,
-                            source: (event as any)?.source ?? null,
-                        },
-                        timestamp: Date.now(),
-                    })
-                }).catch(() => { });
+                // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+                //     method: 'POST',
+                //     headers: { 'Content-Type': 'application/json' },
+                //     body: JSON.stringify({
+                //         sessionId: 'debug-session',
+                //         runId: 'pre-fix',
+                //         hypothesisId: 'H-event-postquery',
+                //         location: 'app/api/events/[id]/route.ts:postQuery',
+                //         message: 'event query result',
+                //         data: {
+                //             id,
+                //             lookupByPolymarket,
+                //             whereClause,
+                //             found: !!event,
+                //             eventId: (event as any)?.id ?? null,
+                //             polymarketId: (event as any)?.polymarketId ?? null,
+                //             source: (event as any)?.source ?? null,
+                //         },
+                //         timestamp: Date.now(),
+                //     })
+                // }).catch(() => { });
                 // #endregion
 
                 if (!event) {

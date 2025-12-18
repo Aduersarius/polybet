@@ -195,7 +195,7 @@ export default function EventPage() {
     }
 
     return (
-        <main className="min-h-screen text-white relative overflow-hidden flex flex-col">
+        <main className="min-h-screen text-white relative flex flex-col">
             {/* Animated Background */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#bb86fc]/5 via-transparent to-[#03dac6]/5" />
@@ -214,7 +214,7 @@ export default function EventPage() {
                             animate={{ opacity: 1, y: 0 }}
                             className="h-full"
                         >
-                            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] h-full">
+                            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] lg:items-start">
                                 {/* Left Column */}
                                 <div className="pb-6 lg:pr-2 pt-4 space-y-6 order-1">
                                     <div className="space-y-6">
@@ -298,7 +298,7 @@ export default function EventPage() {
                                         />
 
                                         {(liveEvent.type === 'BINARY' || liveEvent.type === 'MULTIPLE') && (
-                                            <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                            <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden odds-chart">
                                                 <button
                                                     className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
                                                     onClick={() => toggleSection('chart')}
@@ -327,7 +327,7 @@ export default function EventPage() {
                                             </div>
                                         )}
 
-                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden order-book-section">
                                             <button
                                                 className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
                                                 onClick={() => toggleSection('orderbook')}
@@ -352,6 +352,11 @@ export default function EventPage() {
                                                     />
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Related Markets - Desktop */}
+                                        <div className="hidden lg:block">
+                                            <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />
                                         </div>
 
                                         {/* Comments Section */}
@@ -384,9 +389,9 @@ export default function EventPage() {
                                     </div>
                                 </div>
 
-                                {/* Right Column */}
-                                <div className="pb-6 lg:pl-2 pt-4 space-y-6 order-2 hidden lg:block">
-                                    <div className="space-y-6">
+                                {/* Right Column - Sticky */}
+                                <aside className="lg:pl-2 pt-4 order-2 hidden lg:block sticky top-24 self-start z-10">
+                                    <div className="space-y-6 trading-panel">
                                         {liveEvent.type === 'MULTIPLE' ? (
                                             <MultipleTradingPanel
                                                 outcomes={liveEvent.outcomes || []}
@@ -405,9 +410,8 @@ export default function EventPage() {
                                                 tradeIntent={tradeIntent}
                                             />
                                         )}
-                                        <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />
                                     </div>
-                                </div>
+                                </aside>
                             </div>
                         </motion.div>
                     </div>
