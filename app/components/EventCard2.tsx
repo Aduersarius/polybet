@@ -397,8 +397,22 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         {/* 4. Outcomes / Buttons */}
         {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
           <div className="flex gap-2 min-h-[38px]">
-            {(liveOutcomes || event.outcomes)?.slice(0, 2).map((outcome, idx) => {
+            {(liveOutcomes || event.outcomes)?.slice(0, 2)
+              .filter((outcome) => {
+                // Filter out outcomes with invalid probabilities
+                const probValue = outcome?.probability;
+                if (probValue == null || probValue === undefined || probValue < 0) return false;
+                const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                // Skip if 0% or 100% when there are multiple outcomes (likely invalid)
+                if (probability === 0) return false;
+                const totalOutcomes = (liveOutcomes || event.outcomes)?.length ?? 0;
+                if (probability === 100 && totalOutcomes > 1) return false;
+                return true;
+              })
+              .map((outcome, idx) => {
+                if (!outcome) return null;
               const probValue = outcome.probability ?? 0;
+              // If probValue > 1, it's already a percentage, otherwise it's 0-1 probability
               const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
               const barColor = idx === 0 ? 'bg-emerald-500' : 'bg-rose-500';
               const textColor = idx === 0 ? 'text-emerald-300' : 'text-rose-300';
