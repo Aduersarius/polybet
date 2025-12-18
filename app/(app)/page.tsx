@@ -101,31 +101,51 @@ export default function Home() {
         category: evt.category || (evt.categories?.[0] ?? 'General'),
       }));
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: 'debug-session',
-          runId: 'pre-fix',
-          hypothesisId: 'H-client-fetch',
-          location: 'app/(app)/page.tsx:queryFn',
-          message: 'fetched events',
-          data: {
-            selectedCategory,
-            timeHorizon,
-            sortBy,
-            fetchedCount: (data || []).length,
-            normalizedCount: normalized.length
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => { });
+      // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     sessionId: 'debug-session',
+      //     runId: 'pre-fix',
+      //     hypothesisId: 'H-client-fetch',
+      //     location: 'app/(app)/page.tsx:queryFn',
+      //     message: 'fetched events',
+      //     data: {
+      //       selectedCategory,
+      //       timeHorizon,
+      //       sortBy,
+      //       fetchedCount: (data || []).length,
+      //       normalizedCount: normalized.length
+      //     },
+      //     timestamp: Date.now(),
+      //   }),
+      // }).catch(() => { });
       // #endregion
       return normalized as DbEvent[];
     },
     staleTime: 30_000,
     gcTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
+  });
+
+  // Fetch user's favorite events
+  const { data: favoriteEvents } = useQuery<DbEvent[]>({
+    queryKey: ['favorite-events'],
+    queryFn: async () => {
+      const res = await fetch('/api/user/favorites');
+      if (!res.ok) {
+        if (res.status === 401) return []; // User not logged in
+        throw new Error('Failed to fetch favorites');
+      }
+      const json = await res.json();
+      const data = json.data || [];
+      return data.map((evt: any) => ({
+        ...evt,
+        category: evt.category || (evt.categories?.[0] ?? 'General'),
+      })) as DbEvent[];
+    },
+    staleTime: 15_000,
+    gcTime: 5 * 60 * 1000,
   });
 
 
@@ -197,7 +217,7 @@ export default function Home() {
 
     // Apply category filters client-side for Polymarket data
     if (selectedCategory === 'FAVORITES') {
-      filtered = [];
+      filtered = (favoriteEvents || []).slice();
     } else if (selectedCategory !== 'ALL' && selectedCategory !== 'TRENDING' && selectedCategory !== 'NEW') {
       const catLower = selectedCategory.toLowerCase();
       filtered = filtered.filter((e: DbEvent) => {
@@ -251,34 +271,34 @@ export default function Home() {
       activeEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) > now),
       endedEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
     };
-  }, [selectedCategory, searchQuery, eventsData, timeHorizon, sortBy]);
+  }, [selectedCategory, searchQuery, eventsData, favoriteEvents, timeHorizon, sortBy]);
 
   // #region agent log
-  useEffect(() => {
-    const now = new Date();
-    fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId: 'H-client-filter',
-        location: 'app/(app)/page.tsx:useMemo',
-        message: 'client filter result',
-        data: {
-          selectedCategory,
-          timeHorizon,
-          sortBy,
-          searchQuery,
-          eventsDataCount: eventsData?.length ?? 0,
-          activeCount: activeEvents.length,
-          endedCount: endedEvents.length,
-          nowIso: now.toISOString(),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => { });
-  }, [selectedCategory, timeHorizon, sortBy, searchQuery, eventsData, activeEvents.length, endedEvents.length]);
+  // useEffect(() => {
+  //   const now = new Date();
+  //   fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({
+  //       sessionId: 'debug-session',
+  //       runId: 'pre-fix',
+  //       hypothesisId: 'H-client-filter',
+  //       location: 'app/(app)/page.tsx:useMemo',
+  //       message: 'client filter result',
+  //       data: {
+  //         selectedCategory,
+  //         timeHorizon,
+  //         sortBy,
+  //         searchQuery,
+  //         eventsDataCount: eventsData?.length ?? 0,
+  //         activeCount: activeEvents.length,
+  //         endedCount: endedEvents.length,
+  //         nowIso: now.toISOString(),
+  //       },
+  //       timestamp: Date.now(),
+  //     }),
+  //   }).catch(() => { });
+  // }, [selectedCategory, timeHorizon, sortBy, searchQuery, eventsData, activeEvents.length, endedEvents.length]);
   // #endregion
 
 
@@ -312,27 +332,27 @@ export default function Home() {
         >
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
           {/* Markets Background */}
-          <div className="fixed inset-0 z-0"></div>
+          <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#0f1419] via-[#1a1f2e] to-[#0f1419]"></div>
 
           {/* Markets Content */}
-          <div className="relative z-10 pt-8 px-4 max-w-7xl mx-auto pb-12">
+          <div className="relative z-10 pt-10 px-6 max-w-7xl mx-auto pb-20">
 
             {/* Sort Options */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="relative mb-8"
+              transition={{ delay: 0.2 }}
+              className="relative mb-6"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-3xl font-bold text-white flex items-center gap-4 flex-1">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent flex items-center gap-4 flex-1 tracking-tight uppercase" style={{letterSpacing: '0.03em'}}>
                     {selectedCategory === 'FAVORITES' ? 'My Favorites' :
                       selectedCategory === 'ALL' ? 'All Markets' :
                         selectedCategory === 'NEW' ? 'New Markets' :
                           selectedCategory === 'TRENDING' ? 'Trending Markets' :
                             `${selectedCategory} Markets`}
-                    <div className="h-px bg-gradient-to-r from-white/20 via-white/5 to-transparent flex-1 hidden sm:block" />
+                    <div className="h-px bg-gradient-to-r from-transparent via-blue-400/30 to-transparent flex-1 hidden sm:block" />
                   </h2>
                 </div>
 
@@ -349,9 +369,9 @@ export default function Home() {
                       <button
                         key={option.key}
                         onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
-                        className={`h-10 px-4 text-sm font-medium rounded-full transition-all border ${timeHorizon === option.key
-                          ? 'bg-white/10 text-white border-white/20 shadow-[0_6px_22px_-18px_rgba(0,0,0,0.6)]'
-                          : 'bg-transparent text-gray-300 hover:text-white hover:bg-white/5 border-transparent'
+                        className={`h-9 px-4 text-xs font-bold rounded-xl transition-all duration-300 uppercase tracking-wide ${timeHorizon === option.key
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.3)]'
+                          : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10'
                           }`}
                       >
                         {option.label}
@@ -371,9 +391,9 @@ export default function Home() {
                       <button
                         key={option.key}
                         onClick={() => setSortBy(option.key as typeof sortBy)}
-                        className={`h-10 px-3 text-sm font-medium rounded-full transition-all border ${sortBy === option.key
-                          ? 'bg-white/10 text-white border-white/20 shadow-[0_6px_22px_-18px_rgba(0,0,0,0.6)]'
-                          : 'bg-transparent text-gray-300 hover:text-white hover:bg-white/5 border-transparent'
+                        className={`h-9 px-4 text-xs font-bold rounded-xl transition-all duration-300 uppercase tracking-wide ${sortBy === option.key
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.3)]'
+                          : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10'
                           }`}
                       >
                         {option.label}
@@ -384,7 +404,7 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12">
               {activeEvents.map((event) => (
                 <EventCard2
                   key={event.id}
@@ -410,9 +430,9 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
                 >
-                  <h2 className="text-3xl font-bold mb-6 text-gray-500 flex items-center gap-4">
+                  <h2 className="text-2xl font-bold mb-6 text-gray-600 flex items-center gap-4 tracking-tight uppercase" style={{letterSpacing: '0.03em'}}>
                     Ended Markets
-                    <div className="h-px bg-gray-800 flex-1" />
+                    <div className="h-px bg-white/10 flex-1" />
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {endedEvents.map((event) => (

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import { MultipleTradingPanelModal } from './MultipleTradingPanelModal';
 
@@ -50,6 +50,7 @@ const getTimeRemaining = (endDate: Date) => {
 
 export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTradeClick }: EventCard2Props) {
   const [isFavorite, setIsFavorite] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch user's favorites
   const { data: userFavorites, refetch: refetchFavorites } = useQuery({
@@ -198,6 +199,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         if (res.ok) {
           setIsFavorite(false);
           refetchFavorites(); // Refresh the favorites list
+          queryClient.invalidateQueries({ queryKey: ['favorite-events'] }); // Refresh favorites page
         }
       } else {
         // Add to favorites
@@ -211,6 +213,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         if (res.ok) {
           setIsFavorite(true);
           refetchFavorites(); // Refresh the favorites list
+          queryClient.invalidateQueries({ queryKey: ['favorite-events'] }); // Refresh favorites page
         }
       }
     } catch (error) {
@@ -244,26 +247,23 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     setRandomDelay(Math.random() * 0.3); // 0 to 0.3s delay
   }, []);
 
-  // Category-specific colors
+  // Category-specific colors - Modern 2026 vibrant
   const getCategoryColor = (category: string): string => {
     const cat = category.toUpperCase();
-    const colorMap: Record<string, string> = {
-      'CRYPTO': 'text-orange-200 border-orange-500/30 bg-orange-500/10',
-      'POLITICS': 'text-red-200 border-red-500/30 bg-red-500/10',
-      'ELECTIONS': 'text-red-200 border-red-500/30 bg-red-500/10',
-      'SPORTS': 'text-green-200 border-green-500/30 bg-green-500/10',
-      'BUSINESS': 'text-indigo-200 border-indigo-500/30 bg-indigo-500/10',
-      'FINANCE': 'text-indigo-200 border-indigo-500/30 bg-indigo-500/10',
-      'ECONOMY': 'text-indigo-200 border-indigo-500/30 bg-indigo-500/10',
-      'TECH': 'text-cyan-200 border-cyan-500/30 bg-cyan-500/10',
-      'SCIENCE': 'text-purple-200 border-purple-500/30 bg-purple-500/10',
-      'ENTERTAINMENT': 'text-pink-200 border-pink-500/30 bg-pink-500/10',
-      'CULTURE': 'text-pink-200 border-pink-500/30 bg-pink-500/10',
-      'POP CULTURE': 'text-pink-200 border-pink-500/30 bg-pink-500/10',
-      'WORLD': 'text-yellow-200 border-yellow-500/30 bg-yellow-500/10',
-    };
-    
-    return colorMap[cat] || 'text-blue-200 border-blue-500/30 bg-blue-500/10'; // Default blue
+    switch (cat) {
+      case 'CRYPTO': return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
+      case 'SPORTS': return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
+      case 'POLITICS': return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
+      case 'ELECTIONS': return 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10';
+      case 'TECH': return 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10';
+      case 'BUSINESS': return 'text-purple-400 border-purple-500/30 bg-purple-500/10';
+      case 'FINANCE': return 'text-green-400 border-green-500/30 bg-green-500/10';
+      case 'SCIENCE': return 'text-pink-400 border-pink-500/30 bg-pink-500/10';
+      case 'CULTURE': return 'text-rose-400 border-rose-500/30 bg-rose-500/10';
+      case 'ECONOMY': return 'text-teal-400 border-teal-500/30 bg-teal-500/10';
+      case 'WORLD': return 'text-violet-400 border-violet-500/30 bg-violet-500/10';
+      default: return 'text-gray-400 border-gray-500/30 bg-gray-500/10';
+    }
   };
 
   return (
@@ -278,10 +278,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       }}
     >
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: randomDelay }}
-        className={`group bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f] border-0 rounded-2xl p-3 sm:p-2.5 transition-all duration-300 flex flex-col justify-between shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)] min-h-[210px] h-full gap-2 ${isEnded ? 'opacity-60' : ''
+        initial={{ opacity: 0, y: 15, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, delay: randomDelay, type: "spring", stiffness: 100 }}
+        className={`group bg-gradient-to-br from-[#1a1f2e]/60 to-[#1a1f2e]/40 backdrop-blur-sm border border-blue-400/10 hover:border-blue-400/30 rounded-2xl p-4 transition-all duration-300 flex flex-col justify-between min-h-[210px] h-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:scale-[1.02] ${isEnded ? 'opacity-50' : ''
           }`}
       >
         {/* 1. Header: Image & Title */}
@@ -291,7 +291,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               <img
                 src={event.imageUrl}
                 alt={event.title}
-                className="w-12 h-12 sm:w-12 sm:h-12 rounded-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
+                className="w-12 h-12 sm:w-12 sm:h-12 rounded-lg object-cover border border-blue-400/20 group-hover:border-blue-400/40 transition-all duration-300 shadow-md"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                   (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
@@ -299,7 +299,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               />
             ) : null}
             <div
-              className={`w-12 h-12 sm:w-12 sm:h-12 rounded-full bg-[#2a2b36] border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400 transition-colors ${event.imageUrl ? 'hidden' : ''
+              className={`w-12 h-12 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-sm font-bold text-blue-300 transition-all duration-300 shadow-inner ${event.imageUrl ? 'hidden' : ''
                 }`}
             >
               {event.categories && event.categories.length > 0
@@ -312,15 +312,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-start gap-1">
-              <h3 className="text-[14px] font-bold text-white leading-snug line-clamp-3 tracking-tight group-hover:text-gray-100 transition-colors">
+              <h3 className="text-[13px] font-bold text-white leading-tight line-clamp-3 group-hover:text-blue-100 transition-all duration-300">
                 {event.title}
               </h3>
               <button
                 onClick={toggleFavorite}
-                className="flex-shrink-0 text-gray-500 hover:text-red-500 transition-colors pt-0.5"
+                className="flex-shrink-0 text-gray-500 hover:text-pink-400 transition-all duration-300 pt-0.5 hover:scale-110"
               >
                 <svg
-                  className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'}`}
+                  className={`w-4 h-4 ${isFavorite ? 'fill-pink-500 text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]' : 'text-gray-500'}`}
                   fill={isFavorite ? 'currentColor' : 'none'}
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -361,26 +361,26 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               </Badge>
             ) : null}
           </div>
-          <span className="text-[10px] font-mono text-gray-500">{getTimeRemaining(new Date(event.resolutionDate))}</span>
+          <span className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-400/20 shadow-inner">{getTimeRemaining(new Date(event.resolutionDate))}</span>
         </div>
 
         {/* 3. Stats Row */}
-        <div className="flex items-center justify-between text-gray-500 px-1">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
-              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex items-center justify-between text-white/60 px-1">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
               {volume}
             </span>
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
-              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-400">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
               {betCount}
             </span>
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
-              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-purple-400">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
               </svg>
               {commentsCount}
@@ -388,7 +388,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
 
           {remainingOutcomes > 0 && event.type === 'MULTIPLE' && (
-            <span className="text-[10px] font-medium text-blue-200 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+            <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-1 rounded-lg border border-purple-400/20">
               +{remainingOutcomes}
             </span>
           )}
@@ -400,7 +400,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             {(liveOutcomes || event.outcomes)?.slice(0, 2).map((outcome, idx) => {
               const probValue = outcome.probability ?? 0;
               const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-              const barColor = idx === 0 ? 'bg-emerald-400' : 'bg-red-400';
+              const barColor = idx === 0 ? 'bg-emerald-500' : 'bg-rose-500';
+              const textColor = idx === 0 ? 'text-emerald-300' : 'text-rose-300';
+              const borderColor = idx === 0 ? 'border-emerald-500/30 hover:border-emerald-400/60' : 'border-rose-500/30 hover:border-rose-400/60';
+              const shadowColor = idx === 0 ? 'shadow-emerald-500/20' : 'shadow-rose-500/20';
               return (
                 <motion.button
                   key={outcome.id}
@@ -414,23 +417,20 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="relative flex-1 overflow-hidden bg-white/6 hover:bg-white/10 rounded-lg px-2 py-1.5 text-left cursor-pointer transition-all group/btn flex flex-col justify-center border border-white/10 hover:border-white/20"
-                  style={{
-                    boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.2)'
-                  }}
+                  className={`relative flex-1 overflow-hidden bg-white/5 hover:bg-white/10 rounded-lg px-2 py-1.5 text-left cursor-pointer transition-all group/btn flex flex-col justify-center border ${borderColor} shadow-lg ${shadowColor}`}
                 >
                   {/* Progress Bar Background */}
                   <div
-                    className={`absolute top-0 left-0 h-full opacity-15 transition-all group-hover/btn:opacity-25 ${barColor}`}
+                    className={`absolute top-0 left-0 h-full opacity-20 transition-all group-hover/btn:opacity-30 ${barColor}`}
                     style={{ width: `${probability}%` }}
                   />
 
                   <div className="relative z-10 w-full">
                     <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-gray-100 truncate pr-2">
+                      <span className="text-[11px] font-bold text-white truncate pr-2">
                         {outcome.name}
                       </span>
-                      <span className={`text-[11px] font-bold ${idx === 0 ? 'text-emerald-100' : 'text-red-100'}`}>
+                      <span className={`text-[11px] font-bold ${textColor}`}>
                         {probability}%
                       </span>
                     </div>
@@ -450,21 +450,21 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                 <>
                   <motion.button
                     onClick={(e) => handleTradeClick(e, 'YES')}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex-1 bg-green-500/10 hover:bg-green-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/yes"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex-1 bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 hover:from-emerald-500/30 hover:to-emerald-600/30 rounded-xl flex items-center justify-between px-4 py-2.5 cursor-pointer transition-all duration-300 border border-emerald-400/30 hover:border-emerald-400/50 shadow-[0_4px_12px_rgba(16,185,129,0.15)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.25)]"
                   >
-                    <span className="text-[12px] font-bold text-emerald-100">YES</span>
-                    <span className="text-[12px] font-bold text-emerald-200">{yesDisplay}%</span>
+                    <span className="text-[12px] font-bold text-emerald-300 uppercase tracking-wide">YES</span>
+                    <span className="text-[13px] font-bold text-emerald-200">{yesDisplay}%</span>
                   </motion.button>
                   <motion.button
                     onClick={(e) => handleTradeClick(e, 'NO')}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg flex items-center justify-between px-3 sm:px-4 cursor-pointer transition-all group/no"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex-1 bg-gradient-to-r from-rose-500/20 to-rose-600/20 hover:from-rose-500/30 hover:to-rose-600/30 rounded-xl flex items-center justify-between px-4 py-2.5 cursor-pointer transition-all duration-300 border border-rose-400/30 hover:border-rose-400/50 shadow-[0_4px_12px_rgba(244,63,94,0.15)] hover:shadow-[0_6px_20px_rgba(244,63,94,0.25)]"
                   >
-                    <span className="text-[12px] font-bold text-red-100">NO</span>
-                    <span className="text-[12px] font-bold text-red-200">{noDisplay}%</span>
+                    <span className="text-[12px] font-bold text-rose-300 uppercase tracking-wide">NO</span>
+                    <span className="text-[13px] font-bold text-rose-200">{noDisplay}%</span>
                   </motion.button>
                 </>
               );

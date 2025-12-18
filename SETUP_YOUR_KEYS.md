@@ -164,3 +164,4 @@ npx tsx scripts/init-hedging.ts
 ---
 
 **Ready to hedge!** 🚀
+

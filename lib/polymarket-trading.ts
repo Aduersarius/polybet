@@ -376,3 +376,4 @@ export function estimatePolymarketFees(size: number, price: number): number {
   
   return tradingFee + gasCost;
 }
+

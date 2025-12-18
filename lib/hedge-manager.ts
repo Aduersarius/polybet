@@ -657,3 +657,4 @@ export class HedgeManager {
 
 // Export singleton
 export const hedgeManager = new HedgeManager();
+

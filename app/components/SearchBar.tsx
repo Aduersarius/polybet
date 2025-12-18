@@ -85,20 +85,20 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
     };
 
     return (
-        <div ref={searchRef} className="relative w-full">
+        <div ref={searchRef} className="relative w-full search-bar">
             <div
-                className={`relative flex items-center bg-[#1e1e1e]/80 backdrop-blur-sm rounded-lg border transition-colors ${isFocused
-                    ? 'border-[#bb86fc] shadow-lg shadow-[#bb86fc]/20'
-                    : 'border-[#333] hover:border-[#555]'
+                className={`relative flex items-center bg-white/5 backdrop-blur-sm rounded-xl border transition-all duration-300 ${isFocused
+                    ? 'border-blue-400/40 shadow-[0_0_24px_rgba(59,130,246,0.15)]'
+                    : 'border-white/10 hover:border-blue-400/20 hover:bg-white/8'
                     }`}
             >
                 {/* Search Icon */}
-                <div className="absolute left-3 pointer-events-none">
+                <div className="absolute left-4 pointer-events-none">
                     {isLoading ? (
-                        <div className="w-5 h-5 border-2 border-[#bb86fc] border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                     ) : (
                         <svg
-                            className={`w-5 h-5 transition-colors ${isFocused ? 'text-[#bb86fc]' : 'text-gray-400'
+                            className={`w-4 h-4 transition-colors ${isFocused ? 'text-blue-400' : 'text-gray-500'
                                 }`}
                             fill="none"
                             stroke="currentColor"
@@ -121,7 +121,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                     onChange={(e) => handleSearch(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     placeholder={placeholder}
-                    className="w-full pl-10 pr-10 py-2 bg-transparent text-white placeholder-gray-400 focus:outline-none"
+                    className="w-full pl-11 pr-10 py-2.5 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm"
                 />
 
                 {/* Clear Button */}
@@ -132,7 +132,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.8 }}
                             onClick={() => handleSearch('')}
-                            className="absolute right-3 text-gray-400 hover:text-white transition-colors"
+                            className="absolute right-4 text-gray-500 hover:text-blue-400 transition-all duration-300 hover:scale-110"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -149,34 +149,30 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full mt-2 w-full bg-[#1e1e1e] border border-[#333] rounded-lg shadow-xl shadow-black/50 overflow-hidden z-50"
+                        className="absolute top-full mt-2 w-full bg-[#1a1f2e]/95 backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-50"
                     >
-                        <div className="max-h-96 overflow-y-auto">
+                        <div className="max-h-96 overflow-y-auto custom-scrollbar">
                             {results.map((result) => (
                                 <button
                                     key={result.id}
                                     onClick={() => handleResultClick(result.id)}
-                                    className="w-full px-4 py-3 text-left hover:bg-[#2c2c2c] transition-colors border-b border-[#333] last:border-b-0 group"
+                                    className="w-full px-5 py-3 text-left hover:bg-blue-500/10 transition-all duration-200 border-b border-blue-400/10 last:border-b-0 group"
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-medium text-white group-hover:text-[#bb86fc] transition-colors line-clamp-1">
+                                            <h4 className="text-sm font-bold text-white group-hover:text-blue-100 transition-colors line-clamp-1">
                                                 {result.title}
                                             </h4>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className={`text-xs px-2 py-0.5 rounded ${result.category === 'CRYPTO' ? 'bg-orange-500/20 text-orange-500' :
-                                                    result.category === 'SPORTS' ? 'bg-blue-500/20 text-blue-500' :
-                                                        result.category === 'POLITICS' ? 'bg-red-500/20 text-red-500' :
-                                                            'bg-purple-500/20 text-purple-500'
-                                                    }`}>
+                                                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
                                                     {result.category}
                                                 </span>
-                                                <span className="text-xs text-gray-500">
+                                                <span className="text-xs font-medium text-gray-500">
                                                     {getTimeRemaining(result.resolutionDate)}
                                                 </span>
                                             </div>
                                         </div>
-                                        <svg className="w-4 h-4 text-gray-500 group-hover:text-[#bb86fc] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>
                                     </div>
@@ -194,7 +190,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full mt-2 w-full bg-[#1e1e1e] border border-[#333] rounded-lg shadow-xl shadow-black/50 px-4 py-3 z-50"
+                        className="absolute top-full mt-2 w-full bg-[#1a1f2e]/95 backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] px-5 py-4 z-50"
                     >
                         <p className="text-sm text-gray-400 text-center">No events found</p>
                     </motion.div>

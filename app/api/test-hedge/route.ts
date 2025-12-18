@@ -262,3 +262,4 @@ export async function GET() {
     status: results.summary.status === 'PASSED' ? 200 : 500,
   });
 }
+

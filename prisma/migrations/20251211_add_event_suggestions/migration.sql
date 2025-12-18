@@ -27,3 +27,4 @@ ADD CONSTRAINT "EventSuggestion_userId_fkey" FOREIGN KEY ("userId") REFERENCES "
 
 
 
+

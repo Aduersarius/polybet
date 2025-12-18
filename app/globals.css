@@ -3,40 +3,46 @@
 @tailwind utilities;
 
 :root {
-  --background: #121212;
-  /* Material Dark Background */
-  --surface: #1e1e1e;
-  /* Material Surface */
-  --primary: #bb86fc;
-  /* Material Purple 200 */
-  --secondary: #03dac6;
-  /* Material Teal 200 */
+  /* 2026 Design - Warm, Professional, Human-Centered */
+  --background: #0f1419;
+  /* Warm deep slate */
+  --surface: #1a1f2e;
+  /* Rich navy surface */
+  --primary: #3b82f6;
+  /* Vibrant trust blue */
+  --secondary: #10b981;
+  /* Success emerald */
+  --accent: #8b5cf6;
+  /* Purposeful purple for highlights */
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 0, 0, 0;
-  --background-end-rgb: 0, 0, 0;
+  --background-start-rgb: 15, 20, 25;
+  --background-end-rgb: 20, 25, 35;
 
-  /* Shadcn Chart Colors */
-  --chart-1: 220 70% 50%;
-  --chart-2: 160 60% 45%;
-  --chart-3: 30 80% 55%;
-  --chart-4: 280 65% 60%;
-  --chart-5: 340 75% 55%;
-  --error: #cf6679;
+  /* Shadcn Chart Colors - Modern */
+  --chart-1: 217 91% 60%;
+  --chart-2: 158 64% 52%;
+  --chart-3: 43 96% 56%;
+  --chart-4: 262 83% 58%;
+  --chart-5: 338 78% 56%;
+  
+  --error: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
   --on-background: #ffffff;
   --on-surface: #ffffff;
-  --on-primary: #000000;
+  --on-primary: #ffffff;
 
   --font-sans: var(--font-outfit);
 }
 
 html {
-  background-color: #0a0a0a;
+  background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
   min-height: 100%;
 }
 
 body {
   color: var(--on-background);
-  background: #0a0a0a;
+  background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
   font-family: var(--font-sans), sans-serif;
   overflow-x: hidden;
   min-height: 100vh;
@@ -48,34 +54,41 @@ body > div:not([class*="fixed"]) {
   z-index: 1;
 }
 
-/* Material Flat Utilities */
+/* 2026 Modern Card - Glassmorphism with Depth */
 .material-card {
-  background-color: var(--surface);
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
+  background: rgba(26, 31, 46, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 
+              0 0 0 1px rgba(59, 130, 246, 0.1),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .material-card:hover {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15),
+              0 0 0 1px rgba(59, 130, 246, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-2px);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .material-btn {
-  background-color: var(--primary);
-  color: var(--on-primary);
-  border-radius: 4px;
-  text-transform: uppercase;
-  font-weight: 500;
-  letter-spacing: 1.25px;
-  padding: 10px 24px;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 12px 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .material-btn:hover {
-  background-color: #9965f4;
-  /* Slightly darker/richer on hover */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
 }
 
 /* Warp Animation Helpers */
@@ -83,14 +96,41 @@ body > div:not([class*="fixed"]) {
   perspective: 1000px;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - Modern */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.4) 0%, rgba(16, 185, 129, 0.4) 100%);
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.6) 0%, rgba(16, 185, 129, 0.6) 100%);
+}
+
+/* 2026 Modern Gradients */
+.gradient-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.gradient-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.gradient-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
