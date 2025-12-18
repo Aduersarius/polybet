@@ -1,10 +1,7 @@
+'use client';
+
 import { FAQ } from '@/app/components/FAQ';
 import { HelpCircle } from 'lucide-react';
-
-export const metadata = {
-  title: 'FAQ - Frequently Asked Questions | Polybet',
-  description: 'Find answers to common questions about trading on Polybet prediction markets.',
-};
 
 export default function FAQPage() {
   return (
