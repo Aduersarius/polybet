@@ -15,6 +15,7 @@ interface OrderBookProps {
     outcomes?: Outcome[];
     eventType?: string;
     visualMode?: boolean;
+    dataSource?: 'synthetic' | 'polymarket';
     onOrderSelect?: (intent: {
         side: 'buy' | 'sell';
         price: number;
@@ -97,16 +98,90 @@ function jitterOrderBook(prev: OrderBookState, basePrice: number): OrderBookStat
     };
 }
 
-export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', visualMode = false, onOrderSelect }: OrderBookProps) {
+export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', visualMode = false, dataSource = 'synthetic', onOrderSelect }: OrderBookProps) {
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || 'YES');
     const [orderBook, setOrderBook] = useState<OrderBookState>({ bids: [], asks: [] });
+    const [polymarketBook, setPolymarketBook] = useState<any>(null);
+    const [liveOdds, setLiveOdds] = useState<{ yesOdds: number; noOdds: number } | null>(null);
 
     const isMultiple = eventType === 'MULTIPLE';
     const selectedOption = isMultiple ? selectedOutcomeId : (selectedOutcomeId as 'YES' | 'NO');
 
-    // Fetch initial order book data (disabled in visual mode)
+    // Fetch Polymarket orderbook
     useEffect(() => {
-        if (visualMode) return;
+        if (dataSource === 'polymarket') {
+            fetch(`/api/sports/orderbook?eventId=${eventId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        console.warn('[OrderBook] Polymarket fetch error:', data.error);
+                        if (data.fallback) {
+                            setPolymarketBook(data.fallback);
+                            setLiveOdds({
+                                yesOdds: data.fallback.yes.mid,
+                                noOdds: data.fallback.no.mid
+                            });
+                        }
+                    } else {
+                        setPolymarketBook(data);
+                        setLiveOdds({
+                            yesOdds: data.yes.mid || 0.5,
+                            noOdds: data.no.mid || 0.5
+                        });
+                        
+                        // Convert Polymarket data to orderbook format
+                        const book = selectedOption === 'YES' ? data.yes : data.no;
+                        if (book && book.bids && book.asks) {
+                            setOrderBook({
+                                bids: book.bids.slice(0, 10).map((b: any) => ({
+                                    price: typeof b === 'object' ? parseFloat(b.price || b[0]) : parseFloat(b),
+                                    amount: typeof b === 'object' ? parseFloat(b.size || b[1]) : 100
+                                })),
+                                asks: book.asks.slice(0, 10).map((a: any) => ({
+                                    price: typeof a === 'object' ? parseFloat(a.price || a[0]) : parseFloat(a),
+                                    amount: typeof a === 'object' ? parseFloat(a.size || a[1]) : 100
+                                }))
+                            });
+                        }
+                    }
+                })
+                .catch(err => console.error('[OrderBook] Failed to fetch:', err));
+        }
+    }, [eventId, selectedOption, dataSource]);
+
+    // Subscribe to SSE for real-time updates
+    useEffect(() => {
+        if (dataSource === 'polymarket') {
+            const eventSource = new EventSource('/api/sports/probabilities/stream');
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const { updates } = JSON.parse(event.data);
+                    const myUpdate = updates?.find((u: any) => u.eventId === eventId);
+                    
+                    if (myUpdate) {
+                        setLiveOdds({
+                            yesOdds: myUpdate.yesOdds,
+                            noOdds: myUpdate.noOdds
+                        });
+                    }
+                } catch (error) {
+                    console.error('[OrderBook] SSE parse error:', error);
+                }
+            };
+            
+            eventSource.onerror = (error) => {
+                console.error('[OrderBook] SSE error:', error);
+                eventSource.close();
+            };
+            
+            return () => eventSource.close();
+        }
+    }, [eventId, dataSource]);
+
+    // Fetch initial order book data (disabled in visual mode and Polymarket mode)
+    useEffect(() => {
+        if (visualMode || dataSource === 'polymarket') return;
         const fetchOrderBook = async () => {
             try {
                 const params = isMultiple
@@ -123,11 +198,11 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         };
 
         fetchOrderBook();
-    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode]);
+    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
 
-    // Real-time updates via WebSocket (disabled in visual mode)
+    // Real-time updates via WebSocket (disabled in visual mode and Polymarket mode)
     useEffect(() => {
-        if (visualMode) return;
+        if (visualMode || dataSource === 'polymarket') return;
         const { socket } = require('@/lib/socket');
 
         function onOrderbookUpdate(update: any) {
@@ -148,7 +223,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
             socket.emit('unsubscribe-orderbook', isMultiple ? { eventId, outcomeId: selectedOutcomeId } : { eventId, option: selectedOption });
             socket.off('orderbook-update', onOrderbookUpdate);
         };
-    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode]);
+    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
 
     // Visual-only synthetic orderbook dynamics
     useEffect(() => {
@@ -221,7 +296,14 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         <div className="flex flex-col h-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/5 select-none">
             {/* Header */}
             <div className="flex items-center justify-between p-3 border-b border-white/5 bg-white/[0.02]">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Order Book</h3>
+                <div className="flex flex-col">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Order Book</h3>
+                    {dataSource === 'polymarket' && liveOdds && (
+                        <div className="text-[10px] text-blue-400 mt-0.5">
+                            Live: {((selectedOption === 'YES' ? liveOdds.yesOdds : liveOdds.noOdds) * 100).toFixed(1)}¢
+                        </div>
+                    )}
+                </div>
                 {/* Outcome Selector */}
                 <div className="flex bg-black/20 rounded-lg p-0.5">
                     {isMultiple ? (

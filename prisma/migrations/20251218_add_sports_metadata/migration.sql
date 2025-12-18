@@ -1,0 +1,19 @@
+-- Add sports-specific metadata fields to Event table
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "league" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "sport" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "teamA" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "teamB" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "teamALogo" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "teamBLogo" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "score" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "period" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "elapsed" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "live" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "gameStatus" TEXT;
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "startTime" TIMESTAMP(3);
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "isEsports" BOOLEAN NOT NULL DEFAULT false;
+
+-- Create indexes for fast queries
+CREATE INDEX IF NOT EXISTS "Event_live_startTime_idx" ON "Event"("live", "startTime");
+CREATE INDEX IF NOT EXISTS "Event_isEsports_live_idx" ON "Event"("isEsports", "live");
+

@@ -367,6 +367,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                         </button>
                     </div>
                 )}
+                </div>
             </div>
         </div>
     );

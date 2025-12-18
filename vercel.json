@@ -1,16 +1,8 @@
 {
-    "buildCommand": "npm run build -- --webpack",
-    "installCommand": "npm install",
-    "framework": "nextjs",
-    "functions": {
-        "app/api/**/*.ts": {
-            "maxDuration": 10
-        }
-    },
-    "rewrites": [
-        {
-            "source": "/api/(.*)",
-            "destination": "/api/$1"
-        }
-    ]
+  "crons": [
+    {
+      "path": "/api/sports/sync",
+      "schedule": "*/2 * * * *"
+    }
+  ]
 }
