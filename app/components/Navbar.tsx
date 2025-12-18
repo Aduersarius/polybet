@@ -116,18 +116,17 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     return (
         <>
             {/* Extended background for navbar overscroll */}
-            <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/80 backdrop-blur-md pointer-events-none -z-10" />
+            <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/40 backdrop-blur-xl backdrop-saturate-150 pointer-events-none -z-10" />
 
-            <nav className="border-b border-blue-400/20 bg-[#1a1f2e]/80 backdrop-blur-2xl sticky top-0 z-50 shadow-[0_4px_24px_rgba(59,130,246,0.08)]" style={{ boxShadow: '0 -100vh 0 100vh rgba(26, 31, 46, 0.8), 0 4px 24px rgba(59, 130, 246, 0.08)' }}>
+            <nav className="border-b border-blue-400/10 bg-black/40 backdrop-blur-xl backdrop-saturate-150 sticky top-0 z-50 shadow-[0_4px_24px_rgba(0,0,0,0.3)]" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.4), 0 4px 24px rgba(0, 0, 0, 0.3)' }}>
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10">
                     <div className="flex items-center justify-between h-18 gap-6">
                         {/* Logo */}
-                        <Link href="/" className="flex items-center gap-3 group py-2">
+                        <Link href="/" className="flex items-center gap-2 group py-2">
                             <div className="relative">
-                                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg blur-lg opacity-40 group-hover:opacity-60 transition-opacity"></div>
-                                <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="relative h-10 w-auto object-contain group-hover:scale-110 transition-all duration-300 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" />
+                                <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="relative h-10 w-auto object-contain group-hover:scale-110 transition-all duration-300" />
                             </div>
-                            <span className="text-2xl font-bold tracking-tight group-hover:scale-105 transition-all duration-300 uppercase bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent" style={{letterSpacing: '0.05em'}}>
+                            <span className="text-lg font-black tracking-tight group-hover:scale-105 transition-all duration-300 uppercase text-white" style={{letterSpacing: '0.05em', fontWeight: 800}}>
                                 PolyBet
                             </span>
                         </Link>
@@ -137,12 +136,11 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                             <SearchBar onSearch={handleSearch} />
                             <button
                                 onClick={() => startTour()}
-                                className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors whitespace-nowrap font-medium uppercase tracking-wide"
+                                className="inline-flex items-center justify-center w-8 h-8 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
                                 aria-label="Get started"
                                 title="Get started"
                             >
-                                <span>Get started</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25h.008v.008h-.008v-.008ZM12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm-.75-9.75h1.5v4.5h-1.5v-4.5Zm0-3h1.5v1.5h-1.5v-1.5Z" />
                                 </svg>
                             </button>
@@ -184,7 +182,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                         </button>
 
                                         {/* Dropdown Menu */}
-                                        <div className="absolute right-0 mt-2 w-60 bg-[#1a1f2e]/95 backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-right z-50">
+                                        <div className="absolute right-0 mt-2 w-60 bg-surface/95 backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-right z-50" style={{ backgroundColor: 'var(--surface)' }}>
                                             <div className="p-4 border-b border-blue-400/10 bg-gradient-to-br from-blue-500/10 to-purple-500/10">
                                                 <p className="text-sm font-bold text-white truncate">{(session as any).user?.name || 'User'}</p>
                                                 <p className="text-xs text-white/60 truncate mt-1">{(session as any).user?.email}</p>
@@ -251,7 +249,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 {/* Bottom Row: Categories - Full Width */}
                 {
                     onCategoryChange && (
-                        <div className="w-full bg-[#1a1f2e]/60 border-t border-blue-400/10 backdrop-blur-xl">
+                        <div className="w-full border-t border-blue-400/10 backdrop-blur-xl" style={{ backgroundColor: 'var(--surface)' }}>
                             <div className="max-w-7xl mx-auto px-6 py-2.5">
                                 <div className="overflow-x-auto scrollbar-hide">
                                     <div className="flex items-center gap-2 category-nav">

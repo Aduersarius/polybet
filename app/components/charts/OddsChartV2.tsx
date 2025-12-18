@@ -151,7 +151,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   return (
     <div
-      className="relative h-full w-full bg-[#1e1e1e] select-none cursor-crosshair outline-none ring-0 focus:outline-none active:outline-none"
+      className="relative h-full w-full bg-[#1a1d28] select-none cursor-crosshair outline-none ring-0 focus:outline-none active:outline-none"
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="absolute inset-0">
@@ -291,7 +291,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
       {/* Header */}
       <div className="absolute top-3 left-4 right-4 flex items-start justify-between pointer-events-none">
-        <div className="pointer-events-auto rounded-lg bg-[#1e1e1e]/80 backdrop-blur-sm px-3 py-2 flex flex-col items-end">
+        <div className="pointer-events-auto rounded-lg bg-[#1a1d28] backdrop-blur-sm px-3 py-2 flex flex-col items-end border border-white/10">
           <OddsLegend
             isMultipleOutcomes={isMultipleOutcomes}
             coloredOutcomes={coloredOutcomes as any}
@@ -306,7 +306,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
       <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between pointer-events-none">
         <PeriodSelector period={period} onChange={setPeriod} />
 
-        <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1e1e1e]/80 backdrop-blur-sm p-2">
+        <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1a1d28]/80 backdrop-blur-sm p-2">
           <div className="flex items-center gap-1 opacity-40 hover:opacity-100 transition-opacity select-none">
             <img src="/diamond_logo_nobg.png" alt="PolyBet" className="h-6 w-6 object-contain" />
             <span className="text-xs font-bold tracking-wider bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">

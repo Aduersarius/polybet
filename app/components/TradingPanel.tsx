@@ -14,6 +14,7 @@ import { AlertTriangle, X } from 'lucide-react';
 import { getUserFriendlyError, getBalanceError, getMinimumBetError, getMaximumBetError } from '@/lib/error-messages';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { HelpBanner } from '@/components/ui/HelpBanner';
+import { getOutcomeColor } from '@/lib/colors';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -32,6 +33,11 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const eventId = (propEventId || routeEventId) as string | undefined;
     const { data: session } = useSession();
     const isAuthenticated = Boolean((session as any)?.user);
+    
+    // Outcome colors from centralized system
+    const yesColor = getOutcomeColor(1); // #03DAC6
+    const noColor = getOutcomeColor(2); // #CF6679
+    const focusColor = getOutcomeColor(0); // #BB86FC
 
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOption, setSelectedOption] = useState<'YES' | 'NO'>(preselectedOption || 'YES');
@@ -374,7 +380,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const containerClass =
         variant === 'modal'
             ? "bg-transparent"
-            : "bg-[#1e1e1e] rounded-xl border border-white/10 overflow-hidden shadow-2xl";
+            : "bg-zinc-800 rounded-xl border border-white/10 overflow-hidden shadow-2xl";
 
     const contentPadding = variant === 'modal' ? 'p-5 space-y-5' : 'p-4 space-y-4';
 
@@ -428,7 +434,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     <button
                         onClick={() => setSelectedOption('YES')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'YES'
-                            ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
+                            ? `bg-[${yesColor}]/20 border-[${yesColor}] text-[${yesColor}]`
                             : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                             }`}
                     >
@@ -438,7 +444,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     <button
                         onClick={() => setSelectedOption('NO')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'NO'
-                            ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
+                            ? `bg-[${noColor}]/20 border-[${noColor}] text-[${noColor}]`
                             : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                             }`}
                     >
@@ -475,7 +481,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             type="number"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            className={`amount-input w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium`}
+                            className={`amount-input w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[${focusColor}] transition-colors text-lg font-medium`}
                             placeholder="0"
                         />
                     </div>
@@ -546,7 +552,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             <button
                                 onClick={() => setOrderType('market')}
                                 className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'market'
-                                    ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
+                                    ? `bg-[${yesColor}]/20 border-[${yesColor}] text-[${yesColor}]`
                                     : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                                     }`}
                             >
@@ -555,7 +561,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             <button
                                 onClick={() => setOrderType('limit')}
                                 className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'limit'
-                                    ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
+                                    ? `bg-[${noColor}]/20 border-[${noColor}] text-[${noColor}]`
                                     : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                                     }`}
                             >
@@ -577,7 +583,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                     type="number"
                                     value={price}
                                     onChange={(e) => setPrice(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium"
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[${focusColor}] transition-colors text-lg font-medium"
                                     placeholder="0.50"
                                     step="0.01"
                                     min="0.01"
@@ -602,8 +608,8 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
                     }
                     className={`w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${selectedOption === 'YES'
-                        ? 'bg-[#03dac6] hover:bg-[#02b3a5] shadow-[#03dac6]/20'
-                        : 'bg-[#cf6679] hover:bg-[#b85868] shadow-[#cf6679]/20'
+                        ? `bg-[${yesColor}] hover:bg-[${yesColor}]/90 shadow-[${yesColor}]/20`
+                        : `bg-[${noColor}] hover:bg-[${noColor}]/90 shadow-[${noColor}]/20`
                         }`}
                 >
                     {isLoading
@@ -634,12 +640,12 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl"
+                            className="bg-zinc-800 border border-white/10 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl"
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${selectedOption === 'YES' ? 'bg-[#03dac6]/20' : 'bg-[#cf6679]/20'}`}>
-                                        <AlertTriangle className={`w-5 h-5 ${selectedOption === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`} />
+                                    <div className={`p-2 rounded-lg ${selectedOption === 'YES' ? `bg-[${yesColor}]/20` : `bg-[${noColor}]/20`}`}>
+                                        <AlertTriangle className={`w-5 h-5 ${selectedOption === 'YES' ? `text-[${yesColor}]` : `text-[${noColor}]`}`} />
                                     </div>
                                     <h3 className="text-lg font-bold text-white">Confirm Trade</h3>
                                 </div>
@@ -668,7 +674,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">You receive</span>
-                                    <span className={`font-bold ${selectedOption === 'YES' ? 'text-[#03dac6]' : 'text-[#cf6679]'}`}>
+                                    <span className={`font-bold ${selectedOption === 'YES' ? `text-[${yesColor}]` : `text-[${noColor}]`}`}>
                                         {selectedTab === 'buy' ? `${potentialPayout.toFixed(2)} shares` : formatCurrency(potentialPayout)}
                                     </span>
                                 </div>
@@ -683,7 +689,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </button>
                                 <button
                                     onClick={executeTrade}
-                                    className={`flex-1 py-3 rounded-lg font-bold text-black transition-all ${selectedOption === 'YES' ? 'bg-[#03dac6] hover:bg-[#02b3a5]' : 'bg-[#cf6679] hover:bg-[#b85868]'
+                                    className={`flex-1 py-3 rounded-lg font-bold text-black transition-all ${selectedOption === 'YES' ? `bg-[${yesColor}] hover:bg-[${yesColor}]/90` : `bg-[${noColor}] hover:bg-[${noColor}]/90`
                                         }`}
                                 >
                                     Confirm

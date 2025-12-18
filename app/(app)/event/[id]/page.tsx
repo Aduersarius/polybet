@@ -298,7 +298,7 @@ export default function EventPage() {
                                         />
 
                                         {(liveEvent.type === 'BINARY' || liveEvent.type === 'MULTIPLE') && (
-                                            <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden odds-chart">
+                                            <div className="bg-[#1a1d28] rounded-xl border border-white/10 shadow-2xl overflow-hidden odds-chart">
                                                 <button
                                                     className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
                                                     onClick={() => toggleSection('chart')}
@@ -327,7 +327,7 @@ export default function EventPage() {
                                             </div>
                                         )}
 
-                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden order-book-section">
+                                        <div className="bg-[#1a1d28] rounded-xl border border-white/10 shadow-2xl overflow-hidden order-book-section">
                                             <button
                                                 className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
                                                 onClick={() => toggleSection('orderbook')}
@@ -354,13 +354,9 @@ export default function EventPage() {
                                             )}
                                         </div>
 
-                                        {/* Related Markets - Desktop */}
-                                        <div className="hidden lg:block">
-                                            <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />
-                                        </div>
 
                                         {/* Comments Section */}
-                                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                        <div className="bg-zinc-800 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
                                             <button
                                                 className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white"
                                                 onClick={() => toggleSection('chat')}
@@ -410,6 +406,8 @@ export default function EventPage() {
                                                 tradeIntent={tradeIntent}
                                             />
                                         )}
+                                        {/* Related Markets */}
+                                        <SuggestedEvents category={liveEvent.categories && liveEvent.categories.length > 0 ? liveEvent.categories[0] : 'ALL'} currentEventId={liveEvent.id.toString()} />
                                     </div>
                                 </aside>
                             </div>

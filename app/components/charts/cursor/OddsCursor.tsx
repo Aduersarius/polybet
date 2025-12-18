@@ -214,7 +214,7 @@ export function OddsCursor({
         y={plotTop}
         width={Math.max(0, plotRight - x)}
         height={plotHeight}
-        fill="rgba(30, 30, 30, 0.5)"
+        fill="rgba(26, 29, 40, 0.5)"
         style={{ pointerEvents: 'none' }}
       />
 
@@ -230,7 +230,7 @@ export function OddsCursor({
 
       <foreignObject x={dateLabelX} y={50} width={150} height={26}>
         <div className="flex justify-center">
-          <div className="bg-[#1e1e1e]/90 border border-white/20 rounded px-2 py-0.5 text-[11px] font-medium text-gray-300 backdrop-blur-sm shadow-xl whitespace-nowrap">
+          <div className="bg-[#1a1d28]/90 border border-white/20 rounded px-2 py-0.5 text-[11px] font-medium text-gray-300 backdrop-blur-sm shadow-xl whitespace-nowrap">
             {formattedDate}
           </div>
         </div>
@@ -250,7 +250,7 @@ export function OddsCursor({
           >
             <div
               style={{
-                background: 'rgba(30, 30, 30, 0.95)',
+                background: 'rgba(26, 29, 40, 0.95)',
                 border: `1px solid ${item.color}50`,
                 borderRadius: '4px',
                 padding: labelHeight <= 18 ? '1px 6px' : '2px 6px',

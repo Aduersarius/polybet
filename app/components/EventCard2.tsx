@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import { MultipleTradingPanelModal } from './MultipleTradingPanelModal';
+import { getCategoryColorClasses, getOutcomeColor } from '@/lib/colors';
 
 interface DbEvent {
   id: string;
@@ -34,6 +35,8 @@ interface EventCard2Props {
   isEnded?: boolean;
   onTradeClick?: (event: DbEvent, option: 'YES' | 'NO') => void;
   onMultipleTradeClick?: (event: DbEvent) => void;
+  onCategoryClick?: (category: string) => void;
+  index?: number;
 }
 
 const getTimeRemaining = (endDate: Date) => {
@@ -48,8 +51,120 @@ const getTimeRemaining = (endDate: Date) => {
   return `${hours}h`;
 };
 
-export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTradeClick }: EventCard2Props) {
+const getFullTimeRemaining = (endDate: Date) => {
+  const now = new Date();
+  const diff = endDate.getTime() - now.getTime();
+  if (diff <= 0) return "ENDED";
+  
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (days > 0 || hours > 0) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  
+  return parts.join(' ');
+};
+
+// Animated number component for tooltip
+function AnimatedPercentage({ value, delay, duration }: { value: number; delay: number; duration: number }) {
+  const [displayValue, setDisplayValue] = useState(0); // Start at 0 to animate from 0 on load
+  const animationFrameRef = useRef<number | null>(null);
+  const prevValueRef = useRef<number | null>(null);
+  const displayValueRef = useRef(0);
+  const isFirstMountRef = useRef(true);
+
+  // Sync displayValueRef with state
+  useEffect(() => {
+    displayValueRef.current = displayValue;
+  }, [displayValue]);
+
+  useEffect(() => {
+    // Skip if value hasn't changed
+    if (prevValueRef.current !== null && value === prevValueRef.current) {
+      return;
+    }
+
+    // Cancel any ongoing animation
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    const isFirstMount = isFirstMountRef.current;
+    isFirstMountRef.current = false;
+    
+    // On first mount, animate from 0 to target value immediately (no delay).
+    // On subsequent changes, animate from current to new value with delay.
+    const startValue = isFirstMount ? 0 : displayValueRef.current;
+    const endValue = value;
+    
+    const startTime = Date.now();
+    const totalDuration = (duration * 1000) * 1.5 || 1800; // Make it 1.5x longer for smoother animation
+
+    // Smooth easing function (ease-out cubic)
+    const easeOutCubic = (t: number): number => {
+      return 1 - Math.pow(1 - t, 3);
+    };
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / totalDuration, 1);
+      
+      const eased = easeOutCubic(progress);
+      const current = Math.round(startValue + (endValue - startValue) * eased);
+      
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(endValue);
+        displayValueRef.current = endValue;
+        prevValueRef.current = value;
+        animationFrameRef.current = null;
+      }
+    };
+
+    // On first mount, start immediately. On subsequent updates, use delay.
+    if (isFirstMount) {
+      animationFrameRef.current = requestAnimationFrame(animate);
+    } else {
+      const actualDelay = delay * 1000;
+      const timeoutId = setTimeout(() => {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }, actualDelay);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+      };
+    }
+    
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [value, delay, duration]);
+
+  return <span>{displayValue}%</span>;
+}
+
+export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTradeClick, onCategoryClick, index = 0 }: EventCard2Props) {
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isCountdownHovered, setIsCountdownHovered] = useState(false);
+  const [fullTimeRemaining, setFullTimeRemaining] = useState<string>('');
+  const [showOutcomesDropdown, setShowOutcomesDropdown] = useState(false);
+  const outcomesDropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   // Fetch user's favorites
@@ -81,6 +196,36 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     setLiveNoOdds(event.noOdds);
     setLiveOutcomes(event.outcomes);
   }, [event.yesOdds, event.noOdds, event.outcomes]);
+
+  // Update full time remaining when hovered
+  useEffect(() => {
+    if (!isCountdownHovered) return;
+    
+    const updateFullTime = () => {
+      const endDate = new Date(event.resolutionDate);
+      setFullTimeRemaining(getFullTimeRemaining(endDate));
+    };
+    
+    updateFullTime();
+    const interval = setInterval(updateFullTime, 1000);
+    
+    return () => clearInterval(interval);
+  }, [isCountdownHovered, event.resolutionDate]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (outcomesDropdownRef.current && !outcomesDropdownRef.current.contains(event.target as Node)) {
+        setShowOutcomesDropdown(false);
+      }
+    };
+
+    if (showOutcomesDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showOutcomesDropdown]);
+
 
   // Fetch latest odds history to seed with freshest point (binary or multiple)
   const { data: latestHistory } = useQuery({
@@ -241,30 +386,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const charCodeSum = event.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const hoverColorClass = hoverColors[charCodeSum % hoverColors.length];
 
-  // Random delay for entrance animation to create organic feel
-  const [randomDelay, setRandomDelay] = useState(0);
-  useEffect(() => {
-    setRandomDelay(Math.random() * 0.3); // 0 to 0.3s delay
-  }, []);
-
-  // Category-specific colors - Modern 2026 vibrant
-  const getCategoryColor = (category: string): string => {
-    const cat = category.toUpperCase();
-    switch (cat) {
-      case 'CRYPTO': return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-      case 'SPORTS': return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
-      case 'POLITICS': return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
-      case 'ELECTIONS': return 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10';
-      case 'TECH': return 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10';
-      case 'BUSINESS': return 'text-purple-400 border-purple-500/30 bg-purple-500/10';
-      case 'FINANCE': return 'text-green-400 border-green-500/30 bg-green-500/10';
-      case 'SCIENCE': return 'text-pink-400 border-pink-500/30 bg-pink-500/10';
-      case 'CULTURE': return 'text-rose-400 border-rose-500/30 bg-rose-500/10';
-      case 'ECONOMY': return 'text-teal-400 border-teal-500/30 bg-teal-500/10';
-      case 'WORLD': return 'text-violet-400 border-violet-500/30 bg-violet-500/10';
-      default: return 'text-gray-400 border-gray-500/30 bg-gray-500/10';
-    }
-  };
+  // Category-specific colors - Now using centralized color system
+  const getCategoryColor = getCategoryColorClasses;
 
   return (
     <Link
@@ -278,14 +401,14 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       }}
     >
       <motion.div
-        initial={{ opacity: 0, y: 15, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, delay: randomDelay, type: "spring", stiffness: 100 }}
-        className={`group bg-gradient-to-br from-[#1a1f2e]/60 to-[#1a1f2e]/40 backdrop-blur-sm border border-blue-400/10 hover:border-blue-400/30 rounded-2xl p-4 transition-all duration-300 flex flex-col justify-between min-h-[210px] h-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:scale-[1.02] ${isEnded ? 'opacity-50' : ''
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
+        className={`group bg-zinc-800 border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-all duration-300 flex flex-col justify-between h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:scale-[1.01] overflow-visible ${isEnded ? 'opacity-50' : ''
           }`}
       >
         {/* 1. Header: Image & Title */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2.5">
           <div className="flex-shrink-0 relative">
             {event.imageUrl ? (
               <img
@@ -311,7 +434,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-start gap-1">
+            <div className="flex justify-between items-start gap-2">
               <h3 className="text-[13px] font-bold text-white leading-tight line-clamp-3 group-hover:text-blue-100 transition-all duration-300">
                 {event.title}
               </h3>
@@ -338,15 +461,31 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         </div>
 
         {/* 2. Info Row: Categories & Time */}
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center justify-between relative" style={{ overflowX: 'visible', overflowY: 'visible', minHeight: '28px' }}>
+          <motion.div 
+            className="flex items-center gap-2 flex-nowrap flex-1 -ml-1"
+            animate={{
+              opacity: isCountdownHovered ? 0 : 1,
+            }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            style={{
+              pointerEvents: isCountdownHovered ? 'none' : 'auto',
+            }}
+          >
             {event.categories && event.categories.length > 0 ? (
               // Show up to 2 categories with color-coding
               event.categories.slice(0, 2).map((cat, idx) => (
                 <Badge
                   key={idx}
                   variant="outline"
-                  className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold ${getCategoryColor(cat)}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onCategoryClick) {
+                      onCategoryClick(cat);
+                    }
+                  }}
+                  className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200 ${getCategoryColor(cat)}`}
                 >
                   {cat}
                 </Badge>
@@ -355,18 +494,408 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               // Fallback to single category if categories array not available
               <Badge
                 variant="outline"
-                className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold ${getCategoryColor(event.category)}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onCategoryClick) {
+                    onCategoryClick(event.category);
+                  }
+                }}
+                className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200 ${getCategoryColor(event.category)}`}
               >
                 {event.category}
               </Badge>
             ) : null}
+          </motion.div>
+          <div
+            className="absolute right-0 z-10 top-0"
+            onMouseEnter={() => setIsCountdownHovered(true)}
+            onMouseLeave={() => setIsCountdownHovered(false)}
+          >
+            <span
+              className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap inline-block"
+              style={{ lineHeight: 'normal' }}
+            >
+              <AnimatePresence mode="wait">
+                {!isCountdownHovered ? (
+                  <motion.span
+                    key="short-time"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="inline-block"
+                  >
+                    {getTimeRemaining(new Date(event.resolutionDate))}
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="full-time"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="inline-block whitespace-nowrap"
+                  >
+                    {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </span>
           </div>
-          <span className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-400/20 shadow-inner">{getTimeRemaining(new Date(event.resolutionDate))}</span>
         </div>
 
+        {/* 4. Outcomes / Buttons */}
+        {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
+          <div className="flex flex-col gap-2.5 mt-3">
+             {(() => {
+               // Get all outcomes (unfiltered) to preserve original indices for color matching
+               const allOutcomesUnfiltered = (liveOutcomes || event.outcomes) || [];
+               
+               // Get all valid outcomes with probabilities - shared between slider and buttons
+               const allOutcomes = allOutcomesUnfiltered.filter((outcome) => {
+                 const probValue = outcome?.probability;
+                 if (probValue == null || probValue < 0) return false;
+                 const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                 if (probability === 0) return false;
+                 return true;
+               });
+
+               // Helper function to get outcome color - use outcome.color if available, otherwise use centralized system
+               // Uses original index from unfiltered array to match event page color assignment
+               const getOutcomeColorForIndex = (outcome: { id: string; color?: string }) => {
+                 // If outcome has a color property, use it (from API/centralized system)
+                 if (outcome?.color) {
+                   return outcome.color;
+                 }
+                 // Find original index in unfiltered array to match event page color assignment
+                 const originalIdx = allOutcomesUnfiltered.findIndex(o => o.id === outcome.id);
+                 // Use centralized color system with original index
+                 return getOutcomeColor(originalIdx >= 0 ? originalIdx : 0);
+               };
+
+               // Helper function to convert hex to rgba for opacity
+               const hexToRgba = (hex: string, opacity: number) => {
+                 const r = parseInt(hex.slice(1, 3), 16);
+                 const g = parseInt(hex.slice(3, 5), 16);
+                 const b = parseInt(hex.slice(5, 7), 16);
+                 return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+               };
+
+               // Helper function to get lighter text color from hex
+               const getTextColorFromHex = (hex: string) => {
+                 // Convert hex to RGB
+                 const r = parseInt(hex.slice(1, 3), 16);
+                 const g = parseInt(hex.slice(3, 5), 16);
+                 const b = parseInt(hex.slice(5, 7), 16);
+                 // Calculate luminance
+                 const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                 // Return lighter version of the color for text
+                 return `rgb(${Math.min(255, r + 40)}, ${Math.min(255, g + 40)}, ${Math.min(255, b + 40)})`;
+               };
+
+               // Show top 2 outcomes for buttons (matching binary layout)
+               const topOutcomes = allOutcomes.slice(0, 2);
+               const buttonRemainingOutcomes = Math.max(0, allOutcomes.length - 2);
+
+               return (
+                 <>
+                   <div className="relative">
+                     {/* Percentage Tooltips - Show for all outcomes with >15% probability */}
+                     {allOutcomes.map((outcome, idx) => {
+                       const probValue = outcome.probability ?? 0;
+                       const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                       
+                       // Only show tooltip if probability is greater than 15%
+                       if (probability <= 15) return null;
+                       
+                       // Calculate cumulative position for tooltip
+                       const cumulativeWidth = allOutcomes.slice(0, idx).reduce((sum, o) => {
+                         const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
+                         return sum + p;
+                       }, 0);
+                       const tooltipPosition = cumulativeWidth + (probability / 2);
+                       return (
+                         <motion.div
+                           key={`tooltip-${outcome.id}`}
+                           initial={{ left: '0%', opacity: 0 }}
+                           animate={{ 
+                             left: `${tooltipPosition}%`,
+                             opacity: probability > 0 ? 1 : 0
+                           }}
+                           transition={{ 
+                             duration: 0.8, 
+                             delay: (index * 0.05) + 0.3, 
+                             ease: "easeOut" 
+                           }}
+                           className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                         >
+                           <span className="text-xs font-bold text-white whitespace-nowrap">
+                             <AnimatedPercentage value={probability} delay={(index * 0.05) + 0.3} duration={0.8} />
+                           </span>
+                         </motion.div>
+                       );
+                     })}
+                     
+                     {/* Slider with ALL outcomes */}
+                     <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500/30 group/slider">
+                       {allOutcomes.map((outcome, idx) => {
+                         const probValue = outcome.probability ?? 0;
+                         const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                         const colorHex = getOutcomeColorForIndex(outcome);
+                         // Calculate left position based on cumulative width of previous outcomes
+                         const leftPosition = allOutcomes.slice(0, idx).reduce((sum, o) => {
+                           const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
+                           return sum + p;
+                         }, 0);
+                         
+                         return (
+                           <motion.div
+                             key={outcome.id}
+                             initial={{ width: 0 }}
+                             animate={{ width: `${probability}%` }}
+                             transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                             className="absolute top-0 h-full group/segment cursor-pointer"
+                             style={{ left: `${leftPosition}%`, backgroundColor: colorHex }}
+                           >
+                             {/* Hover tooltip with outcome name - appears above slider */}
+                             <div className="absolute left-1/2 -translate-x-1/2 -top-8 opacity-0 group-hover/segment:opacity-100 transition-opacity duration-200 pointer-events-none z-30">
+                               <div className="bg-black/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-lg">
+                                 {outcome.name}
+                               </div>
+                             </div>
+                           </motion.div>
+                         );
+                       })}
+                       
+                       {/* Separators between outcomes */}
+                       {allOutcomes.slice(0, -1).map((outcome, idx) => {
+                         const cumulativeWidth = allOutcomes.slice(0, idx + 1).reduce((sum, o) => {
+                           const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
+                           return sum + p;
+                         }, 0);
+                         if (cumulativeWidth > 0 && cumulativeWidth < 100) {
+                           return (
+                             <motion.div 
+                               key={`separator-${idx}`}
+                               initial={{ left: '0%', opacity: 0 }}
+                               animate={{ 
+                                 left: `${cumulativeWidth}%`,
+                                 opacity: 1
+                               }}
+                               transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                               className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                             />
+                           );
+                         }
+                         return null;
+                       })}
+                     </div>
+                   </div>
+                   
+                   <div className="flex items-center gap-2.5 min-h-[36px]">
+                     {topOutcomes.map((outcome) => {
+                       if (!outcome) return null;
+                       const probValue = outcome.probability ?? 0;
+                       const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                       const colorHex = getOutcomeColorForIndex(outcome);
+                       const textColor = getTextColorFromHex(colorHex);
+                       
+                       return (
+                         <motion.button
+                           key={outcome.id}
+                           onClick={(e) => {
+                             e.preventDefault();
+                             if (onMultipleTradeClick) {
+                               onMultipleTradeClick(event);
+                             } else {
+                               window.location.href = `/event/${event.id}`;
+                             }
+                           }}
+                           whileHover={{ scale: 1.01 }}
+                           whileTap={{ scale: 0.99 }}
+                           className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                           style={{ 
+                             backgroundColor: hexToRgba(colorHex, 0.1),
+                           }}
+                           onMouseEnter={(e) => {
+                             e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
+                           }}
+                           onMouseLeave={(e) => {
+                             e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
+                           }}
+                         >
+                           <span 
+                             className="relative z-10 text-[10px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 truncate max-w-full"
+                             style={{ color: textColor }}
+                           >
+                             {outcome.name}
+                           </span>
+                           <span 
+                             className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                             style={{ color: textColor }}
+                           >
+                             {probability}%
+                           </span>
+                         </motion.button>
+                       );
+                     })}
+                     {buttonRemainingOutcomes > 0 && (
+                       <div ref={outcomesDropdownRef} className="relative flex-shrink-0 ml-auto">
+                         <button
+                           onClick={(e) => {
+                             e.preventDefault();
+                             e.stopPropagation();
+                             setShowOutcomesDropdown(!showOutcomesDropdown);
+                           }}
+                           className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-1 rounded-lg border border-purple-400/20 hover:bg-purple-500/20 hover:border-purple-400/40 transition-all duration-200 cursor-pointer"
+                         >
+                           +{buttonRemainingOutcomes}
+                         </button>
+                         {showOutcomesDropdown && (
+                           <motion.div
+                             initial={{ opacity: 0, y: -10 }}
+                             animate={{ opacity: 1, y: 0 }}
+                             exit={{ opacity: 0, y: -10 }}
+                             transition={{ duration: 0.2 }}
+                             className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-purple-400/30 rounded-lg shadow-xl overflow-hidden min-w-[200px] max-w-[300px]"
+                           >
+                             <div className="max-h-[300px] overflow-y-auto">
+                               {allOutcomes.slice(2, 12).map((outcome) => {
+                                 const probValue = outcome.probability ?? 0;
+                                 const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                                 const colorHex = getOutcomeColorForIndex(outcome);
+                                 const textColor = getTextColorFromHex(colorHex);
+                                 
+                                 return (
+                                   <button
+                                     key={outcome.id}
+                                     onClick={(e) => {
+                                       e.preventDefault();
+                                       e.stopPropagation();
+                                       if (onMultipleTradeClick) {
+                                         onMultipleTradeClick(event);
+                                       } else {
+                                         window.location.href = `/event/${event.id}`;
+                                       }
+                                       setShowOutcomesDropdown(false);
+                                     }}
+                                     className="w-full px-3 py-2 text-left hover:bg-purple-500/10 transition-colors duration-150 border-b border-purple-400/10 last:border-b-0 flex items-center justify-between gap-2"
+                                   >
+                                     <span 
+                                       className="text-[11px] font-semibold truncate flex-1"
+                                       style={{ color: textColor }}
+                                     >
+                                       {outcome.name}
+                                     </span>
+                                     <span 
+                                       className="text-[11px] font-bold flex-shrink-0"
+                                       style={{ color: textColor }}
+                                     >
+                                       {probability}%
+                                     </span>
+                                   </button>
+                                 );
+                               })}
+                             </div>
+                           </motion.div>
+                         )}
+                       </div>
+                     )}
+                   </div>
+                 </>
+               );
+             })()}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5 mt-3">
+             {(() => {
+              const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
+              const noVal = liveNoOdds ?? event.noOdds ?? 0;
+              const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
+              // const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+              return (
+                <div className="relative">
+                  {/* Percentage Number */}
+                  <motion.div
+                    initial={{ left: '0%', opacity: 0 }}
+                    animate={{ 
+                      left: `${yesDisplay}%`,
+                      opacity: yesDisplay > 0 ? 1 : 0
+                    }}
+                    transition={{ 
+                      duration: 0.8, 
+                      delay: (index * 0.05) + 0.3, 
+                      ease: "easeOut" 
+                    }}
+                    className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                  >
+                    <span className="text-sm font-bold text-white whitespace-nowrap">
+                      <AnimatedPercentage value={yesDisplay} delay={(index * 0.05) + 0.3} duration={0.8} />
+                    </span>
+                  </motion.div>
+                  
+                  {/* Slider */}
+                  <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${yesDisplay}%` }}
+                      transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                      className="absolute left-0 top-0 h-full bg-emerald-600" 
+                    />
+                    {/* Separator */}
+                    {yesDisplay > 0 && yesDisplay < 100 && (
+                      <motion.div 
+                        initial={{ left: '0%', opacity: 0 }}
+                        animate={{ 
+                          left: `${yesDisplay}%`,
+                          opacity: 1
+                        }}
+                        transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                        className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+             })()}
+             
+            <div className="flex gap-2.5 min-h-[36px]">
+            {(() => {
+              const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
+              const noVal = liveNoOdds ?? event.noOdds ?? 0;
+              const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
+              const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+              return (
+                <>
+                  <motion.button
+                    onClick={(e) => handleTradeClick(e, 'YES')}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="group/btn relative flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                  >
+                    <span className="relative z-10 text-[12px] font-bold text-emerald-300 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300">YES</span>
+                    <span className="absolute z-10 text-[13px] font-bold text-emerald-200 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300">{yesDisplay}%</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={(e) => handleTradeClick(e, 'NO')}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="group/btn relative flex-1 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                  >
+                    <span className="relative z-10 text-[12px] font-bold text-rose-300 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300">NO</span>
+                    <span className="absolute z-10 text-[13px] font-bold text-rose-200 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300">{noDisplay}%</span>
+                  </motion.button>
+                </>
+              );
+            })()}
+            </div>
+          </div>
+        )}
+
         {/* 3. Stats Row */}
-        <div className="flex items-center justify-between text-white/60 px-1">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between text-white/60 pt-0.5">
+          <div className="flex items-center justify-between flex-1 pr-1">
             <span className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -386,105 +915,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               {commentsCount}
             </span>
           </div>
-
-          {remainingOutcomes > 0 && event.type === 'MULTIPLE' && (
-            <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-1 rounded-lg border border-purple-400/20">
-              +{remainingOutcomes}
-            </span>
-          )}
         </div>
-
-        {/* 4. Outcomes / Buttons */}
-        {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
-          <div className="flex gap-2 min-h-[38px]">
-            {(liveOutcomes || event.outcomes)?.slice(0, 2)
-              .filter((outcome) => {
-                // Filter out outcomes with invalid probabilities
-                const probValue = outcome?.probability;
-                if (probValue == null || probValue === undefined || probValue < 0) return false;
-                const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                // Skip if 0% or 100% when there are multiple outcomes (likely invalid)
-                if (probability === 0) return false;
-                const totalOutcomes = (liveOutcomes || event.outcomes)?.length ?? 0;
-                if (probability === 100 && totalOutcomes > 1) return false;
-                return true;
-              })
-              .map((outcome, idx) => {
-                if (!outcome) return null;
-              const probValue = outcome.probability ?? 0;
-              // If probValue > 1, it's already a percentage, otherwise it's 0-1 probability
-              const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-              const barColor = idx === 0 ? 'bg-emerald-500' : 'bg-rose-500';
-              const textColor = idx === 0 ? 'text-emerald-300' : 'text-rose-300';
-              const borderColor = idx === 0 ? 'border-emerald-500/30 hover:border-emerald-400/60' : 'border-rose-500/30 hover:border-rose-400/60';
-              const shadowColor = idx === 0 ? 'shadow-emerald-500/20' : 'shadow-rose-500/20';
-              return (
-                <motion.button
-                  key={outcome.id}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (onMultipleTradeClick) {
-                      onMultipleTradeClick(event);
-                    } else {
-                      window.location.href = `/event/${event.id}`;
-                    }
-                  }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`relative flex-1 overflow-hidden bg-white/5 hover:bg-white/10 rounded-lg px-2 py-1.5 text-left cursor-pointer transition-all group/btn flex flex-col justify-center border ${borderColor} shadow-lg ${shadowColor}`}
-                >
-                  {/* Progress Bar Background */}
-                  <div
-                    className={`absolute top-0 left-0 h-full opacity-20 transition-all group-hover/btn:opacity-30 ${barColor}`}
-                    style={{ width: `${probability}%` }}
-                  />
-
-                  <div className="relative z-10 w-full">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-white truncate pr-2">
-                        {outcome.name}
-                      </span>
-                      <span className={`text-[11px] font-bold ${textColor}`}>
-                        {probability}%
-                      </span>
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex gap-2 min-h-[38px]">
-            {(() => {
-              const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
-              const noVal = liveNoOdds ?? event.noOdds ?? 0;
-              const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
-              const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
-              return (
-                <>
-                  <motion.button
-                    onClick={(e) => handleTradeClick(e, 'YES')}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="flex-1 bg-gradient-to-r from-emerald-500/20 to-emerald-600/20 hover:from-emerald-500/30 hover:to-emerald-600/30 rounded-xl flex items-center justify-between px-4 py-2.5 cursor-pointer transition-all duration-300 border border-emerald-400/30 hover:border-emerald-400/50 shadow-[0_4px_12px_rgba(16,185,129,0.15)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.25)]"
-                  >
-                    <span className="text-[12px] font-bold text-emerald-300 uppercase tracking-wide">YES</span>
-                    <span className="text-[13px] font-bold text-emerald-200">{yesDisplay}%</span>
-                  </motion.button>
-                  <motion.button
-                    onClick={(e) => handleTradeClick(e, 'NO')}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="flex-1 bg-gradient-to-r from-rose-500/20 to-rose-600/20 hover:from-rose-500/30 hover:to-rose-600/30 rounded-xl flex items-center justify-between px-4 py-2.5 cursor-pointer transition-all duration-300 border border-rose-400/30 hover:border-rose-400/50 shadow-[0_4px_12px_rgba(244,63,94,0.15)] hover:shadow-[0_6px_20px_rgba(244,63,94,0.25)]"
-                  >
-                    <span className="text-[12px] font-bold text-rose-300 uppercase tracking-wide">NO</span>
-                    <span className="text-[13px] font-bold text-rose-200">{noDisplay}%</span>
-                  </motion.button>
-                </>
-              );
-            })()}
-          </div>
-        )}
       </motion.div>
     </Link>
   );

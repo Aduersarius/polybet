@@ -95,7 +95,15 @@ export function SportsTradingSidebar() {
                 <h3 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">
                   Odds History
                 </h3>
-                <OddsChartV2 eventId={selectedEvent.id} />
+                <OddsChartV2 
+                  eventId={selectedEvent.id}
+                  eventType={selectedEvent.type === 'MULTIPLE' ? 'MULTIPLE' : 'BINARY'}
+                  outcomes={selectedEvent.outcomes || (selectedEvent.yesOdds && selectedEvent.noOdds ? [
+                    { id: 'yes', name: 'YES', probability: selectedEvent.yesOdds },
+                    { id: 'no', name: 'NO', probability: selectedEvent.noOdds }
+                  ] : [])}
+                  currentYesPrice={selectedEvent.yesOdds}
+                />
               </div>
               
               {/* Trading Panel */}
@@ -105,7 +113,6 @@ export function SportsTradingSidebar() {
                 </h3>
                 <TradingPanel 
                   eventId={selectedEvent.id} 
-                  dataSource="polymarket"
                   variant="modal"
                   eventData={selectedEvent}
                 />

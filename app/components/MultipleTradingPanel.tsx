@@ -238,7 +238,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     };
 
     return (
-        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className="bg-[#1a1d28] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
             {/* Header Tabs */}
             <div className="flex border-b border-white/10">
                 <button

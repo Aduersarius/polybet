@@ -216,12 +216,12 @@ export async function GET(request: Request) {
       returnedCount: events.length,
       filter,
       sport,
-      sampleTitles: events.slice(0, 5).map(e => ({ title: e.title, polymarketId: e.polymarketId })),
+      sampleTitles: events.slice(0, 5).map((e: any) => ({ title: e.title, polymarketId: e.polymarketId })),
     });
     
     // Check for duplicates by polymarketId
     if (sport === 'cs2') {
-      const polymarketIds = events.map(e => (e as any).polymarketId).filter(Boolean);
+      const polymarketIds = events.map((e: any) => (e as any).polymarketId).filter(Boolean);
       const uniqueIds = new Set(polymarketIds);
       if (polymarketIds.length !== uniqueIds.size) {
         console.warn('[Sports API] DUPLICATES DETECTED:', {
@@ -233,7 +233,7 @@ export async function GET(request: Request) {
     }
     
     // Transform events to match EventCard2 format (remove polymarketId from output)
-    const transformed = events.map(event => ({
+    const transformed = events.map((event: any) => ({
       id: event.id,
       title: event.title,
       description: event.description,

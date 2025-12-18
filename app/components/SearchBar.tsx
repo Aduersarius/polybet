@@ -149,7 +149,8 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full mt-2 w-full bg-[#1a1f2e]/95 backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-50"
+                        className="absolute top-full mt-2 w-full backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-50"
+                        style={{ backgroundColor: 'var(--surface)' }}
                     >
                         <div className="max-h-96 overflow-y-auto custom-scrollbar">
                             {results.map((result) => (
@@ -190,7 +191,8 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full mt-2 w-full bg-[#1a1f2e]/95 backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] px-5 py-4 z-50"
+                        className="absolute top-full mt-2 w-full backdrop-blur-xl border border-blue-400/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] px-5 py-4 z-50"
+                        style={{ backgroundColor: 'var(--surface)' }}
                     >
                         <p className="text-sm text-gray-400 text-center">No events found</p>
                     </motion.div>

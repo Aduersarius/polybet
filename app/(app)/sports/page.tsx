@@ -116,7 +116,7 @@ export default function SportsPage() {
             
             // Update existing events with new odds
             const updatedEvents = oldData.events.map((event: SportsEvent) => {
-              const updated = updatedEventsMap.get(event.id);
+              const updated = updatedEventsMap.get(event.id) as SportsEvent | undefined;
               if (updated) {
                 return {
                   ...event,

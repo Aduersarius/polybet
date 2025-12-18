@@ -1,0 +1,191 @@
+/**
+ * Centralized Color System
+ * 
+ * This is the single source of truth for all colors in the application.
+ * Import colors from here instead of hardcoding hex values.
+ */
+
+import type { CSSProperties } from 'react';
+import { colorTokens } from './tokens';
+
+// Re-export tokens for direct access
+export { colorTokens };
+
+// Semantic color aliases for easy access
+export const colors = {
+  // Backgrounds
+  background: colorTokens.background,
+  surface: colorTokens.surface,
+  surfaceElevated: colorTokens.surfaceElevated || '#22222e',
+  
+  // Primary colors
+  primary: colorTokens.primary[500],
+  primaryLight: colorTokens.primary[400],
+  primaryDark: colorTokens.primary[600],
+  
+  // Secondary colors
+  secondary: colorTokens.secondary[500],
+  secondaryLight: colorTokens.secondary[400],
+  secondaryDark: colorTokens.secondary[600],
+  
+  // Accent colors
+  accent: colorTokens.accent[500],
+  accentLight: colorTokens.accent[400],
+  accentDark: colorTokens.accent[600],
+  
+  // Semantic colors
+  error: colorTokens.error[500],
+  errorLight: colorTokens.error[400],
+  errorDark: colorTokens.error[600],
+  
+  warning: colorTokens.warning[500],
+  warningLight: colorTokens.warning[400],
+  warningDark: colorTokens.warning[600],
+  
+  success: colorTokens.success[500],
+  successLight: colorTokens.success[400],
+  successDark: colorTokens.success[600],
+  
+  // Text colors
+  text: {
+    primary: colorTokens.text.primary,
+    secondary: colorTokens.text.secondary,
+    muted: colorTokens.text.muted,
+    inverse: colorTokens.text.inverse,
+  },
+  
+  // Chart colors
+  chart: colorTokens.chart,
+  
+  // Outcome colors
+  outcomes: colorTokens.outcomes,
+  
+  // Category colors
+  categories: colorTokens.categories,
+  
+  // Gray scale
+  gray: colorTokens.gray,
+  zinc: colorTokens.zinc,
+} as const;
+
+/**
+ * Get category color classes for Tailwind
+ * Returns Tailwind class string for category styling
+ */
+export function getCategoryColorClasses(category: string): string {
+  const cat = category.toUpperCase();
+  
+  // Map categories to Tailwind classes
+  const categoryMap: Record<string, string> = {
+    'CRYPTO': 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+    'SPORTS': 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+    'POLITICS': 'text-blue-400 border-blue-500/30 bg-blue-500/10',
+    'ELECTIONS': 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10',
+    'TECH': 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10',
+    'BUSINESS': 'text-purple-400 border-purple-500/30 bg-purple-500/10',
+    'FINANCE': 'text-green-400 border-green-500/30 bg-green-500/10',
+    'SCIENCE': 'text-pink-400 border-pink-500/30 bg-pink-500/10',
+    'CULTURE': 'text-rose-400 border-rose-500/30 bg-rose-500/10',
+    'ECONOMY': 'text-teal-400 border-teal-500/30 bg-teal-500/10',
+    'WORLD': 'text-violet-400 border-violet-500/30 bg-violet-500/10',
+  };
+  
+  return categoryMap[cat] || 'text-gray-400 border-gray-500/30 bg-gray-500/10';
+}
+
+/**
+ * Get category color object (for inline styles)
+ */
+export function getCategoryColor(category: string) {
+  const cat = category.toUpperCase();
+  return colorTokens.categories[cat as keyof typeof colorTokens.categories] || colorTokens.categories.DEFAULT;
+}
+
+/**
+ * Get outcome color by index
+ */
+export function getOutcomeColor(index: number): string {
+  return colorTokens.outcomes[index % colorTokens.outcomes.length];
+}
+
+/**
+ * Generate CSS variables object for :root
+ */
+export function getCSSVariables() {
+  return {
+    '--background': colorTokens.background,
+    '--surface': colorTokens.surface,
+    '--primary': colorTokens.primary[500],
+    '--secondary': colorTokens.secondary[500],
+    '--accent': colorTokens.accent[500],
+    '--error': colorTokens.error[500],
+    '--success': colorTokens.success[500],
+    '--warning': colorTokens.warning[500],
+    '--on-background': colorTokens.text.primary,
+    '--on-surface': colorTokens.text.primary,
+    '--on-primary': colorTokens.text.primary,
+    '--foreground-rgb': '255, 255, 255',
+    '--background-start-rgb': '24, 24, 27',
+    '--background-end-rgb': '24, 24, 27',
+    '--chart-1': '217 91% 60%',
+    '--chart-2': '158 64% 52%',
+    '--chart-3': '43 96% 56%',
+    '--chart-4': '262 83% 58%',
+    '--chart-5': '338 78% 56%',
+  };
+}
+
+/**
+ * Helper to convert hex to rgb for rgba usage
+ */
+export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+}
+
+/**
+ * Helper to create rgba string from hex and opacity
+ */
+export function rgba(hex: string, opacity: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
+}
+
+/**
+ * Helper to create inline style object for dynamic colors
+ * Use this when you need to use colors dynamically in Tailwind classes
+ */
+export function getColorStyle(color: string, opacity?: number): CSSProperties {
+  if (opacity !== undefined) {
+    return { color: rgba(color, opacity) };
+  }
+  return { color };
+}
+
+/**
+ * Helper to create background style with opacity
+ */
+export function getBgStyle(color: string, opacity?: number): CSSProperties {
+  if (opacity !== undefined) {
+    return { backgroundColor: rgba(color, opacity) };
+  }
+  return { backgroundColor: color };
+}
+
+/**
+ * Helper to create border style with opacity
+ */
+export function getBorderStyle(color: string, opacity?: number): CSSProperties {
+  if (opacity !== undefined) {
+    return { borderColor: rgba(color, opacity) };
+  }
+  return { borderColor: color };
+}
+

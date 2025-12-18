@@ -50,7 +50,7 @@ export function SportsEventCard({ event }: SportsEventCardProps) {
       onClick={() => openEvent(event)}
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
-      className="relative h-full overflow-hidden bg-[#22303f] rounded-xl border border-white/5 hover:border-white/10 transition-all duration-200 cursor-pointer"
+      className="relative h-full overflow-hidden bg-zinc-800 rounded-xl border border-white/5 hover:border-white/10 transition-all duration-200 cursor-pointer"
     >
       <div className="relative p-4 flex flex-col h-full">
           {/* Header */}

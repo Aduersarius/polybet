@@ -106,7 +106,7 @@ export function AdminSuggestedEvents() {
                 </div>
             </div>
 
-            <div className="overflow-hidden border border-white/10 rounded-xl bg-[#1e1e1e]">
+            <div className="overflow-hidden border border-white/10 rounded-xl bg-zinc-800">
                 {suggestions.length === 0 ? (
                     <div className="text-center py-10 text-gray-400">No suggestions yet.</div>
                 ) : (

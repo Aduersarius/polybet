@@ -60,7 +60,7 @@ export async function GET(request: Request) {
           
           // Calculate hybrid odds for each event
           const eventsWithHybridOdds = await Promise.all(
-            events.map(async (event) => {
+            events.map(async (event: any) => {
               // Get our internal order volume
               const { yesVolume, noVolume } = await getInternalOrderVolume(prisma, event.id);
               

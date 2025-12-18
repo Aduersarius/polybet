@@ -332,7 +332,7 @@ export default function Home() {
         >
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
           {/* Markets Background */}
-          <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#0f1419] via-[#1a1f2e] to-[#0f1419]"></div>
+          <div className="fixed inset-0 z-0 bg-zinc-900"></div>
 
           {/* Markets Content */}
           <div className="relative z-10 pt-10 px-6 max-w-7xl mx-auto pb-20">
@@ -405,10 +405,11 @@ export default function Home() {
             </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12">
-              {activeEvents.map((event) => (
+              {activeEvents.map((event, idx) => (
                 <EventCard2
                   key={event.id}
                   event={event}
+                  index={idx}
                   onTradeClick={(event, option) => {
                     setSelectedEvent(event);
                     setPreselectedOption(option);
@@ -418,6 +419,7 @@ export default function Home() {
                     setSelectedMultipleEvent({...event, outcomes: event.outcomes});
                     setMultipleTradingModalOpen(true);
                   }}
+                  onCategoryClick={handleCategoryChange}
                 />
               ))}
             </div>
@@ -435,11 +437,12 @@ export default function Home() {
                     <div className="h-px bg-white/10 flex-1" />
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {endedEvents.map((event) => (
+                    {endedEvents.map((event, idx) => (
                       <EventCard2
                         key={event.id}
                         event={event}
                         isEnded={true}
+                        index={idx}
                         onTradeClick={(event, option) => {
                           setSelectedEvent(event);
                           setPreselectedOption(option);
@@ -449,6 +452,7 @@ export default function Home() {
                           setSelectedMultipleEvent({...event, outcomes: event.outcomes});
                           setMultipleTradingModalOpen(true);
                         }}
+                        onCategoryClick={handleCategoryChange}
                       />
                     ))}
                   </div>
