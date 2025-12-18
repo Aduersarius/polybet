@@ -85,124 +85,149 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
     const selectedNetworkData = cryptoNetworks.find(n => n.id === selectedNetwork);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="relative w-full max-w-md p-6 bg-[#1a1d2e] border border-white/10 rounded-2xl shadow-2xl">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h2 className="text-xl font-semibold text-white">Deposit</h2>
-                        <p className="text-sm text-zinc-400">
-                            PolyBet Balance: {balance !== null ? `$${balance.toFixed(2)}` : '—'}
-                        </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="relative w-full max-w-md mx-4">
+                {/* Glassmorphism card with gradient border */}
+                <div className="relative p-6 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+                    {/* Subtle gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+                    
+                    {/* Header */}
+                    <div className="relative flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold text-white mb-1">Deposit Funds</h2>
+                            <p className="text-sm text-white/60 flex items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/5 rounded-lg border border-white/10">
+                                    <WalletIcon className="w-3.5 h-3.5 text-blue-400" />
+                                    <span className="font-medium text-white/90">
+                                        {balance !== null ? `$${balance.toFixed(2)}` : '—'}
+                                    </span>
+                                </span>
+                            </p>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 group"
+                        >
+                            <X className="w-5 h-5 text-white/50 group-hover:text-white transition-colors" />
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                    >
-                        <X className="w-5 h-5 text-zinc-400" />
-                    </button>
-                </div>
 
                 {/* Payment Methods */}
                 {!selectedMethod && (
-                    <div className="space-y-3">
-                        {/* Crypto */}
+                    <div className="relative space-y-3">
+                        {/* Crypto - Active */}
                         <button
                             onClick={() => handleMethodSelect('crypto')}
-                            className="w-full p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-left group"
+                            className="relative w-full p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent border border-blue-400/30 hover:border-blue-400/50 transition-all text-left group hover:shadow-[0_0_24px_rgba(59,130,246,0.15)] overflow-hidden"
                         >
-                            <div className="flex items-center justify-between">
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="relative flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-500/20">
+                                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-400/20 group-hover:scale-110 transition-transform">
                                         <Zap className="w-5 h-5 text-blue-400" />
                                     </div>
                                     <div>
-                                        <p className="font-medium text-white">Transfer Crypto</p>
-                                        <p className="text-sm text-zinc-400">No limit • Instant</p>
+                                        <p className="font-semibold text-white group-hover:text-blue-300 transition-colors">Transfer Crypto</p>
+                                        <p className="text-xs text-white/60 mt-0.5">No limit • Instant</p>
                                     </div>
                                 </div>
-                                <div className="flex gap-1">
+                                <div className="flex gap-1.5">
                                     {['🟣', '⟠', '🟡', '🔵'].map((icon, i) => (
-                                        <span key={i} className="text-lg">{icon}</span>
+                                        <span key={i} className="text-base opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
                                     ))}
                                 </div>
                             </div>
                         </button>
 
-                        {/* Card */}
+                        {/* Card - Coming Soon */}
                         <button
-                            onClick={() => handleMethodSelect('card')}
-                            className="w-full p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-left opacity-60 cursor-not-allowed"
+                            className="relative w-full p-4 rounded-xl bg-white/5 border border-white/10 transition-all text-left opacity-50 cursor-not-allowed overflow-hidden"
                             disabled
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-purple-500/20">
-                                        <CreditCard className="w-5 h-5 text-purple-400" />
+                                    <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-400/10">
+                                        <CreditCard className="w-5 h-5 text-purple-400/70" />
                                     </div>
                                     <div>
-                                        <p className="font-medium text-white">Deposit with Card</p>
-                                        <p className="text-sm text-zinc-400">$50,000 • 5 min</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-semibold text-white/70">Deposit with Card</p>
+                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-bold text-amber-300 uppercase tracking-wide">
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-white/40 mt-0.5">$50,000 • 5 min</p>
                                     </div>
                                 </div>
-                                <div className="flex gap-1">
-                                    <span className="text-sm">💳</span>
-                                </div>
+                                <span className="text-base opacity-50">💳</span>
                             </div>
                         </button>
 
-                        {/* SEPA */}
+                        {/* SEPA - Coming Soon */}
                         <button
-                            onClick={() => handleMethodSelect('sepa')}
-                            className="w-full p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-left opacity-60 cursor-not-allowed"
+                            className="relative w-full p-4 rounded-xl bg-white/5 border border-white/10 transition-all text-left opacity-50 cursor-not-allowed overflow-hidden"
                             disabled
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-green-500/20">
-                                        <Building2 className="w-5 h-5 text-green-400" />
+                                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-400/10">
+                                        <Building2 className="w-5 h-5 text-emerald-400/70" />
                                     </div>
                                     <div>
-                                        <p className="font-medium text-white">Deposit with SEPA</p>
-                                        <p className="text-sm text-zinc-400">No limit • 1-2 business days</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </button>
-
-                        {/* Exchange */}
-                        <button
-                            onClick={() => handleMethodSelect('exchange')}
-                            className="w-full p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-left opacity-60 cursor-not-allowed"
-                            disabled
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-yellow-500/20">
-                                        <Repeat className="w-5 h-5 text-yellow-400" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-white">Connect Exchange</p>
-                                        <p className="text-sm text-zinc-400">No limit • 2 min</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-semibold text-white/70">Deposit with SEPA</p>
+                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-bold text-amber-300 uppercase tracking-wide">
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-white/40 mt-0.5">No limit • 1-2 business days</p>
                                     </div>
                                 </div>
                             </div>
                         </button>
 
-                        {/* PayPal */}
+                        {/* Exchange - Coming Soon */}
                         <button
-                            onClick={() => handleMethodSelect('paypal')}
-                            className="w-full p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-left opacity-60 cursor-not-allowed"
+                            className="relative w-full p-4 rounded-xl bg-white/5 border border-white/10 transition-all text-left opacity-50 cursor-not-allowed overflow-hidden"
                             disabled
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-400/20">
-                                        <WalletIcon className="w-5 h-5 text-blue-300" />
+                                    <div className="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-400/10">
+                                        <Repeat className="w-5 h-5 text-yellow-400/70" />
                                     </div>
                                     <div>
-                                        <p className="font-medium text-white">Deposit with PayPal</p>
-                                        <p className="text-sm text-zinc-400">$10,000 • 6 min</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-semibold text-white/70">Connect Exchange</p>
+                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-bold text-amber-300 uppercase tracking-wide">
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-white/40 mt-0.5">No limit • 2 min</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+
+                        {/* PayPal - Coming Soon */}
+                        <button
+                            className="relative w-full p-4 rounded-xl bg-white/5 border border-white/10 transition-all text-left opacity-50 cursor-not-allowed overflow-hidden"
+                            disabled
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-blue-400/10 border border-blue-400/10">
+                                        <WalletIcon className="w-5 h-5 text-blue-300/70" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-semibold text-white/70">Deposit with PayPal</p>
+                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-bold text-amber-300 uppercase tracking-wide">
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-white/40 mt-0.5">$10,000 • 6 min</p>
                                     </div>
                                 </div>
                             </div>
@@ -212,47 +237,50 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
 
                 {/* Crypto Details */}
                 {selectedMethod === 'crypto' && (
-                    <div className="space-y-4">
+                    <div className="relative space-y-5">
                         {/* Back Button */}
                         <button
                             onClick={() => setSelectedMethod(null)}
-                            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                            className="text-sm text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1.5 group"
                         >
-                            ← Back to payment methods
+                            <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
+                            <span>Back to payment methods</span>
                         </button>
 
                         {/* Network Selector */}
                         <div className="relative">
-                            <label className="block text-sm text-zinc-400 mb-2">Select Network</label>
+                            <label className="block text-sm font-medium text-white/80 mb-2">Select Network</label>
                             <button
                                 onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
-                                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white flex items-center justify-between hover:bg-white/10 transition-colors"
+                                className="w-full p-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-blue-400/30 text-white flex items-center justify-between hover:bg-white/10 transition-all group"
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2.5">
                                     <span className="text-lg">{selectedNetworkData?.icon}</span>
-                                    <span>{selectedNetworkData?.name}</span>
-                                    <span className="text-zinc-400 text-sm">({selectedNetworkData?.chain})</span>
+                                    <span className="font-medium">{selectedNetworkData?.name}</span>
+                                    <span className="text-white/50 text-sm">({selectedNetworkData?.chain})</span>
                                 </div>
-                                <ChevronDown className={`w-4 h-4 transition-transform ${showNetworkDropdown ? 'rotate-180' : ''}`} />
+                                <ChevronDown className={`w-4 h-4 text-white/50 group-hover:text-white transition-all ${showNetworkDropdown ? 'rotate-180' : ''}`} />
                             </button>
 
                             {showNetworkDropdown && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d2e] border border-white/10 rounded-lg shadow-xl z-10 overflow-hidden">
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1f2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
                                     {cryptoNetworks.map((network) => (
                                         <button
                                             key={network.id}
                                             onClick={() => handleNetworkChange(network.id as CryptoNetwork)}
-                                            className="w-full p-3 text-left hover:bg-white/10 transition-colors flex items-center justify-between"
+                                            className="w-full p-3.5 text-left hover:bg-blue-500/10 transition-all flex items-center justify-between group/item border-b border-white/5 last:border-0"
                                         >
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2.5">
                                                 <span className="text-lg">{network.icon}</span>
                                                 <div>
-                                                    <p className="text-white text-sm">{network.name} ({network.chain})</p>
-                                                    <p className="text-xs text-zinc-400">Fee: {network.fee}</p>
+                                                    <p className="text-white text-sm font-medium group-hover/item:text-blue-300 transition-colors">{network.name} ({network.chain})</p>
+                                                    <p className="text-xs text-white/50">Fee: {network.fee}</p>
                                                 </div>
                                             </div>
                                             {selectedNetwork === network.id && (
-                                                <Check className="w-4 h-4 text-green-400" />
+                                                <div className="p-1 rounded-full bg-emerald-500/20">
+                                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                                </div>
                                             )}
                                         </button>
                                     ))}
@@ -262,49 +290,67 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
 
                         {/* QR Code & Address */}
                         {loading ? (
-                            <div className="flex justify-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+                            <div className="flex justify-center py-12">
+                                <div className="relative">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-500/30 border-t-blue-500" />
+                                    <div className="absolute inset-0 rounded-full bg-blue-500/10 blur-xl" />
+                                </div>
                             </div>
                         ) : depositAddress ? (
                             <>
                                 {/* QR Code */}
-                                <div className="flex justify-center p-4 bg-white rounded-xl">
-                                    <QRCodeSVG value={depositAddress} size={200} />
+                                <div className="flex justify-center p-5 bg-white rounded-2xl shadow-lg">
+                                    <QRCodeSVG value={depositAddress} size={220} />
                                 </div>
 
                                 {/* Address */}
                                 <div>
-                                    <label className="block text-sm text-zinc-400 mb-2">Deposit Address</label>
+                                    <label className="block text-sm font-medium text-white/80 mb-2">Deposit Address</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
                                             value={depositAddress}
                                             readOnly
-                                            className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm font-mono"
+                                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-blue-400/50 transition-colors"
                                         />
                                         <button
                                             onClick={copyToClipboard}
-                                            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-2"
+                                            className="px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-105"
                                         >
-                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                            {copied ? (
+                                                <>
+                                                    <Check className="w-4 h-4" />
+                                                    <span className="text-sm font-medium hidden sm:block">Copied</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy className="w-4 h-4" />
+                                                    <span className="text-sm font-medium hidden sm:block">Copy</span>
+                                                </>
+                                            )}
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Warning */}
-                                <div className="rounded-lg bg-yellow-500/10 p-4 border border-yellow-500/20">
-                                    <p className="text-sm text-yellow-400">
-                                        <strong>⚠️ Important:</strong> Only send <strong>{selectedNetworkData?.name}</strong> on the <strong>{selectedNetworkData?.chain}</strong> network to this address. Sending other assets or using other networks may result in permanent loss.
+                                <div className="rounded-xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-amber-500/10 p-4 border border-amber-400/20">
+                                    <p className="text-sm text-amber-200/90 leading-relaxed">
+                                        <strong className="text-amber-300 font-semibold">⚠️ Important:</strong> Only send <strong className="text-white">{selectedNetworkData?.name}</strong> on the <strong className="text-white">{selectedNetworkData?.chain}</strong> network to this address. Sending other assets or using other networks may result in permanent loss.
                                     </p>
                                 </div>
 
                                 {/* Fee Info */}
-                                <div className="text-xs text-zinc-400 text-center">
-                                    Processing fee: {selectedNetworkData?.fee} • Automatic processing every 60 seconds
+                                <div className="text-xs text-white/50 text-center px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+                                    <span className="font-medium text-white/70">Processing fee: {selectedNetworkData?.fee}</span>
+                                    <span className="mx-2">•</span>
+                                    <span>Automatic processing every 60 seconds</span>
                                 </div>
                             </>
                         ) : (
-                            <p className="text-center text-red-400">Failed to generate address. Please try again.</p>
+                            <div className="text-center py-8">
+                                <p className="text-red-400 font-medium">Failed to generate address</p>
+                                <p className="text-white/50 text-sm mt-1">Please try again or contact support</p>
+                            </div>
                         )}
                     </div>
                 )}
