@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import { MultipleTradingPanelModal } from './MultipleTradingPanelModal';
-import { getCategoryColorClasses, getOutcomeColor } from '@/lib/colors';
+import { getCategoryColorClasses, getCategoryColor, getOutcomeColor } from '@/lib/colors';
+import { cn } from '@/lib/utils';
 
 interface DbEvent {
   id: string;
@@ -71,11 +72,11 @@ const getFullTimeRemaining = (endDate: Date) => {
 };
 
 // Animated number component for tooltip
-function AnimatedPercentage({ value, delay, duration }: { value: number; delay: number; duration: number }) {
-  const [displayValue, setDisplayValue] = useState(0); // Start at 0 to animate from 0 on load
+function AnimatedPercentage({ value, delay, duration, skipAnimation = false }: { value: number; delay: number; duration: number; skipAnimation?: boolean }) {
+  const [displayValue, setDisplayValue] = useState(skipAnimation ? value : 0); // Start at value if skipping animation
   const animationFrameRef = useRef<number | null>(null);
   const prevValueRef = useRef<number | null>(null);
-  const displayValueRef = useRef(0);
+  const displayValueRef = useRef(skipAnimation ? value : 0);
   const isFirstMountRef = useRef(true);
 
   // Sync displayValueRef with state
@@ -86,6 +87,14 @@ function AnimatedPercentage({ value, delay, duration }: { value: number; delay: 
   useEffect(() => {
     // Skip if value hasn't changed
     if (prevValueRef.current !== null && value === prevValueRef.current) {
+      return;
+    }
+
+    // If skipAnimation is true, just set the value directly
+    if (skipAnimation) {
+      setDisplayValue(value);
+      displayValueRef.current = value;
+      prevValueRef.current = value;
       return;
     }
 
@@ -154,7 +163,7 @@ function AnimatedPercentage({ value, delay, duration }: { value: number; delay: 
         animationFrameRef.current = null;
       }
     };
-  }, [value, delay, duration]);
+  }, [value, delay, duration, skipAnimation]);
 
   return <span>{displayValue}%</span>;
 }
@@ -170,12 +179,16 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const outcomesCarouselRef = useRef<HTMLDivElement>(null);
   const countdownShortRef = useRef<HTMLSpanElement>(null);
   const countdownFullRef = useRef<HTMLSpanElement>(null);
+  const binaryButtonRef = useRef<HTMLButtonElement>(null);
+  const binaryButtonContainerRef = useRef<HTMLDivElement>(null);
   const [countdownWidth, setCountdownWidth] = useState<number | 'auto'>('auto');
+  const [binaryButtonWidth, setBinaryButtonWidth] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const hasAnimatedRef = useRef(false); // Track if initial animation has completed
   const initialOutcomesRef = useRef<typeof event.outcomes | null>(null); // Store initial outcomes to prevent recalculation
   const segmentDataRef = useRef<any[] | null>(null); // Lock segment data after first calculation
   const lockedOutcomesRef = useRef<typeof event.outcomes | null>(null); // Lock outcomes used for segment calculation
+  const percentagesShownRef = useRef(false); // Track if percentages have been shown before
 
   // Fetch user's favorites
   const { data: userFavorites, refetch: refetchFavorites } = useQuery({
@@ -256,6 +269,62 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       setCountdownWidth(width);
     }
   }, []);
+
+  // Measure binary button width to apply to multiple outcome buttons
+  useEffect(() => {
+    // For binary events, measure the actual button width from the button itself
+    if (event.type !== 'MULTIPLE' && binaryButtonRef.current && !binaryButtonWidth) {
+      const measureWidth = () => {
+        if (binaryButtonRef.current) {
+          const buttonWidth = binaryButtonRef.current.offsetWidth;
+          if (buttonWidth > 0) {
+            setBinaryButtonWidth(buttonWidth);
+          }
+        }
+      };
+      
+      // Measure after render
+      const timeoutId = setTimeout(measureWidth, 0);
+      window.addEventListener('resize', measureWidth);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('resize', measureWidth);
+      };
+    }
+    
+    // For multiple events, calculate based on carousel container width
+    // The carousel has -mx-1 px-1 which means:
+    // - Extends 4px beyond parent on each side (8px total extension)
+    // - Adds 4px padding on each side (8px total padding)
+    // - clientWidth includes the padding, so content width = clientWidth - 8px
+    // Binary buttons container is just "flex gap-2.5" with same parent, so its width matches content width
+    // Binary buttons use flex-1 with gap-2.5 (10px), so each button is (contentWidth - 10px) / 2
+    if (event.type === 'MULTIPLE' && outcomesCarouselRef.current && !binaryButtonWidth) {
+      const measureWidth = () => {
+        if (outcomesCarouselRef.current) {
+          // Get the scrollable content width (excluding padding)
+          // The carousel's scrollWidth gives us the actual content width
+          // But we need the container width. clientWidth includes padding (8px total)
+          const contentWidth = outcomesCarouselRef.current.clientWidth - 8;
+          // Binary buttons use flex-1 with gap-2.5 (10px), so each button is (width - 10px) / 2
+          const buttonWidth = (contentWidth - 10) / 2;
+          if (buttonWidth > 0) {
+            setBinaryButtonWidth(buttonWidth);
+          }
+        }
+      };
+      
+      // Measure after render
+      const timeoutId = setTimeout(measureWidth, 0);
+      window.addEventListener('resize', measureWidth);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('resize', measureWidth);
+      };
+    }
+  }, [event.type, binaryButtonWidth]);
 
   // Check if carousel is scrollable and show/hide arrows accordingly
   useEffect(() => {
@@ -481,7 +550,25 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const hoverColorClass = hoverColors[charCodeSum % hoverColors.length];
 
   // Category-specific colors - Now using centralized color system
-  const getCategoryColor = getCategoryColorClasses;
+  // getCategoryColor returns color objects for inline styles, getCategoryColorClasses returns Tailwind classes
+
+  // Helper function to desaturate/mute a hex color by mixing with gray
+  const muteColor = (hex: string, desaturation: number = 0.4) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    
+    // Mix with gray (128, 128, 128) to desaturate
+    const grayR = 128;
+    const grayG = 128;
+    const grayB = 128;
+    
+    const mutedR = Math.round(r * (1 - desaturation) + grayR * desaturation);
+    const mutedG = Math.round(g * (1 - desaturation) + grayG * desaturation);
+    const mutedB = Math.round(b * (1 - desaturation) + grayB * desaturation);
+    
+    return `#${mutedR.toString(16).padStart(2, '0')}${mutedG.toString(16).padStart(2, '0')}${mutedB.toString(16).padStart(2, '0')}`;
+  };
 
   return (
     <Link
@@ -568,42 +655,63 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           >
             {event.categories && event.categories.length > 0 ? (
               // Show up to 2 categories with color-coding
-              event.categories.slice(0, 2).map((cat, idx) => (
-                <Badge
-                  key={idx}
-                  variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (onCategoryClick) {
-                      onCategoryClick(cat);
-                    }
-                  }}
-                  className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200 ${getCategoryColor(cat)}`}
-                >
-                  {cat}
-                </Badge>
-              ))
+              event.categories.slice(0, 2).map((cat, idx) => {
+                // Use inline styles to ensure colors are applied (bypasses any CSS conflicts)
+                const colorObj = getCategoryColor(cat) as { text: string; border: string; bg: string };
+                // Debug: log category and colors in development
+                if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+                  console.log('[EventCard2] Category:', cat, 'Colors:', colorObj);
+                }
+                return (
+                  <div
+                    key={idx}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (onCategoryClick) {
+                        onCategoryClick(cat);
+                      }
+                    }}
+                    style={{
+                      color: colorObj.text,
+                      borderColor: colorObj.border,
+                      backgroundColor: colorObj.bg,
+                    }}
+                    className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
+                  >
+                    {cat}
+                  </div>
+                );
+              })
             ) : event.category ? (
               // Fallback to single category if categories array not available
-              <Badge
-                variant="outline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (onCategoryClick) {
-                    onCategoryClick(event.category);
-                  }
-                }}
-                className={`text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200 ${getCategoryColor(event.category)}`}
-              >
-                {event.category}
-              </Badge>
+              (() => {
+                const colorObj = getCategoryColor(event.category) as { text: string; border: string; bg: string };
+                return (
+                  <div
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (onCategoryClick) {
+                        onCategoryClick(event.category);
+                      }
+                    }}
+                    style={{
+                      color: colorObj.text,
+                      borderColor: colorObj.border,
+                      backgroundColor: colorObj.bg,
+                    }}
+                    className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
+                  >
+                    {event.category}
+                  </div>
+                );
+              })()
             ) : null}
           </motion.div>
           <div
-            className="absolute right-0 z-10"
-            style={{ top: '50%', transform: 'translateY(-50%)' }}
+            className="absolute right-0 z-10 flex items-center"
+            style={{ top: 0, bottom: 0 }}
             onMouseEnter={() => setIsCountdownHovered(true)}
             onMouseLeave={() => setIsCountdownHovered(false)}
           >
@@ -699,16 +807,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
                };
 
-               // Helper function to get lighter text color from hex
+               // Helper function to get muted text color from hex (same muting as slider)
                const getTextColorFromHex = (hex: string) => {
-                 // Convert hex to RGB
-                 const r = parseInt(hex.slice(1, 3), 16);
-                 const g = parseInt(hex.slice(3, 5), 16);
-                 const b = parseInt(hex.slice(5, 7), 16);
-                 // Calculate luminance
-                 const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-                 // Return lighter version of the color for text
-                 return `rgb(${Math.min(255, r + 40)}, ${Math.min(255, g + 40)}, ${Math.min(255, b + 40)})`;
+                 // Use the same muteColor function with 0.4 desaturation as the slider
+                 return muteColor(hex, 0.4);
                };
 
                // Pre-calculate ALL segment positions BEFORE rendering - ensures no recalculation
@@ -768,34 +870,55 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                  return calculated;
                }, [allOutcomes, allOutcomesUnfiltered]);
 
+               // Shared arrow animation configuration for perfect sync
+               const arrowTransition = {
+                 duration: 1.5,
+                 repeat: Infinity,
+                 ease: "easeInOut" as const
+               };
+
                return (
                  <>
                    <div className="relative w-full">
                      {/* Percentage numbers - hide when hovering */}
-                     {segmentData.map(({ outcome, probability, tooltipPosition, segmentDelay, idx }) => {
-                       // Show percentage numbers only if not hovering and probability > 15%
-                       if (hoveredSegmentId !== null || probability <= 15) return null;
+                     {(() => {
+                       // Check if percentages should be shown and mark as shown before rendering
+                       const shouldShow = hoveredSegmentId === null;
+                       const skipAnimation = percentagesShownRef.current;
+                       if (shouldShow && !percentagesShownRef.current) {
+                         percentagesShownRef.current = true;
+                       }
                        
-                       return (
-                         <motion.div
-                           key={`tooltip-${outcome.id}`}
-                           initial={{ opacity: 0 }}
-                           animate={{ 
-                             opacity: probability > 0 ? 1 : 0
-                           }}
-                           transition={{ 
-                             duration: 0.2,
-                             ease: "easeOut" 
-                           }}
-                           className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
-                           style={{ left: `${tooltipPosition}%` }}
-                         >
-                           <span className="text-xs font-bold text-white whitespace-nowrap">
-                             <AnimatedPercentage value={probability} delay={(index * 0.05) + 0.3 + segmentDelay} duration={0.8} />
-                           </span>
-                         </motion.div>
-                       );
-                     })}
+                       return segmentData.map(({ outcome, probability, tooltipPosition, segmentDelay, idx }) => {
+                         // Show percentage numbers only if not hovering and probability > 15%
+                         if (hoveredSegmentId !== null || probability <= 15) return null;
+                         
+                         return (
+                           <motion.div
+                             key={`tooltip-${outcome.id}`}
+                             initial={{ opacity: 0 }}
+                             animate={{ 
+                               opacity: probability > 0 ? 1 : 0
+                             }}
+                             transition={{ 
+                               duration: 0.2,
+                               ease: "easeOut" 
+                             }}
+                             className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                             style={{ left: `${tooltipPosition}%` }}
+                           >
+                             <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
+                               <AnimatedPercentage 
+                                 value={probability} 
+                                 delay={(index * 0.05) + 0.3 + segmentDelay} 
+                                 duration={0.8}
+                                 skipAnimation={skipAnimation}
+                               />
+                             </span>
+                           </motion.div>
+                         );
+                       });
+                     })()}
                      
                      {/* Centered outcome name and percentage - shows when hovering any segment */}
                      {hoveredSegmentId && (() => {
@@ -807,9 +930,9 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                            initial={{ opacity: 0, y: -4 }}
                            animate={{ opacity: 1, y: 0 }}
                            transition={{ duration: 0.2, ease: "easeOut" }}
-                           className="absolute -top-6 left-0 right-0 pointer-events-none z-20"
+                           className="absolute -top-5 left-0 right-0 pointer-events-none z-20"
                          >
-                           <div className="text-xs font-bold text-white whitespace-nowrap text-center w-full">
+                           <div className="text-xs font-bold text-gray-400 whitespace-nowrap text-center w-full">
                              {hoveredSegment.outcome.name} {hoveredSegment.probability}%
                            </div>
                          </motion.div>
@@ -883,7 +1006,6 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                                style={{ 
                                  left: segmentLeft,
                                  width: segmentWidth,
-                                 backgroundColor: colorHex,
                                  position: 'absolute',
                                  top: '0',
                                  height: '100%',
@@ -893,6 +1015,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                                animate={{
                                  scaleY: isHovered ? 1.8 : 1,
                                  opacity: shouldTint ? 0.4 : 1,
+                                 backgroundColor: isHovered ? colorHex : muteColor(colorHex, 0.4),
                                }}
                                transition={{
                                  duration: 0.2,
@@ -909,7 +1032,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                      {/* Horizontal scrollable carousel */}
                      <div 
                        ref={outcomesCarouselRef}
-                       className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1"
+                       className="flex items-center gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1"
                        style={{
                          WebkitOverflowScrolling: 'touch',
                        }}
@@ -952,24 +1075,24 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                                  window.location.href = `/event/${event.id}`;
                                }
                              }}
-                             whileHover={{ scale: 1.01 }}
-                             whileTap={{ scale: 0.99 }}
                              className="group/btn relative flex-shrink-0 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
                              style={{ 
                                backgroundColor: hexToRgba(colorHex, 0.1),
-                               width: '92px', // Fixed width for consistent badge size
-                               minWidth: '80px',
-                               maxWidth: '100px',
+                               ...(binaryButtonWidth ? { width: `${binaryButtonWidth}px` } : {}),
                              }}
+                             whileHover={{ scale: 1.01 }}
+                             whileTap={{ scale: 0.99 }}
                              onMouseEnter={(e) => {
                                e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
+                               setHoveredSegmentId(outcome.id);
                              }}
                              onMouseLeave={(e) => {
                                e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
+                               setHoveredSegmentId(null);
                              }}
                            >
                              <span 
-                               className="relative z-10 text-[10px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 whitespace-nowrap truncate w-full text-center"
+                               className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 whitespace-nowrap truncate w-full text-center"
                                style={{ color: textColor }}
                              >
                                {outcome.name}
@@ -988,17 +1111,16 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                      {/* Left scroll indicator arrow - shows when content is hidden on the left */}
                      {showLeftArrow && (
                        <motion.div
-                         initial={{ opacity: 0 }}
-                         animate={{ opacity: [0.4, 1, 0.4] }}
-                         transition={{ 
-                           duration: 1.5,
-                           repeat: Infinity,
-                           ease: "easeInOut"
+                         initial={{ opacity: 0, x: 0, y: '-50%' }}
+                         animate={{ 
+                           opacity: [0.4, 1, 0.4],
+                           x: [0, -4, 0],
+                           y: '-50%'
                          }}
-                         className="absolute left-[-16px] flex items-center justify-center pointer-events-none z-20"
+                         transition={arrowTransition}
+                         className="absolute left-[-8px] flex items-center justify-center pointer-events-none z-20"
                          style={{ 
                            top: 'calc(50% - 2px)', // Slightly up to align with text center
-                           transform: 'translateY(-50%)',
                          }}
                        >
                          <svg 
@@ -1020,17 +1142,16 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                      {/* Right scroll indicator arrow - shows when content is hidden on the right */}
                      {showRightArrow && (
                        <motion.div
-                         initial={{ opacity: 0 }}
-                         animate={{ opacity: [0.4, 1, 0.4] }}
-                         transition={{ 
-                           duration: 1.5,
-                           repeat: Infinity,
-                           ease: "easeInOut"
+                         initial={{ opacity: 0, x: 0, y: '-50%' }}
+                         animate={{ 
+                           opacity: [0.4, 1, 0.4],
+                           x: [0, 4, 0],
+                           y: '-50%'
                          }}
-                         className="absolute right-[-16px] flex items-center justify-center pointer-events-none z-20"
+                         transition={arrowTransition}
+                         className="absolute right-[-8px] flex items-center justify-center pointer-events-none z-20"
                          style={{ 
                            top: 'calc(50% - 2px)', // Slightly up to align with text center
-                           transform: 'translateY(-50%)',
                          }}
                        >
                          <svg 
@@ -1076,18 +1197,22 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                     }}
                     className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
                   >
-                    <span className="text-sm font-bold text-white whitespace-nowrap">
+                    <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
                       <AnimatedPercentage value={yesDisplay} delay={(index * 0.05) + 0.3} duration={0.8} />
                     </span>
                   </motion.div>
                   
                   {/* Slider */}
-                  <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500">
+                  <div 
+                    className="relative h-1.5 w-full rounded-full overflow-hidden"
+                    style={{ backgroundColor: muteColor('#f43f5e', 0.4) }}
+                  >
                     <motion.div 
                       initial={{ width: 0 }}
                       animate={{ width: `${yesDisplay}%` }}
                       transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                      className="absolute left-0 top-0 h-full bg-emerald-600" 
+                      className="absolute left-0 top-0 h-full"
+                      style={{ backgroundColor: muteColor('#059669', 0.4) }}
                     />
                     {/* Separator */}
                     {yesDisplay > 0 && yesDisplay < 100 && (
@@ -1106,7 +1231,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               );
              })()}
              
-            <div className="flex gap-2.5 min-h-[36px]">
+            <div ref={binaryButtonContainerRef} className="flex gap-2.5 min-h-[36px]">
             {(() => {
               const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
               const noVal = liveNoOdds ?? event.noOdds ?? 0;
@@ -1115,13 +1240,20 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               return (
                 <>
                   <motion.button
+                    ref={binaryButtonRef}
                     onClick={(e) => handleTradeClick(e, 'YES')}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                     className="group/btn relative flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
                   >
-                    <span className="relative z-10 text-[12px] font-bold text-emerald-300 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300">YES</span>
-                    <span className="absolute z-10 text-[13px] font-bold text-emerald-200 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300">{yesDisplay}%</span>
+                    <span 
+                      className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
+                      style={{ color: muteColor('#10b981', 0.4) }}
+                    >YES</span>
+                    <span 
+                      className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                      style={{ color: muteColor('#10b981', 0.4) }}
+                    >{yesDisplay}%</span>
                   </motion.button>
                   <motion.button
                     onClick={(e) => handleTradeClick(e, 'NO')}
@@ -1129,8 +1261,14 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                     whileTap={{ scale: 0.99 }}
                     className="group/btn relative flex-1 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
                   >
-                    <span className="relative z-10 text-[12px] font-bold text-rose-300 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300">NO</span>
-                    <span className="absolute z-10 text-[13px] font-bold text-rose-200 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300">{noDisplay}%</span>
+                    <span 
+                      className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
+                      style={{ color: muteColor('#f43f5e', 0.4) }}
+                    >NO</span>
+                    <span 
+                      className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                      style={{ color: muteColor('#f43f5e', 0.4) }}
+                    >{noDisplay}%</span>
                   </motion.button>
                 </>
               );
@@ -1142,19 +1280,19 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         {/* 3. Stats Row */}
         <div className="flex items-center justify-between text-white/60 pt-0.5">
           <div className="flex items-center justify-between flex-1 pr-1">
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
               {volume}
             </span>
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-400">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
               {betCount}
             </span>
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-purple-400">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
               </svg>

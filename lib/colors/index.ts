@@ -73,32 +73,91 @@ export const colors = {
  * Returns Tailwind class string for category styling
  */
 export function getCategoryColorClasses(category: string): string {
-  const cat = category.toUpperCase();
+  // Safety check: handle null/undefined/empty
+  if (!category || typeof category !== 'string') {
+    return '!text-gray-400 border-gray-500/30 bg-gray-500/10';
+  }
+  
+  // Normalize: trim whitespace and convert to uppercase
+  const cat = category.trim().toUpperCase();
+  
+  // Normalize category names (handle variations and aliases)
+  let normalizedCat = cat;
+  
+  // Handle ECONOMICS -> ECONOMY
+  if (cat === 'ECONOMICS' || cat === 'ECONOMIC') {
+    normalizedCat = 'ECONOMY';
+  }
+  // Handle POP CULTURE -> CULTURE
+  else if (cat === 'POP CULTURE' || cat === 'POPCULTURE') {
+    normalizedCat = 'CULTURE';
+  }
+  // Handle ESPORTS -> SPORTS (or keep ESPORTS if you want separate styling)
+  else if (cat === 'ESPORTS' || cat === 'E-SPORTS' || cat === 'E SPORTS') {
+    normalizedCat = 'ESPORTS'; // Keep as ESPORTS (has same color as SPORTS)
+  }
   
   // Map categories to Tailwind classes
   const categoryMap: Record<string, string> = {
     'CRYPTO': 'text-amber-400 border-amber-500/30 bg-amber-500/10',
     'SPORTS': 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+    'ESPORTS': 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', // Same as Sports
     'POLITICS': 'text-blue-400 border-blue-500/30 bg-blue-500/10',
     'ELECTIONS': 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10',
+    'ELECTION': 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10', // Singular form
     'TECH': 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10',
+    'TECHNOLOGY': 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10', // Full form
     'BUSINESS': 'text-purple-400 border-purple-500/30 bg-purple-500/10',
     'FINANCE': 'text-green-400 border-green-500/30 bg-green-500/10',
     'SCIENCE': 'text-pink-400 border-pink-500/30 bg-pink-500/10',
     'CULTURE': 'text-rose-400 border-rose-500/30 bg-rose-500/10',
+    'POP CULTURE': 'text-rose-400 border-rose-500/30 bg-rose-500/10', // Alias for CULTURE
     'ECONOMY': 'text-teal-400 border-teal-500/30 bg-teal-500/10',
+    'ECONOMICS': 'text-teal-400 border-teal-500/30 bg-teal-500/10', // Alias for ECONOMY
     'WORLD': 'text-violet-400 border-violet-500/30 bg-violet-500/10',
   };
   
-  return categoryMap[cat] || 'text-gray-400 border-gray-500/30 bg-gray-500/10';
+  const colorClasses = categoryMap[normalizedCat] || 'text-gray-400 border-gray-500/30 bg-gray-500/10';
+  
+  // Debug logging (remove in production if needed)
+  if (process.env.NODE_ENV === 'development' && !categoryMap[normalizedCat]) {
+    console.warn(`[Category Colors] No color mapping found for category: "${category}" (normalized: "${normalizedCat}")`);
+  }
+  
+  return colorClasses;
 }
 
 /**
  * Get category color object (for inline styles)
  */
-export function getCategoryColor(category: string) {
-  const cat = category.toUpperCase();
-  return colorTokens.categories[cat as keyof typeof colorTokens.categories] || colorTokens.categories.DEFAULT;
+export function getCategoryColor(category: string): { text: string; border: string; bg: string } {
+  // Safety check: handle null/undefined/empty
+  if (!category || typeof category !== 'string') {
+    return colorTokens.categories.DEFAULT;
+  }
+  
+  // Normalize: trim whitespace and convert to uppercase
+  const cat = category.trim().toUpperCase();
+  
+  // Normalize category names (handle variations and aliases)
+  let normalizedCat = cat;
+  
+  // Handle ECONOMICS -> ECONOMY
+  if (cat === 'ECONOMICS' || cat === 'ECONOMIC') {
+    normalizedCat = 'ECONOMY';
+  }
+  // Handle POP CULTURE -> CULTURE
+  else if (cat === 'POP CULTURE' || cat === 'POPCULTURE') {
+    normalizedCat = 'CULTURE';
+  }
+  // Handle ESPORTS -> SPORTS (or keep ESPORTS if you want separate styling)
+  else if (cat === 'ESPORTS' || cat === 'E-SPORTS' || cat === 'E SPORTS') {
+    normalizedCat = 'ESPORTS'; // Keep as ESPORTS (has same color as SPORTS)
+  }
+  
+  const categoryKey = normalizedCat as keyof typeof colorTokens.categories;
+  const colorObj = (colorTokens.categories[categoryKey] || colorTokens.categories.DEFAULT) as { text: string; border: string; bg: string };
+  return colorObj;
 }
 
 /**
