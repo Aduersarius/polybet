@@ -214,3 +214,8 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Ensure segment reveal containers start hidden to prevent flash */
+.segment-reveal {
+  clip-path: polygon(0% 0%, 0% 0%, 0% 100%, 0% 100%);
+}

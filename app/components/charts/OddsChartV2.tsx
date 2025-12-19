@@ -102,12 +102,17 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   const customTicks = useMemo(() => computeCustomDailyTicks(renderData as any[], period), [renderData, period]);
 
   const currentValues = useMemo(() => {
-    if (!isMultipleOutcomes || chartData.length === 0) return {};
-    const lastPoint: any = chartData[chartData.length - 1];
+    if (!isMultipleOutcomes) return {};
     const values: Record<string, number> = {};
-    coloredOutcomes.forEach((o) => {
-      values[`outcome_${o.id}`] = lastPoint?.[`outcome_${o.id}`] ?? 0;
-    });
+    
+    // Use the last point from chartData (which includes real-time updates)
+    // This is the source of truth - real-time updates are added via useOddsRealtime
+    if (chartData.length > 0) {
+      const lastPoint: any = chartData[chartData.length - 1];
+      coloredOutcomes.forEach((o) => {
+        values[`outcome_${o.id}`] = lastPoint?.[`outcome_${o.id}`] ?? 0;
+      });
+    }
     return values;
   }, [chartData, coloredOutcomes, isMultipleOutcomes]);
 
@@ -122,7 +127,13 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   // Show pulses when not hovered and dataset is reasonably small to avoid DOM cost.
   const showCurrentPulse = hoveredDataPoint == null && renderData.length <= Math.max(420, renderCap + 20);
-  const lastPoint: any | undefined = (chartData as any[]).length ? (chartData as any[])[(chartData as any[]).length - 1] : undefined;
+  
+  // Use the last point from chartData for pulse markers - this ensures lines and markers match
+  // Since chartData is already updated with liveOutcomes, this will be consistent
+  const lastPoint = useMemo(() => {
+    if (!showCurrentPulse || renderData.length === 0) return undefined;
+    return renderData[renderData.length - 1];
+  }, [showCurrentPulse, renderData]);
 
   const handleHover = useCallback(
     (dp: any | null) => {

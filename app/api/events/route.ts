@@ -35,7 +35,19 @@ export async function GET(request: Request) {
     // #endregion
 
     // Handle special categories
+    // Normalize category name to match category-filters.ts format (e.g., 'SPORTS' -> 'Sports')
     let effectiveCategory = category;
+    if (category && category !== 'ALL' && category !== 'TRENDING' && category !== 'NEW' && category !== 'FAVORITES') {
+        const categoryMap: { [key: string]: string } = {
+            'SPORTS': 'Sports',
+            'CRYPTO': 'Crypto',
+            'POLITICS': 'Politics',
+            'BUSINESS': 'Business',
+            'SCIENCE': 'Science',
+            'POP CULTURE': 'Pop Culture',
+        };
+        effectiveCategory = categoryMap[category] || category;
+    }
     let effectiveSortBy = sortBy;
     let user = null;
 
@@ -82,6 +94,27 @@ export async function GET(request: Request) {
                 // Legacy category filtering
                 where.categories = { has: effectiveCategory };
             }
+        } else if (!effectiveCategory || effectiveCategory === 'ALL') {
+            // When showing ALL categories, exclude sports and esports events
+            // They should only appear in the Sports tab
+            where.AND = [
+                { isEsports: false },
+                {
+                    OR: [
+                        { categories: { isEmpty: true } },
+                        { 
+                            NOT: {
+                                OR: [
+                                    { categories: { has: 'Sports' } },
+                                    { categories: { has: 'Esports' } },
+                                    { categories: { has: 'SPORTS' } },
+                                    { categories: { has: 'ESPORTS' } }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ];
         }
 
         // Time horizon filtering
@@ -163,6 +196,7 @@ export async function GET(request: Request) {
                 qNo: true,
                 liquidityParameter: true,
                 type: true,
+                isEsports: true,
                 outcomes: {
                     select: {
                         id: true,
@@ -356,9 +390,39 @@ export async function GET(request: Request) {
         // }).catch(() => { });
         // #endregion
 
+        // When showing ALL categories, exclude sports and esports events (they should only appear in Sports tab)
+        // This catches any events that might have been detected as Sports by categorizeEvent but weren't caught by DB filter
+        if (!effectiveCategory || effectiveCategory === 'ALL') {
+            eventsWithStats = eventsWithStats.filter((event: (typeof eventsWithStats)[number]) => {
+                // Exclude if isEsports flag is set
+                if ((event as any).isEsports === true) {
+                    return false;
+                }
+                // Exclude if categories include Sports or Esports
+                const categories = (event.categories || []).map((c: string) => c.toLowerCase());
+                if (categories.includes('sports') || categories.includes('esports')) {
+                    return false;
+                }
+                // Exclude if categorizeEvent detects it as Sports
+                const detectedCategories = categorizeEvent(event.title, event.description || '');
+                if (detectedCategories.includes('Sports')) {
+                    return false;
+                }
+                return true;
+            });
+        }
+
         // Apply keyword-based category filtering if needed
         if (effectiveCategory && getAllCategories().includes(effectiveCategory)) {
             eventsWithStats = eventsWithStats.filter((event: (typeof eventsWithStats)[number]) => {
+                // For Sports category, also include events with Sports/Esports in categories or isEsports flag
+                if (effectiveCategory === 'Sports') {
+                    const categories = (event.categories || []).map((c: string) => c.toLowerCase());
+                    if (categories.includes('sports') || categories.includes('esports') || (event as any).isEsports === true) {
+                        return true;
+                    }
+                }
+                // Use keyword-based detection
                 const detectedCategories = categorizeEvent(event.title, event.description || '');
                 return detectedCategories.includes(effectiveCategory);
             });
