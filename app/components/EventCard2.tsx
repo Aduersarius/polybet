@@ -168,6 +168,9 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
   const scrollInactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const outcomesCarouselRef = useRef<HTMLDivElement>(null);
+  const countdownShortRef = useRef<HTMLSpanElement>(null);
+  const countdownFullRef = useRef<HTMLSpanElement>(null);
+  const [countdownWidth, setCountdownWidth] = useState<number | 'auto'>('auto');
   const queryClient = useQueryClient();
   const hasAnimatedRef = useRef(false); // Track if initial animation has completed
   const initialOutcomesRef = useRef<typeof event.outcomes | null>(null); // Store initial outcomes to prevent recalculation
@@ -228,6 +231,31 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     
     return () => clearInterval(interval);
   }, [isCountdownHovered, event.resolutionDate]);
+
+  // Measure and animate countdown width
+  useEffect(() => {
+    const measureWidth = () => {
+      if (isCountdownHovered && countdownFullRef.current) {
+        const width = countdownFullRef.current.offsetWidth;
+        setCountdownWidth(width);
+      } else if (!isCountdownHovered && countdownShortRef.current) {
+        const width = countdownShortRef.current.offsetWidth;
+        setCountdownWidth(width);
+      }
+    };
+    
+    // Measure after a brief delay to ensure elements are rendered
+    const timeoutId = setTimeout(measureWidth, 0);
+    return () => clearTimeout(timeoutId);
+  }, [isCountdownHovered, fullTimeRemaining]);
+
+  // Initial width measurement on mount
+  useEffect(() => {
+    if (countdownShortRef.current && countdownWidth === 'auto') {
+      const width = countdownShortRef.current.offsetWidth;
+      setCountdownWidth(width);
+    }
+  }, []);
 
   // Check if carousel is scrollable and show/hide arrows accordingly
   useEffect(() => {
@@ -574,13 +602,30 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             ) : null}
           </motion.div>
           <div
-            className="absolute right-0 z-10 top-0"
+            className="absolute right-0 z-10"
+            style={{ top: '50%', transform: 'translateY(-50%)' }}
             onMouseEnter={() => setIsCountdownHovered(true)}
             onMouseLeave={() => setIsCountdownHovered(false)}
           >
-            <span
-              className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap inline-block"
-              style={{ lineHeight: 'normal' }}
+            {/* Hidden spans to measure widths */}
+            <div className="absolute opacity-0 pointer-events-none" style={{ visibility: 'hidden' }}>
+              <span ref={countdownShortRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
+                {getTimeRemaining(new Date(event.resolutionDate))}
+              </span>
+              <span ref={countdownFullRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
+                {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
+              </span>
+            </div>
+            
+            <motion.div
+              className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-0 h-5 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap overflow-hidden inline-flex items-center"
+              style={{ 
+                lineHeight: 'normal',
+              }}
+              animate={{
+                width: countdownWidth === 'auto' ? 'auto' : `${countdownWidth}px`,
+              }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
             >
               <AnimatePresence mode="wait">
                 {!isCountdownHovered ? (
@@ -607,7 +652,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   </motion.span>
                 )}
               </AnimatePresence>
-            </span>
+            </motion.div>
           </div>
         </div>
 
