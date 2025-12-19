@@ -50,6 +50,8 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const [yesPrice, setYesPrice] = useState<number>(0.5);
     const [noPrice, setNoPrice] = useState<number>(0.5);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [amountInputFocused, setAmountInputFocused] = useState(false);
+    const [priceInputFocused, setPriceInputFocused] = useState(false);
 
     const { settings, formatCurrency, formatOdds } = useSettings();
 
@@ -434,9 +436,14 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     <button
                         onClick={() => setSelectedOption('YES')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'YES'
-                            ? `bg-[${yesColor}]/20 border-[${yesColor}] text-[${yesColor}]`
+                            ? ''
                             : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                             }`}
+                        style={selectedOption === 'YES' ? {
+                            backgroundColor: `${yesColor}33`,
+                            borderColor: yesColor,
+                            color: yesColor
+                        } : undefined}
                     >
                         <span className="text-sm font-bold">Yes</span>
                         <span className="text-xs opacity-80">{yesProbability}%</span>
@@ -444,9 +451,14 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     <button
                         onClick={() => setSelectedOption('NO')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'NO'
-                            ? `bg-[${noColor}]/20 border-[${noColor}] text-[${noColor}]`
+                            ? ''
                             : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                             }`}
+                        style={selectedOption === 'NO' ? {
+                            backgroundColor: `${noColor}33`,
+                            borderColor: noColor,
+                            color: noColor
+                        } : undefined}
                     >
                         <span className="text-sm font-bold">No</span>
                         <span className="text-xs opacity-80">{noProbability}%</span>
@@ -481,7 +493,12 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             type="number"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            className={`amount-input w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[${focusColor}] transition-colors text-lg font-medium`}
+                            onFocus={() => setAmountInputFocused(true)}
+                            onBlur={() => setAmountInputFocused(false)}
+                            className={`amount-input w-full bg-white/5 border rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none transition-colors text-lg font-medium`}
+                            style={{
+                                borderColor: amountInputFocused ? focusColor : 'rgba(255, 255, 255, 0.1)'
+                            }}
                             placeholder="0"
                         />
                     </div>
@@ -552,18 +569,28 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                             <button
                                 onClick={() => setOrderType('market')}
                                 className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'market'
-                                    ? `bg-[${yesColor}]/20 border-[${yesColor}] text-[${yesColor}]`
+                                    ? ''
                                     : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                                     }`}
+                                style={orderType === 'market' ? {
+                                    backgroundColor: `${yesColor}33`,
+                                    borderColor: yesColor,
+                                    color: yesColor
+                                } : undefined}
                             >
                                 Market
                             </button>
                             <button
                                 onClick={() => setOrderType('limit')}
                                 className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'limit'
-                                    ? `bg-[${noColor}]/20 border-[${noColor}] text-[${noColor}]`
+                                    ? ''
                                     : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                                     }`}
+                                style={orderType === 'limit' ? {
+                                    backgroundColor: `${noColor}33`,
+                                    borderColor: noColor,
+                                    color: noColor
+                                } : undefined}
                             >
                                 Limit
                             </button>
@@ -583,7 +610,12 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                     type="number"
                                     value={price}
                                     onChange={(e) => setPrice(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[${focusColor}] transition-colors text-lg font-medium"
+                                    onFocus={() => setPriceInputFocused(true)}
+                                    onBlur={() => setPriceInputFocused(false)}
+                                    className="w-full bg-white/5 border rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none transition-colors text-lg font-medium"
+                                    style={{
+                                        borderColor: priceInputFocused ? focusColor : 'rgba(255, 255, 255, 0.1)'
+                                    }}
                                     placeholder="0.50"
                                     step="0.01"
                                     min="0.01"
@@ -607,10 +639,11 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         parseFloat(amount) <= 0 ||
                         (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
                     }
-                    className={`w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${selectedOption === 'YES'
-                        ? `bg-[${yesColor}] hover:bg-[${yesColor}]/90 shadow-[${yesColor}]/20`
-                        : `bg-[${noColor}] hover:bg-[${noColor}]/90 shadow-[${noColor}]/20`
-                        }`}
+                    className="w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                    style={{
+                        backgroundColor: selectedOption === 'YES' ? yesColor : noColor,
+                        boxShadow: `0 10px 15px -3px ${selectedOption === 'YES' ? yesColor : noColor}20, 0 4px 6px -2px ${selectedOption === 'YES' ? yesColor : noColor}10`
+                    }}
                 >
                     {isLoading
                         ? 'Processing...'
@@ -644,8 +677,14 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${selectedOption === 'YES' ? `bg-[${yesColor}]/20` : `bg-[${noColor}]/20`}`}>
-                                        <AlertTriangle className={`w-5 h-5 ${selectedOption === 'YES' ? `text-[${yesColor}]` : `text-[${noColor}]`}`} />
+                                    <div 
+                                        className="p-2 rounded-lg"
+                                        style={{ backgroundColor: `${selectedOption === 'YES' ? yesColor : noColor}33` }}
+                                    >
+                                        <AlertTriangle 
+                                            className="w-5 h-5"
+                                            style={{ color: selectedOption === 'YES' ? yesColor : noColor }}
+                                        />
                                     </div>
                                     <h3 className="text-lg font-bold text-white">Confirm Trade</h3>
                                 </div>
@@ -674,7 +713,10 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">You receive</span>
-                                    <span className={`font-bold ${selectedOption === 'YES' ? `text-[${yesColor}]` : `text-[${noColor}]`}`}>
+                                    <span 
+                                        className="font-bold"
+                                        style={{ color: selectedOption === 'YES' ? yesColor : noColor }}
+                                    >
                                         {selectedTab === 'buy' ? `${potentialPayout.toFixed(2)} shares` : formatCurrency(potentialPayout)}
                                     </span>
                                 </div>
@@ -689,8 +731,10 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </button>
                                 <button
                                     onClick={executeTrade}
-                                    className={`flex-1 py-3 rounded-lg font-bold text-black transition-all ${selectedOption === 'YES' ? `bg-[${yesColor}] hover:bg-[${yesColor}]/90` : `bg-[${noColor}] hover:bg-[${noColor}]/90`
-                                        }`}
+                                    className="flex-1 py-3 rounded-lg font-bold text-black transition-all hover:opacity-90"
+                                    style={{
+                                        backgroundColor: selectedOption === 'YES' ? yesColor : noColor
+                                    }}
                                 >
                                     Confirm
                                 </button>

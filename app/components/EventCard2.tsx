@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -163,9 +163,16 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const [isFavorite, setIsFavorite] = useState(false);
   const [isCountdownHovered, setIsCountdownHovered] = useState(false);
   const [fullTimeRemaining, setFullTimeRemaining] = useState<string>('');
-  const [showOutcomesDropdown, setShowOutcomesDropdown] = useState(false);
-  const outcomesDropdownRef = useRef<HTMLDivElement>(null);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const scrollInactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const outcomesCarouselRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const hasAnimatedRef = useRef(false); // Track if initial animation has completed
+  const initialOutcomesRef = useRef<typeof event.outcomes | null>(null); // Store initial outcomes to prevent recalculation
+  const segmentDataRef = useRef<any[] | null>(null); // Lock segment data after first calculation
+  const lockedOutcomesRef = useRef<typeof event.outcomes | null>(null); // Lock outcomes used for segment calculation
 
   // Fetch user's favorites
   const { data: userFavorites, refetch: refetchFavorites } = useQuery({
@@ -190,11 +197,21 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const [liveNoOdds, setLiveNoOdds] = useState(event.noOdds);
   const [liveOutcomes, setLiveOutcomes] = useState(event.outcomes);
 
+  // Store initial outcomes on first render
+  useLayoutEffect(() => {
+    if (initialOutcomesRef.current === null && event.outcomes) {
+      initialOutcomesRef.current = event.outcomes;
+    }
+  }, [event.outcomes]);
+
   // Update local state if props change
   useEffect(() => {
     setLiveYesOdds(event.yesOdds);
     setLiveNoOdds(event.noOdds);
-    setLiveOutcomes(event.outcomes);
+    // Only update liveOutcomes if we haven't locked segment data yet
+    if (segmentDataRef.current === null) {
+      setLiveOutcomes(event.outcomes);
+    }
   }, [event.yesOdds, event.noOdds, event.outcomes]);
 
   // Update full time remaining when hovered
@@ -212,19 +229,51 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     return () => clearInterval(interval);
   }, [isCountdownHovered, event.resolutionDate]);
 
-  // Close dropdown when clicking outside
+  // Check if carousel is scrollable and show/hide arrows accordingly
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (outcomesDropdownRef.current && !outcomesDropdownRef.current.contains(event.target as Node)) {
-        setShowOutcomesDropdown(false);
+    if (!outcomesCarouselRef.current || event.type !== 'MULTIPLE') return;
+    
+    const checkScrollable = () => {
+      const carousel = outcomesCarouselRef.current;
+      if (!carousel) return;
+      
+      const isScrollable = carousel.scrollWidth > carousel.clientWidth;
+      const isAtStart = carousel.scrollLeft <= 5;
+      const isAtEnd = carousel.scrollWidth - carousel.scrollLeft <= carousel.clientWidth + 5;
+      
+      if (!isScrollable) {
+        setShowRightArrow(false);
+        setShowLeftArrow(false);
+      } else {
+        // Show right arrow if not at end
+        setShowRightArrow(!isAtEnd);
+        // Show left arrow if not at start
+        setShowLeftArrow(!isAtStart);
       }
     };
+    
+    // Check initially and after a short delay to ensure DOM is ready
+    checkScrollable();
+    const timeoutId = setTimeout(checkScrollable, 100);
+    
+    // Also check on window resize
+    window.addEventListener('resize', checkScrollable);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', checkScrollable);
+    };
+  }, [liveOutcomes, event.outcomes, event.type]);
 
-    if (showOutcomesDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showOutcomesDropdown]);
+  // Cleanup scroll inactivity timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollInactivityTimerRef.current) {
+        clearTimeout(scrollInactivityTimerRef.current);
+      }
+    };
+  }, []);
+
 
 
   // Fetch latest odds history to seed with freshest point (binary or multiple)
@@ -242,11 +291,32 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     },
   });
 
+  // Sync latest history data before first render to ensure correct initial values
+  useLayoutEffect(() => {
+    // If we have latestHistory data and haven't locked segmentData yet, use it
+    if (latestHistory && latestHistory.length > 0 && segmentDataRef.current === null) {
+      const last = latestHistory[latestHistory.length - 1];
+      if (event.type === 'MULTIPLE' && Array.isArray(last?.outcomes)) {
+        setLiveOutcomes(last.outcomes);
+        if (initialOutcomesRef.current === null) {
+          initialOutcomesRef.current = last.outcomes;
+        }
+      }
+    }
+  }, [latestHistory, event.type]);
+
   useEffect(() => {
     if (!latestHistory || latestHistory.length === 0) return;
     const last = latestHistory[latestHistory.length - 1];
     if (event.type === 'MULTIPLE' && Array.isArray(last?.outcomes)) {
-      setLiveOutcomes(last.outcomes);
+      // Only update if we haven't locked segment data yet - this prevents animation restart
+      if (segmentDataRef.current === null) {
+        setLiveOutcomes(last.outcomes);
+        // Store as initial outcomes if not set yet
+        if (initialOutcomesRef.current === null) {
+          initialOutcomesRef.current = last.outcomes;
+        }
+      }
       return;
     }
     const latestYes = typeof last?.yesPrice === 'number' ? last.yesPrice : undefined;
@@ -303,10 +373,6 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
   const betCount = event.betCount || 0;
   const commentsCount = messages?.length || 0;
-
-  // Calculate remaining outcomes for multiple choice events
-  const totalOutcomes = (liveOutcomes || event.outcomes)?.length || 0;
-  const remainingOutcomes = Math.max(0, totalOutcomes - 2);
 
   // Use odds from props or calculate simple estimate based on bet count
   let yesOdds = 50;
@@ -549,17 +615,23 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         {event.type === 'MULTIPLE' && (liveOutcomes || event.outcomes) ? (
           <div className="flex flex-col gap-2.5 mt-3">
              {(() => {
+               // Use locked outcomes if available, otherwise use current outcomes
+               // This ensures we don't recalculate segmentData when liveOutcomes updates
+               const outcomesForCalculation = lockedOutcomesRef.current || liveOutcomes || event.outcomes;
+               
                // Get all outcomes (unfiltered) to preserve original indices for color matching
-               const allOutcomesUnfiltered = (liveOutcomes || event.outcomes) || [];
+               const allOutcomesUnfiltered = outcomesForCalculation || [];
                
                // Get all valid outcomes with probabilities - shared between slider and buttons
-               const allOutcomes = allOutcomesUnfiltered.filter((outcome) => {
-                 const probValue = outcome?.probability;
-                 if (probValue == null || probValue < 0) return false;
-                 const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                 if (probability === 0) return false;
-                 return true;
-               });
+               const allOutcomes = useMemo(() => {
+                 return allOutcomesUnfiltered.filter((outcome) => {
+                   const probValue = outcome?.probability;
+                   if (probValue == null || probValue < 0) return false;
+                   const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                   if (probability === 0) return false;
+                   return true;
+                 });
+               }, [allOutcomesUnfiltered]);
 
                // Helper function to get outcome color - use outcome.color if available, otherwise use centralized system
                // Uses original index from unfiltered array to match event page color assignment
@@ -594,213 +666,342 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                  return `rgb(${Math.min(255, r + 40)}, ${Math.min(255, g + 40)}, ${Math.min(255, b + 40)})`;
                };
 
-               // Show top 2 outcomes for buttons (matching binary layout)
-               const topOutcomes = allOutcomes.slice(0, 2);
-               const buttonRemainingOutcomes = Math.max(0, allOutcomes.length - 2);
+               // Pre-calculate ALL segment positions BEFORE rendering - ensures no recalculation
+               // Use stable outcomes to prevent recalculation during animation
+               // Lock segment data after first calculation to prevent animation restart
+               const segmentData = useMemo(() => {
+                 // If we already have locked segment data, return it (prevents recalculation)
+                 if (segmentDataRef.current !== null) {
+                   return segmentDataRef.current;
+                 }
+                 
+                 // Lock the outcomes used for this calculation
+                 if (lockedOutcomesRef.current === null) {
+                   lockedOutcomesRef.current = outcomesForCalculation;
+                 }
+                 
+                 // Calculate segment data
+                 const calculated = allOutcomes.map((outcome, idx) => {
+                   const probValue = outcome.probability ?? 0;
+                   const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                   
+                   // Calculate color inside useMemo
+                   const colorHex = outcome?.color 
+                     ? outcome.color 
+                     : getOutcomeColor(allOutcomesUnfiltered.findIndex(o => o.id === outcome.id) >= 0 
+                         ? allOutcomesUnfiltered.findIndex(o => o.id === outcome.id) 
+                         : 0);
+                   
+                   const leftPosition = allOutcomes.slice(0, idx).reduce((sum, o) => {
+                     const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
+                     return sum + p;
+                   }, 0);
+                   
+                   const segmentDelay = idx * 0.1;
+                   const segmentEnd = leftPosition + probability;
+                   
+                   // Calculate ALL values as fixed strings - never recalculate
+                   return {
+                     outcome,
+                     idx,
+                     probability,
+                     colorHex,
+                     leftPosition,
+                     segmentEnd,
+                     segmentDelay,
+                     segmentLeft: `${leftPosition}%`,
+                     segmentWidth: `${probability}%`,
+                     clipPathInitial: 'polygon(0% 0%, 0% 0%, 0% 100%, 0% 100%)',
+                     clipPathFinal: `polygon(0% 0%, ${segmentEnd}% 0%, ${segmentEnd}% 100%, 0% 100%)`,
+                     tooltipPosition: leftPosition + (probability / 2)
+                   };
+                 });
+                 
+                 // Lock the segment data after first calculation
+                 segmentDataRef.current = calculated;
+                 
+                 return calculated;
+               }, [allOutcomes, allOutcomesUnfiltered]);
 
                return (
                  <>
-                   <div className="relative">
-                     {/* Percentage Tooltips - Show for all outcomes with >15% probability */}
-                     {allOutcomes.map((outcome, idx) => {
-                       const probValue = outcome.probability ?? 0;
-                       const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                   <div className="relative w-full">
+                     {/* Percentage numbers - hide when hovering */}
+                     {segmentData.map(({ outcome, probability, tooltipPosition, segmentDelay, idx }) => {
+                       // Show percentage numbers only if not hovering and probability > 15%
+                       if (hoveredSegmentId !== null || probability <= 15) return null;
                        
-                       // Only show tooltip if probability is greater than 15%
-                       if (probability <= 15) return null;
-                       
-                       // Calculate cumulative position for tooltip
-                       const cumulativeWidth = allOutcomes.slice(0, idx).reduce((sum, o) => {
-                         const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
-                         return sum + p;
-                       }, 0);
-                       const tooltipPosition = cumulativeWidth + (probability / 2);
                        return (
                          <motion.div
                            key={`tooltip-${outcome.id}`}
-                           initial={{ left: '0%', opacity: 0 }}
+                           initial={{ opacity: 0 }}
                            animate={{ 
-                             left: `${tooltipPosition}%`,
                              opacity: probability > 0 ? 1 : 0
                            }}
                            transition={{ 
-                             duration: 0.8, 
-                             delay: (index * 0.05) + 0.3, 
+                             duration: 0.2,
                              ease: "easeOut" 
                            }}
                            className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                           style={{ left: `${tooltipPosition}%` }}
                          >
                            <span className="text-xs font-bold text-white whitespace-nowrap">
-                             <AnimatedPercentage value={probability} delay={(index * 0.05) + 0.3} duration={0.8} />
+                             <AnimatedPercentage value={probability} delay={(index * 0.05) + 0.3 + segmentDelay} duration={0.8} />
                            </span>
                          </motion.div>
                        );
                      })}
                      
+                     {/* Centered outcome name and percentage - shows when hovering any segment */}
+                     {hoveredSegmentId && (() => {
+                       const hoveredSegment = segmentData.find(s => s.outcome.id === hoveredSegmentId);
+                       if (!hoveredSegment) return null;
+                       return (
+                         <motion.div
+                           key="hovered-display"
+                           initial={{ opacity: 0, y: -4 }}
+                           animate={{ opacity: 1, y: 0 }}
+                           transition={{ duration: 0.2, ease: "easeOut" }}
+                           className="absolute -top-6 left-0 right-0 pointer-events-none z-20"
+                         >
+                           <div className="text-xs font-bold text-white whitespace-nowrap text-center w-full">
+                             {hoveredSegment.outcome.name} {hoveredSegment.probability}%
+                           </div>
+                         </motion.div>
+                       );
+                     })()}
+                     
                      {/* Slider with ALL outcomes */}
                      <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500/30 group/slider">
-                       {allOutcomes.map((outcome, idx) => {
-                         const probValue = outcome.probability ?? 0;
-                         const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                         const colorHex = getOutcomeColorForIndex(outcome);
-                         // Calculate left position based on cumulative width of previous outcomes
-                         const leftPosition = allOutcomes.slice(0, idx).reduce((sum, o) => {
-                           const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
-                           return sum + p;
-                         }, 0);
-                         
+                       {/* Hover areas - positioned outside clipPath containers for accurate detection */}
+                       {segmentData.map(({ outcome, segmentLeft, segmentWidth, idx }) => {
+                         const isHovered = hoveredSegmentId === outcome.id;
                          return (
-                           <motion.div
-                             key={outcome.id}
-                             initial={{ width: 0 }}
-                             animate={{ width: `${probability}%` }}
-                             transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                             className="absolute top-0 h-full group/segment cursor-pointer"
-                             style={{ left: `${leftPosition}%`, backgroundColor: colorHex }}
-                           >
-                             {/* Hover tooltip with outcome name - appears above slider */}
-                             <div className="absolute left-1/2 -translate-x-1/2 -top-8 opacity-0 group-hover/segment:opacity-100 transition-opacity duration-200 pointer-events-none z-30">
-                               <div className="bg-black/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-lg">
-                                 {outcome.name}
-                               </div>
-                             </div>
-                           </motion.div>
+                           <div
+                             key={`hover-${outcome.id}`}
+                             className="absolute top-0 cursor-pointer"
+                             style={{
+                               left: segmentLeft,
+                               width: segmentWidth,
+                               height: '100%',
+                               zIndex: isHovered ? 100 : idx + 50,
+                               pointerEvents: 'auto',
+                             }}
+                             onMouseEnter={() => setHoveredSegmentId(outcome.id)}
+                             onMouseLeave={() => setHoveredSegmentId(null)}
+                           />
                          );
                        })}
                        
-                       {/* Separators between outcomes */}
-                       {allOutcomes.slice(0, -1).map((outcome, idx) => {
-                         const cumulativeWidth = allOutcomes.slice(0, idx + 1).reduce((sum, o) => {
-                           const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
-                           return sum + p;
-                         }, 0);
-                         if (cumulativeWidth > 0 && cumulativeWidth < 100) {
-                           return (
-                             <motion.div 
-                               key={`separator-${idx}`}
-                               initial={{ left: '0%', opacity: 0 }}
-                               animate={{ 
-                                 left: `${cumulativeWidth}%`,
-                                 opacity: 1
+                       {/* Visible segments with clipPath animations */}
+                       {segmentData.map(({ outcome, segmentLeft, segmentWidth, colorHex, clipPathInitial, clipPathFinal, segmentDelay, idx, probability }) => {
+                         const isHovered = hoveredSegmentId === outcome.id;
+                         const isAnyHovered = hoveredSegmentId !== null;
+                         const shouldTint = isAnyHovered && !isHovered;
+                         const isFirst = idx === 0;
+                         const isLast = idx === segmentData.length - 1;
+                         const roundedClasses = isFirst && isLast 
+                           ? 'rounded-full' 
+                           : isFirst 
+                           ? 'rounded-l-full' 
+                           : isLast 
+                           ? 'rounded-r-full' 
+                           : '';
+                         
+                         // Always animate on first render - segmentData is locked after first calculation
+                         return (
+                           <motion.div
+                             key={outcome.id}
+                             initial={{ clipPath: clipPathInitial }}
+                             animate={{ 
+                               clipPath: clipPathFinal
+                             }}
+                             transition={{ 
+                               duration: 0.8, 
+                               delay: (index * 0.05) + 0.3 + segmentDelay, 
+                               ease: [0.25, 0.1, 0.25, 1]
+                             }}
+                             className="absolute top-0 left-0 h-full overflow-visible segment-reveal pointer-events-none"
+                             style={{ 
+                               width: '100%',
+                               willChange: 'clip-path',
+                               zIndex: isHovered ? 60 : idx + 10,
+                               transform: 'translateZ(0)', // Force GPU layer
+                               backfaceVisibility: 'hidden', // Prevent flicker
+                               // Set initial clip-path directly in style - applied immediately, before animation
+                               clipPath: clipPathInitial
+                             }}
+                           >
+                             {/* Visible segment */}
+                             <motion.div
+                               className={`absolute top-0 h-full origin-center ${roundedClasses}`}
+                               style={{ 
+                                 left: segmentLeft,
+                                 width: segmentWidth,
+                                 backgroundColor: colorHex,
+                                 position: 'absolute',
+                                 top: '0',
+                                 height: '100%',
+                                 transformOrigin: 'center center',
+                                 backfaceVisibility: 'hidden',
                                }}
-                               transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                               className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                               animate={{
+                                 scaleY: isHovered ? 1.8 : 1,
+                                 opacity: shouldTint ? 0.4 : 1,
+                               }}
+                               transition={{
+                                 duration: 0.2,
+                                 ease: "easeOut"
+                               }}
                              />
-                           );
-                         }
-                         return null;
+                           </motion.div>
+                         );
                        })}
                      </div>
                    </div>
                    
-                   <div className="flex items-center gap-2.5 min-h-[36px]">
-                     {topOutcomes.map((outcome) => {
-                       if (!outcome) return null;
-                       const probValue = outcome.probability ?? 0;
-                       const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                       const colorHex = getOutcomeColorForIndex(outcome);
-                       const textColor = getTextColorFromHex(colorHex);
-                       
-                       return (
-                         <motion.button
-                           key={outcome.id}
-                           onClick={(e) => {
-                             e.preventDefault();
-                             if (onMultipleTradeClick) {
-                               onMultipleTradeClick(event);
-                             } else {
-                               window.location.href = `/event/${event.id}`;
-                             }
-                           }}
-                           whileHover={{ scale: 1.01 }}
-                           whileTap={{ scale: 0.99 }}
-                           className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
-                           style={{ 
-                             backgroundColor: hexToRgba(colorHex, 0.1),
-                           }}
-                           onMouseEnter={(e) => {
-                             e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
-                           }}
-                           onMouseLeave={(e) => {
-                             e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
-                           }}
+                   <div className="relative min-h-[36px] overflow-visible">
+                     {/* Horizontal scrollable carousel */}
+                     <div 
+                       ref={outcomesCarouselRef}
+                       className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1"
+                       style={{
+                         WebkitOverflowScrolling: 'touch',
+                       }}
+                       onScroll={(e) => {
+                         const target = e.currentTarget;
+                         const isAtStart = target.scrollLeft <= 5;
+                         const isAtEnd = target.scrollWidth - target.scrollLeft <= target.clientWidth + 5;
+                         
+                         // Hide arrows immediately when scrolling
+                         setShowRightArrow(false);
+                         setShowLeftArrow(false);
+                         
+                         // Clear existing timer
+                         if (scrollInactivityTimerRef.current) {
+                           clearTimeout(scrollInactivityTimerRef.current);
+                         }
+                         
+                         // Show arrows after 3 seconds of inactivity
+                         scrollInactivityTimerRef.current = setTimeout(() => {
+                           setShowRightArrow(!isAtEnd);
+                           setShowLeftArrow(!isAtStart);
+                         }, 3000);
+                       }}
+                     >
+                       {allOutcomes.map((outcome) => {
+                         if (!outcome) return null;
+                         const probValue = outcome.probability ?? 0;
+                         const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                         const colorHex = getOutcomeColorForIndex(outcome);
+                         const textColor = getTextColorFromHex(colorHex);
+                         
+                         return (
+                           <motion.button
+                             key={outcome.id}
+                             onClick={(e) => {
+                               e.preventDefault();
+                               if (onMultipleTradeClick) {
+                                 onMultipleTradeClick(event);
+                               } else {
+                                 window.location.href = `/event/${event.id}`;
+                               }
+                             }}
+                             whileHover={{ scale: 1.01 }}
+                             whileTap={{ scale: 0.99 }}
+                             className="group/btn relative flex-shrink-0 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                             style={{ 
+                               backgroundColor: hexToRgba(colorHex, 0.1),
+                               width: '92px', // Fixed width for consistent badge size
+                               minWidth: '80px',
+                               maxWidth: '100px',
+                             }}
+                             onMouseEnter={(e) => {
+                               e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
+                             }}
+                             onMouseLeave={(e) => {
+                               e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
+                             }}
+                           >
+                             <span 
+                               className="relative z-10 text-[10px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 whitespace-nowrap truncate w-full text-center"
+                               style={{ color: textColor }}
+                             >
+                               {outcome.name}
+                             </span>
+                             <span 
+                               className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 whitespace-nowrap"
+                               style={{ color: textColor }}
+                             >
+                               {probability}%
+                             </span>
+                           </motion.button>
+                         );
+                       })}
+                     </div>
+                     
+                     {/* Left scroll indicator arrow - shows when content is hidden on the left */}
+                     {showLeftArrow && (
+                       <motion.div
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: [0.4, 1, 0.4] }}
+                         transition={{ 
+                           duration: 1.5,
+                           repeat: Infinity,
+                           ease: "easeInOut"
+                         }}
+                         className="absolute left-[-16px] flex items-center justify-center pointer-events-none z-20"
+                         style={{ 
+                           top: 'calc(50% - 2px)', // Slightly up to align with text center
+                           transform: 'translateY(-50%)',
+                         }}
+                       >
+                         <svg 
+                           className="w-4 h-4 text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.5)]"
+                           fill="none" 
+                           stroke="currentColor" 
+                           viewBox="0 0 24 24"
                          >
-                           <span 
-                             className="relative z-10 text-[10px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 truncate max-w-full"
-                             style={{ color: textColor }}
-                           >
-                             {outcome.name}
-                           </span>
-                           <span 
-                             className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
-                             style={{ color: textColor }}
-                           >
-                             {probability}%
-                           </span>
-                         </motion.button>
-                       );
-                     })}
-                     {buttonRemainingOutcomes > 0 && (
-                       <div ref={outcomesDropdownRef} className="relative flex-shrink-0 ml-auto">
-                         <button
-                           onClick={(e) => {
-                             e.preventDefault();
-                             e.stopPropagation();
-                             setShowOutcomesDropdown(!showOutcomesDropdown);
-                           }}
-                           className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-1 rounded-lg border border-purple-400/20 hover:bg-purple-500/20 hover:border-purple-400/40 transition-all duration-200 cursor-pointer"
+                           <path 
+                             strokeLinecap="round" 
+                             strokeLinejoin="round" 
+                             strokeWidth={2.5} 
+                             d="M15 19l-7-7 7-7" 
+                           />
+                         </svg>
+                       </motion.div>
+                     )}
+                     
+                     {/* Right scroll indicator arrow - shows when content is hidden on the right */}
+                     {showRightArrow && (
+                       <motion.div
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: [0.4, 1, 0.4] }}
+                         transition={{ 
+                           duration: 1.5,
+                           repeat: Infinity,
+                           ease: "easeInOut"
+                         }}
+                         className="absolute right-[-16px] flex items-center justify-center pointer-events-none z-20"
+                         style={{ 
+                           top: 'calc(50% - 2px)', // Slightly up to align with text center
+                           transform: 'translateY(-50%)',
+                         }}
+                       >
+                         <svg 
+                           className="w-4 h-4 text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.5)]"
+                           fill="none" 
+                           stroke="currentColor" 
+                           viewBox="0 0 24 24"
                          >
-                           +{buttonRemainingOutcomes}
-                         </button>
-                         {showOutcomesDropdown && (
-                           <motion.div
-                             initial={{ opacity: 0, y: -10 }}
-                             animate={{ opacity: 1, y: 0 }}
-                             exit={{ opacity: 0, y: -10 }}
-                             transition={{ duration: 0.2 }}
-                             className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-purple-400/30 rounded-lg shadow-xl overflow-hidden min-w-[200px] max-w-[300px]"
-                           >
-                             <div className="max-h-[300px] overflow-y-auto">
-                               {allOutcomes.slice(2, 12).map((outcome) => {
-                                 const probValue = outcome.probability ?? 0;
-                                 const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                                 const colorHex = getOutcomeColorForIndex(outcome);
-                                 const textColor = getTextColorFromHex(colorHex);
-                                 
-                                 return (
-                                   <button
-                                     key={outcome.id}
-                                     onClick={(e) => {
-                                       e.preventDefault();
-                                       e.stopPropagation();
-                                       if (onMultipleTradeClick) {
-                                         onMultipleTradeClick(event);
-                                       } else {
-                                         window.location.href = `/event/${event.id}`;
-                                       }
-                                       setShowOutcomesDropdown(false);
-                                     }}
-                                     className="w-full px-3 py-2 text-left hover:bg-purple-500/10 transition-colors duration-150 border-b border-purple-400/10 last:border-b-0 flex items-center justify-between gap-2"
-                                   >
-                                     <span 
-                                       className="text-[11px] font-semibold truncate flex-1"
-                                       style={{ color: textColor }}
-                                     >
-                                       {outcome.name}
-                                     </span>
-                                     <span 
-                                       className="text-[11px] font-bold flex-shrink-0"
-                                       style={{ color: textColor }}
-                                     >
-                                       {probability}%
-                                     </span>
-                                   </button>
-                                 );
-                               })}
-                             </div>
-                           </motion.div>
-                         )}
-                       </div>
+                           <path 
+                             strokeLinecap="round" 
+                             strokeLinejoin="round" 
+                             strokeWidth={2.5} 
+                             d="M9 5l7 7-7 7" 
+                           />
+                         </svg>
+                       </motion.div>
                      )}
                    </div>
                  </>

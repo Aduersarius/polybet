@@ -166,6 +166,21 @@ export default function EventPage() {
                 // Update live event data with new odds/outcomes
                 const { eventId: _, ...updateData } = update;
                 if (liveEvent) {
+                    // Normalize outcomes to ensure price and odds are calculated from probability
+                    // This ensures consistency between trading panel, buttons, and odds graph
+                    if (updateData.outcomes && Array.isArray(updateData.outcomes)) {
+                        updateData.outcomes = updateData.outcomes.map((outcome: any) => {
+                            const probability = outcome.probability ?? 0;
+                            const price = outcome.price ?? probability;
+                            const odds = outcome.odds ?? (probability > 0 ? 1 / probability : 1);
+                            return {
+                                ...outcome,
+                                probability,
+                                price,
+                                odds,
+                            };
+                        });
+                    }
                     setLiveEvent({ ...liveEvent, ...updateData });
                 }
             }

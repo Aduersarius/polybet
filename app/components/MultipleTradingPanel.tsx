@@ -76,6 +76,28 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     // Use live outcomes from props, fallback to static outcomes
     const effectiveOutcomes = liveOutcomes || outcomes;
 
+    // Normalize outcomes to ensure they always have price and odds calculated from probability
+    // This ensures consistency between trading panel and odds graph
+    // Probability should be in decimal form (0-1), not percentage (0-100)
+    const normalizedOutcomes = effectiveOutcomes.map((outcome) => {
+        let probability = outcome.probability ?? 0;
+        // Normalize probability: if > 1, assume it's a percentage and convert to decimal
+        if (probability > 1) {
+            probability = probability / 100;
+        }
+        // Ensure probability is between 0 and 1
+        probability = Math.max(0, Math.min(1, probability));
+        // Calculate price and odds from probability if missing
+        const price = outcome.price ?? probability;
+        const odds = outcome.odds ?? (probability > 0 ? 1 / probability : 1);
+        return {
+            ...outcome,
+            probability, // Always in decimal form (0-1)
+            price,
+            odds,
+        };
+    });
+
     // Update selected outcome when outcomes change
     useEffect(() => {
         if (outcomes.length > 0 && !outcomes.find(o => o.id === selectedOutcomeId)) {
@@ -85,14 +107,15 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
 
     // Update price when outcome changes
     useEffect(() => {
-        if (selectedOutcome && orderType === 'limit') {
-            setPrice(selectedOutcome.price.toFixed(2));
+        const normalizedSelected = normalizedOutcomes.find(o => o.id === selectedOutcomeId);
+        if (normalizedSelected && orderType === 'limit') {
+            setPrice(normalizedSelected.price.toFixed(2));
         }
-    }, [selectedOutcome, orderType]);
+    }, [normalizedOutcomes, selectedOutcomeId, orderType]);
 
 
-    // Use live outcomes for display, fallback to static outcomes
-    const currentOutcomes = effectiveOutcomes;
+    // Use normalized outcomes for display
+    const currentOutcomes = normalizedOutcomes;
     const currentSelectedOutcome = currentOutcomes.find(o => o.id === selectedOutcomeId);
 
     // Get user's balance for the selected outcome
