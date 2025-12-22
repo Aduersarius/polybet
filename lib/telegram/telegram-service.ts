@@ -161,10 +161,18 @@ Visit: ${this.websiteUrl}/support
       }
 
       // Get user's tickets
-      const tickets = await ticketService.listTickets({
-        userId: telegramUser.userId,
-        status: ['open', 'pending'],
-      });
+      const tickets = await ticketService.listTickets(
+        {
+          userId: telegramUser.userId,
+          status: ['open', 'pending'],
+        },
+        {
+          page: 1,
+          limit: 10,
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        }
+      );
 
       if (tickets.data.length === 0) {
         await this.sendMessage(
@@ -317,7 +325,7 @@ Note: You must be logged into your PolyBet account on the website.
           subject: text.substring(0, 100), // First 100 chars as subject
           category: 'general',
           priority: 'medium',
-          message: text,
+          initialMessage: text,
           source: 'telegram',
         });
 
