@@ -77,7 +77,6 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
           setFormData({
             subject: '',
             category: 'general',
-            priority: 'medium',
             message: '',
           });
           setCreatedTicketId(null);

@@ -8,6 +8,8 @@ import { placeHybridOrder, getOrderBook } from '@/lib/hybrid-trading';
 import { requireAuth } from '@/lib/auth';
 import { redis } from '@/lib/redis';
 import { assertSameOrigin } from '@/lib/csrf';
+import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
+import { validateString, validateNumber, validateUUID } from '@/lib/validation';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
@@ -15,53 +17,94 @@ export async function POST(request: Request) {
     try {
         assertSameOrigin(request);
         const body = await request.json();
-        const {
-            eventId,
-            side,
-            option, // For binary events ('YES'/'NO')
-            outcomeId, // For multiple events (UUID)
-            amount,
-            price,
-            orderType = 'market', // 'market' or 'limit'
-            userId // For development - bypass auth
-        } = body;
 
-        console.log('API received:', { eventId, side, option, outcomeId, amount, userId });
-
-        // Get authenticated user
+        // Get authenticated user first
         let sessionUserId: string;
         try {
             const user = await requireAuth(request);
             sessionUserId = user.id;
-            console.log('Authenticated User ID:', sessionUserId);
         } catch (error) {
-            // If requireAuth throws, it returns a 401 Response
             if (error instanceof Response) {
                 return error;
             }
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return createClientErrorResponse('Unauthorized', 401);
         }
 
-        // Validation
-        const targetOption = option || outcomeId; // Unified target
-
-        if (!eventId || !side || !targetOption || !amount) {
-            return NextResponse.json({
-                error: 'Missing required fields: eventId, side, option/outcomeId, amount'
-            }, { status: 400 });
+        // Validate all inputs
+        const eventIdResult = validateUUID(body.eventId, true);
+        if (!eventIdResult.valid) {
+            return createClientErrorResponse(`eventId: ${eventIdResult.error}`, 400);
         }
 
-        if (!['buy', 'sell'].includes(side)) {
-            return NextResponse.json({ error: 'Side must be "buy" or "sell"' }, { status: 400 });
+        const sideResult = validateString(body.side, { required: true, pattern: /^(buy|sell)$/ });
+        if (!sideResult.valid) {
+            return createClientErrorResponse(`side: ${sideResult.error || 'must be "buy" or "sell"'}`, 400);
         }
 
-        // For binary events, validate option specifically if provided
-        if (option && !['YES', 'NO'].includes(option)) {
-            return NextResponse.json({ error: 'For binary events, option must be "YES" or "NO"' }, { status: 400 });
+        const amountResult = validateNumber(body.amount, { required: true, min: 0.01, max: 1000000 });
+        if (!amountResult.valid) {
+            return createClientErrorResponse(`amount: ${amountResult.error}`, 400);
         }
 
-        if (amount <= 0) {
-            return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+        // Validate option or outcomeId (at least one required)
+        let option: string | undefined;
+        let outcomeId: string | undefined;
+
+        if (body.option) {
+            const optionResult = validateString(body.option, { required: false, pattern: /^(YES|NO)$/ });
+            if (!optionResult.valid) {
+                return createClientErrorResponse(`option: ${optionResult.error || 'must be "YES" or "NO"'}`, 400);
+            }
+            option = optionResult.sanitized;
+        }
+
+        if (body.outcomeId) {
+            const outcomeIdResult = validateUUID(body.outcomeId, false);
+            if (!outcomeIdResult.valid) {
+                return createClientErrorResponse(`outcomeId: ${outcomeIdResult.error}`, 400);
+            }
+            outcomeId = outcomeIdResult.sanitized;
+        }
+
+        if (!option && !outcomeId) {
+            return createClientErrorResponse('Either option or outcomeId is required', 400);
+        }
+
+        // Validate price if orderType is limit
+        const orderType = body.orderType || 'market';
+        let price: number | undefined;
+
+        if (orderType === 'limit') {
+            if (body.price === undefined || body.price === null) {
+                return createClientErrorResponse('Price is required for limit orders', 400);
+            }
+            const priceResult = validateNumber(body.price, { required: true, min: 0.01, max: 1 });
+            if (!priceResult.valid) {
+                return createClientErrorResponse(`price: ${priceResult.error}`, 400);
+            }
+            price = priceResult.sanitized;
+        }
+
+        const eventId = eventIdResult.sanitized!;
+        const side = sideResult.sanitized as 'buy' | 'sell';
+        const amount = amountResult.sanitized!;
+
+        // Determine targetOption from option or outcomeId
+        let targetOption: string;
+        if (option) {
+            targetOption = option.toUpperCase();
+        } else if (outcomeId) {
+            // Fetch outcome to get its name
+            const outcome = await prisma.outcome.findUnique({
+                where: { id: outcomeId },
+                select: { name: true }
+            });
+            if (!outcome) {
+                return createClientErrorResponse('Outcome not found', 404);
+            }
+            targetOption = outcome.name;
+        } else {
+            return createClientErrorResponse('Either option or outcomeId is required', 400);
         }
 
         // Risk management: maximum bet amount
@@ -76,8 +119,8 @@ export async function POST(request: Request) {
             eventId,
             side as 'buy' | 'sell',
             targetOption,
-            parseFloat(amount),
-            orderType === 'limit' ? parseFloat(price) : undefined
+            amount,
+            orderType === 'limit' ? price : undefined
         );
 
         if (!result.success) {
@@ -182,24 +225,15 @@ export async function POST(request: Request) {
             trades: result.trades,
             newOdds: {},
             orderType: orderType,
-            amount: parseFloat(amount),
-            price: orderType === 'limit' ? parseFloat(price) : undefined,
+            amount: amount,
+            price: orderType === 'limit' ? price : null,
             warning: result.warning,
         });
 
     } catch (error) {
-        const errorTime = Date.now() - startTime;
-        console.error(`❌ Hybrid trading failed after ${errorTime}ms:`, error);
-
         if (error instanceof Error && error.message === 'BALANCE_SCHEMA_MISMATCH') {
-            return NextResponse.json({
-                error: 'Trading temporarily unavailable: balance schema mismatch. Run latest migrations for Balance table.',
-            }, { status: 503 });
+            return createClientErrorResponse('Trading temporarily unavailable. Please try again later.', 503);
         }
-
-        return NextResponse.json({
-            error: 'Hybrid trading failed',
-            details: error instanceof Error ? error.message : 'Unknown error'
-        }, { status: 500 });
+        return createErrorResponse(error);
     }
 }

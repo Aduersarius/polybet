@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
+import { validateString, validateUUID } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -133,12 +135,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const userId = user.id;
 
         const { id } = await params;
-        const body = await req.json();
-        const { text, parentId } = body;
-
-        if (!text) {
-            return NextResponse.json({ error: 'Missing text field' }, { status: 400 });
+        
+        // Validate event ID
+        const eventIdResult = validateUUID(id, true);
+        if (!eventIdResult.valid) {
+            return createClientErrorResponse(`Invalid event ID: ${eventIdResult.error}`, 400);
         }
+
+        const body = await req.json();
+        
+        // Validate message text
+        const textResult = validateString(body.text, {
+            required: true,
+            minLength: 1,
+            maxLength: 5000,
+            trim: true
+        });
+        if (!textResult.valid) {
+            return createClientErrorResponse(`text: ${textResult.error}`, 400);
+        }
+
+        // Validate parentId if provided
+        let parentId: string | undefined;
+        if (body.parentId) {
+            const parentIdResult = validateUUID(body.parentId, false);
+            if (!parentIdResult.valid) {
+                return createClientErrorResponse(`parentId: ${parentIdResult.error}`, 400);
+            }
+            parentId = parentIdResult.sanitized;
+        }
+
+        const text = textResult.sanitized!;
+        const eventId = eventIdResult.sanitized!;
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
@@ -241,13 +269,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         return NextResponse.json(message);
     } catch (error) {
-        const errorTime = Date.now() - startTime;
-        console.error(`❌ Message post failed after ${errorTime}ms:`, error);
-
-        const status = (error as Error).message === 'Query timeout' ? 504 : 500;
-        return NextResponse.json({
-            error: 'Internal Server Error',
-            details: status === 504 ? 'Request timed out' : undefined
-        }, { status });
+        if (error instanceof Error && error.message === 'Query timeout') {
+            return createClientErrorResponse('Request timed out', 504);
+        }
+        return createErrorResponse(error);
     }
 }

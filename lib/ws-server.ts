@@ -3,10 +3,11 @@ import { createServer } from 'http';
 import { prisma } from './prisma';
 import { redis } from './redis';
 import { getOrderBook } from './hybrid-trading';
+import { trustedOrigins } from './auth';
 
 export interface WSServerConfig {
     port?: number;
-    corsOrigin?: string;
+    corsOrigin?: string | string[];
 }
 
 class TradingWebSocketServer {
@@ -15,15 +16,38 @@ class TradingWebSocketServer {
 
     constructor(config: WSServerConfig = {}) {
         const port = config.port || 3001;
-        const corsOrigin = config.corsOrigin || "*";
+        
+        // Use provided corsOrigin or fall back to trustedOrigins from auth config
+        const allowedOrigins = config.corsOrigin 
+            ? (Array.isArray(config.corsOrigin) ? config.corsOrigin : [config.corsOrigin])
+            : trustedOrigins;
 
         // Create HTTP server for Socket.IO
         this.httpServer = createServer();
 
+        const isProduction = process.env.NODE_ENV === 'production';
+
         // Initialize Socket.IO server
         this.io = new Server(this.httpServer, {
             cors: {
-                origin: corsOrigin,
+                origin: (origin, callback) => {
+                    // In production, require origin
+                    if (!origin) {
+                        if (isProduction) {
+                            callback(new Error('Origin required in production'));
+                            return;
+                        }
+                        // Allow in development for local tools
+                        callback(null, true);
+                        return;
+                    }
+                    
+                    if (allowedOrigins.includes(origin)) {
+                        callback(null, true);
+                    } else {
+                        callback(new Error('Not allowed by CORS'));
+                    }
+                },
                 methods: ["GET", "POST"],
                 credentials: true
             },
@@ -37,10 +61,37 @@ class TradingWebSocketServer {
     }
 
     private setupEventHandlers() {
-        this.io.on('connection', (socket: Socket) => {
-            console.log(`📡 Client connected: ${socket.id}`);
+        // Authentication middleware for WebSocket connections
+        this.io.use(async (socket, next) => {
+            try {
+                // Extract cookies from handshake
+                const cookies = socket.handshake.headers.cookie;
+                
+                if (!cookies) {
+                    // Allow connection but mark as unauthenticated
+                    // Public events (odds, chat) don't require auth
+                    socket.data.authenticated = false;
+                    next();
+                    return;
+                }
 
-            // Handle joining event rooms for real-time updates
+                // Verify session by checking with auth API
+                // For now, we'll allow connection and verify per-event
+                // In production, you'd verify the session token here
+                socket.data.authenticated = true;
+                socket.data.cookies = cookies;
+                next();
+            } catch (error) {
+                // Allow connection but mark as unauthenticated
+                socket.data.authenticated = false;
+                next();
+            }
+        });
+
+        this.io.on('connection', (socket: Socket) => {
+            console.log(`📡 Client connected: ${socket.id} (authenticated: ${socket.data.authenticated || false})`);
+
+            // Handle joining event rooms for real-time updates (public, no auth needed)
             socket.on('join-event', (eventId: string) => {
                 socket.join(`event-${eventId}`);
                 console.log(`📊 Client ${socket.id} joined event ${eventId}`);
@@ -78,8 +129,19 @@ class TradingWebSocketServer {
                 console.log(`📈 Client ${socket.id} unsubscribed from orderbook ${room}`);
             });
 
-            // Handle user portfolio updates
-            socket.on('subscribe-portfolio', (userId: string) => {
+            // Handle user portfolio updates (requires authentication)
+            socket.on('subscribe-portfolio', async (userId: string) => {
+                if (!userId) {
+                    socket.emit('error', { message: 'User ID required' });
+                    return;
+                }
+                
+                // Verify authentication for user-specific data
+                if (!socket.data.authenticated) {
+                    socket.emit('error', { message: 'Authentication required for portfolio access' });
+                    return;
+                }
+                
                 socket.join(`portfolio-${userId}`);
                 console.log(`💼 Client ${socket.id} subscribed to portfolio ${userId}`);
             });

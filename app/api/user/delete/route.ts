@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
             if (!totpCode || typeof totpCode !== 'string') {
                 return NextResponse.json({ error: 'TOTP code required to delete account' }, { status: 401 });
             }
-            const isValid = await verifyUserTotp(user.id, totpCode);
+            const isValid = await verifyUserTotp(user.id, totpCode, request);
             if (!isValid) {
                 return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
             }

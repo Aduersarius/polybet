@@ -5,6 +5,7 @@ import { auth, verifyUserTotp } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
 import { assertSameOrigin } from '@/lib/csrf';
+import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 
 const ALLOWED_TOKENS = ['USDC'];
 
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Use Better Auth's verification which handles encrypted secrets
-        const isValid = await verifyUserTotp(userId, totpCode);
+        const isValid = await verifyUserTotp(userId, totpCode, req);
         if (!isValid) {
             return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
         }
@@ -150,9 +151,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (error: any) {
         if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
-            return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
+            return createClientErrorResponse('Crypto service not configured', 503);
         }
-        console.error('Error requesting withdrawal:', error);
-        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+        return createErrorResponse(error);
     }
 }
