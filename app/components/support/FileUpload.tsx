@@ -112,6 +112,7 @@ export function FileUpload({
 
         const response = await fetch('/api/support/attachments/upload', {
           method: 'POST',
+          credentials: 'include',
           body: formData,
         });
 
