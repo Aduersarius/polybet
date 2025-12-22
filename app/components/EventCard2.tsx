@@ -7,7 +7,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import { MultipleTradingPanelModal } from './MultipleTradingPanelModal';
 import { getCategoryColorClasses, getCategoryColor, getOutcomeColor } from '@/lib/colors';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { calculateLMSROdds } from '@/lib/amm';
+import { toast } from '@/components/ui/use-toast';
 
 interface DbEvent {
   id: string;
@@ -296,6 +299,105 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const sliderContainerRef = useRef<HTMLDivElement>(null); // Ref to measure slider container width
   const isHoveringSliderRef = useRef(false); // Track if currently hovering over slider
   const hasEverHoveredRef = useRef(false); // Track if user has ever hovered over slider
+  const [showBuyInterface, setShowBuyInterface] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<string>('YES');
+  const [selectedOutcomeId, setSelectedOutcomeId] = useState<string | null>(null);
+  const [buyAmount, setBuyAmount] = useState<string>('10');
+  const [currentPrice, setCurrentPrice] = useState<number>(0.5);
+  const [isLoading, setIsLoading] = useState(false);
+  const [userBalance, setUserBalance] = useState<number>(0);
+  const [balancePct, setBalancePct] = useState<number>(0);
+  
+  // Real-time odds state (declare before use in useEffect)
+  const [liveYesOdds, setLiveYesOdds] = useState(event.yesOdds);
+  const [liveNoOdds, setLiveNoOdds] = useState(event.noOdds);
+  const [liveOutcomes, setLiveOutcomes] = useState(event.outcomes);
+  
+  // Fetch event data for odds calculation
+  const { data: eventData } = useQuery({
+    queryKey: ['event', event.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/events/${event.id}`);
+      if (!response.ok) throw new Error('Failed to fetch event');
+      return await response.json();
+    },
+    staleTime: 30000,
+  });
+  
+  // Fetch user balance for max button
+  const { data: balanceData } = useQuery({
+    queryKey: ['user-balance'],
+    queryFn: async () => {
+      const response = await fetch('/api/balance');
+      if (!response.ok) return { balance: 0 };
+      return await response.json();
+    },
+    enabled: showBuyInterface,
+    staleTime: 10000,
+  });
+  
+  useEffect(() => {
+    if (balanceData?.balance !== undefined) {
+      const balance = typeof balanceData.balance === 'number' 
+        ? balanceData.balance 
+        : parseFloat(balanceData.balance) || 0;
+      setUserBalance(balance);
+    } else {
+      setUserBalance(0);
+    }
+  }, [balanceData]);
+  
+  // Calculate current price/odds
+  useEffect(() => {
+    if (!showBuyInterface) return;
+    
+    if (event.type === 'MULTIPLE' && selectedOutcomeId) {
+      // For multiple outcomes, find the selected outcome
+      const outcomes = liveOutcomes || event.outcomes || [];
+      const selectedOutcome = outcomes.find((o: any) => o.id === selectedOutcomeId);
+      if (selectedOutcome) {
+        const prob = selectedOutcome.probability ?? 0;
+        setCurrentPrice(prob > 1 ? prob / 100 : prob);
+      }
+    } else if (eventData) {
+      if (eventData.qYes !== undefined && eventData.qNo !== undefined) {
+        const b = eventData.liquidityParameter || 10000.0;
+        const odds = calculateLMSROdds(eventData.qYes, eventData.qNo, b);
+        setCurrentPrice(selectedOption === 'YES' ? odds.yesPrice : odds.noPrice);
+      } else if (eventData.yesOdds !== undefined && eventData.noOdds !== undefined) {
+        setCurrentPrice(selectedOption === 'YES' ? eventData.yesOdds : eventData.noOdds);
+      } else if (event.yesOdds !== undefined && event.noOdds !== undefined) {
+        setCurrentPrice(selectedOption === 'YES' ? event.yesOdds : event.noOdds);
+      }
+    } else if (event.yesOdds !== undefined && event.noOdds !== undefined) {
+      setCurrentPrice(selectedOption === 'YES' ? event.yesOdds : event.noOdds);
+    }
+  }, [eventData, event, selectedOption, selectedOutcomeId, showBuyInterface, liveOutcomes]);
+  
+  // Listen for real-time odds updates
+  useEffect(() => {
+    if (!showBuyInterface) return;
+    const { socket } = require('@/lib/socket');
+    
+    function onOddsUpdate(update: any) {
+      if (update.eventId !== event.id) return;
+      if (event.type === 'MULTIPLE' && update.outcomes && selectedOutcomeId) {
+        const selectedOutcome = update.outcomes.find((o: any) => o.id === selectedOutcomeId);
+        if (selectedOutcome) {
+          const prob = selectedOutcome.probability ?? 0;
+          setCurrentPrice(prob > 1 ? prob / 100 : prob);
+        }
+      } else if (update.yesPrice !== undefined) {
+        setCurrentPrice(selectedOption === 'YES' ? update.yesPrice : (1 - update.yesPrice));
+      }
+    }
+
+    socket.on(`odds-update-${event.id}`, onOddsUpdate);
+
+    return () => {
+      socket.off(`odds-update-${event.id}`, onOddsUpdate);
+    };
+  }, [event.id, event.type, selectedOption, selectedOutcomeId, showBuyInterface]);
 
   // Fetch user's favorites
   const { data: userFavorites, refetch: refetchFavorites } = useQuery({
@@ -315,10 +417,6 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     }
   }, [userFavorites, event.id]);
 
-  // Real-time odds state
-  const [liveYesOdds, setLiveYesOdds] = useState(event.yesOdds);
-  const [liveNoOdds, setLiveNoOdds] = useState(event.noOdds);
-  const [liveOutcomes, setLiveOutcomes] = useState(event.outcomes);
 
   // Store initial outcomes on first render
   useLayoutEffect(() => {
@@ -666,9 +764,150 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const handleTradeClick = (e: React.MouseEvent, option: 'YES' | 'NO') => {
     e.preventDefault();
     e.stopPropagation();
-    if (onTradeClick) {
-      onTradeClick(event, option);
+    setSelectedOption(option);
+    setSelectedOutcomeId(null);
+    setShowBuyInterface(true);
+  };
+  
+  const handleMultipleTradeClick = (e: React.MouseEvent, outcomeId: string, outcomeName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedOption(outcomeName);
+    setSelectedOutcomeId(outcomeId);
+    setShowBuyInterface(true);
+  };
+  
+  const handleCloseBuy = () => {
+    setShowBuyInterface(false);
+  };
+  
+  const handleAmountChange = (value: string) => {
+    const num = parseFloat(value);
+    if (!isNaN(num) && num >= 0) {
+      setBuyAmount(value);
+      // Update balance percentage when amount changes manually
+      if (userBalance > 0) {
+        const pct = Math.min(100, Math.max(0, (num / userBalance) * 100));
+        setBalancePct(pct);
+      }
+    } else if (value === '' || value === '.') {
+      setBuyAmount(value);
+      setBalancePct(0);
     }
+  };
+  
+  const incrementAmount = (increment: number) => {
+    const current = parseFloat(buyAmount) || 0;
+    const newAmount = Math.max(0, current + increment);
+    setBuyAmount(newAmount.toString());
+    // Update balance percentage
+    if (userBalance > 0) {
+      const pct = Math.min(100, Math.max(0, (newAmount / userBalance) * 100));
+      setBalancePct(pct);
+    }
+  };
+  
+  const setMaxAmount = () => {
+    if (userBalance > 0) {
+      setBuyAmount(userBalance.toString());
+      setBalancePct(100);
+    }
+  };
+  
+  const handleBuy = async () => {
+    const amountNum = parseFloat(buyAmount) || 0;
+    if (amountNum <= 0) return;
+    
+    setIsLoading(true);
+    try {
+      // For multiple outcomes, use outcome name; for binary, use YES/NO
+      const optionValue = event.type === 'MULTIPLE' && selectedOutcomeId 
+        ? selectedOption // Use outcome name for multiple
+        : selectedOption; // YES/NO for binary
+      
+      const response = await fetch('/api/bets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: event.id,
+          option: optionValue,
+          amount: amountNum,
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setShowBuyInterface(false);
+        // Reset buy amount after successful purchase
+        setBuyAmount('10');
+        setBalancePct(0);
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['event', event.id] });
+        queryClient.invalidateQueries({ queryKey: ['user-balance'] });
+        // Show success notification
+        toast({
+          variant: 'success',
+          title: 'Trade successful',
+          description: `Bought ${amountNum.toFixed(2)} ${selectedOption} tokens`,
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Trade failed');
+      }
+    } catch (error) {
+      console.error('Trade error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Trade failed',
+        description: error instanceof Error ? error.message : 'An error occurred while placing your trade',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Get outcome color for buy button
+  const getBuyButtonColor = () => {
+    if (event.type === 'MULTIPLE' && selectedOutcomeId) {
+      const outcomes = liveOutcomes || event.outcomes || [];
+      const selectedOutcome = outcomes.find((o: any) => o.id === selectedOutcomeId);
+      if (selectedOutcome?.color) {
+        return selectedOutcome.color;
+      }
+      // Find index for color system
+      const allOutcomes = outcomes || [];
+      const idx = allOutcomes.findIndex((o: any) => o.id === selectedOutcomeId);
+      return getOutcomeColor(idx >= 0 ? idx : 0);
+    } else if (selectedOption === 'YES') {
+      return '#10b981'; // Green for YES
+    } else {
+      return '#f43f5e'; // Red for NO
+    }
+  };
+  
+  const buyButtonColor = getBuyButtonColor();
+  
+  // Helper to darken color for hover
+  const darkenColor = (hex: string, amount: number = 0.1) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const newR = Math.max(0, Math.min(255, Math.round(r * (1 - amount))));
+    const newG = Math.max(0, Math.min(255, Math.round(g * (1 - amount))));
+    const newB = Math.max(0, Math.min(255, Math.round(b * (1 - amount))));
+    return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+  };
+  
+  // Calculate win amount
+  const amountNum = parseFloat(buyAmount) || 0;
+  const price = currentPrice > 1 ? currentPrice / 100 : currentPrice;
+  const winAmount = price > 0 ? (amountNum / price) - amountNum : 0;
+  
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${months[date.getMonth()]} ${date.getDate()}`;
   };
 
   // Deterministic random color based on event ID for hover effect
@@ -705,24 +944,43 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   };
 
   return (
-    <Link
-      key={event.id}
-      href={`/event/${event.id}`}
-      scroll={false}
-      onClick={() => {
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('scrollPos', window.scrollY.toString());
-        }
-      }}
-    >
+    <div className="relative w-full" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
-        style={{ backgroundColor: 'var(--surface)' }}
-        className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-all duration-300 flex flex-col justify-between h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:scale-[1.01] overflow-visible ${isEnded ? 'opacity-50' : ''
-          }`}
+        initial={{ opacity: 0, y: 20, x: '0%' }}
+        animate={{ 
+          opacity: 1, 
+          y: 0,
+          x: showBuyInterface ? '-50%' : '0%',
+        }}
+        transition={{ 
+          opacity: { duration: 0.4, delay: index * 0.08, ease: "easeOut" },
+          y: { duration: 0.4, delay: index * 0.08, ease: "easeOut" },
+          x: { type: 'spring', damping: 30, stiffness: 500, duration: 0.3 }
+        }}
+        className="relative flex w-[200%]"
+        style={{ 
+          willChange: 'transform', 
+          transform: 'translateZ(0)'
+        }}
       >
+        {/* Normal Card View */}
+        <Link
+          key={event.id}
+          href={`/event/${event.id}`}
+          scroll={false}
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('scrollPos', window.scrollY.toString());
+            }
+          }}
+          className="w-1/2 flex-shrink-0"
+          style={{ overflow: 'visible' }}
+        >
+          <motion.div
+            style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
+            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-all duration-300 flex flex-col justify-between h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] ${isEnded ? 'opacity-50' : ''
+              }`}
+          >
         {/* 1. Header: Image & Title */}
         <div className="flex items-start gap-2.5">
           <div className="flex-shrink-0 relative">
@@ -1205,14 +1463,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                          return (
                            <motion.button
                              key={outcome.id}
-                             onClick={(e) => {
-                               e.preventDefault();
-                               if (onMultipleTradeClick) {
-                                 onMultipleTradeClick(event);
-                               } else {
-                                 window.location.href = `/event/${event.id}`;
-                               }
-                             }}
+                            onClick={(e) => handleMultipleTradeClick(e, outcome.id, outcome.name)}
                              className="group/btn relative flex-shrink-0 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
                              style={{ 
                                backgroundColor: hexToRgba(colorHex, 0.1),
@@ -1625,6 +1876,169 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           </div>
         </div>
       </motion.div>
-    </Link>
+      </Link>
+      
+      {/* Buy Interface - Polymarket style */}
+      <div className="w-1/2 flex-shrink-0">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: showBuyInterface ? 1 : 0 }}
+          style={{ backgroundColor: 'var(--surface)' }}
+          className="border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-3 pb-3 h-[220px] w-full flex flex-col gap-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] transition-all duration-300 relative overflow-hidden"
+        >
+          {/* Close button */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleCloseBuy();
+            }}
+            className="absolute top-3 right-4 z-10 w-5 h-5 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Header - Compact */}
+          <div className="flex items-center gap-2 flex-shrink-0 pr-8">
+            {event.imageUrl ? (
+              <img
+                src={event.imageUrl}
+                alt={event.title}
+                className="w-8 h-8 rounded-lg object-cover border border-blue-400/20 flex-shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-xs font-bold text-blue-300 flex-shrink-0">
+                {event.categories && event.categories.length > 0
+                  ? event.categories[0][0]
+                  : event.category 
+                  ? event.category[0]
+                  : '?'}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold text-white leading-tight line-clamp-2">
+                {event.title}
+              </p>
+            </div>
+          </div>
+
+          {/* Amount Input - Compact */}
+          <div className="flex-shrink-0">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+              <input
+                type="text"
+                value={buyAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-6 pr-3 text-white placeholder-gray-500 focus:outline-none focus:border-white/20 transition-colors text-sm font-medium"
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          {/* Preset buttons - Compact */}
+          <div className="grid grid-cols-4 gap-1.5 flex-shrink-0">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                incrementAmount(1);
+              }}
+              className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
+            >
+              +1
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                incrementAmount(10);
+              }}
+              className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
+            >
+              +10
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                incrementAmount(100);
+              }}
+              className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
+            >
+              +100
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMaxAmount();
+              }}
+              className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
+            >
+              MAX
+            </button>
+          </div>
+
+          {/* Balance Slider - Compact, integrated - Always rendered to prevent layout shift */}
+          <div className="flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <Slider
+                min={0}
+                max={100}
+                step={1}
+                value={[balancePct]}
+                className="flex-1 h-1"
+                disabled={userBalance <= 0}
+                onValueChange={(value: number[]) => {
+                  const pct = Math.max(0, Math.min(100, value?.[0] ?? 0));
+                  setBalancePct(pct);
+                  const balance = Number(userBalance) || 0;
+                  if (balance > 0) {
+                    const nextAmount = balance * (pct / 100);
+                    setBuyAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
+                  }
+                }}
+              />
+              <span className="w-8 text-right text-[10px] text-gray-400 whitespace-nowrap">
+                {balancePct.toFixed(0)}%
+              </span>
+            </div>
+          </div>
+
+          {/* Buy Button - Takes remaining space */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleBuy();
+            }}
+            disabled={isLoading || amountNum <= 0}
+            className="flex-1 min-h-[48px] disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-0.5"
+            style={{
+              backgroundColor: buyButtonColor,
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading && amountNum > 0) {
+                e.currentTarget.style.backgroundColor = darkenColor(buyButtonColor, 0.1);
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading && amountNum > 0) {
+                e.currentTarget.style.backgroundColor = buyButtonColor;
+              }
+            }}
+          >
+            <span className="text-sm font-bold">Buy {selectedOption}</span>
+            <span className="text-[11px] font-normal text-white/90">
+              To win ${winAmount.toFixed(2)}
+            </span>
+          </button>
+        </motion.div>
+      </div>
+      </motion.div>
+    </div>
   );
 }

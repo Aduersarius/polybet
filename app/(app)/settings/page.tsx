@@ -207,7 +207,7 @@ export default function SettingsPage() {
 
     const handleSignOut = async () => {
         await signOut();
-        router.push('/');
+        // signOut() already handles navigation, no need for router.push
     };
 
     const updateSetting = <T extends keyof UserSettings>(
@@ -557,7 +557,7 @@ export default function SettingsPage() {
         <div className="min-h-screen text-white relative z-10 flex flex-col">
             <Navbar />
 
-            <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-1">
+            <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-1" style={{ paddingTop: 'calc(var(--navbar-height) + 1rem)' }}>
                 {/* Header */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}

@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
 import { Plus, Wallet } from 'lucide-react';
-import { authClient, useSession } from '@/lib/auth-client';
+import { authClient, useSession, signOut } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
@@ -110,8 +110,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     };
 
     const handleSignOut = async () => {
-        await (authClient as any).signOut();
-        window.location.reload();
+        await signOut();
     };
 
     return (

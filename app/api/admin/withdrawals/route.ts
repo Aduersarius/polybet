@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { getCryptoService } from '@/lib/crypto-service';
 import { prisma } from '@/lib/prisma';
-import { requireAdminAuth } from '@/lib/auth';
-import { verifyTotpCode } from '@/lib/totp';
+import { requireAdminAuth, verifyUserTotp } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 
 // Status transition validation
@@ -80,17 +79,19 @@ export async function POST(req: NextRequest) {
                 where: { id: adminId },
                 select: { twoFactorEnabled: true }
             });
-            const adminTwoFactor = await prisma.twoFactor.findUnique({
-                where: { userId: adminId },
-                select: { secret: true }
-            });
 
-            if (!adminRecord?.twoFactorEnabled || !adminTwoFactor?.secret) {
+            if (!adminRecord?.twoFactorEnabled) {
                 return NextResponse.json({ error: 'Admin 2FA is required to approve withdrawals' }, { status: 403 });
             }
 
-            if (!totpCode || !verifyTotpCode(totpCode, adminTwoFactor.secret)) {
-                return NextResponse.json({ error: 'Invalid or missing TOTP code' }, { status: 401 });
+            if (!totpCode) {
+                return NextResponse.json({ error: 'TOTP code is required' }, { status: 401 });
+            }
+
+            // Use Better Auth's verification which handles encrypted secrets
+            const isValid = await verifyUserTotp(adminId, totpCode);
+            if (!isValid) {
+                return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
             }
 
             const maxSingle = Number(process.env.ADMIN_WITHDRAW_MAX_SINGLE ?? 50000);

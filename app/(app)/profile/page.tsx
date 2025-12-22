@@ -263,7 +263,7 @@ function ProfileContent() {
         <div className="min-h-screen text-white font-sans relative z-10">
             <Navbar />
 
-            <main className="profile-container max-w-5xl mx-auto px-4 py-8 relative z-10" style={{ position: 'relative', zIndex: 10 }}>
+            <main className="profile-container max-w-5xl mx-auto px-4 py-8 relative z-10" style={{ position: 'relative', zIndex: 10, paddingTop: 'calc(var(--navbar-height) - 1rem)' }}>
 
                 {/* Top Section: Split Layout using CSS Grid with Stretch */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-8 items-stretch">

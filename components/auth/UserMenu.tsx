@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User, LogOut, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-session';
+import { signOut } from '@/lib/auth-client';
 
 export function UserMenu() {
     const router = useRouter();
@@ -27,12 +28,7 @@ export function UserMenu() {
     }, []);
     
     const handleSignOut = async () => {
-        try {
-            // Better-auth handles sign out via the browser
-            window.location.href = '/api/auth/signout';
-        } catch (error) {
-            console.error('Error signing out:', error);
-        }
+        await signOut();
     };
     
     if (isLoading) {

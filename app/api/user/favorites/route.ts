@@ -55,6 +55,10 @@ export async function GET(request: Request) {
             data: favorites.map(fav => fav.event)
         });
     } catch (error: any) {
+        // If requireAuth throws, it returns a Response object
+        if (error instanceof Response) {
+            return error;
+        }
         console.error('Get favorites error:', error);
         return NextResponse.json({ error: error.message || 'Failed to get favorites' }, { status: 500 });
     }
@@ -113,6 +117,10 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, favorite });
     } catch (error: any) {
+        // If requireAuth throws, it returns a Response object
+        if (error instanceof Response) {
+            return error;
+        }
         console.error('Add favorite error:', error);
         return NextResponse.json({ error: error.message || 'Failed to add favorite' }, { status: 500 });
     }
@@ -148,6 +156,10 @@ export async function DELETE(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
+        // If requireAuth throws, it returns a Response object
+        if (error instanceof Response) {
+            return error;
+        }
         console.error('Remove favorite error:', error);
         return NextResponse.json({ error: error.message || 'Failed to remove favorite' }, { status: 500 });
     }
