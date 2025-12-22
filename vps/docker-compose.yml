@@ -27,12 +27,29 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"  # Only expose on localhost
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Redis TLS Proxy (stunnel) - Provides secure TLS connection on port 6380
+  redis-tls:
+    image: dweomer/stunnel:latest
+    container_name: polybet-redis-tls
+    restart: always
+    environment:
+      - STUNNEL_ACCEPT=6380
+      - STUNNEL_CONNECT=redis:6379
+      - STUNNEL_PSK=${REDIS_PASSWORD}
+    ports:
+      - "6380:6380"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - default
 
   # WebSocket Server
   websocket:

@@ -6,6 +6,39 @@ const globalForRedis = global as unknown as { redis: Redis | null };
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
+function validateRedisUrl(url: string): { valid: boolean; error?: string } {
+    try {
+        // Check if URL has basic structure
+        if (!url.startsWith('redis://') && !url.startsWith('rediss://')) {
+            return { valid: false, error: 'REDIS_URL must start with redis:// or rediss://' };
+        }
+
+        // Check if password is provided in the URL
+        // Format can be: redis://:password@host:port or redis://username:password@host:port
+        // Also supports rediss:// (TLS) URLs
+        const hasPassword = url.includes('@') && (
+            url.match(/redis[s]?:\/\/:[^@]+@/) || // :password@ format (both redis:// and rediss://)
+            url.match(/redis[s]?:\/\/[^:]+:[^@]+@/) // username:password@ format (both redis:// and rediss://)
+        );
+        
+        // For production, require password
+        if (process.env.NODE_ENV === 'production' && !hasPassword) {
+            return { valid: false, error: 'REDIS_URL must include password in production. Format: redis://:password@host:port or redis://username:password@host:port' };
+        }
+
+        // Try to parse the URL to validate format
+        try {
+            new URL(url);
+        } catch {
+            return { valid: false, error: 'Invalid REDIS_URL format. Expected: redis://:password@host:port' };
+        }
+
+        return { valid: true };
+    } catch (err) {
+        return { valid: false, error: `Invalid REDIS_URL format: ${err instanceof Error ? err.message : String(err)}` };
+    }
+}
+
 function buildTlsConfig(url: string) {
     if (!url.startsWith('rediss://')) return undefined;
 
@@ -44,8 +77,9 @@ function ensureSecureRedisConfig() {
     if (!hasAuth) {
         throw new Error('REDIS_URL must include authentication credentials in production');
     }
+    // Require TLS for production security
     if (!usesTls) {
-        throw new Error('REDIS_URL must use TLS (rediss://) in production');
+        throw new Error('REDIS_URL must use TLS (rediss://) in production for security');
     }
 }
 
@@ -129,6 +163,14 @@ function getRedisInstance(): Redis | null {
     connectionAttempted = true;
 
     try {
+        // Validate REDIS_URL format
+        const validation = validateRedisUrl(redisUrl);
+        if (!validation.valid) {
+            console.error('🔴 Redis Configuration Error:', validation.error);
+            console.error('   Current REDIS_URL:', redisUrl.replace(/:[^:@]+@/, ':****@')); // Mask password
+            return null;
+        }
+
         // Silent initialization - errors logged only on failure
         const tls = buildTlsConfig(redisUrl);
 
@@ -147,22 +189,38 @@ function getRedisInstance(): Redis | null {
 
         // Add error handling
         redisInstance.on('error', (err) => {
-            console.error('🔴 Redis Error:', err.message);
+            const errorMsg = err.message || String(err);
+            // Distinguish between connection and authentication errors
+            if (errorMsg.includes('WRONGPASS') || errorMsg.includes('invalid password') || errorMsg.includes('NOAUTH')) {
+                console.error('🔴 Redis Authentication Error: Invalid password or credentials. Check REDIS_URL format: redis://:password@host:port');
+                // Don't retry on auth errors - they won't succeed
+                redisInstance = null;
+                connectionAttempted = false; // Allow retry after fixing credentials
+            } else {
+                console.error('🔴 Redis Error:', errorMsg);
+            }
             // Don't throw, just log - make Redis optional
         });
 
         redisInstance.on('connect', () => {
-            console.log('🟢 Redis connected successfully');
+            // Don't log here - connection is just TCP, auth happens next
+            // Only log on 'ready' which means auth succeeded
         });
 
         redisInstance.on('ready', () => {
-            console.log('🟢 Redis ready');
+            console.log('🟢 Redis connected and authenticated successfully');
         });
 
         // Attempt connection
         redisInstance.connect().catch((err) => {
-            console.error('⚠️ Redis connection failed:', err.message);
-            redisInstance = null;
+            const errorMsg = err.message || String(err);
+            if (errorMsg.includes('WRONGPASS') || errorMsg.includes('invalid password') || errorMsg.includes('NOAUTH')) {
+                console.error('🔴 Redis Authentication Failed: Invalid password or credentials. Check REDIS_URL format: redis://:password@host:port');
+                redisInstance = null;
+                connectionAttempted = false; // Allow retry after fixing credentials
+            } else {
+                console.error('⚠️ Redis connection failed:', errorMsg);
+            }
         });
 
         if (process.env.NODE_ENV !== 'production') {

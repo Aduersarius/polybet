@@ -4,7 +4,6 @@ import { prisma } from "./prisma";
 import { twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
-import { rateLimit } from "./rate-limit";
 import { logger } from "./logger";
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -200,15 +199,29 @@ export const auth = betterAuth({
         }
         return secret;
     })(),
+    rateLimit: {
+        enabled: true,
+        window: 60, // Default: 100 requests per 60 seconds
+        max: 100,
+        customRules: {
+            // Password reset: 3 requests per 15 minutes (900 seconds)
+            "/forget-password": {
+                window: 900,
+                max: 3,
+            },
+            // Email sign-in: 3 requests per 10 seconds (better-auth default, but explicit)
+            "/sign-in/email": {
+                window: 10,
+                max: 3,
+            },
+        },
+    },
     emailAndPassword: {
         enabled: true,
         requireEmailVerification: true,
         sendResetPassword: async ({ user, url }) => {
-            const rateKey = user.id ? `rl:reset:${user.id}` : `rl:reset:${user.email}`;
-            const { allowed } = await rateLimit(rateKey, 3, 900); // 3 requests per 15 minutes
-            if (!allowed) {
-                throw new Error('Too many password reset requests. Please wait before trying again.');
-            }
+            // Rate limiting is now handled by better-auth's built-in rate limiting
+            // configured in the rateLimit.customRules above
 
             if (!resend) {
                 if (isProduction) {

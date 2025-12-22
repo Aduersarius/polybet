@@ -1,6 +1,6 @@
 /**
  * Password validation utility with security requirements:
- * - Minimum 12 characters
+ * - Minimum 8 characters
  * - Must contain: lowercase, uppercase, number, symbol
  * - Must not be a common password
  */
@@ -47,9 +47,9 @@ export function validatePassword(password: string): PasswordValidationResult {
         return { valid: false, errors: ['Password is required'] };
     }
 
-    // Minimum length: 12 characters
-    if (password.length < 12) {
-        errors.push('Password must be at least 12 characters long');
+    // Minimum length: 8 characters
+    if (password.length < 8) {
+        errors.push('Password must be at least 8 characters long');
     }
 
     // Must contain lowercase letter
