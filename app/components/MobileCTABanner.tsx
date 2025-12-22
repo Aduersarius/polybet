@@ -25,20 +25,12 @@ export function MobileCTABanner({ onSignupClick }: MobileCTABannerProps) {
     const handleScroll = () => {
       const scrollPosition = window.scrollY;
       
-      // Show banner after scrolling down 100px
-      if (scrollPosition > 100) {
-        if (!isVisible) {
-          clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(() => {
-            setIsVisible(true);
-          }, 100);
-        }
-      } 
-      // Hide banner when scrolled back to top (< 80px)
-      else if (scrollPosition < 80) {
-        if (isVisible) {
-          setIsVisible(false);
-        }
+      // Show banner after scrolling down 50px and keep it visible
+      if (scrollPosition > 50 && !isVisible) {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          setIsVisible(true);
+        }, 100);
       }
     };
 

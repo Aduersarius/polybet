@@ -1,0 +1,192 @@
+/**
+ * Telegram Account Linking Service
+ * Handles linking Telegram accounts to Polybet user accounts
+ */
+
+import { prisma } from '@/lib/prisma';
+import { randomInt } from 'crypto';
+
+export class TelegramLinkingService {
+  /**
+   * Generate a 6-digit link code valid for 10 minutes
+   */
+  async generateLinkCode(telegramId: string, chatId: string, telegramUsername?: string | null): Promise<string> {
+    // Generate 6-digit code
+    const code = randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Check if TelegramUser already exists
+    let telegramUser = await prisma.telegramUser.findUnique({
+      where: { telegramId },
+    });
+
+    if (telegramUser) {
+      // Update existing with new link code
+      await prisma.telegramUser.update({
+        where: { telegramId },
+        data: {
+          linkCode: code,
+          linkCodeExpiry: expiresAt,
+          chatId,
+          username: telegramUsername || telegramUser.username,
+        },
+      });
+    } else {
+      // Create new TelegramUser entry
+      await prisma.telegramUser.create({
+        data: {
+          telegramId,
+          chatId,
+          username: telegramUsername,
+          linkCode: code,
+          linkCodeExpiry: expiresAt,
+          isVerified: false,
+        },
+      });
+    }
+
+    return code;
+  }
+
+  /**
+   * Verify link code and link accounts
+   */
+  async verifyLinkCode(code: string, polybetUserId: string): Promise<{ success: boolean; error?: string }> {
+    // Find TelegramUser with this code
+    const telegramUser = await prisma.telegramUser.findFirst({
+      where: {
+        linkCode: code,
+        linkCodeExpiry: {
+          gte: new Date(), // Not expired
+        },
+      },
+    });
+
+    if (!telegramUser) {
+      return { success: false, error: 'Invalid or expired code' };
+    }
+
+    // Check if this Telegram account is already linked to another user
+    if (telegramUser.userId && telegramUser.userId !== polybetUserId) {
+      return { success: false, error: 'This Telegram account is already linked to another user' };
+    }
+
+    // Check if this user already has a different Telegram account linked
+    const existingLink = await prisma.telegramUser.findFirst({
+      where: {
+        userId: polybetUserId,
+        isVerified: true,
+        telegramId: {
+          not: telegramUser.telegramId,
+        },
+      },
+    });
+
+    if (existingLink) {
+      return { success: false, error: 'Your account is already linked to a different Telegram account' };
+    }
+
+    // Link accounts
+    await prisma.telegramUser.update({
+      where: { id: telegramUser.id },
+      data: {
+        userId: polybetUserId,
+        isVerified: true,
+        linkCode: null,
+        linkCodeExpiry: null,
+      },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Unlink Telegram account from Polybet user
+   */
+  async unlinkAccount(polybetUserId: string): Promise<boolean> {
+    const result = await prisma.telegramUser.updateMany({
+      where: {
+        userId: polybetUserId,
+        isVerified: true,
+      },
+      data: {
+        userId: null,
+        isVerified: false,
+      },
+    });
+
+    return result.count > 0;
+  }
+
+  /**
+   * Get linked Telegram account for a Polybet user
+   */
+  async getLinkedAccount(polybetUserId: string) {
+    return await prisma.telegramUser.findFirst({
+      where: {
+        userId: polybetUserId,
+        isVerified: true,
+      },
+    });
+  }
+
+  /**
+   * Check if a Telegram user is linked to any Polybet account
+   */
+  async isLinked(telegramId: string): Promise<boolean> {
+    const telegramUser = await prisma.telegramUser.findUnique({
+      where: { telegramId },
+    });
+
+    return telegramUser?.isVerified ?? false;
+  }
+
+  /**
+   * Get or create TelegramUser entry
+   */
+  async getOrCreateTelegramUser(
+    telegramId: string,
+    chatId: string,
+    firstName?: string,
+    lastName?: string,
+    username?: string
+  ) {
+    let telegramUser = await prisma.telegramUser.findUnique({
+      where: { telegramId },
+      include: { user: true },
+    });
+
+    if (!telegramUser) {
+      telegramUser = await prisma.telegramUser.create({
+        data: {
+          telegramId,
+          chatId,
+          firstName,
+          lastName,
+          username,
+          isVerified: false,
+        },
+        include: { user: true },
+      });
+    } else {
+      // Update chat info if changed
+      if (telegramUser.chatId !== chatId || telegramUser.username !== username) {
+        telegramUser = await prisma.telegramUser.update({
+          where: { telegramId },
+          data: {
+            chatId,
+            firstName,
+            lastName,
+            username,
+            lastActiveAt: new Date(),
+          },
+          include: { user: true },
+        });
+      }
+    }
+
+    return telegramUser;
+  }
+}
+
+export const telegramLinkingService = new TelegramLinkingService();

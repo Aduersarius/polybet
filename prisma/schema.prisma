@@ -77,12 +77,23 @@ model User {
   ledgerEntries        LedgerEntry[]
   eventSuggestions     EventSuggestion[]
   telemetryEvents      TelemetryEvent[]
+  
+  // Support System Relations
+  supportRole          String?              // null | "agent" | "admin"
+  ticketsCreated       SupportTicket[]      @relation("TicketUser")
+  ticketsAssigned      SupportTicket[]      @relation("TicketAgent")
+  supportMessages      SupportMessage[]     @relation("SupportMessageUser")
+  supportNotes         SupportNote[]        @relation("NoteAgent")
+  attachmentsUploaded  SupportAttachment[]  @relation("AttachmentUploader")
+  auditLogs            SupportAuditLog[]    @relation("AuditUser")
+  telegramLink         TelegramUser?        @relation("LinkedTelegramUser")
 
   @@index([address])
   @@index([lastVisitedAt])
   @@index([lastCountry])
   @@index([lastCity])
   @@index([lastRegion])
+  @@index([supportRole])
 }
 
 model TelemetryEvent {
@@ -710,4 +721,174 @@ model HedgeConfig {
   updatedBy   String? // Admin user who updated
 
   @@index([key])
+}
+
+// ============================================
+// SUPPORT TICKETING SYSTEM
+// ============================================
+
+// Support Ticket
+model SupportTicket {
+  id            String   @id @default(cuid())
+  ticketNumber  String   @unique // Human-readable: TICK-2024-0001
+  userId        String
+  assignedToId  String?  // Support agent
+  
+  // Ticket metadata
+  status        String   @default("open") // open | pending | resolved | closed
+  priority      String   @default("medium") // low | medium | high | critical
+  category      String   // deposit | withdrawal | dispute | bug | kyc | general
+  subject       String
+  
+  // Source tracking
+  source        String   // web | telegram
+  telegramChatId String? // If created via Telegram
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  firstResponseAt DateTime? // SLA tracking
+  resolvedAt    DateTime?
+  closedAt      DateTime?
+  
+  // Relations
+  user          User     @relation("TicketUser", fields: [userId], references: [id])
+  assignedTo    User?    @relation("TicketAgent", fields: [assignedToId], references: [id])
+  messages      SupportMessage[]
+  attachments   SupportAttachment[]
+  notes         SupportNote[]
+  auditLogs     SupportAuditLog[]
+  
+  @@index([userId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([source])
+  @@index([createdAt])
+  @@index([telegramChatId])
+}
+
+// Support Messages (immutable)
+model SupportMessage {
+  id           String   @id @default(cuid())
+  ticketId     String
+  userId       String
+  content      String   @db.Text
+  isInternal   Boolean  @default(false) // False = visible to user
+  createdAt    DateTime @default(now())
+  
+  // Message metadata
+  source       String   // web | telegram | agent
+  telegramMessageId Int? // For Telegram sync
+  
+  // Relations
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
+  user         User     @relation("SupportMessageUser", fields: [userId], references: [id])
+  attachments  SupportAttachment[]
+  
+  @@index([ticketId, createdAt])
+  @@index([userId])
+}
+
+// File Attachments
+model SupportAttachment {
+  id           String   @id @default(cuid())
+  ticketId     String
+  messageId    String?  // Optional: can be attached to ticket or message
+  
+  // File metadata
+  fileName     String
+  fileSize     Int      // bytes
+  mimeType     String
+  url          String   // Vercel Blob URL
+  
+  // Security
+  uploadedBy   String
+  uploadedAt   DateTime @default(now())
+  isScanned    Boolean  @default(false)
+  scanStatus   String?  // clean | malware | error
+  
+  // Relations
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
+  message      SupportMessage? @relation(fields: [messageId], references: [id])
+  uploader     User     @relation("AttachmentUploader", fields: [uploadedBy], references: [id])
+  
+  @@index([ticketId])
+  @@index([messageId])
+  @@index([uploadedBy])
+}
+
+// Internal Notes (support team only)
+model SupportNote {
+  id           String   @id @default(cuid())
+  ticketId     String
+  agentId      String
+  content      String   @db.Text
+  createdAt    DateTime @default(now())
+  
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
+  agent        User     @relation("NoteAgent", fields: [agentId], references: [id])
+  
+  @@index([ticketId, createdAt])
+}
+
+// Audit Log (immutable)
+model SupportAuditLog {
+  id           String   @id @default(cuid())
+  ticketId     String
+  userId       String   // Who performed the action
+  action       String   // created | assigned | status_changed | priority_changed | etc.
+  
+  // Change tracking
+  fieldName    String?  // What changed (status, priority, etc.)
+  oldValue     String?
+  newValue     String?
+  metadata     Json?    // Additional context
+  
+  createdAt    DateTime @default(now())
+  
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
+  user         User     @relation("AuditUser", fields: [userId], references: [id])
+  
+  @@index([ticketId, createdAt])
+  @@index([userId])
+  @@index([action])
+}
+
+// Telegram User Linking
+model TelegramUser {
+  id           String   @id @default(cuid())
+  telegramId   String   @unique // Telegram user ID
+  chatId       String   @unique // Telegram chat ID
+  username     String?
+  firstName    String?
+  lastName     String?
+  
+  // Linking status
+  userId       String?  @unique // NULL = unverified temporary user
+  isVerified   Boolean  @default(false)
+  linkCode     String?  @unique // 6-digit code for account linking
+  linkCodeExpiry DateTime? // Expiry time for link code
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
+  
+  user         User?    @relation("LinkedTelegramUser", fields: [userId], references: [id])
+  
+  @@index([telegramId])
+  @@index([userId])
+}
+
+// Rate Limiting
+model SupportRateLimit {
+  id           String   @id @default(cuid())
+  userId       String
+  action       String   // ticket_create | message_send
+  count        Int      @default(0)
+  windowStart  DateTime @default(now())
+  
+  @@unique([userId, action, windowStart])
+  @@index([userId, action])
 }
