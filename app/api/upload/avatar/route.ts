@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
     try {
+        assertSameOrigin(request);
         console.log('Avatar upload started');
 
         const user = await requireAuth(request);

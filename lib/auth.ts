@@ -317,5 +317,50 @@ export async function requireAdminAuth(request: Request) {
     return user;
 }
 
+// Helper function to verify TOTP code for a specific user
+// NOTE: Better Auth encrypts 2FA secrets internally. When reading directly through Prisma,
+// we get the encrypted blob. Better Auth's adapter doesn't auto-decrypt - decryption
+// happens in Better Auth's API layer. For server-side verification of arbitrary users,
+// we need to use Better Auth's internal methods or handle the encrypted format.
+//
+// IMPORTANT: After removing double-encryption, new 2FA secrets will be single-encrypted
+// by Better Auth. Existing double-encrypted data needs migration.
+export async function verifyUserTotp(userId: string, code: string): Promise<boolean> {
+    try {
+        const twoFactorRecord = await prisma.twoFactor.findUnique({
+            where: { userId },
+            select: { secret: true }
+        });
+
+        if (!twoFactorRecord?.secret) {
+            return false;
+        }
+
+        // Better Auth uses its own encryption format. The secret from Prisma is encrypted.
+        // We need to use Better Auth's internal verification, but it's session-based.
+        // As a workaround, we'll try to use the TOTP verification directly.
+        // If the secret is in Better Auth's encrypted format (not base32), this will fail.
+        // In that case, the user needs to re-enable 2FA or we need to migrate the data.
+        
+        const { verifyTotpCode } = await import('./totp');
+        
+        // Check if secret looks like base32 (Better Auth's encrypted format is different)
+        // Better Auth encrypted secrets typically start with specific patterns
+        const isBase32 = /^[A-Z2-7]+=*$/.test(twoFactorRecord.secret.replace(/\s+/g, ''));
+        
+        if (!isBase32) {
+            // Secret is encrypted by Better Auth - we can't verify directly
+            // This means the data needs to be migrated or user needs to re-enable 2FA
+            console.error('[2FA] Secret is encrypted by Better Auth - cannot verify directly. User may need to re-enable 2FA.');
+            return false;
+        }
+        
+        return verifyTotpCode(code, twoFactorRecord.secret);
+    } catch (error) {
+        console.error('[2FA] Error verifying TOTP:', error);
+        return false;
+    }
+}
+
 // Export resend for use in other places (e.g., password reset, notifications)
 export { resend };

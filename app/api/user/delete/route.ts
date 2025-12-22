@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, verifyUserTotp } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 
 // POST /api/user/delete - Soft delete user account
@@ -12,15 +12,11 @@ export async function POST(request: NextRequest) {
 
         // Require TOTP confirmation when 2FA is enabled
         if (user.twoFactorEnabled) {
-            const twoFactor = await prisma.twoFactor.findUnique({
-                where: { userId: user.id },
-                select: { secret: true },
-            });
-            if (!twoFactor?.secret || !totpCode || typeof totpCode !== 'string') {
+            if (!totpCode || typeof totpCode !== 'string') {
                 return NextResponse.json({ error: 'TOTP code required to delete account' }, { status: 401 });
             }
-            const { verifyTotpCode } = await import('@/lib/totp');
-            if (!verifyTotpCode(totpCode, twoFactor.secret)) {
+            const isValid = await verifyUserTotp(user.id, totpCode);
+            if (!isValid) {
                 return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
             }
         }
