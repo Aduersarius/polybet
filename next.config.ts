@@ -12,36 +12,36 @@ const nextConfig: NextConfig = {
 
   // Optimize package imports and enable parallel builds
   experimental: {
-    optimizePackageImports: ['@prisma/client', 'ioredis'],
+    optimizePackageImports: [
+      '@prisma/client',
+      'ioredis',
+      '@radix-ui/react-accordion',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-icons',
+      '@radix-ui/react-scroll-area',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slider',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-toast',
+      '@radix-ui/react-tooltip',
+      '@tanstack/react-query',
+      'ethers',
+      'recharts',
+      'lucide-react',
+      'date-fns',
+    ],
+    // Enable Turbopack filesystem cache for faster subsequent builds
+    turbopackFileSystemCacheForDev: true,
   },
   // Ensure geoip-lite data files are traced into the serverless output
   outputFileTracingIncludes: {
     '*': ['node_modules/geoip-lite/data/**'],
   },
-  webpack: (config, { isServer }) => {
-    // Externalize dev-only and non-essential dependencies to reduce bundle size
-    // These are transitive dependencies that shouldn't be bundled
-    if (isServer) {
-      // Only externalize on server-side (API routes)
-      // Ensure externals is an array before pushing
-      if (!Array.isArray(config.externals)) {
-        config.externals = [];
-      }
-      const externalsToAdd = ["pino-pretty", "lokijs", "encoding", "thread-stream"];
-      externalsToAdd.forEach((pkg) => {
-        if (!config.externals.includes(pkg)) {
-          config.externals.push(pkg);
-        }
-      });
-    }
-    
-    // Prevent React Native packages from being bundled (if accidentally imported)
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@react-native-async-storage/async-storage': false,
-    };
-    
-    return config;
+  // Turbopack configuration (replaces webpack)
+  turbopack: {
+    // Note: Turbopack handles externals and aliases automatically
+    // React Native packages won't be bundled if not imported
   },
   images: {
     formats: ['image/avif', 'image/webp'],
