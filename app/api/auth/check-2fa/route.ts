@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
         // Find user by email
         const user = await prisma.user.findUnique({
             where: { email },
-            select: { id: true }
+            select: { id: true, twoFactorEnabled: true }
         });
 
         if (!user) {
@@ -30,12 +30,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ has2FA: false });
         }
 
-        // Check if user has 2FA enabled
-        const twoFactor = await prisma.twoFactor.findUnique({
-            where: { userId: user.id }
-        });
+        // Check if user has 2FA enabled - use the authoritative flag
+        // The twoFactorEnabled flag is set by better-auth when 2FA is enabled/disabled
+        const has2FA = !!user.twoFactorEnabled;
 
-        return NextResponse.json({ has2FA: !!twoFactor });
+        // Also verify the TwoFactor record exists (defensive check)
+        // If flag is true but record is missing, something is wrong
+        if (has2FA) {
+            const twoFactor = await prisma.twoFactor.findUnique({
+                where: { userId: user.id }
+            });
+            // If flag says enabled but record doesn't exist, fix the drift
+            if (!twoFactor) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { twoFactorEnabled: false },
+                });
+                return NextResponse.json({ has2FA: false });
+            }
+        }
+
+        return NextResponse.json({ has2FA });
     } catch (error) {
         console.error('Error checking 2FA:', error);
         return NextResponse.json({ has2FA: false });

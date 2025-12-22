@@ -46,7 +46,7 @@ export default function HistoryPage() {
         <div className="min-h-screen text-white font-sans relative z-10">
             <Navbar />
 
-            <main className="max-w-5xl mx-auto px-4 py-8 relative z-10">
+            <main className="max-w-5xl mx-auto px-4 py-8 relative z-10" style={{ paddingTop: 'calc(var(--navbar-height) + 1rem)' }}>
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-8">
                     <Link href="/profile" className="p-2 bg-[#1e1e1e] rounded-full hover:bg-white/10 transition-colors">

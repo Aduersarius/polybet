@@ -335,11 +335,12 @@ export default function Home() {
         <motion.div
           key="markets"
           className="min-h-screen relative text-white z-10 overflow-x-hidden max-w-full"
+          style={{ overflowY: 'visible' }}
         >
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
           {/* Markets Content */}
-          <div className="relative z-10 pt-10 px-6 max-w-7xl mx-auto pb-20">
+          <div className="relative z-10 pt-10 px-6 max-w-7xl mx-auto pb-20" style={{ overflow: 'visible', paddingTop: 'calc(var(--navbar-height) + 1rem)' }}>
 
             {/* Sort Options */}
             <motion.div
@@ -408,23 +409,24 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
               {activeEvents.map((event, idx) => (
-                <EventCard2
-                  key={event.id}
-                  event={event}
-                  index={idx}
-                  onTradeClick={(event, option) => {
-                    setSelectedEvent(event);
-                    setPreselectedOption(option);
-                    setTradingModalOpen(true);
-                  }}
-                  onMultipleTradeClick={(event) => {
-                    setSelectedMultipleEvent({...event, outcomes: event.outcomes});
-                    setMultipleTradingModalOpen(true);
-                  }}
-                  onCategoryClick={handleCategoryChange}
-                />
+                <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
+                  <EventCard2
+                    event={event}
+                    index={idx}
+                    onTradeClick={(event, option) => {
+                      setSelectedEvent(event);
+                      setPreselectedOption(option);
+                      setTradingModalOpen(true);
+                    }}
+                    onMultipleTradeClick={(event) => {
+                      setSelectedMultipleEvent({...event, outcomes: event.outcomes});
+                      setMultipleTradingModalOpen(true);
+                    }}
+                    onCategoryClick={handleCategoryChange}
+                  />
+                </div>
               ))}
             </div>
 
@@ -440,24 +442,25 @@ export default function Home() {
                     Ended Markets
                     <div className="h-px bg-white/10 flex-1" />
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
                     {endedEvents.map((event, idx) => (
-                      <EventCard2
-                        key={event.id}
-                        event={event}
-                        isEnded={true}
-                        index={idx}
-                        onTradeClick={(event, option) => {
-                          setSelectedEvent(event);
-                          setPreselectedOption(option);
-                          setTradingModalOpen(true);
-                        }}
-                        onMultipleTradeClick={(event) => {
-                          setSelectedMultipleEvent({...event, outcomes: event.outcomes});
-                          setMultipleTradingModalOpen(true);
-                        }}
-                        onCategoryClick={handleCategoryChange}
-                      />
+                      <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
+                        <EventCard2
+                          event={event}
+                          isEnded={true}
+                          index={idx}
+                          onTradeClick={(event, option) => {
+                            setSelectedEvent(event);
+                            setPreselectedOption(option);
+                            setTradingModalOpen(true);
+                          }}
+                          onMultipleTradeClick={(event) => {
+                            setSelectedMultipleEvent({...event, outcomes: event.outcomes});
+                            setMultipleTradingModalOpen(true);
+                          }}
+                          onCategoryClick={handleCategoryChange}
+                        />
+                      </div>
                     ))}
                   </div>
                 </motion.div>

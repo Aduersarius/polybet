@@ -55,14 +55,29 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
                                     {event.title}
                                 </h4>
                                 <div className="flex items-center gap-2 mt-2">
-                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#03dac6]/10 border border-[#03dac6]/20">
-                                        <span className="text-[10px] font-bold text-[#03dac6]">YES</span>
-                                        <span className="text-[10px] font-mono text-[#03dac6]">{(Number(event.yesOdds) * 100).toFixed(0)}%</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#cf6679]/10 border border-[#cf6679]/20">
-                                        <span className="text-[10px] font-bold text-[#cf6679]">NO</span>
-                                        <span className="text-[10px] font-mono text-[#cf6679]">{(Number(event.noOdds) * 100).toFixed(0)}%</span>
-                                    </div>
+                                    {(() => {
+                                        // Check if odds are already percentages (e.g., 50) or probabilities (e.g., 0.5)
+                                        const yesOddsValue = Number(event.yesOdds) || 0;
+                                        const noOddsValue = Number(event.noOdds) || 0;
+                                        const yesDisplay = yesOddsValue > 1 
+                                            ? Math.round(yesOddsValue) 
+                                            : Math.round(yesOddsValue * 100);
+                                        const noDisplay = noOddsValue > 1 
+                                            ? Math.round(noOddsValue) 
+                                            : Math.round(noOddsValue * 100);
+                                        return (
+                                            <>
+                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#03dac6]/10 border border-[#03dac6]/20">
+                                                    <span className="text-[10px] font-bold text-[#03dac6]">YES</span>
+                                                    <span className="text-[10px] font-mono text-[#03dac6]">{yesDisplay}%</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#cf6679]/10 border border-[#cf6679]/20">
+                                                    <span className="text-[10px] font-bold text-[#cf6679]">NO</span>
+                                                    <span className="text-[10px] font-mono text-[#cf6679]">{noDisplay}%</span>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </motion.div>
