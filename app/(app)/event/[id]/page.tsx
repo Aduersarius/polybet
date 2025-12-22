@@ -218,21 +218,22 @@ export default function EventPage() {
                 <div className="absolute bottom-1/4 -right-1/4 w-96 h-96 bg-[#03dac6]/10 rounded-full blur-3xl" />
             </div>
 
-            <div className="relative z-10 flex flex-col h-full">
-                <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
+            <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
-                <div className="flex-1">
-                    <div className="px-4 sm:px-5 max-w-7xl mx-auto pb-10">
+            <div className="relative z-10 flex flex-col h-screen">
 
+                {/* Main content area with independent scrolling columns */}
+                <div className="flex-1 overflow-hidden" style={{ paddingTop: 'calc(var(--navbar-height) + 0.5rem)' }}>
+                    <div className="h-full px-4 sm:px-5 max-w-7xl mx-auto">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="h-full"
                         >
-                            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] lg:items-start">
-                                {/* Left Column */}
-                                <div className="pb-6 lg:pr-2 pt-4 space-y-6 order-1">
-                                    <div className="space-y-6">
+                            <div className="h-full flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] lg:items-stretch">
+                                {/* Left Column - Scrollable */}
+                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 lg:pr-2 space-y-6 order-1 no-scrollbar">
+                                    <div className="space-y-6 pt-4">
                                         {/* Header Section - With Image on Right */}
                                         <div className="relative">
                                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6 lg:pr-32">
@@ -400,9 +401,9 @@ export default function EventPage() {
                                     </div>
                                 </div>
 
-                                {/* Right Column - Sticky */}
-                                <aside className="lg:pl-2 pt-4 order-2 hidden lg:block sticky top-24 self-start z-10">
-                                    <div className="space-y-6 trading-panel">
+                                {/* Right Column - Scrollable */}
+                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar">
+                                    <div className="space-y-6 trading-panel pb-6 pt-4">
                                         {liveEvent.type === 'MULTIPLE' ? (
                                             <MultipleTradingPanel
                                                 outcomes={liveEvent.outcomes || []}
@@ -429,7 +430,6 @@ export default function EventPage() {
                         </motion.div>
                     </div>
                 </div>
-
             </div>
         </main>
     );
