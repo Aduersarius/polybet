@@ -211,11 +211,6 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                         Admin Panel
                                                     </Link>
                                                 )}
-                                                {((session as any).user?.isAdmin || (session as any).user?.supportRole) && (
-                                                    <Link href="/admin/support" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-emerald-500/10 rounded-xl transition-all duration-200 font-medium">
-                                                        Support Dashboard
-                                                    </Link>
-                                                )}
                                             </div>
                                             <div className="border-t border-blue-400/10 py-2 px-2">
                                                 <button
