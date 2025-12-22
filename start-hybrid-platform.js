@@ -3,6 +3,18 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
+// Suppress url.parse() deprecation warnings from dependencies (e.g., socket.io)
+// This is a known issue in socket.io-client and will be fixed in future versions
+// We only suppress DEP0169 warnings (url.parse) to avoid hiding other important warnings
+const originalEmitWarning = process.emitWarning;
+process.emitWarning = function(warning, type, code, ctor) {
+    if (code === 'DEP0169' || (type === 'DeprecationWarning' && String(warning).includes('url.parse()'))) {
+        // Suppress url.parse() deprecation warnings from dependencies
+        return;
+    }
+    return originalEmitWarning.call(this, warning, type, code, ctor);
+};
+
 // Start Next.js development server
 console.log('🚀 Starting Next.js development server...');
 const nextProcess = spawn('npx', ['next', 'dev', '--turbo'], {

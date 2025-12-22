@@ -88,7 +88,29 @@ export const twoFactor = {
         return await (authClient as any).twoFactor.getTotpUri({ password });
     },
     verifyTotp: async (code: string, trustDevice?: boolean) => {
-        return await (authClient as any).twoFactor.verifyTotp({ code, trustDevice });
+        try {
+            // Sanitize TOTP code: remove spaces and ensure it's exactly 6 digits
+            const sanitizedCode = (code || '').replace(/\s+/g, '').trim();
+            
+            // Validate code format before sending to better-auth
+            if (!sanitizedCode || sanitizedCode.length !== 6 || !/^\d{6}$/.test(sanitizedCode)) {
+                return { error: { message: 'TOTP code must be exactly 6 digits' } };
+            }
+            
+            const result = await (authClient as any).twoFactor.verifyTotp({ 
+                code: sanitizedCode, 
+                trustDevice: trustDevice ?? false 
+            });
+            
+            return result;
+        } catch (error: any) {
+            console.error('[2FA] verifyTotp error:', error);
+            return { 
+                error: { 
+                    message: error?.message || 'Failed to verify TOTP code. Please try again.' 
+                } 
+            };
+        }
     },
     generateBackupCodes: async (password: string) => {
         return await (authClient as any).twoFactor.generateBackupCodes({ password });

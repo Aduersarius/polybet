@@ -6,16 +6,67 @@ const toDecimal = (value: any) => new Prisma.Decimal(value ?? 0);
 
 let geoipLite: any | null = null;
 let geoipLoaded = false;
+let geoipWarningLogged = false;
 
 function getGeoIpLite() {
     if (geoipLoaded) return geoipLite;
     geoipLoaded = true;
     try {
+        // Check if data files exist before requiring
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Try multiple possible paths for geoip-lite data files
+        const possiblePaths = [
+            // Standard path from require.resolve
+            path.join(require.resolve('geoip-lite'), '..', 'data', 'geoip-country.dat'),
+            // Local node_modules
+            path.join(process.cwd(), 'node_modules', 'geoip-lite', 'data', 'geoip-country.dat'),
+            // Next.js build output
+            path.join(process.cwd(), '.next', 'server', 'data', 'geoip-country.dat'),
+            // Absolute path (for serverless/production)
+            '/ROOT/node_modules/geoip-lite/data/geoip-country.dat',
+            // Try to find geoip-lite module directory
+            (() => {
+                try {
+                    const modulePath = require.resolve('geoip-lite/package.json');
+                    return path.join(path.dirname(modulePath), 'data', 'geoip-country.dat');
+                } catch {
+                    return null;
+                }
+            })(),
+        ].filter(Boolean) as string[];
+        
+        const dataFileExists = possiblePaths.some(p => {
+            try {
+                return fs.existsSync(p);
+            } catch {
+                return false;
+            }
+        });
+        
+        if (!dataFileExists) {
+            if (!geoipWarningLogged) {
+                console.warn('[telemetry] geoip-lite data files not found; skipping country lookup');
+                geoipWarningLogged = true;
+            }
+            geoipLite = null;
+            return null;
+        }
+        
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         geoipLite = require('geoip-lite');
     } catch (err) {
-        const msg = (err as Error)?.message ?? String(err);
-        console.warn('[telemetry] geoip-lite not available; skipping country lookup', msg);
+        if (!geoipWarningLogged) {
+            const msg = (err as Error)?.message ?? String(err);
+            // Only log if it's not a missing file error (we handle that above)
+            if (!msg.includes('ENOENT') && !msg.includes('no such file')) {
+                console.warn('[telemetry] geoip-lite not available; skipping country lookup', msg);
+            } else {
+                console.warn('[telemetry] geoip-lite data files not found; skipping country lookup');
+            }
+            geoipWarningLogged = true;
+        }
         geoipLite = null;
     }
     return geoipLite;

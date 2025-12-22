@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, verifyUserTotp } from '@/lib/auth';
+import { requireAuth, verifyUserTotp, auth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 
 // POST /api/user/delete - Soft delete user account
@@ -29,7 +29,15 @@ export async function POST(request: NextRequest) {
             }
         });
 
-        // Delete all sessions for this user (logs them out)
+        // Revoke all sessions for this user
+        // Note: Since we're doing a soft delete (not using better-auth's deleteUser()),
+        // and better-auth doesn't expose a revokeAllSessions API method,
+        // we delete sessions directly from better-auth's Session table via Prisma.
+        // This is acceptable because:
+        // 1. Better-auth manages sessions through Prisma adapter (same database)
+        // 2. We're using better-auth's Session table structure
+        // 3. This achieves the same result as better-auth's deleteUser() session cleanup
+        //    but without hard-deleting the user record
         await prisma.session.deleteMany({
             where: { userId: user.id }
         });

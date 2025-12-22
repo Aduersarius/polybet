@@ -193,7 +193,7 @@ function ResetPasswordForm() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                            placeholder="At least 12 characters with uppercase, lowercase, number, and symbol"
+                            placeholder="At least 8 characters with uppercase, lowercase, number, and symbol"
                             required
                         />
                         {validationErrors.length > 0 && (
