@@ -207,7 +207,7 @@ export default function SettingsPage() {
 
     const handleSignOut = async () => {
         await signOut();
-        router.push('/');
+        // signOut() already handles navigation, no need for router.push
     };
 
     const updateSetting = <T extends keyof UserSettings>(
