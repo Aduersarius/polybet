@@ -123,6 +123,7 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
       const response = await fetch(`/api/support/tickets/${ticketId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ content: newMessage }),
       });
 
