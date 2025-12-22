@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "node start-hybrid-platform.js",
-    "build": "prisma generate && next build --webpack && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js",
+    "build": "next build --webpack && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js",
     "vercel-build": "npm run build",
     "start": "next start",
     "lint": "next lint",
-    "analyze": "ANALYZE=true next build --webpack",
+    "analyze": "ANALYZE=true next build",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "stress": "npx tsx stress-test.ts",
