@@ -15,6 +15,7 @@ import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 import { AdminShell } from '../../components/admin/AdminShell';
+import type { Session } from '@/lib/session-types';
 
 type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake';
 
@@ -37,15 +38,9 @@ function AdminPageContent() {
     // Enable WebSocket real-time updates
     useAdminWebSocket();
 
-    const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { data: session, isPending } = useSession();
-
-    useEffect(() => {
-        // Temporarily bypass authentication to show the tables
-        setIsAdmin(true);
-    }, []);
+    const { data: session, isPending } = useSession() as { data: Session | null; isPending: boolean };
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
@@ -56,16 +51,30 @@ function AdminPageContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
-    // Temporarily bypass session loading for testing
-    // if (isPending || isAdmin === null) {
-    //     return (
-    //         <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
-    //             <div className="text-gray-400">Loading...</div>
-    //         </div>
-    //     );
-    // }
+    // Check authentication and admin status
+    useEffect(() => {
+        if (!isPending) {
+            if (!session?.user) {
+                // Not authenticated - redirect to home
+                router.push('/');
+            } else if (!session.user.isAdmin) {
+                // Not admin - redirect to home
+                router.push('/');
+            }
+        }
+    }, [session, isPending, router]);
 
-    if (isAdmin === false) {
+    // Show loading state while checking session
+    if (isPending) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+                <div className="text-gray-400">Loading...</div>
+            </div>
+        );
+    }
+
+    // If not authenticated or not admin, show nothing (redirect is in progress)
+    if (!session?.user || !session.user.isAdmin) {
         return null;
     }
 

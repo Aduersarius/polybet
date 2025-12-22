@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server';
 import { prisma } from './prisma';
 import * as crypto from 'crypto';
+import { logger } from './logger';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 export interface ApiAuthResult {
   userId: string;
@@ -45,8 +48,18 @@ export async function requireApiKeyAuth(request: NextRequest): Promise<ApiAuthRe
     });
   }
 
-  // Hash the provided key for comparison
-  const hashedKey = crypto.createHash('sha256').update(apiKey).digest('hex');
+  // Hash the provided key for comparison using PBKDF2 (more secure than SHA-256 for passwords/keys)
+  // Using PBKDF2 with SHA-256, 100,000 iterations, and salt from env
+  // This is more secure than simple SHA-256 hashing
+  const salt = process.env.API_KEY_SALT || (isProduction ? undefined : 'dev-salt-change-in-production');
+  if (!salt) {
+    logger.error('[API-AUTH] API_KEY_SALT not configured');
+    throw new Response(JSON.stringify({ error: 'Server configuration error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const hashedKey = crypto.pbkdf2Sync(apiKey, salt, 100000, 32, 'sha256').toString('hex');
 
   const apiKeyRecord = await prisma.apiKey.findUnique({
     where: { key: hashedKey },
@@ -66,6 +79,18 @@ export async function requireApiKeyAuth(request: NextRequest): Promise<ApiAuthRe
     });
   }
 
+  // Check if key has expired (if expirationDate field exists)
+  if ((apiKeyRecord as any).expirationDate) {
+    const expirationDate = new Date((apiKeyRecord as any).expirationDate);
+    if (expirationDate < new Date()) {
+      logger.warn(`[API-AUTH] Expired API key attempted: ${apiKeyRecord.id}`);
+      throw new Response(JSON.stringify({ error: 'API key has expired' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   if (!apiKeyRecord.account.isActive) {
     throw new Response(JSON.stringify({ error: 'Institutional account is inactive' }), {
       status: 403,
@@ -73,10 +98,16 @@ export async function requireApiKeyAuth(request: NextRequest): Promise<ApiAuthRe
     });
   }
 
-  // Update last used timestamp
+  // Update last used timestamp and usage count
   await prisma.apiKey.update({
     where: { id: apiKeyRecord.id },
-    data: { lastUsedAt: new Date() },
+    data: { 
+      lastUsedAt: new Date(),
+      // Increment usage count if field exists
+      ...((apiKeyRecord as any).usageCount !== undefined && {
+        usageCount: { increment: 1 }
+      })
+    },
   });
 
   return {
@@ -135,7 +166,7 @@ export async function checkInstitutionalRateLimit(
     const isProd = process.env.NODE_ENV === 'production';
     
     if (!isConnectionError || isProd) {
-      console.error('Institutional rate limit check failed, blocking by default:', error);
+      logger.error('Institutional rate limit check failed, blocking by default:', error);
     }
     return false; // Fail closed on error
   }

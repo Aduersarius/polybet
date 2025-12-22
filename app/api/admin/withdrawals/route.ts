@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
             }
 
             // Use Better Auth's verification which handles encrypted secrets
-            const isValid = await verifyUserTotp(adminId, totpCode);
+            const isValid = await verifyUserTotp(adminId, totpCode, req);
             if (!isValid) {
                 return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
             }
