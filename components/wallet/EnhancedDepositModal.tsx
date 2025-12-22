@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { X, Zap, CreditCard, Building2, Repeat, Wallet as WalletIcon, ChevronDown, Copy, Check } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { BrandedQRCode } from '@/components/ui/BrandedQRCode';
+import { USDCIcon, USDTIcon, PolygonIcon, EthereumIcon, BNBIcon, ArbitrumIcon } from '@/components/ui/CryptoIcons';
 
 interface EnhancedDepositModalProps {
     isOpen: boolean;
@@ -14,10 +15,38 @@ type PaymentMethod = 'crypto' | 'card' | 'sepa' | 'exchange' | 'paypal';
 type CryptoNetwork = 'polygon-usdc' | 'ethereum-usdt' | 'bsc-usdt' | 'arbitrum-usdc';
 
 const cryptoNetworks = [
-    { id: 'polygon-usdc', name: 'USDC', chain: 'Polygon', icon: '🟣', fee: '1%' },
-    { id: 'ethereum-usdt', name: 'USDT', chain: 'Ethereum', icon: '⟠', fee: '2%' },
-    { id: 'bsc-usdt', name: 'USDT', chain: 'BSC', icon: '🟡', fee: '1.5%' },
-    { id: 'arbitrum-usdc', name: 'USDC', chain: 'Arbitrum', icon: '🔵', fee: '0.5%' },
+    { 
+        id: 'polygon-usdc', 
+        name: 'USDC', 
+        chain: 'Polygon', 
+        fee: '1%',
+        CoinIcon: USDCIcon,
+        ChainIcon: PolygonIcon
+    },
+    { 
+        id: 'ethereum-usdt', 
+        name: 'USDT', 
+        chain: 'Ethereum', 
+        fee: '2%',
+        CoinIcon: USDTIcon,
+        ChainIcon: EthereumIcon
+    },
+    { 
+        id: 'bsc-usdt', 
+        name: 'USDT', 
+        chain: 'BSC', 
+        fee: '1.5%',
+        CoinIcon: USDTIcon,
+        ChainIcon: BNBIcon
+    },
+    { 
+        id: 'arbitrum-usdc', 
+        name: 'USDC', 
+        chain: 'Arbitrum', 
+        fee: '0.5%',
+        CoinIcon: USDCIcon,
+        ChainIcon: ArbitrumIcon
+    },
 ];
 
 export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: EnhancedDepositModalProps) {
@@ -133,9 +162,10 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                                     </div>
                                 </div>
                                 <div className="flex gap-1.5">
-                                    {['🟣', '⟠', '🟡', '🔵'].map((icon, i) => (
-                                        <span key={i} className="text-base opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
-                                    ))}
+                                    <PolygonIcon size={20} className="opacity-80 group-hover:opacity-100 transition-opacity" />
+                                    <EthereumIcon size={20} className="opacity-80 group-hover:opacity-100 transition-opacity" />
+                                    <BNBIcon size={20} className="opacity-80 group-hover:opacity-100 transition-opacity" />
+                                    <ArbitrumIcon size={20} className="opacity-80 group-hover:opacity-100 transition-opacity" />
                                 </div>
                             </div>
                         </button>
@@ -255,7 +285,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                                 className="w-full p-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-blue-400/30 text-white flex items-center justify-between hover:bg-white/10 transition-all group"
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <span className="text-lg">{selectedNetworkData?.icon}</span>
+                                    {selectedNetworkData?.ChainIcon && <selectedNetworkData.ChainIcon size={24} />}
                                     <span className="font-medium">{selectedNetworkData?.name}</span>
                                     <span className="text-white/50 text-sm">({selectedNetworkData?.chain})</span>
                                 </div>
@@ -271,7 +301,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                                             className="w-full p-3.5 text-left hover:bg-blue-500/10 transition-all flex items-center justify-between group/item border-b border-white/5 last:border-0"
                                         >
                                             <div className="flex items-center gap-2.5">
-                                                <span className="text-lg">{network.icon}</span>
+                                                <network.ChainIcon size={24} />
                                                 <div>
                                                     <p className="text-white text-sm font-medium group-hover/item:text-blue-300 transition-colors">{network.name} ({network.chain})</p>
                                                     <p className="text-xs text-white/50">Fee: {network.fee}</p>
@@ -300,7 +330,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                             <>
                                 {/* QR Code */}
                                 <div className="flex justify-center p-5 bg-white rounded-2xl shadow-lg">
-                                    <QRCodeSVG value={depositAddress} size={220} />
+                                    <BrandedQRCode value={depositAddress} size={220} logoSize={50} />
                                 </div>
 
                                 {/* Address */}

@@ -338,8 +338,8 @@ export default function Home() {
         >
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
-          {/* Markets Content */}
-          <div className="relative z-10 pt-10 px-6 max-w-7xl mx-auto pb-20">
+          {/* Markets Content - Added pt-32 to account for fixed navbar height */}
+          <div className="relative z-10 pt-32 px-6 max-w-7xl mx-auto pb-20">
 
             {/* Sort Options */}
             <motion.div

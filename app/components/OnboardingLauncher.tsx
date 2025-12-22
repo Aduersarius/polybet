@@ -26,11 +26,11 @@ export function OnboardingLauncher() {
 
     return (
         <>
-            {/* Mobile Help Button */}
+            {/* Mobile Help Button - Hidden on mobile */}
             <button
                 type="button"
                 onClick={handleOpen}
-                className="group fixed bottom-6 right-5 z-50 lg:hidden inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 text-white shadow-xl shadow-blue-500/30 border border-white/20 hover:scale-110 active:scale-95 transition-all duration-300 overflow-hidden"
+                className="group fixed bottom-6 right-5 z-50 hidden lg:inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 text-white shadow-xl shadow-blue-500/30 border border-white/20 hover:scale-110 active:scale-95 transition-all duration-300 overflow-hidden"
                 aria-label="Get started with Polybet"
             >
                 {/* Animated gradient overlay */}
