@@ -39,6 +39,8 @@
 html {
   background: var(--background);
   min-height: 100%;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
@@ -48,6 +50,7 @@ body {
   font-weight: 200; /* Even thinner default font weight */
   overflow-x: hidden;
   min-height: 100vh;
+  max-width: 100vw;
 }
 
 /* Make headings and bold text thinner */

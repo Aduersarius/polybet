@@ -12,6 +12,9 @@ import { MultipleTradingPanelModal } from "../components/MultipleTradingPanelMod
 import { EventCard2 } from "../components/EventCard2";
 import { Label, PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 import { ChartContainer, ChartConfig } from "@/components/ui/chart";
+import { MobileCTABanner } from "../components/MobileCTABanner";
+import { SignupModal } from "../components/auth/SignupModal";
+import { LoginModal } from "../components/auth/LoginModal";
 
 // Cookie utility functions
 function setCookie(name: string, value: string, days: number) {
@@ -73,6 +76,10 @@ export default function Home() {
   // Multiple trading panel modal state
   const [multipleTradingModalOpen, setMultipleTradingModalOpen] = useState(false);
   const [selectedMultipleEvent, setSelectedMultipleEvent] = useState<DbEvent | null>(null);
+
+  // Auth modal state
+  const [showSignupModal, setShowSignupModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const router = useRouter();
 
@@ -322,12 +329,12 @@ export default function Home() {
   };
 
   return (
-    <main className="flex flex-col relative">
+    <main className="flex flex-col relative overflow-x-hidden max-w-full">
 
-      <div className="flex-grow">
+      <div className="flex-grow overflow-x-hidden max-w-full">
         <motion.div
           key="markets"
-          className="min-h-screen relative text-white z-10"
+          className="min-h-screen relative text-white z-10 overflow-x-hidden max-w-full"
         >
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
@@ -494,6 +501,27 @@ export default function Home() {
           resolutionDate={selectedMultipleEvent.resolutionDate}
         />
       )}
+
+      {/* Auth Modals */}
+      <SignupModal
+        isOpen={showSignupModal}
+        onClose={() => setShowSignupModal(false)}
+        onSwitchToLogin={() => {
+          setShowSignupModal(false);
+          setShowLoginModal(true);
+        }}
+      />
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSwitchToSignup={() => {
+          setShowLoginModal(false);
+          setShowSignupModal(true);
+        }}
+      />
+
+      {/* Mobile CTA Banner */}
+      <MobileCTABanner onSignupClick={() => setShowSignupModal(true)} />
     </main>
   );
 }
