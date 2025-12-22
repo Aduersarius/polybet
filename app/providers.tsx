@@ -7,8 +7,14 @@ import {
 import { SettingsProvider } from "@/lib/settings-context";
 import { useClientTelemetry } from "@/hooks/use-client-telemetry";
 import { CustomTourProvider } from "@/contexts/CustomTourContext";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
+
+// Expose queryClient globally for signOut to access
+if (typeof window !== 'undefined') {
+    (window as any).__REACT_QUERY_CLIENT__ = queryClient;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
     useClientTelemetry();
