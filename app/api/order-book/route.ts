@@ -33,10 +33,14 @@ export async function GET(request: NextRequest) {
         const cacheKey = `orderbook:${eventId}:${orderOption}`;
         let orderbook;
 
-        if (redis) {
-            const cached = await redis.get(cacheKey);
-            if (cached) {
-                orderbook = JSON.parse(cached);
+        if (redis && (redis as any).status === 'ready') {
+            try {
+                const cached = await redis.get(cacheKey);
+                if (cached) {
+                    orderbook = JSON.parse(cached);
+                }
+            } catch (error: any) {
+                // Silently fail on cache read errors
             }
         }
 
@@ -45,8 +49,12 @@ export async function GET(request: NextRequest) {
             orderbook = await getOrderBook(eventId, orderOption);
 
             // Cache for shorter time (e.g., 2s) because prices move dynamically now
-            if (redis) {
-                await redis.setex(cacheKey, 2, JSON.stringify(orderbook));
+            if (redis && (redis as any).status === 'ready') {
+                try {
+                    await redis.setex(cacheKey, 2, JSON.stringify(orderbook));
+                } catch (error: any) {
+                    // Silently fail on cache write errors
+                }
             }
         }
 

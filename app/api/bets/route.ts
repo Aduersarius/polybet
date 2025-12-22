@@ -206,9 +206,9 @@ export async function POST(request: Request) {
         // will automatically pick up this bet within 3 seconds and recalculate hybrid odds
         Promise.all([
             (async () => {
-                if (redis) {
-                    await redis.del(`event:${eventId}`).catch(e => console.error('Cache del failed:', e));
-                    await redis.del(`event:amm:${eventId}`).catch(e => console.error('Cache del failed:', e));
+                if (redis && (redis as any).status === 'ready') {
+                    await redis.del(`event:${eventId}`).catch(() => {});
+                    await redis.del(`event:amm:${eventId}`).catch(() => {});
 
                     const updatePayload = {
                         eventId,

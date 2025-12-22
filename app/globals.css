@@ -9,15 +9,15 @@
    * When updating colors, update both this file AND lib/colors/tokens.ts
    * TODO: Consider generating this file from tokens.ts to ensure sync
    */
-  --background: #0f1117; /* Must match colorTokens.background - Premium deep rich navy */
-  --surface: #1a1d28; /* Must match colorTokens.surface - Elevated surface with rich navy undertones */
+  --background: #111827; /* gray-900 */
+  --surface: #1f2937; /* gray-800 - Event cards and elevated surfaces */
   --surface-elevated: #232736; /* Higher elevation for modals/dialogs - lighter navy */
   --primary: #3b82f6; /* Must match colorTokens.primary[500] - Vibrant trust blue */
   --secondary: #10b981; /* Must match colorTokens.secondary[500] */
   --accent: #8b5cf6; /* Must match colorTokens.accent[500] */
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 24, 24, 27;
-  --background-end-rgb: 24, 24, 27;
+  --background-start-rgb: 17, 24, 39; /* RGB values for gray-900 (#111827) */
+  --background-end-rgb: 17, 24, 39; /* RGB values for gray-900 (#111827) */
 
   /* Shadcn Chart Colors - Modern */
   --chart-1: 217 91% 60%;

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { SparklesCore as Sparks } from "../components/ui/sparkles";
 import { Toaster } from "@/components/ui/toaster";
 import { DevSwCleanup } from "./components/DevSwCleanup";
 import { OnboardingLauncher } from "./components/OnboardingLauncher";
@@ -34,16 +33,7 @@ export default function RootLayout({
                 <Providers>
                     <DevSwCleanup />
                     <OnboardingLauncher />
-                    <Sparks
-                        id="tsparticlesfullpage"
-                        background="transparent"
-                        minSize={0.4}
-                        maxSize={0.8}
-                        particleDensity={20}
-                        className="w-full h-full"
-                        particleColor="#3b82f6"
-                    />
-                    <div className="fixed inset-0 bg-zinc-900 pointer-events-none z-[1]" />
+                    <div className="fixed inset-0 bg-gray-900 pointer-events-none z-[1]" />
                     <div className="relative z-10 min-h-screen flex flex-col">
                         {children}
                     </div>

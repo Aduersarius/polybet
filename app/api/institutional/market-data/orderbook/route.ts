@@ -69,14 +69,20 @@ export async function GET(request: NextRequest) {
 
     // Check cache first
     const cacheKey = getCacheKey(eventId, outcomeId || undefined, option || undefined, depth);
-    if (redis) {
+    if (redis && (redis as any).status === 'ready') {
       try {
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
           return NextResponse.json(JSON.parse(cachedData));
         }
-      } catch (cacheError) {
-        console.warn('Cache read error:', cacheError);
+      } catch (cacheError: any) {
+        const isConnectionError = cacheError?.message?.includes('Connection is closed') || 
+                                  cacheError?.message?.includes('connect') ||
+                                  cacheError?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        if (!isConnectionError || isProd) {
+          console.warn('Cache read error:', cacheError);
+        }
         // Continue without cache
       }
     }
@@ -175,11 +181,17 @@ export async function GET(request: NextRequest) {
     };
 
     // Cache the response (2 seconds TTL)
-    if (redis) {
+    if (redis && (redis as any).status === 'ready') {
       try {
         await redis.setex(cacheKey, 2, JSON.stringify(orderBook));
-      } catch (cacheError) {
-        console.warn('Cache write error:', cacheError);
+      } catch (cacheError: any) {
+        const isConnectionError = cacheError?.message?.includes('Connection is closed') || 
+                                  cacheError?.message?.includes('connect') ||
+                                  cacheError?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        if (!isConnectionError || isProd) {
+          console.warn('Cache write error:', cacheError);
+        }
         // Continue without caching
       }
     }

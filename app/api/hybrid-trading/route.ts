@@ -165,11 +165,13 @@ export async function POST(request: Request) {
 
             // Invalidate Caches
             const cacheKey = outcomeId ? `orderbook:${eventId}:${outcomeId}` : `orderbook:${eventId}:${option}`;
-            await Promise.all([
-                redis.del(`event:${eventId}`).catch(() => { }),
-                redis.del(`event:amm:${eventId}`).catch(() => { }),
-                redis.del(cacheKey).catch(() => { })
-            ]);
+            if (redis && (redis as any).status === 'ready') {
+                await Promise.all([
+                    redis.del(`event:${eventId}`).catch(() => { }),
+                    redis.del(`event:amm:${eventId}`).catch(() => { }),
+                    redis.del(cacheKey).catch(() => { })
+                ]);
+            }
         }
 
         return NextResponse.json({

@@ -44,6 +44,13 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
             return prod ? { allowed: false, remaining: 0 } : rateLimitInMemory(key, limit, windowSeconds);
         }
 
+        // Check if Redis connection is actually ready
+        const status = (redis as any).status;
+        if (!status || status !== 'ready') {
+            // Connection not ready, fall back to in-memory
+            return prod ? { allowed: false, remaining: 0 } : rateLimitInMemory(key, limit, windowSeconds);
+        }
+
         const count = await (redis as any).incr(key);
 
         if (count === 1) {
@@ -54,8 +61,22 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
             allowed: count <= limit,
             remaining: Math.max(limit - count, 0),
         };
-    } catch (error) {
-        console.error('[rate-limit] error', error);
+    } catch (error: any) {
+        // Don't log expected connection errors in development - we gracefully fall back to in-memory
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        
+        if (isConnectionError && !prod) {
+            // Silently fall back in development
+            return rateLimitInMemory(key, limit, windowSeconds);
+        }
+        
+        // Log unexpected errors or all errors in production
+        if (!isConnectionError || prod) {
+            console.error('[rate-limit] error', error);
+        }
+        
         return prod ? { allowed: false, remaining: 0 } : rateLimitInMemory(key, limit, windowSeconds);
     }
 }

@@ -25,7 +25,13 @@ export class RequestQueue {
 
         if (!redis) {
             // Fallback to direct execution if Redis unavailable
-            console.warn('⚠️ Redis unavailable for queuing, executing directly');
+            return await fn();
+        }
+
+        // Check if Redis connection is actually ready
+        const status = (redis as any).status;
+        if (!status || status !== 'ready') {
+            // Fallback to direct execution if Redis not ready
             return await fn();
         }
 
@@ -38,8 +44,15 @@ export class RequestQueue {
             try {
                 processing = await redis.incr(processingKey);
                 await redis.expire(processingKey, 60); // Auto-cleanup
-            } catch (redisError) {
-                console.warn('⚠️ Redis operation failed, falling back to direct execution:', redisError);
+            } catch (redisError: any) {
+                const isConnectionError = redisError?.message?.includes('Connection is closed') || 
+                                          redisError?.message?.includes('connect') ||
+                                          redisError?.message?.includes('ECONNREFUSED');
+                const isProd = process.env.NODE_ENV === 'production';
+                
+                if (!isConnectionError || isProd) {
+                    console.warn('⚠️ Redis operation failed, falling back to direct execution:', redisError);
+                }
                 return await fn();
             }
 
@@ -98,12 +111,29 @@ export class RequestQueue {
     static async getStats(key: string) {
         if (!redis) return { processing: 0 };
 
-        const processingKey = `processing:${key}`;
-        const processing = await redis.get(processingKey);
+        const status = (redis as any).status;
+        if (!status || status !== 'ready') {
+            return { processing: 0, maxConcurrent: this.MAX_CONCURRENT };
+        }
 
-        return {
-            processing: parseInt(processing || '0'),
-            maxConcurrent: this.MAX_CONCURRENT
-        };
+        try {
+            const processingKey = `processing:${key}`;
+            const processing = await redis.get(processingKey);
+
+            return {
+                processing: parseInt(processing || '0'),
+                maxConcurrent: this.MAX_CONCURRENT
+            };
+        } catch (error: any) {
+            const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                      error?.message?.includes('connect') ||
+                                      error?.message?.includes('ECONNREFUSED');
+            const isProd = process.env.NODE_ENV === 'production';
+            
+            if (!isConnectionError || isProd) {
+                console.warn('⚠️ Failed to get queue stats:', error);
+            }
+            return { processing: 0, maxConcurrent: this.MAX_CONCURRENT };
+        }
     }
 }

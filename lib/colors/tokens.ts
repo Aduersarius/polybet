@@ -6,7 +6,7 @@
 export const colorTokens = {
   // Base Colors - 2026 Design System
   // Premium Navy Rich Theme: Deep, sophisticated navy blues - no green
-  background: '#0f1117', // Deep rich navy - premium and sophisticated
+  background: '#111827', // gray-900
   surface: '#1a1d28', // Elevated surface with rich navy undertones - premium contrast
   surfaceElevated: '#232736', // Higher elevation for modals/dialogs - lighter navy
   

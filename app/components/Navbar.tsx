@@ -16,6 +16,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { OnboardingTour } from './OnboardingTour';
 import { useCustomTour } from '@/contexts/CustomTourContext';
 import { CreateEventModal } from './admin/CreateEventModal';
+import { CategoryBar } from './CategoryBar';
 
 
 interface NavbarProps {
@@ -249,53 +250,11 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 {/* Bottom Row: Categories - Full Width */}
                 {
                     onCategoryChange && (
-                        <div className="w-full border-t border-blue-400/10 backdrop-blur-xl" style={{ backgroundColor: 'var(--surface)' }}>
-                            <div className="max-w-7xl mx-auto px-6 py-2.5">
-                                <div className="overflow-x-auto scrollbar-hide">
-                                    <div className="flex items-center gap-2 category-nav">
-                                        <div className="flex gap-1.5 min-w-max">
-                                            {categories.map((cat) => 
-                                                cat.id === 'SPORTS' ? (
-                                                    <Link key={cat.id} href="/sports">
-                                                        <button
-                                                            className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 whitespace-nowrap uppercase tracking-wide ${selectedCategory === cat.id
-                                                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.4)] scale-105'
-                                                                : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15)]'
-                                                            }`}
-                                                        >
-                                                            {cat.label}
-                                                        </button>
-                                                    </Link>
-                                                ) : (
-                                                    <button
-                                                        key={cat.id}
-                                                        onClick={() => onCategoryChange(cat.id)}
-                                                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 whitespace-nowrap uppercase tracking-wide ${selectedCategory === cat.id
-                                                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.4)] scale-105'
-                                                            : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15)]'
-                                                            }`}
-                                                    >
-                                                        {cat.label}
-                                                    </button>
-                                                )
-                                            )}
-                                        </div>
-                                        <div className="h-5 w-px bg-blue-400/20"></div>
-                                        <button
-                                            onClick={() => onCategoryChange('FAVORITES')}
-                                            className={`p-1.5 rounded-lg transition-all duration-300 whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
-                                                ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-[0_4px_16px_rgba(244,63,94,0.4)]'
-                                                : 'bg-white/5 text-gray-400 hover:text-pink-400 border border-white/10 hover:border-pink-400/30 hover:bg-pink-500/10'
-                                                }`}
-                                        >
-                                            <svg className="w-3.5 h-3.5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <CategoryBar
+                            selectedCategory={selectedCategory}
+                            onCategoryChange={onCategoryChange}
+                            categories={categories}
+                        />
                     )
                 }
 

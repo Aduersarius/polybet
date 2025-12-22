@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/app/components/Navbar';
-import { SparklesCore as Sparks } from '@/components/ui/sparkles';
 import { Footer } from '@/app/components/Footer';
 import { SportsSidebar } from '@/app/components/sports/SportsSidebar';
 import { LiveGamesList } from '@/app/components/sports/LiveGamesList';
@@ -224,20 +223,6 @@ export default function SportsPage() {
         selectedCategory={selectedCategory}
         onCategoryChange={handleCategoryChange}
       />
-      
-      {/* Background sparkles */}
-      <div className="fixed inset-0 w-full h-full -z-10">
-        <Sparks
-          id="sports-particles"
-          background="transparent"
-          minSize={0.4}
-          maxSize={1}
-          particleDensity={50}
-          className="w-full h-full"
-          particleColor="#FFFFFF"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a2332] via-[#1a2332]/95 to-[#1a2332]" />
-      </div>
       
       <div className="min-h-screen">
         {/* WebSocket Connection Status Indicator */}

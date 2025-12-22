@@ -24,7 +24,13 @@ export async function getOrSet<T>(
 
     // If Redis is not available, just execute the function
     if (!redis) {
-        console.warn('⚠️ Redis not available, skipping cache');
+        return await fn();
+    }
+
+    // Check if Redis connection is actually ready
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') {
+        // Connection not ready, skip cache
         return await fn();
     }
 
@@ -47,8 +53,24 @@ export async function getOrSet<T>(
         }
 
         return result;
-    } catch (error) {
-        console.error(`Redis cache error for ${fullKey}:`, error);
+    } catch (error: any) {
+        // Don't log expected connection errors in development - we gracefully fall back
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (isConnectionError && !isProd) {
+            // Silently fall back in development
+            return await fn();
+        }
+        
+        // Log unexpected errors or all errors in production
+        if (!isConnectionError || isProd) {
+            console.error(`Redis cache error for ${fullKey}:`, error);
+        }
+        
         // On error, fall back to executing the function
         return await fn();
     }
@@ -61,11 +83,21 @@ export async function invalidate(key: string, prefix: string = ''): Promise<void
     const fullKey = prefix ? `${prefix}:${key}` : key;
 
     if (!redis) return;
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') return;
 
     try {
         await redis.del(fullKey);
-    } catch (error) {
-        console.error(`Failed to invalidate cache ${fullKey}:`, error);
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (!isConnectionError || isProd) {
+            console.error(`Failed to invalidate cache ${fullKey}:`, error);
+        }
     }
 }
 
@@ -75,6 +107,9 @@ export async function invalidate(key: string, prefix: string = ''): Promise<void
  */
 export async function invalidatePattern(pattern: string): Promise<void> {
     if (!redis) return;
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') return;
 
     try {
         const keys = await redis.keys(pattern);
@@ -82,8 +117,15 @@ export async function invalidatePattern(pattern: string): Promise<void> {
         if (keys.length > 0) {
             await Promise.all(keys.map(key => redis.del(key)));
         }
-    } catch (error) {
-        console.error(`Failed to invalidate pattern ${pattern}:`, error);
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (!isConnectionError || isProd) {
+            console.error(`Failed to invalidate pattern ${pattern}:`, error);
+        }
     }
 }
 
@@ -99,6 +141,11 @@ export async function getCacheStats(): Promise<{
     if (!redis) {
         return { keys: 0, memory: '0' };
     }
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') {
+        return { keys: 0, memory: '0' };
+    }
 
     try {
         const dbSize = await redis.dbsize();
@@ -110,8 +157,15 @@ export async function getCacheStats(): Promise<{
             keys: dbSize,
             memory,
         };
-    } catch (error) {
-        console.error('Failed to get cache stats:', error);
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (!isConnectionError || isProd) {
+            console.error('Failed to get cache stats:', error);
+        }
         return { keys: 0, memory: '0' };
     }
 }
@@ -125,6 +179,9 @@ export async function warmCache<T>(
     options: CacheOptions = {}
 ): Promise<void> {
     if (!redis) return;
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') return;
 
     console.log(`🔥 Warming cache for ${keys.length} keys...`);
 
@@ -146,6 +203,9 @@ export async function warmCache<T>(
  */
 export async function batchInvalidate(keys: string[], prefix: string = ''): Promise<void> {
     if (!redis || keys.length === 0) return;
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') return;
 
     try {
         const pipeline = redis.pipeline();
@@ -156,8 +216,15 @@ export async function batchInvalidate(keys: string[], prefix: string = ''): Prom
         }
 
         await pipeline.exec();
-    } catch (error) {
-        console.error('Batch invalidation failed:', error);
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (!isConnectionError || isProd) {
+            console.error('Batch invalidation failed:', error);
+        }
     }
 }
 
@@ -170,6 +237,9 @@ export async function getCacheHitRate(windowMinutes: number = 60): Promise<{
     hitRate: number;
 } | null> {
     if (!redis) return null;
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') return null;
 
     try {
         const info = await redis.info('stats');
@@ -180,8 +250,15 @@ export async function getCacheHitRate(windowMinutes: number = 60): Promise<{
         const hitRate = total > 0 ? (hits / total) * 100 : 0;
 
         return { hits, misses, hitRate: Math.round(hitRate * 100) / 100 };
-    } catch (error) {
-        console.error('Failed to get cache hit rate:', error);
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (!isConnectionError || isProd) {
+            console.error('Failed to get cache hit rate:', error);
+        }
         return null;
     }
 }
@@ -192,10 +269,20 @@ export async function getCacheHitRate(windowMinutes: number = 60): Promise<{
  */
 export async function clearAllCache(): Promise<void> {
     if (!redis) return;
+    
+    const status = (redis as any).status;
+    if (!status || status !== 'ready') return;
 
     try {
         await redis.flushdb();
-    } catch (error) {
-        console.error('Failed to clear cache:', error);
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') || 
+                                  error?.message?.includes('connect') ||
+                                  error?.message?.includes('ECONNREFUSED');
+        const isProd = process.env.NODE_ENV === 'production';
+        
+        if (!isConnectionError || isProd) {
+            console.error('Failed to clear cache:', error);
+        }
     }
 }

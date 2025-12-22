@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -168,6 +168,71 @@ function AnimatedPercentage({ value, delay, duration, skipAnimation = false }: {
   return <span>{displayValue}%</span>;
 }
 
+// Simple component to display hovered text centered on segment
+const HoveredTextDisplay = React.forwardRef<HTMLDivElement, { 
+  segmentCenter: number; 
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}>(({ segmentCenter, containerRef, children }, ref) => {
+  const [leftPosition, setLeftPosition] = useState<string>('50%');
+  
+  useLayoutEffect(() => {
+    if (!containerRef?.current) {
+      setLeftPosition('50%');
+      return;
+    }
+    
+    // Find the actual slider element within the container
+    const sliderElement = containerRef.current.querySelector('.group\\/slider') as HTMLElement;
+    if (!sliderElement) {
+      setLeftPosition('50%');
+      return;
+    }
+    
+    // Use double RAF to ensure accurate measurements
+    const rafId1 = requestAnimationFrame(() => {
+      const rafId2 = requestAnimationFrame(() => {
+        const containerWidth = containerRef.current!.offsetWidth;
+        const sliderWidth = sliderElement.offsetWidth;
+        const sliderLeft = sliderElement.offsetLeft;
+        
+        // Calculate the center of the slider in pixels
+        const sliderCenterPx = sliderLeft + (sliderWidth / 2);
+        
+        // Convert to percentage of container
+        const sliderCenterPercent = (sliderCenterPx / containerWidth) * 100;
+        
+        setLeftPosition(`${sliderCenterPercent}%`);
+      });
+      
+      return () => cancelAnimationFrame(rafId2);
+    });
+    
+    return () => cancelAnimationFrame(rafId1);
+  }, [containerRef]);
+  
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="absolute -top-5 pointer-events-none z-20"
+      style={{ 
+        left: leftPosition,
+        transform: 'translateX(-50%)',
+        width: 'max-content'
+      }}
+    >
+      <div className="text-xs font-bold text-gray-400 whitespace-nowrap">
+        {children}
+      </div>
+    </motion.div>
+  );
+});
+
+HoveredTextDisplay.displayName = 'HoveredTextDisplay';
+
 export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTradeClick, onCategoryClick, index = 0 }: EventCard2Props) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isCountdownHovered, setIsCountdownHovered] = useState(false);
@@ -189,6 +254,9 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const segmentDataRef = useRef<any[] | null>(null); // Lock segment data after first calculation
   const lockedOutcomesRef = useRef<typeof event.outcomes | null>(null); // Lock outcomes used for segment calculation
   const percentagesShownRef = useRef(false); // Track if percentages have been shown before
+  const binaryPercentageAnimatedRef = useRef(false); // Track if binary percentage animation has played
+  const hoveredTextRef = useRef<HTMLDivElement>(null); // Ref to measure hovered text width
+  const sliderContainerRef = useRef<HTMLDivElement>(null); // Ref to measure slider container width
 
   // Fetch user's favorites
   const { data: userFavorites, refetch: refetchFavorites } = useQuery({
@@ -585,7 +653,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
-        className={`group bg-zinc-800 border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-all duration-300 flex flex-col justify-between h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:scale-[1.01] overflow-visible ${isEnded ? 'opacity-50' : ''
+        style={{ backgroundColor: 'var(--surface)' }}
+        className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-all duration-300 flex flex-col justify-between h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:scale-[1.01] overflow-visible ${isEnded ? 'opacity-50' : ''
           }`}
       >
         {/* 1. Header: Image & Title */}
@@ -879,7 +948,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
                return (
                  <>
-                   <div className="relative w-full">
+                   <div ref={sliderContainerRef} className="relative w-full">
                      {/* Percentage numbers - hide when hovering */}
                      {(() => {
                        // Check if percentages should be shown and mark as shown before rendering
@@ -924,18 +993,16 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                      {hoveredSegmentId && (() => {
                        const hoveredSegment = segmentData.find(s => s.outcome.id === hoveredSegmentId);
                        if (!hoveredSegment) return null;
+                       
+                       // Center on the entire slider (50%)
                        return (
-                         <motion.div
-                           key="hovered-display"
-                           initial={{ opacity: 0, y: -4 }}
-                           animate={{ opacity: 1, y: 0 }}
-                           transition={{ duration: 0.2, ease: "easeOut" }}
-                           className="absolute -top-5 left-0 right-0 pointer-events-none z-20"
+                         <HoveredTextDisplay
+                           ref={hoveredTextRef}
+                           segmentCenter={50}
+                           containerRef={sliderContainerRef}
                          >
-                           <div className="text-xs font-bold text-gray-400 whitespace-nowrap text-center w-full">
-                             {hoveredSegment.outcome.name} {hoveredSegment.probability}%
-                           </div>
-                         </motion.div>
+                           {hoveredSegment.outcome.name} {hoveredSegment.probability}%
+                         </HoveredTextDisplay>
                        );
                      })()}
                      
@@ -1180,40 +1247,175 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
               const noVal = liveNoOdds ?? event.noOdds ?? 0;
               const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
-              // const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+              const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+              const isYesHovered = hoveredSegmentId === 'YES';
+              const isNoHovered = hoveredSegmentId === 'NO';
+              const isAnyHovered = hoveredSegmentId !== null;
+              
               return (
-                <div className="relative">
-                  {/* Percentage Number */}
-                  <motion.div
-                    initial={{ left: '0%', opacity: 0 }}
-                    animate={{ 
-                      left: `${yesDisplay}%`,
-                      opacity: yesDisplay > 0 ? 1 : 0
-                    }}
-                    transition={{ 
-                      duration: 0.8, 
-                      delay: (index * 0.05) + 0.3, 
-                      ease: "easeOut" 
-                    }}
-                    className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
-                  >
-                    <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
-                      <AnimatedPercentage value={yesDisplay} delay={(index * 0.05) + 0.3} duration={0.8} />
-                    </span>
-                  </motion.div>
+                <div ref={sliderContainerRef} className="relative">
+                  {/* Percentage numbers - hide when hovering */}
+                  {(() => {
+                    // Check if percentages should be shown and mark as shown before rendering
+                    const shouldShow = hoveredSegmentId === null;
+                    const skipAnimation = binaryPercentageAnimatedRef.current;
+                    if (shouldShow && !binaryPercentageAnimatedRef.current) {
+                      binaryPercentageAnimatedRef.current = true;
+                    }
+                    
+                    return (
+                      <motion.div
+                        initial={binaryPercentageAnimatedRef.current ? { left: `${yesDisplay}%`, opacity: shouldShow && yesDisplay > 0 ? 1 : 0 } : { left: '0%', opacity: 0 }}
+                        animate={{ 
+                          left: `${yesDisplay}%`,
+                          opacity: shouldShow && yesDisplay > 0 ? 1 : 0
+                        }}
+                        transition={{ 
+                          duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8, 
+                          delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3, 
+                          ease: "easeOut" 
+                        }}
+                        className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                        style={{
+                          visibility: shouldShow ? 'visible' : 'hidden'
+                        }}
+                      >
+                        <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
+                          <AnimatedPercentage 
+                            value={yesDisplay} 
+                            delay={(index * 0.05) + 0.3} 
+                            duration={0.8}
+                            skipAnimation={skipAnimation}
+                          />
+                        </span>
+                      </motion.div>
+                    );
+                  })()}
+                  
+                  {/* Centered outcome name and percentage - shows when hovering */}
+                  {hoveredSegmentId && (() => {
+                    // Center on the entire slider (50%)
+                    return (
+                      <HoveredTextDisplay
+                        ref={hoveredTextRef}
+                        segmentCenter={50}
+                        containerRef={sliderContainerRef}
+                      >
+                        {hoveredSegmentId} {hoveredSegmentId === 'YES' ? yesDisplay : noDisplay}%
+                      </HoveredTextDisplay>
+                    );
+                  })()}
                   
                   {/* Slider */}
                   <div 
-                    className="relative h-1.5 w-full rounded-full overflow-hidden"
+                    className="relative h-1.5 w-full rounded-full overflow-hidden group/slider"
                     style={{ backgroundColor: muteColor('#f43f5e', 0.4) }}
                   >
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${yesDisplay}%` }}
-                      transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                      className="absolute left-0 top-0 h-full"
-                      style={{ backgroundColor: muteColor('#059669', 0.4) }}
-                    />
+                    {/* Hover areas - positioned for accurate detection */}
+                    {yesDisplay > 0 && (
+                      <div
+                        className="absolute top-0 cursor-pointer"
+                        style={{
+                          left: '0%',
+                          width: `${yesDisplay}%`,
+                          height: '100%',
+                          zIndex: isYesHovered ? 100 : 50,
+                          pointerEvents: 'auto',
+                        }}
+                        onMouseEnter={() => setHoveredSegmentId('YES')}
+                        onMouseLeave={() => setHoveredSegmentId(null)}
+                      />
+                    )}
+                    {noDisplay > 0 && (
+                      <div
+                        className="absolute top-0 cursor-pointer"
+                        style={{
+                          left: `${yesDisplay}%`,
+                          width: `${noDisplay}%`,
+                          height: '100%',
+                          zIndex: isNoHovered ? 100 : 60,
+                          pointerEvents: 'auto',
+                        }}
+                        onMouseEnter={() => setHoveredSegmentId('NO')}
+                        onMouseLeave={() => setHoveredSegmentId(null)}
+                      />
+                    )}
+                    
+                    {/* YES segment */}
+                    {yesDisplay > 0 && (
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${yesDisplay}%` }}
+                        transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                        className="absolute left-0 top-0 h-full overflow-visible pointer-events-none"
+                        style={{ 
+                          zIndex: isYesHovered ? 60 : 10,
+                          transform: 'translateZ(0)',
+                          backfaceVisibility: 'hidden',
+                        }}
+                      >
+                        <motion.div
+                          className={`absolute top-0 h-full origin-center ${yesDisplay === 100 ? 'rounded-full' : 'rounded-l-full'}`}
+                          style={{ 
+                            left: '0%',
+                            width: '100%',
+                            position: 'absolute',
+                            top: '0',
+                            height: '100%',
+                            transformOrigin: 'center center',
+                            backfaceVisibility: 'hidden',
+                          }}
+                          animate={{
+                            scaleY: isYesHovered ? 1.8 : 1,
+                            opacity: isAnyHovered && !isYesHovered ? 0.4 : 1,
+                            backgroundColor: isYesHovered ? '#10b981' : muteColor('#10b981', 0.4),
+                          }}
+                          transition={{
+                            duration: 0.2,
+                            ease: "easeOut"
+                          }}
+                        />
+                      </motion.div>
+                    )}
+                    
+                    {/* NO segment */}
+                    {noDisplay > 0 && (
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${noDisplay}%` }}
+                        transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                        className="absolute top-0 h-full overflow-visible pointer-events-none"
+                        style={{ 
+                          left: `${yesDisplay}%`,
+                          zIndex: isNoHovered ? 60 : 10,
+                          transform: 'translateZ(0)',
+                          backfaceVisibility: 'hidden',
+                        }}
+                      >
+                        <motion.div
+                          className={`absolute top-0 h-full origin-center ${noDisplay === 100 ? 'rounded-full' : 'rounded-r-full'}`}
+                          style={{ 
+                            left: '0%',
+                            width: '100%',
+                            position: 'absolute',
+                            top: '0',
+                            height: '100%',
+                            transformOrigin: 'center center',
+                            backfaceVisibility: 'hidden',
+                          }}
+                          animate={{
+                            scaleY: isNoHovered ? 1.8 : 1,
+                            opacity: isAnyHovered && !isNoHovered ? 0.4 : 1,
+                            backgroundColor: isNoHovered ? '#f43f5e' : muteColor('#f43f5e', 0.4),
+                          }}
+                          transition={{
+                            duration: 0.2,
+                            ease: "easeOut"
+                          }}
+                        />
+                      </motion.div>
+                    )}
+                    
                     {/* Separator */}
                     {yesDisplay > 0 && yesDisplay < 100 && (
                       <motion.div 
@@ -1223,7 +1425,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                           opacity: 1
                         }}
                         transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                        className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                        className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)] pointer-events-none"
                       />
                     )}
                   </div>
@@ -1237,6 +1439,17 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               const noVal = liveNoOdds ?? event.noOdds ?? 0;
               const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
               const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+              const isYesHovered = hoveredSegmentId === 'YES';
+              const isNoHovered = hoveredSegmentId === 'NO';
+              
+              // Helper function to convert hex to rgba for opacity
+              const hexToRgba = (hex: string, opacity: number) => {
+                const r = parseInt(hex.slice(1, 3), 16);
+                const g = parseInt(hex.slice(3, 5), 16);
+                const b = parseInt(hex.slice(5, 7), 16);
+                return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+              };
+              
               return (
                 <>
                   <motion.button
@@ -1244,14 +1457,21 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                     onClick={(e) => handleTradeClick(e, 'YES')}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    className="group/btn relative flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                    className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                    style={{ 
+                      backgroundColor: isYesHovered 
+                        ? hexToRgba('#10b981', 0.2) 
+                        : hexToRgba('#10b981', 0.1),
+                    }}
+                    onMouseEnter={() => setHoveredSegmentId('YES')}
+                    onMouseLeave={() => setHoveredSegmentId(null)}
                   >
                     <span 
                       className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
                       style={{ color: muteColor('#10b981', 0.4) }}
                     >YES</span>
                     <span 
-                      className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                      className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 whitespace-nowrap"
                       style={{ color: muteColor('#10b981', 0.4) }}
                     >{yesDisplay}%</span>
                   </motion.button>
@@ -1259,7 +1479,14 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                     onClick={(e) => handleTradeClick(e, 'NO')}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    className="group/btn relative flex-1 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                    className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                    style={{ 
+                      backgroundColor: isNoHovered 
+                        ? hexToRgba('#f43f5e', 0.2) 
+                        : hexToRgba('#f43f5e', 0.1),
+                    }}
+                    onMouseEnter={() => setHoveredSegmentId('NO')}
+                    onMouseLeave={() => setHoveredSegmentId(null)}
                   >
                     <span 
                       className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
@@ -1285,12 +1512,6 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
               {volume}
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              {betCount}
             </span>
             <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
