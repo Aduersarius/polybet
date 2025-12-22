@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { validateFile, getFileExtension } from '@/lib/file-validation';
+import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,53 +21,31 @@ export async function POST(request: NextRequest) {
         const file = formData.get('file') as File;
 
         if (!file) {
-            console.error('No file provided in form data');
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+            return createClientErrorResponse('No file provided', 400);
         }
 
-        console.log('File received:', {
-            name: file.name,
-            type: file.type,
-            size: file.size
-        });
-
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-            console.error('Invalid file type:', file.type);
-            return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
-        }
-
-        // Validate file size (5MB max)
-        if (file.size > 5 * 1024 * 1024) {
-            console.error('File too large:', file.size);
-            return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
+        // Comprehensive file validation (magic bytes, type, size, extension)
+        const validation = await validateFile(file, 5 * 1024 * 1024); // 5MB max
+        if (!validation.valid) {
+            return createClientErrorResponse(validation.error || 'File validation failed', 400);
         }
 
         // Check if BLOB token is available
         if (!process.env.BLOB_READ_WRITE_TOKEN) {
-            console.error('BLOB_READ_WRITE_TOKEN not found in environment');
-            return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+            return createClientErrorResponse('Server configuration error', 500);
         }
 
-        console.log('Starting blob upload...');
+        // Use sanitized filename
+        const extension = getFileExtension(validation.sanitizedFilename || file.name);
+        const blobKey = `avatars/${userId}-${Date.now()}.${extension}`;
 
         // Upload to Vercel Blob
-        const blob = await put(`avatars/${userId}-${Date.now()}.${file.name.split('.').pop()}`, file, {
+        const blob = await put(blobKey, file, {
             access: 'public',
         });
 
-        console.log('Blob uploaded successfully:', blob.url);
-
         return NextResponse.json({ url: blob.url });
-    } catch (error: any) {
-        console.error('Error uploading avatar:', {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-        });
-        return NextResponse.json({
-            error: 'Failed to upload avatar',
-            details: error.message
-        }, { status: 500 });
+    } catch (error) {
+        return createErrorResponse(error);
     }
 }

@@ -37,46 +37,77 @@ function rateLimitInMemory(key: string, limit: number, windowSeconds: number): R
     };
 }
 
+/**
+ * Rate limiting with fail-closed behavior in production
+ * In production: Always requires Redis, fails closed if unavailable
+ * In development: Falls back to in-memory rate limiting if Redis unavailable
+ */
 export async function rateLimit(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
     try {
-        if (!redis || typeof (redis as any).incr !== 'function') {
-            // Fail closed in production to avoid abuse when Redis is unavailable; allow limited in-memory in non-prod.
-            return prod ? { allowed: false, remaining: 0 } : rateLimitInMemory(key, limit, windowSeconds);
+        // In production, Redis is required - fail closed if unavailable
+        if (prod && (!redis || typeof (redis as any).incr !== 'function')) {
+            console.error('[rate-limit] Redis unavailable in production - blocking request');
+            return { allowed: false, remaining: 0 };
         }
 
         // Check if Redis connection is actually ready
-        const status = (redis as any).status;
-        if (!status || status !== 'ready') {
-            // Connection not ready, fall back to in-memory
-            return prod ? { allowed: false, remaining: 0 } : rateLimitInMemory(key, limit, windowSeconds);
+        const status = (redis as any)?.status;
+        if (prod && (!status || status !== 'ready')) {
+            console.error('[rate-limit] Redis not ready in production - blocking request');
+            return { allowed: false, remaining: 0 };
         }
 
-        const count = await (redis as any).incr(key);
+        // If Redis is available, use it
+        if (redis && status === 'ready') {
+            const count = await (redis as any).incr(key);
 
-        if (count === 1) {
-            await (redis as any).expire(key, windowSeconds);
+            if (count === 1) {
+                await (redis as any).expire(key, windowSeconds);
+            }
+
+            return {
+                allowed: count <= limit,
+                remaining: Math.max(limit - count, 0),
+            };
         }
 
-        return {
-            allowed: count <= limit,
-            remaining: Math.max(limit - count, 0),
-        };
+        // Fall back to in-memory only in development
+        if (!prod) {
+            return rateLimitInMemory(key, limit, windowSeconds);
+        }
+
+        // Production fallback: fail closed
+        return { allowed: false, remaining: 0 };
     } catch (error: any) {
-        // Don't log expected connection errors in development - we gracefully fall back to in-memory
         const isConnectionError = error?.message?.includes('Connection is closed') || 
                                   error?.message?.includes('connect') ||
                                   error?.message?.includes('ECONNREFUSED');
         
-        if (isConnectionError && !prod) {
-            // Silently fall back in development
+        // In production, always fail closed on any error
+        if (prod) {
+            console.error('[rate-limit] Error in production - blocking request:', error);
+            return { allowed: false, remaining: 0 };
+        }
+        
+        // In development, fall back to in-memory for connection errors
+        if (isConnectionError) {
             return rateLimitInMemory(key, limit, windowSeconds);
         }
         
-        // Log unexpected errors or all errors in production
-        if (!isConnectionError || prod) {
-            console.error('[rate-limit] error', error);
-        }
-        
-        return prod ? { allowed: false, remaining: 0 } : rateLimitInMemory(key, limit, windowSeconds);
+        // Log unexpected errors in development
+        console.error('[rate-limit] Unexpected error:', error);
+        return rateLimitInMemory(key, limit, windowSeconds);
     }
+}
+
+/**
+ * IP-based rate limiting for unauthenticated requests
+ */
+export async function rateLimitByIp(
+    ip: string,
+    limit: number,
+    windowSeconds: number
+): Promise<RateLimitResult> {
+    const key = `rate_limit:ip:${ip}`;
+    return rateLimit(key, limit, windowSeconds);
 }

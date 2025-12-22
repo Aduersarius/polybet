@@ -5,6 +5,7 @@ import { twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
 import { rateLimit } from "./rate-limit";
+import { logger } from "./logger";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl =
@@ -185,7 +186,20 @@ export const auth = betterAuth({
     }),
     baseURL: baseUrl,
     trustedOrigins,
-    secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET!,
+    secret: (() => {
+        const secret = process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+        if (!secret) {
+            if (isProduction) {
+                throw new Error('BETTER_AUTH_SECRET or NEXTAUTH_SECRET must be set in production');
+            }
+            logger.warn('[AUTH] No auth secret found - using placeholder. Set BETTER_AUTH_SECRET in production.');
+            return 'placeholder-secret-change-in-production';
+        }
+        if (secret.length < 32) {
+            throw new Error('Auth secret must be at least 32 characters long');
+        }
+        return secret;
+    })(),
     emailAndPassword: {
         enabled: true,
         requireEmailVerification: true,
@@ -200,8 +214,8 @@ export const auth = betterAuth({
                 if (isProduction) {
                     throw new Error('Password reset email service is not configured');
                 }
-                console.log(`[EMAIL DEV] Send reset password to ${user.email}`);
-                console.log(`[EMAIL DEV] Reset Password URL: ${url}`);
+                logger.debug(`[EMAIL DEV] Send reset password to ${user.email}`);
+                logger.debug(`[EMAIL DEV] Reset Password URL: ${url}`);
                 return;
             }
 
@@ -212,9 +226,9 @@ export const auth = betterAuth({
                     subject: 'Reset your password - PolyBet',
                     html: createPasswordResetEmailHTML(url),
                 });
-                console.log(`[EMAIL] Reset password email sent to ${user.email}`);
+                logger.info(`[EMAIL] Reset password email sent to ${user.email}`);
             } catch (error) {
-                console.error('[EMAIL] Failed to send reset password email:', error);
+                logger.error('[EMAIL] Failed to send reset password email:', error);
                 throw error;
             }
         },
@@ -229,15 +243,15 @@ export const auth = betterAuth({
                         subject: 'Verify your email - PolyBet',
                         html: createVerificationEmailHTML(url),
                     });
-                    console.log(`[EMAIL] Verification email sent to ${user.email}`);
+                    logger.info(`[EMAIL] Verification email sent to ${user.email}`);
                 } catch (error) {
-                    console.error('[EMAIL] Failed to send verification email:', error);
+                    logger.error('[EMAIL] Failed to send verification email:', error);
                     throw error;
                 }
             } else {
                 // Fallback for development without Resend
-                console.log(`[EMAIL DEV] Send verification to ${user.email}`);
-                console.log(`[EMAIL DEV] Verification URL: ${url}`);
+                logger.debug(`[EMAIL DEV] Send verification to ${user.email}`);
+                logger.debug(`[EMAIL DEV] Verification URL: ${url}`);
             }
         },
         sendOnSignUp: true,
@@ -261,6 +275,23 @@ export const auth = betterAuth({
             issuer: "PolyBet",
         })
     ],
+    session: {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+        updateAge: 60 * 60 * 24, // Update session every 24 hours
+        cookieCache: {
+            enabled: true,
+            maxAge: 60 * 60 * 24 * 7, // 7 days
+        },
+    },
+    advanced: {
+        // Generate secure session tokens
+        generateId: () => {
+            const crypto = require('crypto');
+            return crypto.randomBytes(32).toString('hex');
+        },
+        // Use secure cookies in production
+        cookiePrefix: isProduction ? '__Secure-' : '',
+    },
     debug: !isProduction,
 });
 
@@ -293,14 +324,14 @@ export async function requireAuth(request: Request) {
             type: 'security',
             name: 'blocked_account',
             payload: { isBanned: dbUser?.isBanned ?? null, isDeleted: dbUser?.isDeleted ?? null },
-        }).catch((err) => console.error('[telemetry] security event failed', err));
+        }).catch((err) => logger.error('[telemetry] security event failed', err));
         throw new Response(JSON.stringify({ error: 'Account is disabled' }), {
             status: 403,
             headers: { 'Content-Type': 'application/json' },
         });
     }
     updateUserTelemetry(user.id, request).catch((err) =>
-        console.error('[telemetry] update failed (non-blocking)', err)
+        logger.error('[telemetry] update failed (non-blocking)', err)
     );
     return user;
 }
@@ -318,15 +349,74 @@ export async function requireAdminAuth(request: Request) {
 }
 
 // Helper function to verify TOTP code for a specific user
-// NOTE: Better Auth encrypts 2FA secrets internally. When reading directly through Prisma,
-// we get the encrypted blob. Better Auth's adapter doesn't auto-decrypt - decryption
-// happens in Better Auth's API layer. For server-side verification of arbitrary users,
-// we need to use Better Auth's internal methods or handle the encrypted format.
-//
-// IMPORTANT: After removing double-encryption, new 2FA secrets will be single-encrypted
-// by Better Auth. Existing double-encrypted data needs migration.
-export async function verifyUserTotp(userId: string, code: string): Promise<boolean> {
+// NOTE: Better Auth encrypts 2FA secrets internally. This function uses Better Auth's API
+// to verify TOTP codes, which properly handles encrypted secrets.
+// 
+// IMPORTANT: The request parameter is required for proper verification. It provides the
+// session context needed for Better Auth's verify-totp endpoint.
+export async function verifyUserTotp(userId: string, code: string, request?: Request): Promise<boolean> {
     try {
+        // Verify user has 2FA enabled
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { twoFactorEnabled: true }
+        });
+
+        if (!user?.twoFactorEnabled) {
+            return false;
+        }
+
+        // If request is provided, use Better Auth's API endpoint (preferred method)
+        if (request) {
+            try {
+                // Get the session from the request
+                const session = await auth.api.getSession({
+                    headers: request.headers,
+                });
+
+                if (!session?.session) {
+                    logger.error('[2FA] No session found in request');
+                    return false;
+                }
+
+                // Verify the session belongs to the user
+                if (session.user.id !== userId) {
+                    logger.error('[2FA] Session user ID does not match requested user ID');
+                    return false;
+                }
+
+                // Use Better Auth's internal API to verify TOTP
+                // Better Auth's verify-totp endpoint requires a session, which we have
+                const baseUrl = process.env.BETTER_AUTH_URL || 
+                               (process.env.NODE_ENV === 'production' ? 'https://polybet.ru' : 'http://localhost:3000');
+
+                // Make internal request to Better Auth's verify-totp endpoint
+                const verifyResponse = await fetch(`${baseUrl}/api/auth/two-factor/verify-totp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Forward the session cookie from the original request
+                        'Cookie': request.headers.get('Cookie') || '',
+                    },
+                    body: JSON.stringify({ code, trustDevice: false }),
+                });
+
+                if (!verifyResponse.ok) {
+                    const errorData = await verifyResponse.json().catch(() => ({}));
+                    logger.error('[2FA] Better Auth verification failed:', errorData);
+                    return false;
+                }
+
+                const result = await verifyResponse.json();
+                return result.verified === true;
+            } catch (error) {
+                logger.error('[2FA] Error using Better Auth API:', error);
+                // Fall through to fallback method
+            }
+        }
+
+        // Fallback: Try direct TOTP verification (only works for unencrypted secrets)
+        // This is a legacy fallback and will fail for Better Auth encrypted secrets
         const twoFactorRecord = await prisma.twoFactor.findUnique({
             where: { userId },
             select: { secret: true }
@@ -336,28 +426,20 @@ export async function verifyUserTotp(userId: string, code: string): Promise<bool
             return false;
         }
 
-        // Better Auth uses its own encryption format. The secret from Prisma is encrypted.
-        // We need to use Better Auth's internal verification, but it's session-based.
-        // As a workaround, we'll try to use the TOTP verification directly.
-        // If the secret is in Better Auth's encrypted format (not base32), this will fail.
-        // In that case, the user needs to re-enable 2FA or we need to migrate the data.
-        
         const { verifyTotpCode } = await import('./totp');
         
         // Check if secret looks like base32 (Better Auth's encrypted format is different)
-        // Better Auth encrypted secrets typically start with specific patterns
         const isBase32 = /^[A-Z2-7]+=*$/.test(twoFactorRecord.secret.replace(/\s+/g, ''));
         
         if (!isBase32) {
-            // Secret is encrypted by Better Auth - we can't verify directly
-            // This means the data needs to be migrated or user needs to re-enable 2FA
-            console.error('[2FA] Secret is encrypted by Better Auth - cannot verify directly. User may need to re-enable 2FA.');
+            // Secret is encrypted by Better Auth - cannot verify without Better Auth API
+            logger.error('[2FA] Secret is encrypted by Better Auth - cannot verify without request context. Please provide Request parameter.');
             return false;
         }
         
         return verifyTotpCode(code, twoFactorRecord.secret);
     } catch (error) {
-        console.error('[2FA] Error verifying TOTP:', error);
+        logger.error('[2FA] Error verifying TOTP:', error);
         return false;
     }
 }

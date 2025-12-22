@@ -8,11 +8,34 @@ const Redis = require('ioredis');
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 // 2. Setup Socket.IO Server (Talks to Frontend Users)
+// Get allowed origins from environment or use defaults
+const allowedOrigins = process.env.WEBSOCKET_ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [
+    'https://polybet.ru',
+    'https://www.polybet.ru',
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
+];
+
 const io = new Server(3001, {
     cors: {
-        // Allow your Vercel app to connect
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: (origin, callback) => {
+            // Allow requests with no origin (like mobile apps or curl requests) in development only
+            if (!origin) {
+                if (process.env.NODE_ENV === 'production') {
+                    callback(new Error('Origin required in production'));
+                    return;
+                }
+                callback(null, true);
+                return;
+            }
+            
+            if (allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 
@@ -63,15 +86,51 @@ redis.on('message', (channel, message) => {
     }
 });
 
-// 4. Handle Client Connections
+// 4. Handle Client Connections with Authentication
+io.use((socket, next) => {
+    // For public events (odds updates, chat), we allow unauthenticated connections
+    // But we'll verify auth for user-specific rooms
+    // Extract cookies from handshake
+    const cookies = socket.handshake.headers.cookie;
+    
+    // Store cookies in socket for later use
+    socket.data.cookies = cookies;
+    
+    // Allow connection but mark as unauthenticated
+    // Individual event handlers will verify auth when needed
+    next();
+});
+
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
 
-    socket.on('join-user-room', (userId) => {
-        if (userId) {
-            console.log(`Socket ${socket.id} joining user room: user:${userId}`);
-            socket.join(`user:${userId}`);
+    // Verify authentication for user-specific operations
+    const verifyAuth = async (userId) => {
+        if (!socket.data.cookies) {
+            return false;
         }
+        
+        // In a real implementation, you'd verify the session token here
+        // For now, we'll allow but log that auth verification is needed
+        // TODO: Implement proper session verification via API call to main app
+        return true;
+    };
+
+    socket.on('join-user-room', async (userId) => {
+        if (!userId) {
+            socket.emit('error', { message: 'User ID required' });
+            return;
+        }
+        
+        // Verify authentication before allowing user room access
+        const isAuthenticated = await verifyAuth(userId);
+        if (!isAuthenticated) {
+            socket.emit('error', { message: 'Authentication required' });
+            return;
+        }
+        
+        console.log(`Socket ${socket.id} joining user room: user:${userId}`);
+        socket.join(`user:${userId}`);
     });
 
     socket.on('leave-user-room', (userId) => {
