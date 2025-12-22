@@ -12,7 +12,9 @@ import {
     Search,
     Plus,
     Shield,
+    Headphones,
 } from 'lucide-react';
+import Link from 'next/link';
 
 type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake';
 
@@ -64,6 +66,15 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                                 </button>
                             );
                         })}
+                        
+                        {/* Support Dashboard - Direct Link */}
+                        <Link
+                            href="/admin/support"
+                            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors border border-transparent text-gray-300 hover:bg-white/5 hover:text-white mt-2 border-t border-white/5 pt-4"
+                        >
+                            <Headphones className="h-4 w-4" />
+                            <span>Support</span>
+                        </Link>
                     </nav>
                 </aside>
 
