@@ -20,13 +20,6 @@ const CATEGORIES = [
   { value: 'general', label: 'General Question', color: 'gray' },
 ] as const;
 
-const PRIORITIES = [
-  { value: 'low', label: 'Low', color: 'gray' },
-  { value: 'medium', label: 'Medium', color: 'blue' },
-  { value: 'high', label: 'High', color: 'orange' },
-  { value: 'critical', label: 'Critical', color: 'red' },
-] as const;
-
 export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +29,6 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
   const [formData, setFormData] = useState({
     subject: '',
     category: 'general' as const,
-    priority: 'medium' as const,
     message: '',
   });
 
@@ -49,10 +41,11 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
       const response = await fetch('/api/support/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           subject: formData.subject,
           category: formData.category,
-          priority: formData.priority,
+          priority: 'medium',
           initialMessage: formData.message,
           source: 'web',
         }),
@@ -73,7 +66,6 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
         setFormData({
           subject: '',
           category: 'general',
-          priority: 'medium',
           message: '',
         });
 
@@ -154,43 +146,22 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
               />
             </div>
 
-            {/* Category & Priority */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">
-                  Category <span className="text-red-400">*</span>
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Priority */}
-              <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">
-                  Priority
-                </label>
-                <select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
-                >
-                  {PRIORITIES.map((priority) => (
-                    <option key={priority.value} value={priority.value}>
-                      {priority.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Category */}
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">
+                Category <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Message */}
