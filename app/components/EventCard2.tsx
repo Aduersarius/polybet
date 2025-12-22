@@ -169,62 +169,99 @@ function AnimatedPercentage({ value, delay, duration, skipAnimation = false }: {
 }
 
 // Simple component to display hovered text centered on segment
+// Uses the same positioning approach as the non-hover percentage numbers
+// Constrains position to respect container padding
 const HoveredTextDisplay = React.forwardRef<HTMLDivElement, { 
   segmentCenter: number; 
   containerRef: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }>(({ segmentCenter, containerRef, children }, ref) => {
-  const [leftPosition, setLeftPosition] = useState<string>('50%');
+  const [leftPosition, setLeftPosition] = useState<string>(`${segmentCenter}%`);
+  const textRef = useRef<HTMLDivElement>(null);
   
   useLayoutEffect(() => {
-    if (!containerRef?.current) {
-      setLeftPosition('50%');
-      return;
-    }
-    
-    // Find the actual slider element within the container
-    const sliderElement = containerRef.current.querySelector('.group\\/slider') as HTMLElement;
-    if (!sliderElement) {
-      setLeftPosition('50%');
-      return;
-    }
-    
-    // Use double RAF to ensure accurate measurements
-    const rafId1 = requestAnimationFrame(() => {
-      const rafId2 = requestAnimationFrame(() => {
-        const containerWidth = containerRef.current!.offsetWidth;
-        const sliderWidth = sliderElement.offsetWidth;
-        const sliderLeft = sliderElement.offsetLeft;
-        
-        // Calculate the center of the slider in pixels
-        const sliderCenterPx = sliderLeft + (sliderWidth / 2);
-        
-        // Convert to percentage of container
-        const sliderCenterPercent = (sliderCenterPx / containerWidth) * 100;
-        
-        setLeftPosition(`${sliderCenterPercent}%`);
-      });
+    const calculatePosition = () => {
+      if (!containerRef?.current || !textRef.current) {
+        setLeftPosition(`${segmentCenter}%`);
+        return;
+      }
       
-      return () => cancelAnimationFrame(rafId2);
+      const container = containerRef.current;
+      const textElement = textRef.current;
+      
+      // Get container dimensions
+      const containerWidth = container.offsetWidth;
+      
+      // Get text element width
+      const textWidth = textElement.offsetWidth;
+      
+      // Calculate desired center position in pixels
+      const desiredCenterPx = (containerWidth * segmentCenter) / 100;
+      
+      // Calculate half text width for centering (since we use translateX(-50%))
+      const halfTextWidth = textWidth / 2;
+      
+      // Constrain to container bounds - get as close to edges as possible
+      // The slider container is already inside EventCard padding, so use minimal margin
+      // Allow text to get very close to container edges (2px margin for safety)
+      const margin = 2;
+      // Minimum: center position where left edge of text is at margin
+      const minCenter = margin + halfTextWidth;
+      // Maximum: center position where right edge of text is at margin
+      const maxCenter = containerWidth - margin - halfTextWidth;
+      
+      // Clamp the position to stay within bounds
+      const clampedCenterPx = Math.max(minCenter, Math.min(maxCenter, desiredCenterPx));
+      
+      // Convert back to percentage
+      const clampedPercent = (clampedCenterPx / containerWidth) * 100;
+      
+      setLeftPosition(`${clampedPercent}%`);
+    };
+    
+    // Calculate on mount and when dependencies change
+    const rafId = requestAnimationFrame(() => {
+      calculatePosition();
     });
     
-    return () => cancelAnimationFrame(rafId1);
-  }, [containerRef]);
+    // Also recalculate on window resize
+    const handleResize = () => {
+      calculatePosition();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Use ResizeObserver to watch for container size changes
+    let resizeObserver: ResizeObserver | null = null;
+    if (containerRef?.current) {
+      resizeObserver = new ResizeObserver(() => {
+        calculatePosition();
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [containerRef, segmentCenter, children]);
   
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, x: '-50%' }}
+      animate={{ opacity: 1, x: '-50%' }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="absolute -top-5 pointer-events-none z-20"
+      className="absolute -top-6 pointer-events-none z-20"
       style={{ 
         left: leftPosition,
-        transform: 'translateX(-50%)',
         width: 'max-content'
       }}
     >
-      <div className="text-xs font-bold text-gray-400 whitespace-nowrap">
+      <div ref={textRef} className="text-xs font-bold text-gray-400 whitespace-nowrap">
         {children}
       </div>
     </motion.div>
@@ -989,22 +1026,22 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                        });
                      })()}
                      
-                     {/* Centered outcome name and percentage - shows when hovering any segment */}
-                     {hoveredSegmentId && (() => {
-                       const hoveredSegment = segmentData.find(s => s.outcome.id === hoveredSegmentId);
-                       if (!hoveredSegment) return null;
-                       
-                       // Center on the entire slider (50%)
-                       return (
-                         <HoveredTextDisplay
-                           ref={hoveredTextRef}
-                           segmentCenter={50}
-                           containerRef={sliderContainerRef}
-                         >
-                           {hoveredSegment.outcome.name} {hoveredSegment.probability}%
-                         </HoveredTextDisplay>
-                       );
-                     })()}
+                    {/* Centered outcome name and percentage - shows when hovering any segment */}
+                    {hoveredSegmentId && (() => {
+                      const hoveredSegment = segmentData.find(s => s.outcome.id === hoveredSegmentId);
+                      if (!hoveredSegment) return null;
+                      
+                      // Position above the center of the hovered segment
+                      return (
+                        <HoveredTextDisplay
+                          ref={hoveredTextRef}
+                          segmentCenter={hoveredSegment.tooltipPosition}
+                          containerRef={sliderContainerRef}
+                        >
+                          {hoveredSegment.outcome.name} {hoveredSegment.probability}%
+                        </HoveredTextDisplay>
+                      );
+                    })()}
                      
                      {/* Slider with ALL outcomes */}
                      <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500/30 group/slider">
@@ -1294,11 +1331,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   
                   {/* Centered outcome name and percentage - shows when hovering */}
                   {hoveredSegmentId && (() => {
-                    // Center on the entire slider (50%)
+                    // Calculate the center of the hovered segment
+                    const segmentCenter = hoveredSegmentId === 'YES' 
+                      ? yesDisplay / 2  // Center of YES segment (half of yesDisplay)
+                      : yesDisplay + (noDisplay / 2);  // Center of NO segment (yesDisplay + half of noDisplay)
+                    
                     return (
                       <HoveredTextDisplay
                         ref={hoveredTextRef}
-                        segmentCenter={50}
+                        segmentCenter={segmentCenter}
                         containerRef={sliderContainerRef}
                       >
                         {hoveredSegmentId} {hoveredSegmentId === 'YES' ? yesDisplay : noDisplay}%
