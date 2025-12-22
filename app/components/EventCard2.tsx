@@ -294,6 +294,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   const binaryPercentageAnimatedRef = useRef(false); // Track if binary percentage animation has played
   const hoveredTextRef = useRef<HTMLDivElement>(null); // Ref to measure hovered text width
   const sliderContainerRef = useRef<HTMLDivElement>(null); // Ref to measure slider container width
+  const isHoveringSliderRef = useRef(false); // Track if currently hovering over slider
+  const hasEverHoveredRef = useRef(false); // Track if user has ever hovered over slider
 
   // Fetch user's favorites
   const { data: userFavorites, refetch: refetchFavorites } = useQuery({
@@ -475,6 +477,33 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       }
     };
   }, []);
+
+  // Mark binary animation as complete after initial animation duration
+  useEffect(() => {
+    if (event.type !== 'MULTIPLE' && !binaryPercentageAnimatedRef.current) {
+      const animationDuration = 0.8;
+      const delay = (index * 0.05) + 0.3;
+      const totalTime = (delay + animationDuration) * 1000;
+      const timer = setTimeout(() => {
+        binaryPercentageAnimatedRef.current = true;
+      }, totalTime);
+      return () => clearTimeout(timer);
+    }
+  }, [event.type, index]);
+
+  // Mark non-binary animation as complete after initial animation duration
+  useEffect(() => {
+    if (event.type === 'MULTIPLE' && !percentagesShownRef.current && segmentDataRef.current) {
+      const maxSegmentDelay = Math.max(...segmentDataRef.current.map(s => s.segmentDelay), 0);
+      const animationDuration = 0.8;
+      const delay = (index * 0.05) + 0.3;
+      const totalTime = (delay + maxSegmentDelay + animationDuration) * 1000;
+      const timer = setTimeout(() => {
+        percentagesShownRef.current = true;
+      }, totalTime);
+      return () => clearTimeout(timer);
+    }
+  }, [event.type, index]);
 
 
 
@@ -988,12 +1017,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                    <div ref={sliderContainerRef} className="relative w-full">
                      {/* Percentage numbers - hide when hovering */}
                      {(() => {
-                       // Check if percentages should be shown and mark as shown before rendering
+                       // Check if percentages should be shown
                        const shouldShow = hoveredSegmentId === null;
-                       const skipAnimation = percentagesShownRef.current;
-                       if (shouldShow && !percentagesShownRef.current) {
-                         percentagesShownRef.current = true;
-                       }
+                       // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
+                       const skipAnimation = percentagesShownRef.current || hasEverHoveredRef.current;
                        
                        return segmentData.map(({ outcome, probability, tooltipPosition, segmentDelay, idx }) => {
                          // Show percentage numbers only if not hovering and probability > 15%
@@ -1059,8 +1086,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                                zIndex: isHovered ? 100 : idx + 50,
                                pointerEvents: 'auto',
                              }}
-                             onMouseEnter={() => setHoveredSegmentId(outcome.id)}
-                             onMouseLeave={() => setHoveredSegmentId(null)}
+                             onMouseEnter={() => {
+                               isHoveringSliderRef.current = true;
+                               hasEverHoveredRef.current = true;
+                               setHoveredSegmentId(outcome.id);
+                             }}
+                             onMouseLeave={() => {
+                               isHoveringSliderRef.current = false;
+                               setHoveredSegmentId(null);
+                             }}
                            />
                          );
                        })}
@@ -1187,10 +1221,12 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                              whileHover={{ scale: 1.01 }}
                              whileTap={{ scale: 0.99 }}
                              onMouseEnter={(e) => {
+                               isHoveringSliderRef.current = true;
                                e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
                                setHoveredSegmentId(outcome.id);
                              }}
                              onMouseLeave={(e) => {
+                               isHoveringSliderRef.current = false;
                                e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
                                setHoveredSegmentId(null);
                              }}
@@ -1293,12 +1329,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                 <div ref={sliderContainerRef} className="relative">
                   {/* Percentage numbers - hide when hovering */}
                   {(() => {
-                    // Check if percentages should be shown and mark as shown before rendering
+                    // Check if percentages should be shown
                     const shouldShow = hoveredSegmentId === null;
-                    const skipAnimation = binaryPercentageAnimatedRef.current;
-                    if (shouldShow && !binaryPercentageAnimatedRef.current) {
-                      binaryPercentageAnimatedRef.current = true;
-                    }
+                    // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
+                    const skipAnimation = binaryPercentageAnimatedRef.current || hasEverHoveredRef.current;
                     
                     return (
                       <motion.div
@@ -1363,8 +1397,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                           zIndex: isYesHovered ? 100 : 50,
                           pointerEvents: 'auto',
                         }}
-                        onMouseEnter={() => setHoveredSegmentId('YES')}
-                        onMouseLeave={() => setHoveredSegmentId(null)}
+                        onMouseEnter={() => {
+                          isHoveringSliderRef.current = true;
+                          hasEverHoveredRef.current = true;
+                          setHoveredSegmentId('YES');
+                        }}
+                        onMouseLeave={() => {
+                          isHoveringSliderRef.current = false;
+                          setHoveredSegmentId(null);
+                        }}
                       />
                     )}
                     {noDisplay > 0 && (
@@ -1377,8 +1418,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                           zIndex: isNoHovered ? 100 : 60,
                           pointerEvents: 'auto',
                         }}
-                        onMouseEnter={() => setHoveredSegmentId('NO')}
-                        onMouseLeave={() => setHoveredSegmentId(null)}
+                        onMouseEnter={() => {
+                          isHoveringSliderRef.current = true;
+                          hasEverHoveredRef.current = true;
+                          setHoveredSegmentId('NO');
+                        }}
+                        onMouseLeave={() => {
+                          isHoveringSliderRef.current = false;
+                          setHoveredSegmentId(null);
+                        }}
                       />
                     )}
                     
@@ -1504,8 +1552,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                         ? hexToRgba('#10b981', 0.2) 
                         : hexToRgba('#10b981', 0.1),
                     }}
-                    onMouseEnter={() => setHoveredSegmentId('YES')}
-                    onMouseLeave={() => setHoveredSegmentId(null)}
+                    onMouseEnter={() => {
+                      isHoveringSliderRef.current = true;
+                      hasEverHoveredRef.current = true;
+                      setHoveredSegmentId('YES');
+                    }}
+                    onMouseLeave={() => {
+                      isHoveringSliderRef.current = false;
+                      setHoveredSegmentId(null);
+                    }}
                   >
                     <span 
                       className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
@@ -1526,8 +1581,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                         ? hexToRgba('#f43f5e', 0.2) 
                         : hexToRgba('#f43f5e', 0.1),
                     }}
-                    onMouseEnter={() => setHoveredSegmentId('NO')}
-                    onMouseLeave={() => setHoveredSegmentId(null)}
+                    onMouseEnter={() => {
+                      isHoveringSliderRef.current = true;
+                      hasEverHoveredRef.current = true;
+                      setHoveredSegmentId('NO');
+                    }}
+                    onMouseLeave={() => {
+                      isHoveringSliderRef.current = false;
+                      setHoveredSegmentId(null);
+                    }}
                   >
                     <span 
                       className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
