@@ -6,6 +6,7 @@ import { email } from '@/lib/auth-client';
 import { motion } from 'framer-motion';
 import { LoginModal } from '@/app/components/auth/LoginModal';
 import { SignupModal } from '@/app/components/auth/SignupModal';
+import { validatePassword } from '@/lib/password-validation';
 
 // Separate component that uses search params
 function ResetPasswordForm() {
@@ -25,14 +26,8 @@ function ResetPasswordForm() {
 
     const validationErrors = useMemo(() => {
         if (!password) return [];
-        const rules = [
-            { test: /.{8,}/.test(password), message: 'At least 8 characters' },
-            { test: /[a-z]/.test(password), message: 'One lowercase letter' },
-            { test: /[A-Z]/.test(password), message: 'One uppercase letter' },
-            { test: /\d/.test(password), message: 'One number' },
-            { test: /[^A-Za-z0-9]/.test(password), message: 'One symbol' },
-        ];
-        return rules.filter(r => !r.test).map(r => r.message);
+        const validation = validatePassword(password);
+        return validation.errors;
     }, [password]);
 
     useEffect(() => {
@@ -198,7 +193,7 @@ function ResetPasswordForm() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                            placeholder="At least 8 characters, mixed case, number, symbol"
+                            placeholder="At least 12 characters with uppercase, lowercase, number, and symbol"
                             required
                         />
                         {validationErrors.length > 0 && (

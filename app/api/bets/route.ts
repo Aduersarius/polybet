@@ -8,6 +8,8 @@ import { redis } from '@/lib/redis';
 import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
+import { validateString, validateNumber, validateUUID } from '@/lib/validation';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
@@ -18,19 +20,34 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        // Support both 'option' (from generate-trades) and 'outcome' (from TradingPanel)
-        const { eventId, amount } = body;
-        const option = body.option || body.outcome;
+        
+        // Validate inputs
+        const eventIdResult = validateUUID(body.eventId, true);
+        if (!eventIdResult.valid) {
+            return createClientErrorResponse(`eventId: ${eventIdResult.error}`, 400);
+        }
 
-        if (!eventId || !option || !amount) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        const optionResult = validateString(body.option || body.outcome, {
+            required: true,
+            pattern: /^(YES|NO)$/i
+        });
+        if (!optionResult.valid) {
+            return createClientErrorResponse(`option: ${optionResult.error || 'must be "YES" or "NO"'}`, 400);
+        }
+
+        const amountResult = validateNumber(body.amount, {
+            required: true,
+            min: 0.01,
+            max: 1000000
+        });
+        if (!amountResult.valid) {
+            return createClientErrorResponse(`amount: ${amountResult.error}`, 400);
         }
 
         const targetUserId = user.id;
-        const numericAmount = parseFloat(amount);
-        if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-            return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
-        }
+        const eventId = eventIdResult.sanitized!;
+        const option = optionResult.sanitized!.toUpperCase() as 'YES' | 'NO';
+        const numericAmount = amountResult.sanitized!;
 
         const eventMeta = await prisma.event.findUnique({
             where: { id: eventId },
@@ -129,7 +146,7 @@ export async function POST(request: Request) {
                         }),
                         (prisma as any).marketActivity.create({
                             data: {
-                                amount: parseFloat(amount),
+                                amount: numericAmount,
                                 option,
                                 userId: targetUserId,
                                 eventId,
@@ -189,7 +206,7 @@ export async function POST(request: Request) {
                 eventId,
                 timestamp: Math.floor(Date.now() / 1000),
                 yesPrice: newOdds.yesPrice,
-                volume: parseFloat(amount)
+                volume: numericAmount
             };
             // Don't await - fire and forget for better performance
             redis.publish('event-updates', JSON.stringify(updatePayload)).catch(err =>
@@ -198,7 +215,7 @@ export async function POST(request: Request) {
         }
 
         const totalTime = Date.now() - startTime;
-        console.log(`✅ Trade executed: ${option} $${amount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
+        console.log(`✅ Trade executed: ${option} $${numericAmount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
 
         // 5. Minimal cache invalidation + WebSocket publish (non-blocking)
         // Fire and forget to avoid blocking the response
@@ -214,7 +231,7 @@ export async function POST(request: Request) {
                         eventId,
                         timestamp: Math.floor(Date.now() / 1000),
                         yesPrice: newOdds.yesPrice,
-                        volume: parseFloat(amount)
+                        volume: numericAmount
                     };
                     await redis.publish('event-updates', JSON.stringify(updatePayload))
                         .catch(e => console.error('Redis publish failed:', e));
@@ -235,14 +252,10 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
-        const errorTime = Date.now() - startTime;
-        console.error(`❌ Trade failed after ${errorTime}ms:`, error);
-
         // Return 504 for timeouts, 500 for other errors
-        const status = (error as Error).message === 'Query timeout' ? 504 : 500;
-        return NextResponse.json({
-            error: 'Failed to place bet',
-            details: status === 504 ? 'Request timed out' : undefined
-        }, { status });
+        if (error instanceof Error && error.message === 'Query timeout') {
+            return createClientErrorResponse('Request timed out', 504);
+        }
+        return createErrorResponse(error);
     }
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { validatePassword, getPasswordErrorMessage } from '@/lib/password-validation';
 
 interface SignupModalProps {
     isOpen: boolean;
@@ -28,8 +29,9 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             return;
         }
 
-        if (password.length < 8) {
-            setError('Password must be at least 8 characters');
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            setError(getPasswordErrorMessage(passwordValidation.errors));
             return;
         }
 
