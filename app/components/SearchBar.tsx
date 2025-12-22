@@ -121,7 +121,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                     onChange={(e) => handleSearch(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     placeholder={placeholder}
-                    className="w-full pl-11 pr-10 py-2.5 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm"
+                    className="w-full pl-11 pr-10 py-1.5 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm"
                 />
 
                 {/* Clear Button */}

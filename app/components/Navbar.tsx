@@ -153,9 +153,9 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <>
                                     <button
                                         onClick={() => setShowDepositModal(true)}
-                                        className="deposit-button hidden md:inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_24px_rgba(16,185,129,0.4)] hover:scale-105"
+                                        className="deposit-button hidden md:inline-flex items-center gap-2 h-8 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_24px_rgba(16,185,129,0.4)] hover:scale-105"
                                     >
-                                        <Wallet className="w-4 h-4" />
+                                        <Wallet className="w-3.5 h-3.5" />
                                         Deposit
                                     </button>
                                     {/* Portfolio moved into balance dropdown */}
@@ -225,13 +225,13 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setShowLoginModal(true)}
-                                        className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-blue-400/30 text-white hover:bg-white/15 hover:border-blue-400/50 text-xs font-bold px-5 transition-all duration-300 uppercase tracking-wide hover:shadow-[0_4px_16px_rgba(59,130,246,0.2)]"
+                                        className="inline-flex h-8 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-blue-400/30 text-white hover:bg-white/15 hover:border-blue-400/50 text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide hover:shadow-[0_4px_16px_rgba(59,130,246,0.2)]"
                                     >
                                         Login
                                     </button>
                                     <button
                                         onClick={() => setShowSignupModal(true)}
-                                        className="inline-flex h-10 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-bold px-5 transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(59,130,246,0.3)] hover:shadow-[0_6px_24px_rgba(59,130,246,0.4)] hover:scale-105"
+                                        className="inline-flex h-8 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(59,130,246,0.3)] hover:shadow-[0_6px_24px_rgba(59,130,246,0.4)] hover:scale-105"
                                     >
                                         Sign Up
                                     </button>
