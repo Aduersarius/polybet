@@ -31,17 +31,10 @@ const nextConfig: NextConfig = {
       'lucide-react',
       'date-fns',
     ],
-    // Enable Turbopack filesystem cache for faster subsequent builds
-    turbopackFileSystemCacheForDev: true,
   },
   // Ensure geoip-lite data files are traced into the serverless output
   outputFileTracingIncludes: {
     '*': ['node_modules/geoip-lite/data/**'],
-  },
-  // Turbopack configuration (replaces webpack)
-  turbopack: {
-    // Note: Turbopack handles externals and aliases automatically
-    // React Native packages won't be bundled if not imported
   },
   images: {
     formats: ['image/avif', 'image/webp'],
