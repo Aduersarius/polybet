@@ -1,6 +1,5 @@
 'use client';
 import { Navbar } from "../components/Navbar";
-import { SparklesCore as Sparks } from "../../components/ui/sparkles";
 import { Footer } from "../components/Footer";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -331,8 +330,6 @@ export default function Home() {
           className="min-h-screen relative text-white z-10"
         >
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
-          {/* Markets Background */}
-          <div className="fixed inset-0 z-0 bg-zinc-900"></div>
 
           {/* Markets Content */}
           <div className="relative z-10 pt-10 px-6 max-w-7xl mx-auto pb-20">

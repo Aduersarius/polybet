@@ -106,6 +106,16 @@ export async function checkInstitutionalRateLimit(
   windowMs: number = 60000
 ): Promise<boolean> {
   try {
+    if (!redis) {
+      return false; // Fail closed if Redis unavailable
+    }
+
+    // Check if Redis connection is actually ready
+    const status = redis.status;
+    if (!status || status !== 'ready') {
+      return false; // Fail closed if not ready
+    }
+
     const key = `rate_limit:institutional:${accountId}`;
     const count = await redis.incr(key);
 
@@ -118,8 +128,15 @@ export async function checkInstitutionalRateLimit(
     }
 
     return count <= limit;
-  } catch (error) {
-    console.error('Institutional rate limit check failed, blocking by default:', error);
+  } catch (error: any) {
+    const isConnectionError = error?.message?.includes('Connection is closed') || 
+                              error?.message?.includes('connect') ||
+                              error?.message?.includes('ECONNREFUSED');
+    const isProd = process.env.NODE_ENV === 'production';
+    
+    if (!isConnectionError || isProd) {
+      console.error('Institutional rate limit check failed, blocking by default:', error);
+    }
     return false; // Fail closed on error
   }
 }

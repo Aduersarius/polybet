@@ -103,3 +103,4 @@ When updating components:
 4. Use `getCategoryColorClasses()` for category badges
 5. Use `getOutcomeColor(index)` for outcome colors
 
+

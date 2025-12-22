@@ -1,88 +1,189 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useRef, useLayoutEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 interface Category {
   id: string;
   label: string;
-  icon: string;
 }
-
-// Default categories while loading
-const defaultCategories: Category[] = [
-  { id: 'ALL', label: 'All', icon: '' },
-  { id: 'TRENDING', label: 'Trending', icon: '' },
-  { id: 'NEW', label: 'New', icon: '' },
-  { id: 'FAVORITES', label: 'Favorites', icon: '' },
-];
 
 interface CategoryBarProps {
   selectedCategory: string;
   onCategoryChange: (categoryId: string) => void;
+  categories: Category[];
 }
 
-export function CategoryBar({ selectedCategory, onCategoryChange }: CategoryBarProps) {
-  const [categories, setCategories] = useState<Category[]>(defaultCategories);
+export function CategoryBar({ selectedCategory, onCategoryChange, categories }: CategoryBarProps) {
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, opacity: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch('/api/categories');
-        if (response.ok) {
-          const data = await response.json();
-          const fetchedCategories: Category[] = data.categories.map((cat: string) => ({
-            id: cat,
-            label: cat === 'ALL' ? 'All' :
-              cat === 'TRENDING' ? 'Trending' :
-                cat === 'NEW' ? 'New' :
-                  cat === 'FAVORITES' ? 'Favorites' :
-                    cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase(),
-            icon: ''
-          }));
-          setCategories(fetchedCategories);
-        }
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-        // Keep default categories on error
+  // Update indicator position when selected category changes or on resize
+  useLayoutEffect(() => {
+    const updateIndicatorPosition = () => {
+      const activeButton = buttonRefs.current.get(selectedCategory);
+      const container = containerRef.current;
+
+      if (!activeButton || !container) {
+        setIndicatorStyle({ left: 0, width: 0, opacity: 0 });
+        return;
       }
+
+      const containerRect = container.getBoundingClientRect();
+      const buttonRect = activeButton.getBoundingClientRect();
+      
+      const left = buttonRect.left - containerRect.left;
+      const width = buttonRect.width;
+
+      setIndicatorStyle({ left, width, opacity: 1 });
     };
 
-    fetchCategories();
-  }, []);
+    updateIndicatorPosition();
+
+    // Update on window resize
+    window.addEventListener('resize', updateIndicatorPosition);
+    return () => window.removeEventListener('resize', updateIndicatorPosition);
+  }, [selectedCategory, categories]);
+
+  const isFavorites = selectedCategory === 'FAVORITES';
 
   return (
-    <div className="fixed top-[72px] left-0 right-0 z-40">
-      {/* Material Design Island - Narrow */}
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
-          <div className="px-4 py-2">
-            <div className="overflow-x-auto scrollbar-hide">
-              <div className="flex items-center gap-2">
-                {categories.filter(cat => cat.id !== 'FAVORITES').map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => onCategoryChange(cat.id)}
-                    className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-colors duration-200 text-center whitespace-nowrap ${selectedCategory === cat.id
-                      ? 'bg-gradient-to-r from-[#bb86fc] to-[#03dac6] text-white shadow-lg shadow-[#bb86fc]/30'
-                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+    <div className="w-full border-t border-blue-400/10 backdrop-blur-xl" style={{ backgroundColor: 'var(--surface)' }}>
+      <div className="max-w-7xl mx-auto px-6 py-1.5">
+        <div className="overflow-x-auto scrollbar-hide">
+          <div 
+            ref={containerRef}
+            className="relative flex items-center gap-2 category-nav"
+          >
+            {/* Sliding Indicator Background */}
+            <motion.div
+              className={`absolute h-6 rounded-lg ${
+                isFavorites
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-500 shadow-[0_4px_16px_rgba(244,63,94,0.4)]'
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 shadow-[0_4px_16px_rgba(59,130,246,0.4)]'
+              }`}
+              initial={false}
+              animate={{
+                x: indicatorStyle.left,
+                y: '-50%',
+                width: indicatorStyle.width,
+                opacity: indicatorStyle.opacity,
+              }}
+              transition={{
+                type: 'spring',
+                stiffness: 450,
+                damping: 35,
+                mass: 0.6,
+              }}
+              style={{
+                left: 0,
+                top: '50%',
+                willChange: 'transform, width',
+              }}
+            />
+
+            <div className="relative z-10 flex gap-1.5 min-w-max">
+              {categories.map((cat) => 
+                cat.id === 'SPORTS' ? (
+                  <Link key={cat.id} href="/sports">
+                    <motion.button
+                      ref={(el) => {
+                        if (el) {
+                          buttonRefs.current.set(cat.id, el);
+                        } else {
+                          buttonRefs.current.delete(cat.id);
+                        }
+                      }}
+                      className={`px-3.5 py-1 rounded-lg text-[11px] font-bold transition-colors duration-300 whitespace-nowrap uppercase tracking-wide ${
+                        selectedCategory === cat.id
+                          ? 'text-white'
+                          : 'text-gray-400 hover:text-white'
                       }`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 400,
+                        damping: 25,
+                      }}
+                    >
+                      {cat.label}
+                    </motion.button>
+                  </Link>
+                ) : (
+                  <motion.button
+                    key={cat.id}
+                    ref={(el) => {
+                      if (el) {
+                        buttonRefs.current.set(cat.id, el);
+                      } else {
+                        buttonRefs.current.delete(cat.id);
+                      }
+                    }}
+                    onClick={() => onCategoryChange(cat.id)}
+                    className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors duration-300 whitespace-nowrap uppercase tracking-wide ${
+                      selectedCategory === cat.id
+                        ? 'text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 25,
+                    }}
                   >
                     {cat.label}
-                  </button>
-                ))}
-                <div className="h-6 w-px bg-white/20"></div>
-                <button
-                  onClick={() => onCategoryChange('FAVORITES')}
-                  className={`p-2 rounded-lg font-medium text-sm transition-colors duration-200 whitespace-nowrap flex items-center justify-center ${selectedCategory === 'FAVORITES'
-                    ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg'
-                    : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                    }`}
-                >
-                  <svg className="w-5 h-5" fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </button>
-              </div>
+                  </motion.button>
+                )
+              )}
             </div>
+            <div className="relative z-10 h-4 w-px bg-blue-400/20"></div>
+            <motion.button
+              ref={(el) => {
+                if (el) {
+                  buttonRefs.current.set('FAVORITES', el);
+                } else {
+                  buttonRefs.current.delete('FAVORITES');
+                }
+              }}
+              onClick={() => onCategoryChange('FAVORITES')}
+              className={`relative z-10 p-1 rounded-lg transition-colors duration-300 whitespace-nowrap flex items-center justify-center ${
+                selectedCategory === 'FAVORITES'
+                  ? 'text-white'
+                  : 'text-gray-400 hover:text-pink-400'
+              }`}
+              whileHover={{ scale: 1.1, rotate: selectedCategory === 'FAVORITES' ? 0 : 5 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{
+                type: 'spring',
+                stiffness: 400,
+                damping: 25,
+              }}
+            >
+              <motion.svg
+                className="w-3.5 h-3.5"
+                fill={selectedCategory === 'FAVORITES' ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                animate={{
+                  scale: selectedCategory === 'FAVORITES' ? [1, 1.2, 1] : 1,
+                }}
+                transition={{
+                  duration: 0.3,
+                  ease: 'easeOut',
+                }}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                />
+              </motion.svg>
+            </motion.button>
           </div>
         </div>
       </div>
