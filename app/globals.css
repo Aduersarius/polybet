@@ -18,6 +18,7 @@
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 17, 24, 39; /* RGB values for gray-900 (#111827) */
   --background-end-rgb: 17, 24, 39; /* RGB values for gray-900 (#111827) */
+  --navbar-height: 100px; /* Height of fixed navbar (72px main + ~28px category bar) */
 
   /* Shadcn Chart Colors - Modern */
   --chart-1: 217 91% 60%;

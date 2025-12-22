@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { getCryptoService } from '@/lib/crypto-service';
-import { auth } from '@/lib/auth';
+import { auth, verifyUserTotp } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
-import { verifyTotpCode } from '@/lib/totp';
 import { assertSameOrigin } from '@/lib/csrf';
 
 const ALLOWED_TOKENS = ['USDC'];
@@ -65,17 +64,19 @@ export async function POST(req: NextRequest) {
             where: { id: userId },
             select: { twoFactorEnabled: true }
         });
-        const twoFactor = await prisma.twoFactor.findUnique({
-            where: { userId },
-            select: { secret: true }
-        });
 
-        if (!userRecord?.twoFactorEnabled || !twoFactor?.secret) {
+        if (!userRecord?.twoFactorEnabled) {
             return NextResponse.json({ error: 'Two-factor authentication is required to withdraw' }, { status: 403 });
         }
 
-        if (!totpCode || !verifyTotpCode(totpCode, twoFactor.secret)) {
-            return NextResponse.json({ error: 'Invalid or missing TOTP code' }, { status: 401 });
+        if (!totpCode) {
+            return NextResponse.json({ error: 'TOTP code is required' }, { status: 401 });
+        }
+
+        // Use Better Auth's verification which handles encrypted secrets
+        const isValid = await verifyUserTotp(userId, totpCode);
+        if (!isValid) {
+            return NextResponse.json({ error: 'Invalid TOTP code' }, { status: 401 });
         }
 
         const maxSingle = Number(process.env.WITHDRAW_MAX_SINGLE ?? 5000);
