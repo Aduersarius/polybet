@@ -166,12 +166,16 @@ Visit: ${this.websiteUrl}/support
           userId: telegramUser.userId,
           status: ['open', 'pending'],
         },
+<<<<<<< HEAD
         {
           page: 1,
           limit: 10,
           sortBy: 'createdAt',
           sortOrder: 'desc',
         }
+=======
+        { page: 1, limit: 10 }
+>>>>>>> acba0815d580cbf5c9022c754ee3a8d1cce716a5
       );
 
       if (tickets.data.length === 0) {

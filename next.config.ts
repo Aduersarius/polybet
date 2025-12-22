@@ -7,25 +7,40 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
-  // Enable compression for better performance
-  compress: true,
+  // Compression is enabled by default in Next.js production builds
+  // compress: true, // REMOVED: Redundant - Next.js compresses by default
 
-  // Force webpack instead of turbopack for compatibility
+  // Optimize package imports and enable parallel builds
   experimental: {
-    webpackBuildWorker: false,
     optimizePackageImports: ['@prisma/client', 'ioredis'],
   },
   // Ensure geoip-lite data files are traced into the serverless output
   outputFileTracingIncludes: {
     '*': ['node_modules/geoip-lite/data/**'],
   },
-  webpack: (config) => {
-    // Keep non-essential dependencies external
-    config.externals.push("pino-pretty", "lokijs", "encoding", "thread-stream");
+  webpack: (config, { isServer }) => {
+    // Externalize dev-only and non-essential dependencies to reduce bundle size
+    // These are transitive dependencies that shouldn't be bundled
+    if (isServer) {
+      // Only externalize on server-side (API routes)
+      // Ensure externals is an array before pushing
+      if (!Array.isArray(config.externals)) {
+        config.externals = [];
+      }
+      const externalsToAdd = ["pino-pretty", "lokijs", "encoding", "thread-stream"];
+      externalsToAdd.forEach((pkg) => {
+        if (!config.externals.includes(pkg)) {
+          config.externals.push(pkg);
+        }
+      });
+    }
+    
+    // Prevent React Native packages from being bundled (if accidentally imported)
     config.resolve.alias = {
       ...config.resolve.alias,
       '@react-native-async-storage/async-storage': false,
     };
+    
     return config;
   },
   images: {
