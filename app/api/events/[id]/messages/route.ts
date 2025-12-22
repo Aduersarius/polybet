@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { requireAuth } from '@/lib/auth';
+import { assertSameOrigin } from '@/lib/csrf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -124,6 +125,7 @@ export async function GET(
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const startTime = Date.now();
 
+    assertSameOrigin(req);
     // Authentication check
     const user = await requireAuth(req);
 
