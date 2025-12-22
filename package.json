@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node start-hybrid-platform.js",
-    "build": "next build --turbopack && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js",
+    "build": "next build && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js",
     "vercel-build": "npm run build",
     "start": "next start",
     "lint": "next lint",
