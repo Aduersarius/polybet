@@ -48,7 +48,9 @@ export function TicketList({ onTicketClick, refreshTrigger }: TicketListProps) {
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/support/tickets?sortBy=createdAt&sortOrder=desc');
+      const response = await fetch('/api/support/tickets?sortBy=createdAt&sortOrder=desc', {
+        credentials: 'include',
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch tickets');

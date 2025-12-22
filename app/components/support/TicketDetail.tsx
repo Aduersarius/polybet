@@ -94,7 +94,9 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
   const fetchTicket = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/support/tickets/${ticketId}`);
+      const response = await fetch(`/api/support/tickets/${ticketId}`, {
+        credentials: 'include',
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch ticket');
