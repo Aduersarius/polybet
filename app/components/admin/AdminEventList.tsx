@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pagination } from './Pagination';
 
@@ -34,17 +35,23 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
     const adminId = 'dev-user';
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 300);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearch]);
+
     const { data: eventsData, isLoading } = useQuery({
-        queryKey: ['admin', 'events', adminId, currentPage, searchQuery],
+        queryKey: ['admin', 'events', adminId, currentPage, debouncedSearch],
         queryFn: async () => {
             const params = new URLSearchParams({
                 adminId,
                 page: currentPage.toString(),
                 limit: itemsPerPage.toString(),
-                ...(searchQuery && { search: searchQuery })
+                ...(debouncedSearch && { search: debouncedSearch })
             });
             const res = await fetch(`/api/admin/events?${params}`);
             if (!res.ok) throw new Error('Failed to fetch events');
@@ -93,7 +100,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                         <CardTitle className="text-white">Events</CardTitle>
                         <CardDescription className="text-gray-400">Manage markets, visibility, and status</CardDescription>
                     </div>
-                    {searchQuery && (
+                    {debouncedSearch && (
                         <div className="text-sm text-gray-400">Found {totalEvents} events</div>
                     )}
                 </div>
@@ -273,7 +280,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
 
                 {events.length === 0 && (
                     <div className="text-center py-12 text-gray-500">
-                        {searchQuery ? 'No events found matching your search.' : 'No events found. Create your first event!'}
+                        {debouncedSearch ? 'No events found matching your search.' : 'No events found. Create your first event!'}
                     </div>
                 )}
             </div>

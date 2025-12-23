@@ -104,7 +104,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   const currentValues = useMemo(() => {
     if (!isMultipleOutcomes) return {};
     const values: Record<string, number> = {};
-    
+
     // Use the last point from chartData (which includes real-time updates)
     // This is the source of truth - real-time updates are added via useOddsRealtime
     if (chartData.length > 0) {
@@ -127,7 +127,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   // Show pulses when not hovered and dataset is reasonably small to avoid DOM cost.
   const showCurrentPulse = hoveredDataPoint == null && renderData.length <= Math.max(420, renderCap + 20);
-  
+
   // Use the last point from chartData for pulse markers - this ensures lines and markers match
   // Since chartData is already updated with liveOutcomes, this will be consistent
   const lastPoint = useMemo(() => {
@@ -250,8 +250,9 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
                     stroke={o.color}
                     strokeWidth={2.5}
                     fill={`url(#gradient_${o.id})`}
-                    isAnimationActive={false}
-                    animationDuration={0}
+                    isAnimationActive={true}
+                    animationDuration={600}
+                    animationEasing="ease-in-out"
                     dot={false}
                     activeDot={{ r: 5, strokeWidth: 2, stroke: o.color, fill: '#1a1d29' }}
                   />
@@ -263,8 +264,9 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
                   stroke="#8B5CF6"
                   strokeWidth={2.5}
                   fill="url(#gradientValue)"
-                  isAnimationActive={false}
-                  animationDuration={0}
+                  isAnimationActive={true}
+                  animationDuration={600}
+                  animationEasing="ease-in-out"
                   dot={false}
                   activeDot={{ r: 5, strokeWidth: 2, stroke: '#8B5CF6', fill: '#1a1d29' }}
                 />

@@ -37,7 +37,7 @@ const PERIOD_TO_MS: Record<string, number> = {
   '1w': 7 * 24 * 60 * 60 * 1000,
   '1m': 30 * 24 * 60 * 60 * 1000,
   '3m': 90 * 24 * 60 * 60 * 1000,
-  all: 180 * 24 * 60 * 60 * 1000,
+  all: 400 * 24 * 60 * 60 * 1000, // Full year+ of history
 };
 
 async function loadPolymarketHistory(eventId: string, period: string) {

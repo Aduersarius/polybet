@@ -33,7 +33,7 @@ export default function RootLayout({
                 <Providers>
                     <DevSwCleanup />
                     <OnboardingLauncher />
-                    <div className="fixed inset-0 bg-gray-900 pointer-events-none z-[1]" />
+                    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm pointer-events-none z-[1]" />
                     <div className="relative z-10 min-h-screen flex flex-col">
                         {children}
                     </div>

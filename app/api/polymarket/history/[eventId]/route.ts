@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
-const DEFAULT_LOOKBACK_DAYS = 90;
+const DEFAULT_LOOKBACK_DAYS = 400; // Show full year of history by default
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
   const start = Date.now();

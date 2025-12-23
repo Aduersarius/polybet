@@ -328,3 +328,4 @@ export function sanitizeHtml(html: string): string {
         .replace(/javascript:/gi, '');
 }
 
+

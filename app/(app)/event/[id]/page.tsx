@@ -14,6 +14,14 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 
+/**
+ * Helper to check if an event has multiple outcomes.
+ * Both MULTIPLE and GROUPED_BINARY events should use multi-outcome UI.
+ */
+const isMultiOutcomeEvent = (type?: string): boolean => {
+    return type === 'MULTIPLE' || type === 'GROUPED_BINARY';
+};
+
 function getCategoryImage(categories: string[]): string {
     if (!categories || categories.length === 0) return '/events/crypto.png';
 
@@ -71,7 +79,7 @@ export default function EventPage() {
 
     // Fetch event - detect if it's a Polymarket ID (numeric) or local UUID
     const isPolymarketId = /^\d+$/.test(eventId);
-    
+
     const { data: event, isLoading, refetch } = useQuery({
         queryKey: ['event', eventId],
         queryFn: async () => {
@@ -92,7 +100,7 @@ export default function EventPage() {
                 if (Array.isArray(data) && data.length) return data[0];
                 throw new Error('Polymarket event not found');
             }
-            
+
             // For UUIDs, ONLY try local DB (these are never in Polymarket)
             const res = await fetch(`/api/events/${eventId}`);
             if (!res.ok) {
@@ -211,7 +219,7 @@ export default function EventPage() {
 
     return (
         <main className="min-h-screen text-white relative flex flex-col">
-            {/* Animated Background */}
+            {/* Animated Background - Positioned to be visible through transparent navbar */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#bb86fc]/5 via-transparent to-[#03dac6]/5" />
                 <div className="absolute top-1/4 -left-1/4 w-96 h-96 bg-[#bb86fc]/10 rounded-full blur-3xl" />
@@ -223,7 +231,7 @@ export default function EventPage() {
             <div className="relative z-10 flex flex-col h-screen">
 
                 {/* Main content area with independent scrolling columns */}
-                <div className="flex-1 overflow-hidden" style={{ paddingTop: 'calc(var(--navbar-height) + 0.5rem)' }}>
+                <div className="flex-1 overflow-hidden">
                     <div className="h-full px-4 sm:px-5 max-w-7xl mx-auto">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -232,7 +240,7 @@ export default function EventPage() {
                         >
                             <div className="h-full flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] lg:items-stretch">
                                 {/* Left Column - Scrollable */}
-                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 lg:pr-2 space-y-6 order-1 no-scrollbar">
+                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 lg:pr-2 space-y-6 order-1 no-scrollbar pt-[calc(var(--navbar-height)+0.5rem)]">
                                     <div className="space-y-6 pt-4">
                                         {/* Header Section - With Image on Right */}
                                         <div className="relative">
@@ -285,7 +293,7 @@ export default function EventPage() {
 
                                         {/* Trading panel on mobile (desktop keeps side placement) */}
                                         <div className="lg:hidden">
-                                            {liveEvent.type === 'MULTIPLE' ? (
+                                            {isMultiOutcomeEvent(liveEvent.type) ? (
                                                 <MultipleTradingPanel
                                                     outcomes={liveEvent.outcomes || []}
                                                     liveOutcomes={liveEvent.outcomes || []}
@@ -313,7 +321,7 @@ export default function EventPage() {
                                             resolutionDate={liveEvent.resolutionDate}
                                         />
 
-                                        {(liveEvent.type === 'BINARY' || liveEvent.type === 'MULTIPLE') && (
+                                        {(liveEvent.type === 'BINARY' || isMultiOutcomeEvent(liveEvent.type)) && (
                                             <div className="bg-[#1a1d28] rounded-xl border border-white/10 shadow-2xl overflow-hidden odds-chart">
                                                 <button
                                                     className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white lg:hidden"
@@ -402,9 +410,9 @@ export default function EventPage() {
                                 </div>
 
                                 {/* Right Column - Scrollable */}
-                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar">
+                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar pt-[calc(var(--navbar-height)+0.5rem)]">
                                     <div className="space-y-6 trading-panel pb-6 pt-4">
-                                        {liveEvent.type === 'MULTIPLE' ? (
+                                        {isMultiOutcomeEvent(liveEvent.type) ? (
                                             <MultipleTradingPanel
                                                 outcomes={liveEvent.outcomes || []}
                                                 liveOutcomes={liveEvent.outcomes || []}

@@ -5,7 +5,7 @@ export const revalidate = 0;
 export const maxDuration = 60;
 
 const WS_URL = 'wss://ws-live-data.polymarket.com';
-const BUCKET_MS = 5 * 60 * 1000; // 5m buckets
+const BUCKET_MS = 30 * 60 * 1000; // 30m buckets for consistent candle intervals
 
 function clamp01(n: number) {
   if (!Number.isFinite(n)) return 0;
@@ -31,9 +31,9 @@ async function loadTokenMappings(prisma: any) {
   const eventIds = Array.from(new Set(mappings.map((m: any) => m.internalEventId).filter(Boolean)));
   const outcomes = eventIds.length
     ? await prisma.outcome.findMany({
-        where: { eventId: { in: eventIds } },
-        select: { id: true, name: true, eventId: true, polymarketOutcomeId: true },
-      })
+      where: { eventId: { in: eventIds } },
+      select: { id: true, name: true, eventId: true, polymarketOutcomeId: true },
+    })
     : [];
   const outcomeIndexByName = new Map<string, string>(); // eventId|name -> outcomeId
   const outcomeIndexByPolyId = new Map<string, string>(); // eventId|polymarketOutcomeId -> outcomeId

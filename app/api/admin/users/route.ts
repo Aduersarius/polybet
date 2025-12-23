@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
         const skip = (page - 1) * limit;
 
         // Build where clause for search
+        // Include deleted users so admins can see them (they'll be marked in the UI)
         const where: any = {};
         if (search) {
             where.OR = [
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
     try {
+        assertSameOrigin(request);
         // Admin authentication check
         await requireAdminAuth(request);
         const body = await request.json();
@@ -132,9 +134,19 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
         }
 
-        // Delete the user and all related data (cascading deletes should be handled by Prisma schema)
-        await prisma.user.delete({
-            where: { id: targetUserId }
+        // Soft delete by setting isDeleted flag
+        // This preserves all related data (events, orders, transactions, etc.)
+        // and prevents foreign key constraint errors
+        await prisma.user.update({
+            where: { id: targetUserId },
+            data: {
+                isDeleted: true,
+            }
+        });
+
+        // Revoke all sessions for this user
+        await prisma.session.deleteMany({
+            where: { userId: targetUserId }
         });
 
         return NextResponse.json({ success: true, message: 'User deleted successfully' });

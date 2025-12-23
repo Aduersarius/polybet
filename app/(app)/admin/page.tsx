@@ -34,6 +34,7 @@ function AdminPageContent() {
     const [activeView, setActiveView] = useState<AdminView>('overview');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
     // Enable WebSocket real-time updates
     useAdminWebSocket();
@@ -41,6 +42,11 @@ function AdminPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: session, isPending } = useSession() as { data: Session | null; isPending: boolean };
+
+    // Ensure client-side only rendering to prevent hydration mismatch
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
@@ -53,7 +59,7 @@ function AdminPageContent() {
 
     // Check authentication and admin status
     useEffect(() => {
-        if (!isPending) {
+        if (!isPending && isMounted) {
             if (!session?.user) {
                 // Not authenticated - redirect to home
                 router.push('/');
@@ -62,12 +68,12 @@ function AdminPageContent() {
                 router.push('/');
             }
         }
-    }, [session, isPending, router]);
+    }, [session, isPending, isMounted, router]);
 
-    // Show loading state while checking session
-    if (isPending) {
+    // Show loading state while checking session or before mount (prevents hydration mismatch)
+    if (!isMounted || isPending) {
         return (
-            <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+            <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7] flex items-center justify-center">
                 <div className="text-gray-400">Loading...</div>
             </div>
         );
@@ -120,7 +126,7 @@ export default function AdminPage() {
     return (
         <Suspense
             fallback={
-                <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+                <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7] flex items-center justify-center">
                     <div className="text-gray-400">Loading admin...</div>
                 </div>
             }

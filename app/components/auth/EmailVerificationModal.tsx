@@ -164,3 +164,4 @@ export function EmailVerificationModal({ isOpen, onClose, userEmail }: EmailVeri
     );
 }
 
+

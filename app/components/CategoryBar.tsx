@@ -49,7 +49,7 @@ export function CategoryBar({ selectedCategory, onCategoryChange, categories }: 
   const isFavorites = selectedCategory === 'FAVORITES';
 
   return (
-    <div className="w-full border-t border-blue-400/10 backdrop-blur-xl" style={{ backgroundColor: 'var(--surface)' }}>
+    <div className="w-full border-t border-blue-400/10 bg-gray-800 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-6 py-1.5">
         <div className="overflow-x-auto scrollbar-hide">
           <div 
