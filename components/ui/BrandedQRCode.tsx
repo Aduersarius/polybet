@@ -12,42 +12,43 @@ interface BrandedQRCodeProps {
 export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCodeProps) {
   return (
     <div className="relative inline-block">
-      {/* Outer glow container */}
+      {/* Outer glow container with enhanced styling */}
       <div 
         className="relative rounded-3xl overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
-          padding: '24px',
-          boxShadow: '0 0 40px rgba(16, 185, 129, 0.15), 0 0 80px rgba(139, 92, 246, 0.1)',
+          background: 'linear-gradient(135deg, rgba(16, 24, 39, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
+          padding: '28px',
+          boxShadow: '0 0 60px rgba(16, 185, 129, 0.2), 0 0 120px rgba(139, 92, 246, 0.15), inset 0 0 40px rgba(16, 185, 129, 0.05)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         {/* Inner glow effect */}
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-purple-500/5 pointer-events-none" />
         
-        {/* QR Code with custom styling */}
-        <div className="relative rounded-2xl overflow-hidden bg-white/95 backdrop-blur-sm p-4">
+        {/* QR Code with dark theme - no white background */}
+        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f172a]/95 to-[#1e293b]/95 backdrop-blur-sm p-4 border border-white/10">
           <QRCodeSVG 
             value={value} 
             size={size - 64} // Account for padding
             level="H" // High error correction for logo
             bgColor="transparent"
-            fgColor="#1a1f2e"
+            fgColor="#ffffff"
             style={{
               width: '100%',
               height: '100%',
             }}
           />
           
-          {/* Decorative corner accents */}
-          <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-emerald-400/30 rounded-tl-lg" />
-          <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-emerald-400/30 rounded-tr-lg" />
-          <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-purple-400/30 rounded-bl-lg" />
-          <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-purple-400/30 rounded-br-lg" />
+          {/* Decorative corner accents with glow */}
+          <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-emerald-400/50 rounded-tl-lg shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
+          <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-emerald-400/50 rounded-tr-lg shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
+          <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-purple-400/50 rounded-bl-lg shadow-[0_0_8px_rgba(139,92,246,0.3)]" />
+          <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-purple-400/50 rounded-br-lg shadow-[0_0_8px_rgba(139,92,246,0.3)]" />
         </div>
 
-        {/* Diamond logo in center with premium styling */}
+        {/* Diamond logo in center with premium styling - lower z-index to not cover dropdowns */}
         <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1]"
           style={{ 
             width: logoSize + 16, 
             height: logoSize + 16,
@@ -56,13 +57,14 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
           {/* Logo glow */}
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-purple-400/20 blur-xl" />
           
-          {/* Logo container */}
+          {/* Logo container with dark theme */}
           <div 
             className="relative w-full h-full rounded-2xl overflow-hidden"
             style={{
-              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 250, 251, 0.98) 100%)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+              background: 'linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(16, 185, 129, 0.1)',
               padding: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
             }}
           >
             <Image
