@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        
+
         // Validate inputs
         const eventIdResult = validateUUID(body.eventId, true);
         if (!eventIdResult.valid) {
@@ -56,10 +56,23 @@ export async function POST(request: Request) {
         if (!eventMeta) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
-        const matchedOutcome = await prisma.outcome.findFirst({
-            where: { eventId, name: { equals: option, mode: 'insensitive' } },
-            select: { id: true, polymarketOutcomeId: true },
-        });
+        let matchedOutcome = null;
+        if (body.outcomeId) {
+            const outcomeIdResult = validateUUID(body.outcomeId);
+            if (outcomeIdResult.valid) {
+                matchedOutcome = await prisma.outcome.findUnique({
+                    where: { id: outcomeIdResult.sanitized!, eventId },
+                    select: { id: true, polymarketOutcomeId: true },
+                });
+            }
+        }
+
+        if (!matchedOutcome) {
+            matchedOutcome = await prisma.outcome.findFirst({
+                where: { eventId, name: { equals: option, mode: 'insensitive' } },
+                select: { id: true, polymarketOutcomeId: true },
+            });
+        }
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
@@ -224,8 +237,8 @@ export async function POST(request: Request) {
         Promise.all([
             (async () => {
                 if (redis && (redis as any).status === 'ready') {
-                    await redis.del(`event:${eventId}`).catch(() => {});
-                    await redis.del(`event:amm:${eventId}`).catch(() => {});
+                    await redis.del(`event:${eventId}`).catch(() => { });
+                    await redis.del(`event:amm:${eventId}`).catch(() => { });
 
                     const updatePayload = {
                         eventId,

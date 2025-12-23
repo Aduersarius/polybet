@@ -160,6 +160,9 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
     );
   };
 
+  const chartMargin = useMemo(() => ({ top: 60, right: 0, left: -40, bottom: 15 }), []);
+  const yAxisPadding = useMemo(() => ({ bottom: 40 }), []);
+
   return (
     <div
       className="relative h-full w-full bg-[#1a1d28] select-none cursor-crosshair outline-none ring-0 focus:outline-none active:outline-none"
@@ -172,7 +175,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={renderData as any[]} margin={{ top: 0, right: 0, left: -40, bottom: 15 }}>
+            <AreaChart data={renderData as any[]} margin={chartMargin}>
               <defs>
                 {isMultipleOutcomes ? (
                   coloredOutcomes.map((o) => (
@@ -208,6 +211,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
               <YAxis
                 orientation="right"
                 domain={yAxisDomain as any}
+                padding={yAxisPadding}
                 stroke="#6B7280"
                 fontSize={11}
                 tickLine={false}

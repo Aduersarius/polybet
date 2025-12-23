@@ -17,35 +17,35 @@ export const colors = {
   background: colorTokens.background,
   surface: colorTokens.surface,
   surfaceElevated: colorTokens.surfaceElevated || '#22222e',
-  
+
   // Primary colors
   primary: colorTokens.primary[500],
   primaryLight: colorTokens.primary[400],
   primaryDark: colorTokens.primary[600],
-  
+
   // Secondary colors
   secondary: colorTokens.secondary[500],
   secondaryLight: colorTokens.secondary[400],
   secondaryDark: colorTokens.secondary[600],
-  
+
   // Accent colors
   accent: colorTokens.accent[500],
   accentLight: colorTokens.accent[400],
   accentDark: colorTokens.accent[600],
-  
+
   // Semantic colors
   error: colorTokens.error[500],
   errorLight: colorTokens.error[400],
   errorDark: colorTokens.error[600],
-  
+
   warning: colorTokens.warning[500],
   warningLight: colorTokens.warning[400],
   warningDark: colorTokens.warning[600],
-  
+
   success: colorTokens.success[500],
   successLight: colorTokens.success[400],
   successDark: colorTokens.success[600],
-  
+
   // Text colors
   text: {
     primary: colorTokens.text.primary,
@@ -53,16 +53,16 @@ export const colors = {
     muted: colorTokens.text.muted,
     inverse: colorTokens.text.inverse,
   },
-  
+
   // Chart colors
   chart: colorTokens.chart,
-  
+
   // Outcome colors
   outcomes: colorTokens.outcomes,
-  
+
   // Category colors
   categories: colorTokens.categories,
-  
+
   // Gray scale
   gray: colorTokens.gray,
   zinc: colorTokens.zinc,
@@ -77,13 +77,13 @@ export function getCategoryColorClasses(category: string): string {
   if (!category || typeof category !== 'string') {
     return '!text-gray-400 border-gray-500/30 bg-gray-500/10';
   }
-  
+
   // Normalize: trim whitespace and convert to uppercase
   const cat = category.trim().toUpperCase();
-  
+
   // Normalize category names (handle variations and aliases)
   let normalizedCat = cat;
-  
+
   // Handle ECONOMICS -> ECONOMY
   if (cat === 'ECONOMICS' || cat === 'ECONOMIC') {
     normalizedCat = 'ECONOMY';
@@ -96,7 +96,7 @@ export function getCategoryColorClasses(category: string): string {
   else if (cat === 'ESPORTS' || cat === 'E-SPORTS' || cat === 'E SPORTS') {
     normalizedCat = 'ESPORTS'; // Keep as ESPORTS (has same color as SPORTS)
   }
-  
+
   // Map categories to Tailwind classes
   const categoryMap: Record<string, string> = {
     'CRYPTO': 'text-amber-400 border-amber-500/30 bg-amber-500/10',
@@ -116,14 +116,14 @@ export function getCategoryColorClasses(category: string): string {
     'ECONOMICS': 'text-teal-400 border-teal-500/30 bg-teal-500/10', // Alias for ECONOMY
     'WORLD': 'text-violet-400 border-violet-500/30 bg-violet-500/10',
   };
-  
+
   const colorClasses = categoryMap[normalizedCat] || 'text-gray-400 border-gray-500/30 bg-gray-500/10';
-  
+
   // Debug logging (remove in production if needed)
   if (process.env.NODE_ENV === 'development' && !categoryMap[normalizedCat]) {
     console.warn(`[Category Colors] No color mapping found for category: "${category}" (normalized: "${normalizedCat}")`);
   }
-  
+
   return colorClasses;
 }
 
@@ -135,13 +135,13 @@ export function getCategoryColor(category: string): { text: string; border: stri
   if (!category || typeof category !== 'string') {
     return colorTokens.categories.DEFAULT;
   }
-  
+
   // Normalize: trim whitespace and convert to uppercase
   const cat = category.trim().toUpperCase();
-  
+
   // Normalize category names (handle variations and aliases)
   let normalizedCat = cat;
-  
+
   // Handle ECONOMICS -> ECONOMY
   if (cat === 'ECONOMICS' || cat === 'ECONOMIC') {
     normalizedCat = 'ECONOMY';
@@ -154,7 +154,7 @@ export function getCategoryColor(category: string): { text: string; border: stri
   else if (cat === 'ESPORTS' || cat === 'E-SPORTS' || cat === 'E SPORTS') {
     normalizedCat = 'ESPORTS'; // Keep as ESPORTS (has same color as SPORTS)
   }
-  
+
   const categoryKey = normalizedCat as keyof typeof colorTokens.categories;
   const colorObj = (colorTokens.categories[categoryKey] || colorTokens.categories.DEFAULT) as { text: string; border: string; bg: string };
   return colorObj;
@@ -201,10 +201,10 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    }
     : null;
 }
 
@@ -248,3 +248,29 @@ export function getBorderStyle(color: string, opacity?: number): CSSProperties {
   return { borderColor: color };
 }
 
+/**
+ * Helper to desaturate/mute a hex color
+ */
+export function muteColor(hex: string, desaturation: number = 0.4): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const grayR = 128, grayG = 128, grayB = 128;
+  const mutedR = Math.round(r * (1 - desaturation) + grayR * desaturation);
+  const mutedG = Math.round(g * (1 - desaturation) + grayG * desaturation);
+  const mutedB = Math.round(b * (1 - desaturation) + grayB * desaturation);
+  return `#${mutedR.toString(16).padStart(2, '0')}${mutedG.toString(16).padStart(2, '0')}${mutedB.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * Helper to darken a hex color
+ */
+export function darkenColor(hex: string, percent: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const newR = Math.max(0, Math.min(255, Math.floor(r * (1 - percent))));
+  const newG = Math.max(0, Math.min(255, Math.floor(g * (1 - percent))));
+  const newB = Math.max(0, Math.min(255, Math.floor(b * (1 - percent))));
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+}
