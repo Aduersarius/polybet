@@ -162,6 +162,34 @@ export async function POST(
 
     const newMessage = messages[messages.length - 1];
 
+    // Get ticket to find the user ID for WebSocket notification
+    const ticket = await prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      select: { userId: true },
+    });
+
+    // Publish to Redis for WebSocket broadcasting (non-blocking)
+    if (ticket?.userId) {
+      const { redis } = await import('@/lib/redis');
+      if (redis) {
+        redis.publish('user-updates', JSON.stringify({
+          userId: ticket.userId,
+          type: 'SUPPORT_MESSAGE',
+          payload: {
+            ticketId,
+            messageId: newMessage.id,
+            content: newMessage.content,
+            source: newMessage.source,
+            createdAt: newMessage.createdAt,
+            userId: newMessage.user.id,
+            username: newMessage.user.username || newMessage.user.name,
+          }
+        })).catch((err) => {
+          console.error('Redis publish failed:', err);
+        });
+      }
+    }
+
     // Send Telegram notification if message is from agent (two-way sync)
     if (isAgent && !messageInput.isInternal) {
       // Send notification asynchronously (don't block response)

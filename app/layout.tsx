@@ -4,7 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/toaster";
 import { DevSwCleanup } from "./components/DevSwCleanup";
-import { OnboardingLauncher } from "./components/OnboardingLauncher";
+import { SupportChatWidget } from "./components/support/SupportChatWidget";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
@@ -33,6 +33,7 @@ export default function RootLayout({
                 <Providers>
                     <DevSwCleanup />
                     <OnboardingLauncher />
+                    <SupportChatWidget />
                     <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm pointer-events-none z-[1]" />
                     <div className="relative z-10 min-h-screen flex flex-col">
                         {children}
