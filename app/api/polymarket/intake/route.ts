@@ -396,21 +396,10 @@ export async function GET() {
         } else {
           const tokens = aggregated.map((o) => ({ tokenId: o.tokenId as string, outcome: o.name, price: o.probability }));
 
-          // Determine if outcomes are mutually exclusive (MULTIPLE) or independent (GROUPED_BINARY)
-          // by checking if probabilities sum close to 100% (mutually exclusive) or much higher (independent)
-          const outcomesWithProb = aggregated.filter((o) => o.probability !== undefined && o.probability > 0);
-          const probSum = outcomesWithProb.reduce((sum, o) => sum + (o.probability || 0), 0);
-
-          // Debug logging
-          console.log(`[Intake] Event "${primary.title?.slice(0, 40)}..." - ${aggregated.length} outcomes, ${outcomesWithProb.length} with probs, sum: ${(probSum * 100).toFixed(1)}%`);
-
-          // Classification logic:
-          // - If we have enough probability data (at least 50% of outcomes have probs)
-          //   and probSum <= 1.2 (120%), it's MULTIPLE (mutually exclusive)
-          // - If probSum > 1.2 (120%), it's GROUPED_BINARY (independent questions)
-          // - If insufficient data, default to MULTIPLE (safer assumption for trading)
-          const hasEnoughData = outcomesWithProb.length >= Math.max(2, aggregated.length * 0.5);
-          const isMutuallyExclusive = !hasEnoughData || probSum <= 1.2; // 120% threshold
+          // Since these are aggregated from multiple binary markets (indicated by groupItemTitle),
+          // we treat them all as GROUPED_BINARY to use the scrolling sub-bets card.
+          // This matches Polymarket's UI which uses the same "grouped binary" layout for both 
+          // independent questions and mutually exclusive sets of binary markets.
 
           results.push({
             ...primary,
@@ -431,10 +420,9 @@ export async function GET() {
             status: mapping?.status || 'unmapped',
             internalEventId: mapping?.internalEventId ?? undefined,
             notes: mapping?.notes,
-            // MULTIPLE: mutually exclusive outcomes (only one can win)
-            // GROUPED_BINARY: independent binary questions (multiple can be true)
-            marketType: isMutuallyExclusive ? 'MULTIPLE' as const : 'GROUPED_BINARY' as const,
-            isGroupedBinary: !isMutuallyExclusive,
+            // Strict classification: Aggregated binary markets = GROUPED_BINARY
+            marketType: 'GROUPED_BINARY' as const,
+            isGroupedBinary: true,
           });
           continue;
         }
