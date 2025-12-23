@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 type IntakeItem = {
   polymarketId: string;
   polymarketEventId?: string;
+  polymarketSlug?: string; // URL slug for Polymarket links
   variantCount?: number;
   conditionId?: string;
   question?: string;
@@ -34,6 +35,9 @@ type IntakeItem = {
   status: string;
   internalEventId?: string;
   notes?: string | null;
+  // Event type classification
+  marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
+  isGroupedBinary?: boolean;
 };
 
 type ModalState = null | { type: 'reject'; item: IntakeItem } | { type: 'approve'; item: IntakeItem };
@@ -110,19 +114,43 @@ export function AdminPolymarketIntake() {
       };
     } catch (err) {
       console.warn('[Polymarket WS] failed to connect', err);
-      return () => {};
+      return () => { };
     }
   }, []);
 
   const resolveTokenForOutcome = (item: IntakeItem, idx: number, name?: string) => {
     const tokens = item.tokens || [];
     const normalizedName = name?.trim().toLowerCase();
+
+    // For binary markets (YES/NO), ALWAYS match by name to avoid swap
+    const isBinaryOutcome = normalizedName === 'yes' || normalizedName === 'no';
+
+    // First try exact name match on token's outcome field
     const byName = normalizedName
       ? tokens.find((t) => t.outcome && t.outcome.trim().toLowerCase() === normalizedName)
       : undefined;
     if (byName?.tokenId) return byName.tokenId;
-    if (tokens[idx]?.tokenId) return tokens[idx].tokenId;
+
+    // For binary YES/NO outcomes, try the opposite if exact match fails
+    // This handles cases where token.outcome might be capitalized differently
+    if (isBinaryOutcome) {
+      const byPartialName = tokens.find((t) =>
+        t.outcome && new RegExp(`^${normalizedName}$`, 'i').test(t.outcome.trim())
+      );
+      if (byPartialName?.tokenId) return byPartialName.tokenId;
+
+      // If still not found, DON'T fall back to index for binary markets
+      // as this causes the YES/NO swap
+      console.warn(`[Polymarket] Could not match token for outcome "${name}" by name, tokens:`,
+        tokens.map(t => ({ outcome: t.outcome, tokenId: t.tokenId?.slice(0, 10) + '...' })));
+    }
+
+    // Only use index fallback for non-binary outcomes (multi-choice markets)
+    if (!isBinaryOutcome && tokens[idx]?.tokenId) return tokens[idx].tokenId;
+
+    // Last resort: single token
     if (tokens.length === 1) return tokens[0]?.tokenId;
+
     return undefined;
   };
 
@@ -167,6 +195,9 @@ export function AdminPolymarketIntake() {
         outcomeMapping,
         eventData,
         notes: '',
+        // Pass event type classification to backend
+        isGroupedBinary: item.isGroupedBinary || false,
+        marketType: item.marketType || 'BINARY',
       };
 
       const res = await fetch('/api/polymarket/intake/approve', {
@@ -198,6 +229,9 @@ export function AdminPolymarketIntake() {
         polymarketTokenId: form.tokenId,
         internalEventId: form.internalEventId,
         notes: form.notes || undefined,
+        // Pass event type classification to backend
+        isGroupedBinary: modal.item.isGroupedBinary || false,
+        marketType: modal.item.marketType || 'BINARY',
       };
       const res = await fetch('/api/polymarket/intake/approve', {
         method: 'POST',
@@ -324,8 +358,31 @@ export function AdminPolymarketIntake() {
                       <div className="h-12 w-12 rounded-md border border-white/10 bg-white/5" />
                     )}
                     <div className="space-y-1">
-                      <div className="font-semibold leading-snug line-clamp-2">
-                        {item.title || item.question || 'Untitled market'}
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={item.polymarketSlug ? `https://polymarket.com/event/${item.polymarketSlug}` : '#'}
+                          className="font-semibold leading-snug line-clamp-2 text-blue-300 hover:text-blue-200 hover:underline"
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => !item.polymarketSlug && e.preventDefault()}
+                        >
+                          {item.title || item.question || 'Untitled market'} ↗
+                        </a>
+                        {/* Market Type Badge */}
+                        <span
+                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${item.marketType === 'GROUPED_BINARY'
+                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            : item.marketType === 'MULTIPLE'
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}
+                        >
+                          {item.marketType === 'GROUPED_BINARY'
+                            ? `🧩 Sub-Bets (${item.variantCount || 'N/A'})`
+                            : item.marketType === 'MULTIPLE'
+                              ? '📊 Multi'
+                              : '✅ Binary'}
+                        </span>
                       </div>
                       <div className="text-xs text-gray-400 line-clamp-2">
                         {item.question || item.description || 'No question provided'}
@@ -333,6 +390,9 @@ export function AdminPolymarketIntake() {
                       <div className="text-[11px] text-gray-500 flex gap-2 flex-wrap">
                         <span>Orderbook: {item.enableOrderBook ? 'Yes' : 'No'}</span>
                         <span>Active: {item.acceptingOrders ? 'Yes' : 'No'}</span>
+                        {item.isGroupedBinary && (
+                          <span className="text-purple-400">⚠️ Each outcome = separate binary market</span>
+                        )}
                         {item.resolutionSource && (
                           <a
                             href={item.resolutionSource}
@@ -386,13 +446,12 @@ export function AdminPolymarketIntake() {
                 <td className="px-4 py-3 text-gray-200">{formatDate(item.endDate)}</td>
                 <td className="px-4 py-3">
                   <span
-                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${
-                      item.status === 'approved'
-                        ? 'bg-emerald-500/10 text-emerald-300'
-                        : item.status === 'rejected'
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${item.status === 'approved'
+                      ? 'bg-emerald-500/10 text-emerald-300'
+                      : item.status === 'rejected'
                         ? 'bg-red-500/10 text-red-300'
                         : 'bg-white/10 text-gray-200'
-                    }`}
+                      }`}
                   >
                     {item.status}
                   </span>
@@ -411,7 +470,7 @@ export function AdminPolymarketIntake() {
                       onClick={() => approveAllOutcomes(item)}
                       disabled={loading}
                     >
-                      Auto-map
+                      Approve
                     </button>
                     <button
                       className="px-3 py-1 rounded-lg bg-red-500/20 text-red-100 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
@@ -463,7 +522,7 @@ export function AdminPolymarketIntake() {
                 <div className="flex justify-end gap-2">
                   <button
                     className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20"
-                  onClick={() => setModal(null)}
+                    onClick={() => setModal(null)}
                     disabled={loading}
                   >
                     Cancel

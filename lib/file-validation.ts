@@ -183,3 +183,4 @@ export function getFileExtension(filename: string): string {
     return ext.toLowerCase() || '.jpg'; // Default to .jpg if no extension
 }
 
+

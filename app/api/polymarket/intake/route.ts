@@ -13,6 +13,7 @@ type GammaOutcome = {
 type IntakeMarket = {
   polymarketId: string;
   polymarketEventId?: string;
+  polymarketSlug?: string; // URL slug for Polymarket links
   conditionId?: string;
   question?: string;
   title?: string;
@@ -44,6 +45,9 @@ type IntakeMarket = {
   status: string;
   internalEventId?: string;
   notes?: string | null;
+  // Event type classification
+  marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
+  isGroupedBinary?: boolean;
 };
 
 type PolymarketMapping = {
@@ -80,15 +84,25 @@ function toNumber(val: unknown, fallback = 0): number {
 function normalizeOutcomes(raw: any): GammaOutcome[] {
   const items = toArray(raw);
   return items
-    .map((o: any) => {
-      const name = o?.name ?? o?.label ?? o?.ticker ?? o?.outcome ?? 'Outcome';
-      const price = o?.price ?? o?.probability ?? o?.p;
+    .map((o: any, idx: number) => {
+      // Handle both object outcomes and string outcomes (Polymarket returns string array)
+      // e.g., outcomes: ["Yes", "No"] or outcomes: [{name: "Yes"}, {name: "No"}]
+      let name: string;
+      if (typeof o === 'string') {
+        // Direct string value like "Yes" or "No"
+        name = o;
+      } else {
+        // Object with name property
+        name = o?.name ?? o?.label ?? o?.ticker ?? o?.outcome ?? `Outcome ${idx + 1}`;
+      }
+
+      const price = typeof o === 'object' ? (o?.price ?? o?.probability ?? o?.p) : undefined;
       const priceNum = price != null ? toNumber(price, undefined as any) : undefined;
       // Only extract probability if price is a valid probability value (0-1 or 0-100)
       // Don't use clamp01 on undefined - leave it undefined if probFromValue can't determine it
       const prob = priceNum != null ? probFromValue(priceNum, undefined) : undefined;
       return {
-        id: o?.id ?? o?.slug ?? o?.ticker,
+        id: typeof o === 'object' ? (o?.id ?? o?.slug ?? o?.ticker) : undefined,
         name,
         price: priceNum,
         probability: prob !== undefined ? clamp01(prob) : undefined,
@@ -144,6 +158,7 @@ export async function GET() {
     const events: any[] = await upstream.json();
     const markets = events.flatMap((evt) => {
       const evtId = String(evt?.id ?? evt?.slug ?? '');
+      const evtSlug = String(evt?.slug ?? ''); // Slug for URL construction
       const evtCategories = toArray<string>(evt?.categories).filter(Boolean);
       const evtCategory = evt?.category || evtCategories[0];
       const evtImage = evt?.image || evt?.icon || null;
@@ -159,6 +174,7 @@ export async function GET() {
           return {
             polymarketId: String(m.id || m.slug || m.market_id || ''),
             polymarketEventId: evtId,
+            polymarketSlug: evtSlug, // Pass through for URL construction
             conditionId: m.conditionId || m.condition_id,
             question: m.question || m.title || m.slug,
             title: evt?.title || m.question || m.title || 'Untitled market',
@@ -193,8 +209,8 @@ export async function GET() {
                 (prices[idx] != null
                   ? probFromValue(prices[idx], 0.5)
                   : idx === 0
-                  ? probFromValue(m.lastTradePrice ?? m.bestBid ?? m.bestAsk ?? 0.5, 0.5)
-                  : undefined),
+                    ? probFromValue(m.lastTradePrice ?? m.bestBid ?? m.bestAsk ?? 0.5, 0.5)
+                    : undefined),
             })),
             outcomes: (() => {
               // Prioritize outcomePrices array (prices) over individual outcome.price fields
@@ -286,8 +302,8 @@ export async function GET() {
     const { prisma } = await import('@/lib/prisma');
     const mappings: PolymarketMapping[] = ids.length
       ? await prisma.polymarketMarketMapping.findMany({
-          where: { polymarketId: { in: ids } },
-        })
+        where: { polymarketId: { in: ids } },
+      })
       : [];
 
     const mapByPoly = new Map(mappings.map((m) => [m.polymarketId, m]));
@@ -307,8 +323,18 @@ export async function GET() {
       // If this Polymarket "event" is actually a grouped set of many binary markets
       // (team/nominee/company style), aggregate into a MULTIPLE-style intake item.
       const groupItemMarkets = group.filter((m) => typeof m.groupItemTitle === 'string' && m.groupItemTitle.trim().length > 0);
+
+      // For GROUPED_BINARY: ALL markets must have binary Yes/No outcomes
+      // If any market has non-binary outcomes, treat as regular MULTIPLE
+      const allMarketsAreBinary = groupItemMarkets.every((m) => {
+        const outcomes = m.outcomes || [];
+        if (outcomes.length !== 2) return false;
+        const names = outcomes.map(o => o.name?.toLowerCase().trim());
+        return names.includes('yes') && names.includes('no');
+      });
+
       const canAggregateGroupItems =
-        Boolean(group[0]?.polymarketEventId) && groupItemMarkets.length >= 2;
+        Boolean(group[0]?.polymarketEventId) && groupItemMarkets.length >= 2 && allMarketsAreBinary;
 
       if (canAggregateGroupItems) {
         const eventPolyId = group[0].polymarketEventId as string;
@@ -370,6 +396,22 @@ export async function GET() {
         } else {
           const tokens = aggregated.map((o) => ({ tokenId: o.tokenId as string, outcome: o.name, price: o.probability }));
 
+          // Determine if outcomes are mutually exclusive (MULTIPLE) or independent (GROUPED_BINARY)
+          // by checking if probabilities sum close to 100% (mutually exclusive) or much higher (independent)
+          const outcomesWithProb = aggregated.filter((o) => o.probability !== undefined && o.probability > 0);
+          const probSum = outcomesWithProb.reduce((sum, o) => sum + (o.probability || 0), 0);
+
+          // Debug logging
+          console.log(`[Intake] Event "${primary.title?.slice(0, 40)}..." - ${aggregated.length} outcomes, ${outcomesWithProb.length} with probs, sum: ${(probSum * 100).toFixed(1)}%`);
+
+          // Classification logic:
+          // - If we have enough probability data (at least 50% of outcomes have probs)
+          //   and probSum <= 1.2 (120%), it's MULTIPLE (mutually exclusive)
+          // - If probSum > 1.2 (120%), it's GROUPED_BINARY (independent questions)
+          // - If insufficient data, default to MULTIPLE (safer assumption for trading)
+          const hasEnoughData = outcomesWithProb.length >= Math.max(2, aggregated.length * 0.5);
+          const isMutuallyExclusive = !hasEnoughData || probSum <= 1.2; // 120% threshold
+
           results.push({
             ...primary,
             // Use the Polymarket event id as the stable identifier for this aggregated intake item
@@ -389,6 +431,10 @@ export async function GET() {
             status: mapping?.status || 'unmapped',
             internalEventId: mapping?.internalEventId ?? undefined,
             notes: mapping?.notes,
+            // MULTIPLE: mutually exclusive outcomes (only one can win)
+            // GROUPED_BINARY: independent binary questions (multiple can be true)
+            marketType: isMutuallyExclusive ? 'MULTIPLE' as const : 'GROUPED_BINARY' as const,
+            isGroupedBinary: !isMutuallyExclusive,
           });
           continue;
         }
@@ -422,6 +468,13 @@ export async function GET() {
       // Merge mapping status from whichever market is mapped
       const mapping = mapByPoly.get(primary.polymarketId) || group.map((g) => mapByPoly.get(g.polymarketId)).find(Boolean);
 
+      // Determine market type for non-grouped markets
+      const outcomeCount = primary.outcomes?.length || 0;
+      const isBinary = outcomeCount === 2 &&
+        primary.outcomes?.some(o => o.name?.toLowerCase() === 'yes') &&
+        primary.outcomes?.some(o => o.name?.toLowerCase() === 'no');
+      const inferredType = isBinary ? 'BINARY' : (outcomeCount > 2 ? 'MULTIPLE' : 'BINARY');
+
       results.push({
         ...primary,
         categories: aggregatedCategories,
@@ -431,6 +484,8 @@ export async function GET() {
         status: mapping?.status || 'unmapped',
         internalEventId: mapping?.internalEventId ?? undefined,
         notes: mapping?.notes,
+        marketType: inferredType as 'BINARY' | 'MULTIPLE',
+        isGroupedBinary: false,
       });
     }
 

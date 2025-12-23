@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ interface AdminUser {
     name: string | null;
     isBanned: boolean;
     isAdmin: boolean;
+    isDeleted: boolean;
     lastIp?: string | null;
     lastCountry?: string | null;
     lastUserAgent?: string | null;
@@ -42,6 +43,11 @@ export function AdminUserList() {
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const itemsPerPage = 10;
 
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearch]);
+
     const { data: usersData, isLoading } = useQuery({
         queryKey: ['admin', 'users', adminId, currentPage, debouncedSearch, sortField, sortDir],
         queryFn: async () => {
@@ -64,9 +70,10 @@ export function AdminUserList() {
     const totalPages = Math.ceil(totalUsers / itemsPerPage);
 
     // Derived counts for header
-    const activeCount = users.filter((u) => !u.isBanned).length;
+    const activeCount = users.filter((u) => !u.isBanned && !u.isDeleted).length;
     const adminCount = users.filter((u) => u.isAdmin).length;
-    const bannedCount = users.filter((u) => u.isBanned).length;
+    const bannedCount = users.filter((u) => u.isBanned && !u.isDeleted).length;
+    const deletedCount = users.filter((u) => u.isDeleted).length;
 
 
     const updateUserMutation = useMutation({
@@ -102,7 +109,7 @@ export function AdminUserList() {
     });
 
     const handleDeleteUser = (user: AdminUser) => {
-        if (confirm(`Are you sure you want to delete user "${user.username || user.email || user.address}"? This action cannot be undone.`)) {
+        if (confirm(`Are you sure you want to delete user "${user.username || user.email || user.address}"?\n\nThis will soft-delete the user (mark as deleted). Their data will be preserved but they will be unable to log in.`)) {
             deleteUserMutation.mutate(user.id);
         }
     };
@@ -148,6 +155,11 @@ export function AdminUserList() {
                             <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-100">
                                 Banned {bannedCount}
                             </Badge>
+                            {deletedCount > 0 && (
+                                <Badge variant="outline" className="border-gray-500/30 bg-gray-500/10 text-gray-100">
+                                    Deleted {deletedCount}
+                                </Badge>
+                            )}
                         </div>
                     </div>
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -204,7 +216,11 @@ export function AdminUserList() {
                         {users.map((user) => (
                             <div
                                 key={user.id}
-                                className="rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition-colors p-3 md:p-4"
+                                className={`rounded-lg border transition-colors p-3 md:p-4 ${
+                                    user.isDeleted
+                                        ? 'border-gray-500/20 bg-gray-500/[0.02] hover:bg-gray-500/[0.04] opacity-60'
+                                        : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.06]'
+                                }`}
                                 onClick={() => setSelectedUser(user === selectedUser ? null : user)}
                             >
                                 <div className="grid gap-3 md:grid-cols-12 md:items-center">
@@ -267,16 +283,22 @@ export function AdminUserList() {
                                                     User
                                                 </Badge>
                                             )}
-                                            <Badge
-                                                variant="outline"
-                                                className={
-                                                    user.isBanned
-                                                        ? 'border-red-500/30 bg-red-500/10 text-red-100'
-                                                        : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-                                                }
-                                            >
-                                                {user.isBanned ? 'Banned' : 'Active'}
-                                            </Badge>
+                                            {user.isDeleted ? (
+                                                <Badge variant="outline" className="border-gray-500/30 bg-gray-500/10 text-gray-100">
+                                                    Deleted
+                                                </Badge>
+                                            ) : (
+                                                <Badge
+                                                    variant="outline"
+                                                    className={
+                                                        user.isBanned
+                                                            ? 'border-red-500/30 bg-red-500/10 text-red-100'
+                                                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                                                    }
+                                                >
+                                                    {user.isBanned ? 'Banned' : 'Active'}
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
 
@@ -320,10 +342,10 @@ export function AdminUserList() {
                                                     e.stopPropagation();
                                                     handleDeleteUser(user);
                                                 }}
-                                                disabled={deleteUserMutation.isPending}
-                                                className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10 disabled:opacity-50"
+                                                disabled={deleteUserMutation.isPending || user.isDeleted}
+                                                className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                Delete
+                                                {user.isDeleted ? 'Deleted' : 'Delete'}
                                             </button>
                                         </div>
                                     </div>
@@ -361,7 +383,7 @@ export function AdminUserList() {
                                 <InfoRow label="Events created" value={String(selectedUser._count.createdEvents)} />
                                 <InfoRow label="Total activity" value={String(selectedUser._count.marketActivity)} />
                                 <InfoRow label="Admin" value={selectedUser.isAdmin ? 'Yes' : 'No'} />
-                                <InfoRow label="Status" value={selectedUser.isBanned ? 'Banned' : 'Active'} />
+                                <InfoRow label="Status" value={selectedUser.isDeleted ? 'Deleted' : selectedUser.isBanned ? 'Banned' : 'Active'} />
                                 <InfoRow label="Country" value={selectedUser.lastCountry || '—'} />
                                 <InfoRow label="IP" value={selectedUser.lastIp || '—'} mono />
                                 <InfoRow label="Device" value={selectedUser.lastDevice || '—'} />

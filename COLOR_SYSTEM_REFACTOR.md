@@ -104,3 +104,4 @@ When updating components:
 5. Use `getOutcomeColor(index)` for outcome colors
 
 
+
