@@ -54,7 +54,20 @@ const MemoizedJoyride = memo(({
       hideCloseButton={false}
       spotlightClicks={false}
       disableScrollParentFix={true}
+      hideBackButton={false}
+      floaterProps={{
+        disableAnimation: true,
+      }}
       styles={{
+        beacon: {
+          display: 'none',
+        },
+        beaconInner: {
+          display: 'none',
+        },
+        beaconOuter: {
+          display: 'none',
+        },
         options: {
           primaryColor: '#3b82f6',
           zIndex: 10000,
@@ -498,12 +511,13 @@ export function TourProvider({ children }: { children: ReactNode }) {
         completeTour,
       }}
     >
-      <MemoizedJoyride
+      {/* DISABLED - Tour replaced with SupportChatWidget */}
+      {/* <MemoizedJoyride
         steps={filteredSteps}
         run={runTour}
         stepIndex={stepIndex}
         callback={handleJoyrideCallback}
-      />
+      /> */}
       {children}
     </TourContext.Provider>
   );
