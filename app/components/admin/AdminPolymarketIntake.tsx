@@ -53,6 +53,17 @@ export function AdminPolymarketIntake() {
     notes: '',
   });
 
+  const [forcedTypes, setForcedTypes] = useState<Record<string, 'MULTIPLE' | 'GROUPED_BINARY'>>({});
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Click outside to close dropdowns
+    const handleClickOutside = () => setOpenDropdownId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const makeRandomInternalId = () => {
     // 9-digit random integer as string
     return String(Math.floor(100_000_000 + Math.random() * 900_000_000));
@@ -157,6 +168,7 @@ export function AdminPolymarketIntake() {
   const approveAllOutcomes = async (item: IntakeItem) => {
     try {
       setLoading(true);
+      setLoadingId(item.polymarketId);
       const internalEventId = item.internalEventId || makeRandomInternalId();
       const outcomeMapping =
         item.outcomes?.map((o, idx) => {
@@ -195,9 +207,9 @@ export function AdminPolymarketIntake() {
         outcomeMapping,
         eventData,
         notes: '',
-        // Pass event type classification to backend
-        isGroupedBinary: item.isGroupedBinary || false,
-        marketType: item.marketType || 'BINARY',
+        // Pass event type classification (respecting manual overrides)
+        isGroupedBinary: (forcedTypes[item.polymarketId] || item.marketType) === 'GROUPED_BINARY',
+        marketType: forcedTypes[item.polymarketId] || item.marketType || 'BINARY',
       };
 
       const res = await fetch('/api/polymarket/intake/approve', {
@@ -211,6 +223,7 @@ export function AdminPolymarketIntake() {
       setError(err instanceof Error ? err.message : 'Approve failed');
     } finally {
       setLoading(false);
+      setLoadingId(null);
     }
   };
 
@@ -229,9 +242,9 @@ export function AdminPolymarketIntake() {
         polymarketTokenId: form.tokenId,
         internalEventId: form.internalEventId,
         notes: form.notes || undefined,
-        // Pass event type classification to backend
-        isGroupedBinary: modal.item.isGroupedBinary || false,
-        marketType: modal.item.marketType || 'BINARY',
+        // Pass event type classification (respecting manual overrides)
+        isGroupedBinary: (forcedTypes[modal.item.polymarketId] || modal.item.marketType) === 'GROUPED_BINARY',
+        marketType: forcedTypes[modal.item.polymarketId] || modal.item.marketType || 'BINARY',
       };
       const res = await fetch('/api/polymarket/intake/approve', {
         method: 'POST',
@@ -368,21 +381,56 @@ export function AdminPolymarketIntake() {
                         >
                           {item.title || item.question || 'Untitled market'} ↗
                         </a>
-                        {/* Market Type Badge */}
-                        <span
-                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${item.marketType === 'GROUPED_BINARY'
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                            : item.marketType === 'MULTIPLE'
-                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            }`}
-                        >
-                          {item.marketType === 'GROUPED_BINARY'
-                            ? `🧩 Sub-Bets (${item.variantCount || 'N/A'})`
-                            : item.marketType === 'MULTIPLE'
-                              ? '📊 Multi'
-                              : '✅ Binary'}
-                        </span>
+                        {/* Market Type Badge with Manual Override */}
+                        <div className="relative" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              // Only allow toggling for relevant types (not strict BINARY)
+                              if (item.marketType === 'BINARY') return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === item.polymarketId ? null : item.polymarketId);
+                            }}
+                            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap cursor-pointer transition-opacity hover:opacity-80 ${(forcedTypes[item.polymarketId] || item.marketType) === 'GROUPED_BINARY'
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              : (forcedTypes[item.polymarketId] || item.marketType) === 'MULTIPLE'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              }`}
+                          >
+                            {(forcedTypes[item.polymarketId] || item.marketType) === 'GROUPED_BINARY'
+                              ? `🧩 Sub-Bets (${item.variantCount || 'N/A'})`
+                              : (forcedTypes[item.polymarketId] || item.marketType) === 'MULTIPLE'
+                                ? '📊 Multi'
+                                : '✅ Binary'}
+                            {item.marketType !== 'BINARY' && <span className="ml-1 text-[8px] opacity-70">▼</span>}
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          {openDropdownId === item.polymarketId && (
+                            <div className="absolute top-full left-0 mt-1 w-40 rounded-md border border-white/10 bg-[#1e1e26] shadow-xl z-50 overflow-hidden">
+                              <button
+                                onClick={() => {
+                                  setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'MULTIPLE' }));
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                              >
+                                <span className="text-blue-400">📊</span> Multi (Exclusive)
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'GROUPED_BINARY' }));
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                              >
+                                <span className="text-purple-400">🧩</span> Sub-Bets (Indep.)
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="text-xs text-gray-400 line-clamp-2">
                         {item.question || item.description || 'No question provided'}
@@ -445,16 +493,23 @@ export function AdminPolymarketIntake() {
                 </td>
                 <td className="px-4 py-3 text-gray-200">{formatDate(item.endDate)}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${item.status === 'approved'
-                      ? 'bg-emerald-500/10 text-emerald-300'
-                      : item.status === 'rejected'
-                        ? 'bg-red-500/10 text-red-300'
-                        : 'bg-white/10 text-gray-200'
-                      }`}
-                  >
-                    {item.status}
-                  </span>
+                  {loadingId === item.polymarketId ? (
+                    <div className="flex items-center gap-2 px-2 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+                      <span className="text-[10px] font-medium text-emerald-400">Processing...</span>
+                    </div>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${item.status === 'approved'
+                        ? 'bg-emerald-500/10 text-emerald-300'
+                        : item.status === 'rejected'
+                          ? 'bg-red-500/10 text-red-300'
+                          : 'bg-white/10 text-gray-200'
+                        }`}
+                    >
+                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </span>
+                  )}
                   {item.internalEventId && (
                     <div className="text-[11px] text-gray-400 mt-1 break-words">{item.internalEventId}</div>
                   )}

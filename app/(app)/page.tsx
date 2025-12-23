@@ -10,7 +10,6 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
 import { MultipleTradingPanelModal } from "../components/MultipleTradingPanelModal";
 import { EventCard2 } from "../components/EventCard2";
-import { GroupedBinaryEventCard } from "../components/GroupedBinaryEventCard";
 import { Label, PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 import { ChartContainer, ChartConfig } from "@/components/ui/chart";
 import { MobileCTABanner } from "../components/MobileCTABanner";
@@ -413,33 +412,11 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
               {activeEvents.map((event, idx) => (
                 <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
-                  {event.type === 'GROUPED_BINARY' ? (
-                    <GroupedBinaryEventCard
-                      event={event}
-                      index={idx}
-                      onSubBetTrade={(event, outcomeId, outcomeName, option) => {
-                        // For grouped binary, open the multiple trading modal with the specific outcome selected
-                        setSelectedMultipleEvent({ ...event, outcomes: event.outcomes });
-                        setMultipleTradingModalOpen(true);
-                      }}
-                      onCategoryClick={handleCategoryChange}
-                    />
-                  ) : (
-                    <EventCard2
-                      event={event}
-                      index={idx}
-                      onTradeClick={(event, option) => {
-                        setSelectedEvent(event);
-                        setPreselectedOption(option);
-                        setTradingModalOpen(true);
-                      }}
-                      onMultipleTradeClick={(event) => {
-                        setSelectedMultipleEvent({ ...event, outcomes: event.outcomes });
-                        setMultipleTradingModalOpen(true);
-                      }}
-                      onCategoryClick={handleCategoryChange}
-                    />
-                  )}
+                  <EventCard2
+                    event={event}
+                    index={idx}
+                    onCategoryClick={handleCategoryChange}
+                  />
                 </div>
               ))}
             </div>
@@ -459,34 +436,12 @@ export default function Home() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
                     {endedEvents.map((event, idx) => (
                       <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
-                        {event.type === 'GROUPED_BINARY' ? (
-                          <GroupedBinaryEventCard
-                            event={event}
-                            isEnded={true}
-                            index={idx}
-                            onSubBetTrade={(event, outcomeId, outcomeName, option) => {
-                              setSelectedMultipleEvent({ ...event, outcomes: event.outcomes });
-                              setMultipleTradingModalOpen(true);
-                            }}
-                            onCategoryClick={handleCategoryChange}
-                          />
-                        ) : (
-                          <EventCard2
-                            event={event}
-                            isEnded={true}
-                            index={idx}
-                            onTradeClick={(event, option) => {
-                              setSelectedEvent(event);
-                              setPreselectedOption(option);
-                              setTradingModalOpen(true);
-                            }}
-                            onMultipleTradeClick={(event) => {
-                              setSelectedMultipleEvent({ ...event, outcomes: event.outcomes });
-                              setMultipleTradingModalOpen(true);
-                            }}
-                            onCategoryClick={handleCategoryChange}
-                          />
-                        )}
+                        <EventCard2
+                          event={event}
+                          isEnded={true}
+                          index={idx}
+                          onCategoryClick={handleCategoryChange}
+                        />
                       </div>
                     ))}
                   </div>

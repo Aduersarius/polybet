@@ -396,14 +396,27 @@ export async function GET() {
         } else {
           const tokens = aggregated.map((o) => ({ tokenId: o.tokenId as string, outcome: o.name, price: o.probability }));
 
-          // Since these are aggregated from multiple binary markets (indicated by groupItemTitle),
-          // we treat them all as GROUPED_BINARY to use the scrolling sub-bets card.
-          // This matches Polymarket's UI which uses the same "grouped binary" layout for both 
-          // independent questions and mutually exclusive sets of binary markets.
+          // Hybrid Classification Logic (Aggregated Binary Markets)
+          // We need to distinguish between:
+          // 1. 'MULTIPLE': Mutually exclusive outcomes (e.g. "Who will win?"). Sum of Yes ≈ 100%. Avg No probability is high.
+          // 2. 'GROUPED_BINARY': Independent questions (e.g. "Will stock X hit $100, $200?"). Sum can be anything. Avg No depends on individual likelihoods.
+
+          const outcomesWithProb = aggregated.filter((o) => o.probability !== undefined);
+          const probSum = outcomesWithProb.reduce((sum, o) => sum + (o.probability || 0), 0);
+          // For binary markets, the "No" probability is roughly (1 - Yes_Price)
+          const avgNoProb = outcomesWithProb.length > 0
+            ? outcomesWithProb.reduce((sum, o) => sum + (1 - (o.probability || 0)), 0) / outcomesWithProb.length
+            : 0;
+
+          // Debug stats
+          console.log(`[Intake] "${primary.title?.slice(0, 30)}..." | Sum: ${probSum.toFixed(2)} | AvgNo: ${avgNoProb.toFixed(2)} | Valid: ${outcomesWithProb.length}/${aggregated.length}`);
+
+          // Decision Rule:
+          // - IF Sum is roughly 1.0 (0.9 - 1.1), it's strongly likely Mutually Exclusive (MULTIPLE).
+          const isMutuallyExclusive = (probSum > 0.9 && probSum < 1.1);
 
           results.push({
             ...primary,
-            // Use the Polymarket event id as the stable identifier for this aggregated intake item
             polymarketId: eventPolyId,
             categories: aggregatedCategories,
             volume: maxVolume,
@@ -420,9 +433,9 @@ export async function GET() {
             status: mapping?.status || 'unmapped',
             internalEventId: mapping?.internalEventId ?? undefined,
             notes: mapping?.notes,
-            // Strict classification: Aggregated binary markets = GROUPED_BINARY
-            marketType: 'GROUPED_BINARY' as const,
-            isGroupedBinary: true,
+            // Dynamic classification based on probability analysis
+            marketType: isMutuallyExclusive ? 'MULTIPLE' as const : 'GROUPED_BINARY' as const,
+            isGroupedBinary: !isMutuallyExclusive,
           });
           continue;
         }

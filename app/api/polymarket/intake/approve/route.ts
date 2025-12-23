@@ -11,6 +11,51 @@ const MAX_CHUNK_DAYS = 30; // Maximum days per API request (reduced from 90 due 
 const FALLBACK_CHUNK_DAYS = 7; // Fallback chunk size if MAX_CHUNK_DAYS is rejected
 const POLYMARKET_CLOB_API_URL = process.env.POLYMARKET_CLOB_API_URL || 'https://clob.polymarket.com';
 
+const ALLOWED_CATEGORIES = [
+  "Crypto", "Politics", "Sports", "Business", "Entertainment",
+  "Science", "Technology", "Economics", "AI", "Pop Culture", "News"
+];
+const CATEGORY_PROMPT_LIST = ALLOWED_CATEGORIES.join(", ");
+
+async function categorizeWithLLM(title: string): Promise<string[]> {
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) return [];
+
+    const prompt = `Classify event: "${title}".
+Choose 1-2 categories from: [${CATEGORY_PROMPT_LIST}].
+Return ONLY the category names, comma-separated.`;
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://polybet.com",
+      },
+      body: JSON.stringify({
+        model: "xiaomi/mimo-v2-flash:free",
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    if (!res.ok) return [];
+    const json = await res.json();
+    const content = json.choices?.[0]?.message?.content || "";
+
+    const categories = content.split(',')
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0 && ALLOWED_CATEGORIES.includes(s)) // Strict validation
+      .slice(0, 2);
+
+    console.log(`[LLM] Categorized "${title}" ->`, categories);
+    return categories;
+  } catch (err) {
+    console.warn("[LLM] Categorization failed", err);
+    return [];
+  }
+}
+
 async function getSystemCreatorId(prisma: any) {
   const envId = process.env.POLYMARKET_CREATOR_ID;
   if (envId) {
@@ -640,8 +685,16 @@ export async function POST(request: NextRequest) {
     const resolutionDateStr =
       eventData?.resolutionDate || eventData?.endDate || eventData?.startDate || fallbackResolutionDate.toISOString();
     const resolutionDate = new Date(resolutionDateStr);
-    const categories =
-      (Array.isArray(eventData?.categories) ? eventData.categories.filter(Boolean) : []).slice(0, 5);
+
+    // Auto-categorize with LLM if title is available
+    let llmCategories: string[] = [];
+    if (eventData?.title) {
+      llmCategories = await categorizeWithLLM(eventData.title);
+    }
+
+    const providedCategories = (Array.isArray(eventData?.categories) ? eventData.categories.filter(Boolean) : []);
+    // Merge provided and LLM categories, prioritizing LLM if pertinent
+    const categories = Array.from(new Set([...providedCategories, ...llmCategories])).slice(0, 5);
     const inferredOutcomeCount = Math.max(normalizedOutcomeMapping.length, marketTokens.length);
 
     // Determine type: prioritize explicit request, then infer from outcomes
@@ -711,8 +764,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Upsert outcomes to mirror Polymarket
-    const outcomesFromMapping = normalizedOutcomeMapping;
+    // Trim low-probability outcomes for large Multiple events
+    // Rule: If >= 4 outcomes, remove any with < 1% probability
+    let outcomesFromMapping = normalizedOutcomeMapping;
+    if ((type === 'MULTIPLE' || dbEvent.type === 'MULTIPLE') && outcomesFromMapping.length >= 4) {
+      const originalCount = outcomesFromMapping.length;
+      outcomesFromMapping = outcomesFromMapping.filter((o: any) => {
+        // Probability is prioritized, fallback to price
+        const p = typeof o.probability === 'number' ? o.probability : Number(o.price || 0);
+        return p >= 0.01;
+      });
+
+      // Safety: If we trimmed too aggressively (e.g. infinite flat tail), ensure we keep at least top 5 or 2
+      if (outcomesFromMapping.length < 2 && originalCount >= 2) {
+        outcomesFromMapping = [...normalizedOutcomeMapping]
+          .sort((a: any, b: any) => {
+            const pA = typeof a.probability === 'number' ? a.probability : Number(a.price || 0);
+            const pB = typeof b.probability === 'number' ? b.probability : Number(b.price || 0);
+            return pB - pA;
+          })
+          .slice(0, 5);
+      }
+
+      if (outcomesFromMapping.length < originalCount) {
+        console.log(`[Intake] Trimmed "${dbEvent.title}" outcomes: ${originalCount} -> ${outcomesFromMapping.length}`);
+      }
+    }
     for (const [idx, o] of outcomesFromMapping.entries()) {
       let polymarketOutcomeId = o.polymarketTokenId || o.polymarketId;
       let marketIdForHistory: string | undefined =
