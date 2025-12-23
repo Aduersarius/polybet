@@ -201,6 +201,7 @@ export default function AdminSupportPage() {
           onClose={handleCloseDetail}
           agents={agents}
           currentUserId={user?.id || ''}
+          currentUserName={user?.name || user?.username || null}
         />
       )}
     </div>

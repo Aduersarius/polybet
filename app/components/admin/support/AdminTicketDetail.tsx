@@ -57,12 +57,13 @@ interface AdminTicketDetailProps {
   onClose: () => void;
   agents: Array<{ id: string; name: string | null; username: string | null }>;
   currentUserId: string;
+  currentUserName?: string | null;
 }
 
 const STATUS_OPTIONS = ['open', 'pending', 'resolved', 'closed'];
 const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'critical'];
 
-export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId }: AdminTicketDetailProps) {
+export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, currentUserName }: AdminTicketDetailProps) {
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -100,16 +101,52 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId }: 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !ticket) return;
 
-    setSending(true);
+    const messageContent = newMessage.trim();
+    setNewMessage(''); // Clear input immediately for instant feedback
     setError('');
 
+    // Get current user info from agents list or use assignedTo
+    const currentAgent = agents.find(a => a.id === currentUserId) || ticket.assignedTo;
+    const userName = currentUserName || currentAgent?.name || currentAgent?.username || 'You';
+
+    // Create optimistic message - appears instantly
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}-${Math.random()}`,
+      content: messageContent,
+      createdAt: new Date().toISOString(),
+      source: 'agent',
+      isInternal: false,
+      user: {
+        id: currentUserId,
+        name: userName,
+        username: currentAgent?.username || null,
+        avatarUrl: null,
+      },
+      attachments: [],
+    };
+
+    // Optimistically update UI immediately - no delay, no blinking
+    setTicket({
+      ...ticket,
+      messages: [...ticket.messages, optimisticMessage],
+    });
+
+    // Scroll to bottom to show new message
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 0);
+
+    setSending(true);
+
+    // Send to server in background (non-blocking)
     try {
       const response = await fetch(`/api/support/tickets/${ticketId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: newMessage }),
+        credentials: 'include',
+        body: JSON.stringify({ content: messageContent }),
       });
 
       if (!response.ok) {
@@ -117,29 +154,77 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId }: 
         throw new Error(data.error || 'Failed to send message');
       }
 
-      setNewMessage('');
-      await fetchTicket();
+      const newMessageData = await response.json();
+      
+      // Replace optimistic message with real one from server
+      setTicket((prevTicket) => {
+        if (!prevTicket) return prevTicket;
+        return {
+          ...prevTicket,
+          messages: prevTicket.messages.map(msg => 
+            msg.id === optimisticMessage.id ? newMessageData : msg
+          ),
+        };
+      });
     } catch (err) {
+      // Remove optimistic message on error and restore input
+      setTicket((prevTicket) => {
+        if (!prevTicket) return prevTicket;
+        return {
+          ...prevTicket,
+          messages: prevTicket.messages.filter(msg => msg.id !== optimisticMessage.id),
+        };
+      });
       setError(err instanceof Error ? err.message : 'Failed to send message');
+      setNewMessage(messageContent); // Restore message content so user can retry
     } finally {
       setSending(false);
     }
   };
 
   const handleAssign = async (agentId: string) => {
+    // Don't assign if empty (unassigned)
+    if (!agentId || agentId.trim() === '') {
+      // Handle unassignment via PATCH endpoint
+      setUpdating(true);
+      try {
+        const response = await fetch(`/api/support/tickets/${ticketId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assignedToId: null }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to unassign ticket');
+        }
+
+        await fetchTicket();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to unassign ticket');
+      } finally {
+        setUpdating(false);
+      }
+      return;
+    }
+
     setUpdating(true);
+    setError('');
     try {
       const response = await fetch(`/api/support/tickets/${ticketId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ agentId }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to assign ticket');
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to assign ticket');
       }
 
-      await fetchTicket();
+      const updatedTicket = await response.json();
+      setTicket(updatedTicket);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to assign ticket');
     } finally {
@@ -149,18 +234,22 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId }: 
 
   const handleStatusChange = async (status: string) => {
     setUpdating(true);
+    setError('');
     try {
       const response = await fetch(`/api/support/tickets/${ticketId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update status');
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update status');
       }
 
-      await fetchTicket();
+      const updatedTicket = await response.json();
+      setTicket(updatedTicket);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
@@ -170,18 +259,22 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId }: 
 
   const handlePriorityChange = async (priority: string) => {
     setUpdating(true);
+    setError('');
     try {
       const response = await fetch(`/api/support/tickets/${ticketId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ priority }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update priority');
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update priority');
       }
 
-      await fetchTicket();
+      const updatedTicket = await response.json();
+      setTicket(updatedTicket);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update priority');
     } finally {

@@ -30,12 +30,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all agents
+    // Get all agents (users with supportRole OR isAdmin)
     const agents = await prisma.user.findMany({
       where: {
-        supportRole: {
-          in: ['agent', 'admin'],
-        },
+        OR: [
+          {
+            supportRole: {
+              in: ['agent', 'admin'],
+            },
+          },
+          {
+            isAdmin: true,
+          },
+        ],
       },
       select: {
         id: true,
@@ -44,6 +51,7 @@ export async function GET(request: NextRequest) {
         email: true,
         avatarUrl: true,
         supportRole: true,
+        isAdmin: true,
         _count: {
           select: {
             ticketsAssigned: {

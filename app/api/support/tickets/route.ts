@@ -150,6 +150,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating ticket:', error);
     
+    // Handle rate limit errors
     if (error instanceof Error && error.message.includes('Rate limit')) {
       return NextResponse.json({ error: error.message }, { status: 429 });
     }

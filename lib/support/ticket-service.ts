@@ -51,53 +51,66 @@ export class TicketService {
     const ticketNumber = await this.generateTicketNumber();
 
     // Create ticket with initial message in a transaction
-    const ticket = await prisma.$transaction(async (tx: any) => {
-      // Create ticket
-      const newTicket = await tx.supportTicket.create({
-        data: {
-          ticketNumber,
-          userId: data.userId,
-          subject: data.subject,
-          category: data.category,
-          priority: data.priority || 'medium',
-          source: data.source,
-          telegramChatId: data.telegramChatId,
-          status: 'open',
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              email: true,
-              avatarUrl: true,
+    const ticket = await prisma.$transaction(
+      async (tx: any) => {
+        // Create ticket
+        const newTicket = await tx.supportTicket.create({
+          data: {
+            ticketNumber,
+            userId: data.userId,
+            subject: data.subject,
+            category: data.category,
+            priority: data.priority || 'medium',
+            source: data.source,
+            telegramChatId: data.telegramChatId,
+            status: 'open',
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                email: true,
+                avatarUrl: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      // Create initial message
-      await tx.supportMessage.create({
-        data: {
-          ticketId: newTicket.id,
-          userId: data.userId,
-          content: data.initialMessage,
-          isInternal: false,
-          source: data.source,
-        },
-      });
+        // Create initial message
+        await tx.supportMessage.create({
+          data: {
+            ticketId: newTicket.id,
+            userId: data.userId,
+            content: data.initialMessage,
+            isInternal: false,
+            source: data.source,
+          },
+        });
 
-      // Log creation
-      await auditService.logAction(newTicket.id, data.userId, 'ticket_created', {
-        ticketNumber: newTicket.ticketNumber,
-        category: data.category,
-        priority: data.priority,
-        source: data.source,
-      });
+        // Log creation within the transaction using the transaction client
+        await tx.supportAuditLog.create({
+          data: {
+            ticketId: newTicket.id,
+            userId: data.userId,
+            action: 'ticket_created',
+            metadata: {
+              ticketNumber: newTicket.ticketNumber,
+              category: data.category,
+              priority: data.priority,
+              source: data.source,
+            },
+          },
+        });
 
-      return newTicket;
-    });
+        return newTicket;
+      },
+      {
+        maxWait: 5000, // Maximum time to wait for a transaction slot (5 seconds)
+        timeout: 10000, // Maximum time the transaction can run (10 seconds)
+      }
+    );
 
     // Auto-assign if priority is high or critical
     if (data.priority === 'high' || data.priority === 'critical') {
@@ -386,36 +399,55 @@ export class TicketService {
    * Assign ticket to agent
    */
   async assignTicket(ticketId: string, agentId: string, assignedBy: string): Promise<void> {
-    const [ticket, agent] = await Promise.all([
-      prisma.supportTicket.findUnique({
-        where: { id: ticketId },
-        select: { assignedToId: true },
-      }),
-      prisma.user.findUnique({
-        where: { id: agentId },
-        select: { supportRole: true },
-      }),
-    ]);
+    // Use transaction for atomicity
+    await prisma.$transaction(
+      async (tx: any) => {
+        const [ticket, agent] = await Promise.all([
+          tx.supportTicket.findUnique({
+            where: { id: ticketId },
+            select: { assignedToId: true },
+          }),
+          tx.user.findUnique({
+            where: { id: agentId },
+            select: { supportRole: true, isAdmin: true },
+          }),
+        ]);
 
-    if (!ticket) {
-      throw new Error('Ticket not found');
-    }
+        if (!ticket) {
+          throw new Error('Ticket not found');
+        }
 
-    if (!agent || (!agent.supportRole || !['agent', 'admin'].includes(agent.supportRole))) {
-      throw new Error('Invalid agent: user must have agent or admin role');
-    }
+        // Check if user is a valid agent/admin (either supportRole or isAdmin)
+        const isValidAgent = agent && (
+          agent.isAdmin ||
+          (agent.supportRole && ['agent', 'admin'].includes(agent.supportRole))
+        );
 
-    await prisma.supportTicket.update({
-      where: { id: ticketId },
-      data: { assignedToId: agentId },
-    });
+        if (!isValidAgent) {
+          throw new Error('Invalid agent: user must have agent or admin role');
+        }
 
-    await auditService.logFieldChange(
-      ticketId,
-      assignedBy,
-      'assignedToId',
-      ticket.assignedToId,
-      agentId
+        await tx.supportTicket.update({
+          where: { id: ticketId },
+          data: { assignedToId: agentId },
+        });
+
+        // Log within transaction
+        await tx.supportAuditLog.create({
+          data: {
+            ticketId,
+            userId: assignedBy,
+            action: 'assignedToId_changed',
+            fieldName: 'assignedToId',
+            oldValue: ticket.assignedToId || null,
+            newValue: agentId,
+          },
+        });
+      },
+      {
+        maxWait: 5000, // Maximum time to wait for a transaction slot (5 seconds)
+        timeout: 10000, // Maximum time the transaction can run (10 seconds)
+      }
     );
   }
 
@@ -423,12 +455,19 @@ export class TicketService {
    * Auto-assign ticket based on workload and availability
    */
   async autoAssignTicket(ticketId: string): Promise<void> {
-    // Get all available agents
+    // Get all available agents (users with supportRole OR isAdmin)
     const agents = await prisma.user.findMany({
       where: {
-        supportRole: {
-          in: ['agent', 'admin'],
-        },
+        OR: [
+          {
+            supportRole: {
+              in: ['agent', 'admin'],
+            },
+          },
+          {
+            isAdmin: true,
+          },
+        ],
       },
       select: {
         id: true,
@@ -575,30 +614,44 @@ export class TicketService {
    * Close ticket with resolution
    */
   async closeTicket(ticketId: string, resolution: string, closedBy: string): Promise<void> {
-    await prisma.$transaction(async (tx: any) => {
-      // Update ticket status
-      await tx.supportTicket.update({
-        where: { id: ticketId },
-        data: {
-          status: 'closed',
-          closedAt: new Date(),
-          resolvedAt: new Date(), // Also set resolved if not already
-        },
-      });
+    await prisma.$transaction(
+      async (tx: any) => {
+        // Update ticket status
+        await tx.supportTicket.update({
+          where: { id: ticketId },
+          data: {
+            status: 'closed',
+            closedAt: new Date(),
+            resolvedAt: new Date(), // Also set resolved if not already
+          },
+        });
 
-      // Add resolution message
-      await tx.supportMessage.create({
-        data: {
-          ticketId,
-          userId: closedBy,
-          content: `Ticket closed. Resolution: ${resolution}`,
-          isInternal: false,
-          source: 'agent',
-        },
-      });
-    });
+        // Add resolution message
+        await tx.supportMessage.create({
+          data: {
+            ticketId,
+            userId: closedBy,
+            content: `Ticket closed. Resolution: ${resolution}`,
+            isInternal: false,
+            source: 'agent',
+          },
+        });
 
-    await auditService.logAction(ticketId, closedBy, 'ticket_closed', { resolution });
+        // Log action within transaction
+        await tx.supportAuditLog.create({
+          data: {
+            ticketId,
+            userId: closedBy,
+            action: 'ticket_closed',
+            metadata: { resolution },
+          },
+        });
+      },
+      {
+        maxWait: 5000, // Maximum time to wait for a transaction slot (5 seconds)
+        timeout: 10000, // Maximum time the transaction can run (10 seconds)
+      }
+    );
   }
 
   /**
