@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/toaster";
 import { DevSwCleanup } from "./components/DevSwCleanup";
+import { OnboardingLauncher } from "./components/OnboardingLauncher";
 import { SupportChatWidget } from "./components/support/SupportChatWidget";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';

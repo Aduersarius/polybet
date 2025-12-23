@@ -1,6 +1,7 @@
+import { prisma } from '../lib/prisma';
+
 async function main() {
     // Import prisma from lib for proper adapter configuration
-    const { prisma } = await import('../lib/prisma');
 
     // Create a default user
     const user = await prisma.user.upsert({
@@ -239,20 +240,6 @@ async function main() {
             type: 'MULTIPLE',
             initialLiquidity: 600.0,
             liquidityParameter: 18000.0,
-        },
-
-        // MULTIPLE OUTCOME EVENT
-        {
-            id: 'tech-trillion-race',
-            title: 'Which company will hit $1T market cap first?',
-            description: 'Predict which tech giant will reach the $1 trillion valuation milestone first. This event will resolve when any of the companies reaches this milestone.',
-            categories: ['TECH', 'BUSINESS'],
-            imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
-            resolutionDate: new Date('2026-12-31'),
-            creatorId: user.id,
-            type: 'MULTIPLE',
-            initialLiquidity: 500.0,
-            liquidityParameter: 15000.0,
         },
     ];
 
