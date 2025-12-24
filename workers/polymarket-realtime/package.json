@@ -11,7 +11,7 @@
         "generate": "prisma generate"
     },
     "dependencies": {
-        "@polymarket/real-time-data-client": "^0.0.8",
+        "@polymarket/real-time-data-client": "^1.4.0",
         "@prisma/client": "^6.1.0",
         "ioredis": "^5.4.1",
         "pg": "^8.13.1"
