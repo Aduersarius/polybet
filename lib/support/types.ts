@@ -7,7 +7,7 @@ export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 export type TicketCategory = 'deposit' | 'withdrawal' | 'dispute' | 'bug' | 'kyc' | 'general';
 export type TicketSource = 'web' | 'telegram';
 export type MessageSource = 'web' | 'telegram' | 'agent';
-export type SupportRole = 'agent' | 'admin';
+export type SupportRole = 'agent' | 'admin' | 'support_manager';
 
 export interface CreateTicketInput {
   userId: string;

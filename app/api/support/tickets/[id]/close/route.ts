@@ -44,7 +44,7 @@ export async function POST(
     await ticketService.closeTicket(ticketId, resolution, user.id);
 
     // Fetch updated ticket
-    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
     const ticket = await ticketService.getTicketDetail(ticketId, isAgent);
 
     return NextResponse.json(ticket);

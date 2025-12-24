@@ -15,8 +15,8 @@ export interface SupportUser {
  * Check if user can view a ticket
  */
 export async function canViewTicket(user: SupportUser, ticketId: string): Promise<boolean> {
-  // Agents and admins can view all tickets
-  if (user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin) {
+  // Agents, support managers, and admins can view all tickets
+  if (user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin) {
     return true;
   }
 
@@ -67,7 +67,7 @@ export function canAssignTicket(user: SupportUser): boolean {
  * Check if user can view internal notes
  */
 export function canViewInternalNotes(user: SupportUser): boolean {
-  return user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+  return user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
 }
 
 /**
@@ -81,7 +81,7 @@ export function canAddInternalNote(user: SupportUser): boolean {
  * Check if user can update ticket status/priority
  */
 export function canUpdateTicket(user: SupportUser): boolean {
-  return user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+  return user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
 }
 
 /**
@@ -106,7 +106,7 @@ export async function canCloseTicket(user: SupportUser, ticketId: string): Promi
  * Check if user can view dashboard
  */
 export function canViewDashboard(user: SupportUser): boolean {
-  return user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+  return user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
 }
 
 /**

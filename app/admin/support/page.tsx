@@ -49,7 +49,7 @@ export default function AdminSupportPage() {
 
     if (!isPending && session?.user) {
       const user = session.user as any;
-      if (!user.isAdmin && user.supportRole !== 'agent' && user.supportRole !== 'admin') {
+      if (!user.isAdmin && user.supportRole !== 'agent' && user.supportRole !== 'admin' && user.supportRole !== 'support_manager') {
         router.push('/');
       }
     }

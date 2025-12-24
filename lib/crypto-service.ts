@@ -364,7 +364,7 @@ export class CryptoService {
         }
     }
 
-    async requestWithdrawal(userId: string, amount: number, address: string, currency: string = 'USDC', idempotencyKey?: string) {
+    async requestWithdrawal(userId: string, amount: number, address: string, currency: string = 'USDC', idempotencyKey?: string): Promise<string> {
         this.log(`[WITHDRAWAL] Requesting withdrawal for user ${userId}: ${amount} ${currency} to ${address}${idempotencyKey ? ` (idempotencyKey: ${idempotencyKey})` : ''}`);
 
         // Check for existing idempotencyKey to prevent duplicates
@@ -398,8 +398,10 @@ export class CryptoService {
             throw new Error('Ledger schema missing: ensure Balance.locked and LedgerEntry table exist (run latest migrations).');
         }
 
+        let withdrawalId: string;
+        
         try {
-            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            withdrawalId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 // Lock the balance row for update
                 const balances = await tx.$queryRaw<Array<{ id: string; amount: any; locked: any }>>`
                     SELECT "id", "amount", "locked" FROM "Balance"
@@ -447,9 +449,15 @@ export class CryptoService {
                     referenceId: withdrawalRecord.id,
                     metadata: { toAddress: address }
                 });
+
+                // Return withdrawal ID from transaction
+                return withdrawalRecord.id;
             });
 
             this.log(`[WITHDRAWAL] Successfully created withdrawal request for user ${userId}`);
+            
+            // Return withdrawal ID for notification
+            return withdrawalId;
         } catch (error) {
             console.error(`[WITHDRAWAL] Failed to create withdrawal request for user ${userId}:`, error);
             throw error;
