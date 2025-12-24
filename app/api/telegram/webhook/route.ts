@@ -17,14 +17,17 @@ export async function POST(request: NextRequest) {
   try {
     const url = request.nextUrl;
     const host = request.headers.get('host') || '';
+    const forwardedHost = request.headers.get('x-forwarded-host') || '';
     
     console.log('[Webhook] Received Telegram webhook request');
     console.log('[Webhook] Host:', host);
+    console.log('[Webhook] Forwarded-Host:', forwardedHost);
     console.log('[Webhook] URL:', url.toString());
+    console.log('[Webhook] Headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
     
     // Handle www redirect by returning 200 immediately (prevent redirect loop)
     // If request comes via www, we still process it but log the issue
-    if (host.startsWith('www.')) {
+    if (host.startsWith('www.') || forwardedHost.startsWith('www.')) {
       console.warn('[Webhook] Request received via www subdomain - consider updating webhook URL to non-www');
     }
     
