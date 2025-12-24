@@ -10,6 +10,7 @@ import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { validateString, validateNumber, validateUUID } from '@/lib/validation';
+import { trackTrade, trackApiLatency, trackError, startTimer } from '@/lib/sentry-metrics';
 
 export async function POST(request: Request) {
     const startTime = Date.now();
@@ -230,6 +231,15 @@ export async function POST(request: Request) {
         const totalTime = Date.now() - startTime;
         console.log(`✅ Trade executed: ${option} $${numericAmount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
 
+        // Track trade metrics in Sentry
+        trackTrade(
+            'buy',
+            option.toLowerCase() as 'yes' | 'no',
+            numericAmount,
+            eventMeta.type === 'BINARY' ? 'binary' : eventMeta.type === 'GROUPED' ? 'grouped' : 'multiple'
+        );
+        trackApiLatency('/api/bets', totalTime, 200);
+
         // 5. Minimal cache invalidation + WebSocket publish (non-blocking)
         // Fire and forget to avoid blocking the response
         // Note: For sports events (Polymarket), the SSE stream at /api/sports/live/stream
@@ -265,6 +275,11 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
+        const totalTime = Date.now() - startTime;
+        // Track error metrics
+        trackError('trading', error instanceof Error ? error.message : 'unknown');
+        trackApiLatency('/api/bets', totalTime, error instanceof Error && error.message === 'Query timeout' ? 504 : 500);
+
         // Return 504 for timeouts, 500 for other errors
         if (error instanceof Error && error.message === 'Query timeout') {
             return createClientErrorResponse('Request timed out', 504);

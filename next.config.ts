@@ -83,10 +83,11 @@ export default withSentryConfig(configWithAnalyzer, {
     deleteSourcemapsAfterUpload: true,
   },
 
-  webpack: {
-    // Enables automatic instrumentation of Vercel Cron Monitors
-    automaticVercelMonitors: true,
+  // Enable automatic instrumentation of Vercel Cron Monitors
+  automaticVercelMonitors: true,
 
+  // Webpack-specific options
+  webpack: {
     // Tree-shaking options for reducing bundle size
     treeshake: {
       // Remove Sentry logger statements to reduce bundle size
