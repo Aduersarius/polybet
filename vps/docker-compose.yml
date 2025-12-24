@@ -65,6 +65,25 @@ services:
       redis:
         condition: service_healthy
 
+  # Polymarket Real-Time Worker
+  # Connects to Polymarket WebSocket API for live odds updates
+  polymarket-realtime:
+    build:
+      context: ..
+      dockerfile: workers/polymarket-realtime/Dockerfile
+    container_name: polybet-polymarket-realtime
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://polybet_user:${POSTGRES_PASSWORD}@postgres:5432/polybet
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
+

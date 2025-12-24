@@ -1,0 +1,25 @@
+{
+    "name": "polymarket-realtime-worker",
+    "version": "1.0.0",
+    "description": "Real-time odds streaming worker for Polymarket integration",
+    "type": "module",
+    "main": "dist/worker.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/worker.js",
+        "dev": "tsx watch worker.ts",
+        "generate": "prisma generate"
+    },
+    "dependencies": {
+        "@polymarket/real-time-data-client": "^0.0.8",
+        "@prisma/client": "^6.1.0",
+        "ioredis": "^5.4.1",
+        "pg": "^8.13.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.2",
+        "prisma": "^6.1.0",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2"
+    }
+}
