@@ -148,11 +148,11 @@ class PolymarketTradingService {
   ): Promise<LiquidityCheck> {
     try {
       const orderbook = await this.getOrderbook(marketId);
-      
+
       // For BUY orders, check asks (we need to buy from sellers)
       // For SELL orders, check bids (we need to sell to buyers)
       const levels = side === 'BUY' ? orderbook.asks : orderbook.bids;
-      
+
       if (levels.length === 0) {
         return {
           canHedge: false,
@@ -170,7 +170,7 @@ class PolymarketTradingService {
 
       for (const level of levels) {
         if (remainingSize <= 0) break;
-        
+
         const fillSize = Math.min(remainingSize, level.size);
         totalCost += fillSize * level.price;
         remainingSize -= fillSize;
@@ -178,7 +178,7 @@ class PolymarketTradingService {
 
       const filledSize = size - remainingSize;
       const avgPrice = filledSize > 0 ? totalCost / filledSize : 0;
-      
+
       // Calculate slippage in basis points
       const slippage = Math.abs((avgPrice - bestPrice) / bestPrice) * 10000;
 
@@ -189,7 +189,7 @@ class PolymarketTradingService {
         availableSize: filledSize,
         bestPrice: avgPrice,
         estimatedSlippage: slippage,
-        reason: !canHedge 
+        reason: !canHedge
           ? `Insufficient liquidity or high slippage (${slippage.toFixed(0)}bps > ${maxSlippageBps}bps)`
           : undefined,
       };
@@ -262,7 +262,7 @@ class PolymarketTradingService {
   ): Promise<PolymarketOrder> {
     // Get current orderbook
     const orderbook = await this.getOrderbook(marketId);
-    
+
     // Use aggressive pricing to ensure fill
     const levels = side === 'BUY' ? orderbook.asks : orderbook.bids;
     if (levels.length === 0) {
@@ -351,7 +351,7 @@ class PolymarketTradingService {
     spreadBps: number
   ): number {
     const spreadDecimal = spreadBps / 10000;
-    
+
     if (side === 'buy') {
       // User buys from us at userPrice
       // We buy from Polymarket at lower price to capture spread
@@ -362,7 +362,95 @@ class PolymarketTradingService {
       return Math.min(0.99, userPrice * (1 + spreadDecimal));
     }
   }
+
+  /**
+   * Wait for order fill with timeout and polling
+   * Polls Polymarket API for order status until filled, partially filled, cancelled, or timeout
+   */
+  async waitForOrderFill(
+    orderId: string,
+    timeoutMs: number = 30000,
+    pollIntervalMs: number = 1000
+  ): Promise<{
+    filled: boolean;
+    filledSize: number;
+    avgPrice: number;
+    status: 'FILLED' | 'PARTIAL' | 'TIMEOUT' | 'CANCELLED' | 'ERROR';
+    remainingSize: number;
+  }> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const order = await this.getOrderStatus(orderId);
+
+        if (!order) {
+          // Order not found - might be processing, continue polling
+          await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+          continue;
+        }
+
+        // Check if order is fully filled
+        if (order.status === 'MATCHED' || order.filledSize >= order.size * 0.99) {
+          return {
+            filled: true,
+            filledSize: order.filledSize,
+            avgPrice: order.price,
+            status: 'FILLED',
+            remainingSize: 0,
+          };
+        }
+
+        // Check if order was cancelled
+        if (order.status === 'CANCELLED') {
+          return {
+            filled: order.filledSize > 0,
+            filledSize: order.filledSize,
+            avgPrice: order.price,
+            status: order.filledSize > 0 ? 'PARTIAL' : 'CANCELLED',
+            remainingSize: order.remainingSize,
+          };
+        }
+
+        // Check if partially filled (more than 50%)
+        if (order.filledSize > order.size * 0.5) {
+          console.log(`[Polymarket] Order ${orderId} partially filled: ${order.filledSize}/${order.size}`);
+        }
+
+        // Still open, continue polling
+        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      } catch (error) {
+        console.error('[Polymarket] Error polling order status:', error);
+        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      }
+    }
+
+    // Timeout reached - check final status
+    try {
+      const finalOrder = await this.getOrderStatus(orderId);
+      if (finalOrder) {
+        return {
+          filled: finalOrder.filledSize >= finalOrder.size * 0.99,
+          filledSize: finalOrder.filledSize,
+          avgPrice: finalOrder.price,
+          status: finalOrder.filledSize > 0 ? 'PARTIAL' : 'TIMEOUT',
+          remainingSize: finalOrder.remainingSize,
+        };
+      }
+    } catch {
+      // Ignore final check error
+    }
+
+    return {
+      filled: false,
+      filledSize: 0,
+      avgPrice: 0,
+      status: 'TIMEOUT',
+      remainingSize: 0,
+    };
+  }
 }
+
 
 // Export singleton instance
 export const polymarketTrading = new PolymarketTradingService();
@@ -373,7 +461,7 @@ export function estimatePolymarketFees(size: number, price: number): number {
   const tradingFee = size * price * 0.02;
   // Approximate gas cost (varies with network conditions)
   const gasCost = 0.1; // ~$0.10 in MATIC
-  
+
   return tradingFee + gasCost;
 }
 

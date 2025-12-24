@@ -42,7 +42,7 @@ export class HedgeManager {
   async loadConfig(): Promise<HedgeConfig> {
     try {
       const configs = await prisma.hedgeConfig.findMany();
-      
+
       for (const cfg of configs) {
         if (cfg.key in this.config) {
           (this.config as any)[cfg.key] = cfg.value;
@@ -246,7 +246,7 @@ export class HedgeManager {
       };
     } catch (error) {
       console.error('[HedgeManager] Liquidity check failed (not critical):', error);
-      
+
       // For top volume markets, proceed anyway since liquidity is guaranteed
       console.log('[HedgeManager] Proceeding without liquidity check for high-volume market');
       return {
@@ -418,7 +418,7 @@ export class HedgeManager {
 
     // Create split order plan
     const plan = orderSplitter.createSplitPlan(size, hedgePrice, side);
-    
+
     console.log(`[HedgeManager] Split into ${plan.chunks.length} chunks, estimated slippage: ${plan.estimatedSlippage.toFixed(2)}bps`);
 
     // Create hedge position record
@@ -483,7 +483,7 @@ export class HedgeManager {
         console.error(`[HedgeManager] Chunk ${chunk.chunkIndex + 1} failed:`, chunkError.message);
         chunk.error = chunkError.message;
         lastError = chunkError.message;
-        
+
         // Continue with remaining chunks (partial execution)
         // In production, might want to stop here depending on strategy
       }
@@ -491,8 +491,8 @@ export class HedgeManager {
 
     // Calculate final statistics
     const stats = orderSplitter.calculateStats(plan);
-    const finalStatus = executedChunks.length === plan.chunks.length ? 'hedged' : 
-                       executedChunks.length > 0 ? 'partial' : 'failed';
+    const finalStatus = executedChunks.length === plan.chunks.length ? 'hedged' :
+      executedChunks.length > 0 ? 'partial' : 'failed';
 
     // Update hedge position
     await prisma.hedgePosition.update({
@@ -625,7 +625,7 @@ export class HedgeManager {
       const hedgeTimes = successfulHedges
         .filter((h: any) => h.hedgedAt)
         .map((h: any) => h.hedgedAt!.getTime() - h.createdAt.getTime());
-      
+
       const avgHedgeTime = hedgeTimes.length > 0
         ? hedgeTimes.reduce((a: number, b: number) => a + b, 0) / hedgeTimes.length
         : null;
@@ -652,6 +652,191 @@ export class HedgeManager {
     } catch (error) {
       console.error('[HedgeManager] Failed to take risk snapshot:', error);
     }
+  }
+
+  /**
+   * Get all hedge positions for an event
+   * Used when resolving an event to settle all related hedges
+   */
+  async getEventHedgePositions(eventId: string): Promise<any[]> {
+    try {
+      // Get the Polymarket market mapping for this event
+      const mapping = await prisma.polymarketMarketMapping.findUnique({
+        where: { internalEventId: eventId },
+      });
+
+      if (!mapping) {
+        return [];
+      }
+
+      // Find all hedge positions for this market
+      return await prisma.hedgePosition.findMany({
+        where: {
+          polymarketMarketId: mapping.polymarketId,
+          status: { in: ['pending', 'hedged', 'partial'] },
+        },
+        include: {
+          userOrder: true,
+        },
+      });
+    } catch (error) {
+      console.error('[HedgeManager] Failed to get event hedge positions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Settle a hedge position after event resolution
+   * Calculates final P/L and marks position as closed
+   */
+  async settleHedgePosition(
+    hedgePositionId: string,
+    winningOutcome: string,
+    resolutionPrice: number = 1.0 // Winning outcome pays $1/share
+  ): Promise<{ settled: boolean; pnl: number; error?: string }> {
+    try {
+      const hedgePosition = await prisma.hedgePosition.findUnique({
+        where: { id: hedgePositionId },
+        include: { userOrder: true },
+      });
+
+      if (!hedgePosition) {
+        return { settled: false, pnl: 0, error: 'Hedge position not found' };
+      }
+
+      if (hedgePosition.status === 'closed') {
+        return { settled: true, pnl: hedgePosition.netProfit || 0 };
+      }
+
+      // Calculate settlement P/L
+      // If we bought shares on Polymarket:
+      //   - If outcome won: we get $1/share, profit = (1 - hedgePrice) * amount - fees
+      //   - If outcome lost: shares worth $0, loss = hedgePrice * amount + fees
+      // If we sold shares on Polymarket:
+      //   - If outcome won: we owe $1/share, loss = (1 - hedgePrice) * amount + fees
+      //   - If outcome lost: we keep premium, profit = hedgePrice * amount - fees
+
+      const userOrderOutcome = hedgePosition.userOrder?.outcomeId || hedgePosition.userOrder?.option;
+      const hedgeWon = userOrderOutcome === winningOutcome;
+      const hedgeSide = hedgePosition.side; // 'BUY' or 'SELL' on Polymarket
+
+      let settlementPnl = 0;
+
+      if (hedgeSide === 'BUY') {
+        if (hedgeWon) {
+          // Bought winning shares: profit
+          settlementPnl = (resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
+        } else {
+          // Bought losing shares: loss
+          settlementPnl = -hedgePosition.hedgePrice * hedgePosition.amount;
+        }
+      } else {
+        // SELL
+        if (hedgeWon) {
+          // Sold winning shares (must pay out): loss
+          settlementPnl = -(resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
+        } else {
+          // Sold losing shares (keep premium): profit
+          settlementPnl = hedgePosition.hedgePrice * hedgePosition.amount;
+        }
+      }
+
+      // Subtract fees
+      settlementPnl -= (hedgePosition.polymarketFees || 0) + (hedgePosition.gasCost || 0);
+
+      // Add spread captured
+      const totalPnl = hedgePosition.spreadCaptured + settlementPnl;
+
+      // Update the position
+      await prisma.hedgePosition.update({
+        where: { id: hedgePositionId },
+        data: {
+          status: 'closed',
+          closedAt: new Date(),
+          netProfit: totalPnl,
+          metadata: {
+            ...(hedgePosition.metadata as object || {}),
+            settlementDetails: {
+              winningOutcome,
+              hedgeWon,
+              settlementPnl,
+              resolutionPrice,
+              settledAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
+
+      console.log(`[HedgeManager] Settled hedge ${hedgePositionId}: PnL = $${totalPnl.toFixed(2)}`);
+
+      return { settled: true, pnl: totalPnl };
+    } catch (error: any) {
+      console.error('[HedgeManager] Failed to settle hedge position:', error);
+      return { settled: false, pnl: 0, error: error.message };
+    }
+  }
+
+  /**
+   * Validate that a market mapping has all required fields for hedging
+   * Returns validation result with detailed error if invalid
+   */
+  validateMapping(mapping: any): { valid: boolean; error?: string } {
+    if (!mapping) {
+      return { valid: false, error: 'Mapping not found' };
+    }
+
+    if (!mapping.isActive) {
+      return { valid: false, error: 'Mapping is not active' };
+    }
+
+    if (!mapping.polymarketId) {
+      return { valid: false, error: 'Missing polymarketId' };
+    }
+
+    // For binary events, we need yesTokenId or noTokenId
+    // For multiple events, we need outcomeMapping with token IDs
+    const hasTokenIds = mapping.yesTokenId || mapping.noTokenId;
+    const hasOutcomeMapping = mapping.outcomeMapping?.outcomes?.some(
+      (o: any) => o.polymarketId
+    );
+
+    if (!hasTokenIds && !hasOutcomeMapping && !mapping.polymarketTokenId) {
+      return {
+        valid: false,
+        error: 'Missing token IDs for Polymarket trading. Please re-approve the event mapping.'
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Settle all open hedge positions for an event
+   * Called during market resolution
+   */
+  async settleEventHedges(
+    eventId: string,
+    winningOutcome: string
+  ): Promise<{ settledCount: number; totalPnl: number; errors: string[] }> {
+    const positions = await this.getEventHedgePositions(eventId);
+
+    let settledCount = 0;
+    let totalPnl = 0;
+    const errors: string[] = [];
+
+    for (const position of positions) {
+      const result = await this.settleHedgePosition(position.id, winningOutcome);
+      if (result.settled) {
+        settledCount++;
+        totalPnl += result.pnl;
+      } else if (result.error) {
+        errors.push(`Position ${position.id}: ${result.error}`);
+      }
+    }
+
+    console.log(`[HedgeManager] Settled ${settledCount}/${positions.length} hedges for event ${eventId}, total PnL: $${totalPnl.toFixed(2)}`);
+
+    return { settledCount, totalPnl, errors };
   }
 }
 

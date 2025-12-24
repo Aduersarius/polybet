@@ -696,7 +696,27 @@ export async function resolveMarket(eventId: string, winningOutcomeId: string) {
     if (!event) throw new Error("Event not found");
     if (event.status === 'RESOLVED') throw new Error("Event already resolved");
 
-    // 2. Identify Winning Token Symbol
+    // 2. Settle all hedge positions for this event BEFORE processing user payouts
+    // This ensures our Polymarket positions are properly accounted for
+    try {
+        const { hedgeManager } = await import('./hedge-manager');
+        await hedgeManager.loadConfig();
+
+        const hedgeResult = await hedgeManager.settleEventHedges(eventId, winningOutcomeId);
+
+        if (hedgeResult.settledCount > 0) {
+            console.log(`[Resolution] Settled ${hedgeResult.settledCount} hedges with total PnL: $${hedgeResult.totalPnl.toFixed(2)}`);
+        }
+
+        if (hedgeResult.errors.length > 0) {
+            console.warn(`[Resolution] ${hedgeResult.errors.length} hedge settlement errors:`, hedgeResult.errors);
+        }
+    } catch (hedgeError) {
+        // Log but don't fail resolution if hedge settlement fails
+        console.error('[Resolution] Hedge settlement failed (continuing with user payouts):', hedgeError);
+    }
+
+    // 3. Identify Winning Token Symbol
     let winningTokenSymbol = '';
     if (event.type === 'MULTIPLE') {
         const outcome = event.outcomes.find((o: any) => o.id === winningOutcomeId);
@@ -707,7 +727,7 @@ export async function resolveMarket(eventId: string, winningOutcomeId: string) {
         winningTokenSymbol = `${winningOutcomeId}_${eventId}`;
     }
 
-    // 3. Process Payouts
+    // 4. Process Payouts
     // Find all users holding the winning token
     // We do this in a transaction to ensure integrity
 

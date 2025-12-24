@@ -26,6 +26,17 @@ function configureUptrace() {
 }
 
 export async function register() {
+    // Initialize Sentry for server-side error tracking
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+        if (process.env.NEXT_RUNTIME === 'nodejs') {
+            await import('./sentry.server.config');
+        }
+        if (process.env.NEXT_RUNTIME === 'edge') {
+            await import('./sentry.edge.config');
+        }
+    }
+
+    // Initialize OpenTelemetry/Uptrace for distributed tracing
     const uptraceEnabled = configureUptrace();
     const serviceName = process.env.UPTRACE_SERVICE_NAME || 'polybet';
     const deploymentEnv = process.env.VERCEL_ENV || process.env.NODE_ENV;
