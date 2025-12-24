@@ -772,8 +772,8 @@ export class TicketService {
         },
       }),
 
-      // Average first response time
-      prisma.supportTicket.aggregate({
+      // Tickets with first response (for calculating avg response time)
+      prisma.supportTicket.findMany({
         where: {
           firstResponseAt: {
             not: null,
@@ -782,13 +782,14 @@ export class TicketService {
             gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
           },
         },
-        _avg: {
+        select: {
+          createdAt: true,
           firstResponseAt: true,
         },
       }),
 
-      // Average resolution time
-      prisma.supportTicket.aggregate({
+      // Tickets with resolution (for calculating avg resolution time)
+      prisma.supportTicket.findMany({
         where: {
           resolvedAt: {
             not: null,
@@ -797,7 +798,8 @@ export class TicketService {
             gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
           },
         },
-        _avg: {
+        select: {
+          createdAt: true,
           resolvedAt: true,
         },
       }),
@@ -828,6 +830,26 @@ export class TicketService {
       }),
     ]);
 
+    // Calculate average first response time (in minutes)
+    const avgFirstResponseTime = avgResponseTime.length > 0
+      ? Math.round(
+          avgResponseTime.reduce((sum: number, ticket: any) => {
+            const diffMs = ticket.firstResponseAt.getTime() - ticket.createdAt.getTime();
+            return sum + diffMs;
+          }, 0) / avgResponseTime.length / 1000 / 60 // Convert to minutes
+        )
+      : 0;
+
+    // Calculate average resolution time (in hours)
+    const avgResolutionTime = avgResolutionTime.length > 0
+      ? Math.round(
+          (avgResolutionTime.reduce((sum: number, ticket: any) => {
+            const diffMs = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
+            return sum + diffMs;
+          }, 0) / avgResolutionTime.length / 1000 / 60 / 60) * 10 // Convert to hours, round to 1 decimal
+        ) / 10
+      : 0;
+
     // Format results
     const statusMap = ticketsByStatus.reduce(
       (acc: any, { status, _count }: any) => {
@@ -857,8 +879,8 @@ export class TicketService {
       openTickets: statusMap.open,
       pendingTickets: statusMap.pending,
       resolvedToday: todayResolved,
-      avgFirstResponseTime: 30, // Placeholder - calculate from data
-      avgResolutionTime: 4, // Placeholder - calculate from data
+      avgFirstResponseTime: calculatedAvgFirstResponseTime,
+      avgResolutionTime: calculatedAvgResolutionTime,
       ticketsToday: todayTickets,
       ticketsByCategory: categoryMap,
       ticketsByPriority: priorityMap,

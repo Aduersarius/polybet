@@ -11,13 +11,14 @@ import { AdminWithdraw } from '../../components/admin/AdminWithdraw';
 import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvents';
 import { AdminHedging } from '../../components/admin/AdminHedging';
 import { AdminPolymarketIntake } from '../../components/admin/AdminPolymarketIntake';
+import { AdminSupportDashboard } from '../../components/admin/AdminSupportDashboard';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 import { AdminShell } from '../../components/admin/AdminShell';
 import type { Session } from '@/lib/session-types';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake' | 'support';
 
 interface AdminEvent {
     id: string;
@@ -50,7 +51,7 @@ function AdminPageContent() {
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
-        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging', 'polymarket-intake'];
+        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging', 'polymarket-intake', 'support'];
         if (viewParam && allowed.includes(viewParam)) {
             setActiveView(viewParam);
         }
@@ -63,9 +64,13 @@ function AdminPageContent() {
             if (!session?.user) {
                 // Not authenticated - redirect to home
                 router.push('/');
-            } else if (!session.user.isAdmin) {
-                // Not admin - redirect to home
-                router.push('/');
+            } else {
+                const user = session.user as any;
+                // Check if user is admin or has support role
+                if (!user.isAdmin && user.supportRole !== 'agent' && user.supportRole !== 'admin' && user.supportRole !== 'support_manager') {
+                    // Not admin or support agent - redirect to home
+                    router.push('/');
+                }
             }
         }
     }, [session, isPending, isMounted, router]);
@@ -79,8 +84,12 @@ function AdminPageContent() {
         );
     }
 
-    // If not authenticated or not admin, show nothing (redirect is in progress)
-    if (!session?.user || !session.user.isAdmin) {
+    // If not authenticated or not admin/support, show nothing (redirect is in progress)
+    if (!session?.user) {
+        return null;
+    }
+    const user = session.user as any;
+    if (!user.isAdmin && user.supportRole !== 'agent' && user.supportRole !== 'admin' && user.supportRole !== 'support_manager') {
         return null;
     }
 
@@ -107,6 +116,7 @@ function AdminPageContent() {
                     {activeView === 'suggested' && <AdminSuggestedEvents />}
                     {activeView === 'hedging' && <AdminHedging />}
                     {activeView === 'polymarket-intake' && <AdminPolymarketIntake />}
+                    {activeView === 'support' && <AdminSupportDashboard />}
                 </section>
             </div>
 
