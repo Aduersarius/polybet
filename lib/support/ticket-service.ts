@@ -498,9 +498,11 @@ export class TicketService {
       data: { assignedToId: leastBusyAgent.id },
     });
 
-    await auditService.logAction(ticketId, 'system', 'auto_assigned', {
+    // Use the assigned agent's ID for audit log (system actions need a valid userId)
+    await auditService.logAction(ticketId, leastBusyAgent.id, 'auto_assigned', {
       agentId: leastBusyAgent.id,
       workload: leastBusyAgent._count.ticketsAssigned,
+      automated: true,
     });
   }
 
@@ -548,10 +550,12 @@ export class TicketService {
       data: { assignedToId: leastBusyManager.id },
     });
 
-    await auditService.logAction(ticketId, 'system', 'auto_assigned_to_manager', {
+    // Use the assigned manager's ID for audit log (system actions need a valid userId)
+    await auditService.logAction(ticketId, leastBusyManager.id, 'auto_assigned_to_manager', {
       managerId: leastBusyManager.id,
       workload: leastBusyManager._count.ticketsAssigned,
       totalManagers: supportManagers.length,
+      automated: true,
     });
   }
 
