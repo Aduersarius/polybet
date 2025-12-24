@@ -73,8 +73,8 @@ function AdminPageContent() {
     // Show loading state while checking session or before mount (prevents hydration mismatch)
     if (!isMounted || isPending) {
         return (
-            <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7] flex items-center justify-center">
-                <div className="text-gray-400">Loading...</div>
+            <div className="min-h-screen bg-background text-zinc-200 flex items-center justify-center">
+                <div className="text-muted-foreground">Loading...</div>
             </div>
         );
     }
@@ -126,8 +126,8 @@ export default function AdminPage() {
     return (
         <Suspense
             fallback={
-                <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7] flex items-center justify-center">
-                    <div className="text-gray-400">Loading admin...</div>
+                <div className="min-h-screen bg-background text-zinc-200 flex items-center justify-center">
+                    <div className="text-muted-foreground">Loading admin...</div>
                 </div>
             }
         >

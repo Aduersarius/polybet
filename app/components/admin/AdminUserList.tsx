@@ -121,9 +121,9 @@ export function AdminUserList() {
 
     if (isLoading) {
         return (
-            <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+            <Card className="border-0 bg-surface">
                 <CardHeader>
-                    <CardTitle className="text-white">Users</CardTitle>
+                    <CardTitle className="text-zinc-200">Users</CardTitle>
                     <CardDescription>Loading users…</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -135,15 +135,15 @@ export function AdminUserList() {
 
     return (
         <div className="space-y-4 relative z-10">
-                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f] overflow-hidden max-w-full">
+            <Card className="border-0 bg-surface overflow-hidden max-w-full">
                 <CardHeader className="gap-2">
                     <div className="flex items-center justify-between gap-2">
                         <div>
-                            <CardTitle className="text-white">Users</CardTitle>
+                            <CardTitle className="text-zinc-200">Users</CardTitle>
                             <CardDescription>Manage members, roles, and status</CardDescription>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-300">
-                            <Badge variant="outline" className="border-white/10 bg-white/5 text-white">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-300">
+                            <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-200">
                                 Total {totalUsers}
                             </Badge>
                             <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-100">
@@ -156,7 +156,7 @@ export function AdminUserList() {
                                 Banned {bannedCount}
                             </Badge>
                             {deletedCount > 0 && (
-                                <Badge variant="outline" className="border-gray-500/30 bg-gray-500/10 text-gray-100">
+                                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-100">
                                     Deleted {deletedCount}
                                 </Badge>
                             )}
@@ -169,10 +169,10 @@ export function AdminUserList() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search by name, username, email, or address..."
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 pl-10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-2 pl-10 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
                             />
                             <svg
-                                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -181,16 +181,16 @@ export function AdminUserList() {
                             </svg>
                         </div>
                         {searchQuery && (
-                            <div className="text-sm text-gray-400">
+                            <div className="text-sm text-muted-foreground">
                                 Found {totalUsers} users
                             </div>
                         )}
-                        <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <span className="text-xs uppercase tracking-wide text-gray-500">Sort</span>
+                        <div className="flex items-center gap-2 text-sm text-zinc-300">
+                            <span className="text-xs uppercase tracking-wide text-zinc-500">Sort</span>
                             <select
                                 value={sortField}
                                 onChange={(e) => setSortField(e.target.value)}
-                                className="rounded-md bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
+                                className="rounded-md bg-white/5 border border-white/5 px-2 py-1 text-xs text-zinc-200"
                             >
                                 <option value="createdAt">Joined</option>
                                 <option value="username">Username</option>
@@ -202,7 +202,7 @@ export function AdminUserList() {
                             <select
                                 value={sortDir}
                                 onChange={(e) => setSortDir(e.target.value as 'asc' | 'desc')}
-                                className="rounded-md bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
+                                className="rounded-md bg-white/5 border border-white/5 px-2 py-1 text-xs text-zinc-200"
                             >
                                 <option value="desc">Desc</option>
                                 <option value="asc">Asc</option>
@@ -216,27 +216,26 @@ export function AdminUserList() {
                         {users.map((user) => (
                             <div
                                 key={user.id}
-                                className={`rounded-lg border transition-colors p-3 md:p-4 ${
-                                    user.isDeleted
-                                        ? 'border-gray-500/20 bg-gray-500/[0.02] hover:bg-gray-500/[0.04] opacity-60'
-                                        : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.06]'
-                                }`}
+                                className={`rounded-lg border transition-colors p-3 md:p-4 ${user.isDeleted
+                                        ? 'border-zinc-500/20 bg-zinc-500/[0.02] hover:bg-zinc-500/[0.04] opacity-60'
+                                        : 'border-white/5 bg-white/[0.04] hover:bg-white/[0.06]'
+                                    }`}
                                 onClick={() => setSelectedUser(user === selectedUser ? null : user)}
                             >
                                 <div className="grid gap-3 md:grid-cols-12 md:items-center">
                                     <div className="md:col-span-3 space-y-1">
-                                        <div className="text-sm text-gray-400">User</div>
-                                        <div className="font-semibold text-white">
+                                        <div className="text-sm text-muted-foreground">User</div>
+                                        <div className="font-semibold text-zinc-200">
                                             {user.name || user.username || (user.address ? `${user.address.slice(0, 12)}...` : '—')}
                                         </div>
-                                        <div className="text-xs text-gray-500 font-mono">
+                                        <div className="text-xs text-zinc-500 font-mono">
                                             {user.address ? `${user.address.slice(0, 10)}…` : '—'}
                                         </div>
-                                        <div className="text-xs text-gray-400 truncate">{user.email || '—'}</div>
+                                        <div className="text-xs text-muted-foreground truncate">{user.email || '—'}</div>
                                     </div>
 
                                     <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-gray-400">Activity</div>
+                                        <div className="text-xs text-muted-foreground">Activity</div>
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-100">
                                                 Bets {user._count.marketActivity}
@@ -245,22 +244,22 @@ export function AdminUserList() {
                                                 Events {user._count.createdEvents}
                                             </Badge>
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-gray-300">
-                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/10">
-                                                Vol: ${ (user as any).betVolume?.toFixed ? (user as any).betVolume.toFixed(0) : '0' }
+                                        <div className="flex items-center gap-2 text-xs text-zinc-300">
+                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/5">
+                                                Vol: ${(user as any).betVolume?.toFixed ? (user as any).betVolume.toFixed(0) : '0'}
                                             </span>
-                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/10">
-                                                Win rate: { (user as any).winRate != null ? `${(user as any).winRate}%` : '—' }
+                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/5">
+                                                Win rate: {(user as any).winRate != null ? `${(user as any).winRate}%` : '—'}
                                             </span>
                                         </div>
                                     </div>
 
                                     <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-gray-400">Balance</div>
-                                        <div className="text-sm text-gray-200">
+                                        <div className="text-xs text-muted-foreground">Balance</div>
+                                        <div className="text-sm text-zinc-200">
                                             {typeof user.currentBalance === 'number' ? `$${user.currentBalance.toFixed(2)}` : '—'}
                                         </div>
-                                        <div className="text-xs text-gray-500 flex flex-wrap gap-2">
+                                        <div className="text-xs text-zinc-500 flex flex-wrap gap-2">
                                             <span>
                                                 Dep: {typeof user.totalDeposited === 'number' ? `$${user.totalDeposited.toFixed(0)}` : '—'}
                                             </span>
@@ -271,20 +270,20 @@ export function AdminUserList() {
                                     </div>
 
                                     <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-gray-400">Geo / Status</div>
-                                        <div className="text-sm text-gray-200">{user.lastCountry || '—'}</div>
+                                        <div className="text-xs text-muted-foreground">Geo / Status</div>
+                                        <div className="text-sm text-zinc-200">{user.lastCountry || '—'}</div>
                                         <div className="flex items-center gap-2 flex-wrap">
                                             {user.isAdmin ? (
                                                 <Badge variant="outline" className="border-purple-500/30 bg-purple-500/10 text-purple-100">
                                                     Admin
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="border-white/15 bg-white/5 text-gray-200">
+                                                <Badge variant="outline" className="border-white/15 bg-white/5 text-zinc-200">
                                                     User
                                                 </Badge>
                                             )}
                                             {user.isDeleted ? (
-                                                <Badge variant="outline" className="border-gray-500/30 bg-gray-500/10 text-gray-100">
+                                                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-100">
                                                     Deleted
                                                 </Badge>
                                             ) : (
@@ -303,11 +302,11 @@ export function AdminUserList() {
                                     </div>
 
                                     <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-gray-400">Timeline</div>
-                                        <div className="text-xs text-gray-300">
+                                        <div className="text-xs text-muted-foreground">Timeline</div>
+                                        <div className="text-xs text-zinc-300">
                                             Joined: {new Date(user.createdAt).toLocaleDateString()}
                                         </div>
-                                        <div className="text-xs text-gray-300 truncate">
+                                        <div className="text-xs text-zinc-300 truncate">
                                             Last: {user.lastVisitedAt ? new Date(user.lastVisitedAt).toLocaleString() : '—'}
                                         </div>
                                     </div>
@@ -316,7 +315,7 @@ export function AdminUserList() {
                                         <a
                                             href={`/profile?address=${encodeURIComponent(user.address || user.id)}`}
                                             onClick={(e) => e.stopPropagation()}
-                                            className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10"
+                                            className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-zinc-100 hover:bg-white/10"
                                         >
                                             Profile
                                         </a>
@@ -329,11 +328,10 @@ export function AdminUserList() {
                                                         action: user.isBanned ? 'unban' : 'ban',
                                                     });
                                                 }}
-                                                className={`text-xs px-2 py-1 rounded-md border transition-colors ${
-                                                    user.isBanned
+                                                className={`text-xs px-2 py-1 rounded-md border transition-colors ${user.isBanned
                                                         ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
                                                         : 'border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20'
-                                                }`}
+                                                    }`}
                                             >
                                                 {user.isBanned ? 'Unban' : 'Ban'}
                                             </button>
@@ -343,7 +341,7 @@ export function AdminUserList() {
                                                     handleDeleteUser(user);
                                                 }}
                                                 disabled={deleteUserMutation.isPending || user.isDeleted}
-                                                className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-gray-100 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-zinc-100 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {user.isDeleted ? 'Deleted' : 'Delete'}
                                             </button>
@@ -354,22 +352,22 @@ export function AdminUserList() {
                         ))}
 
                         {users.length === 0 && (
-                            <div className="text-center py-12 text-gray-500">
+                            <div className="text-center py-12 text-muted-foreground">
                                 {searchQuery ? 'No users found matching your search.' : 'No users found.'}
                             </div>
                         )}
                     </div>
 
                     {selectedUser && (
-                        <div className="border-t-0 bg-gradient-to-b from-[#1c1c1c] via-[#171717] to-[#0f0f0f] px-4 py-4">
+                        <div className="border-t-0 bg-surface-elevated px-4 py-4">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <div className="text-sm text-gray-400">User details</div>
-                                    <div className="text-lg font-semibold text-white">{selectedUser.name || selectedUser.username || 'User'}</div>
+                                    <div className="text-sm text-muted-foreground">User details</div>
+                                    <div className="text-lg font-semibold text-zinc-200">{selectedUser.name || selectedUser.username || 'User'}</div>
                                 </div>
                                 <button
                                     onClick={() => setSelectedUser(null)}
-                                    className="text-gray-400 hover:text-white text-sm"
+                                    className="text-muted-foreground hover:text-zinc-200 text-sm"
                                 >
                                     ✕
                                 </button>
@@ -414,9 +412,9 @@ export function AdminUserList() {
 
 function InfoRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
     return (
-        <div className="flex flex-col gap-1 rounded-lg border-0 bg-[#111113] p-3">
-            <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
-            <span className={`text-sm text-white ${mono ? 'font-mono break-all' : ''}`}>{value}</span>
+        <div className="flex flex-col gap-1 rounded-lg border-0 bg-background p-3">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">{label}</span>
+            <span className={`text-sm text-zinc-200 ${mono ? 'font-mono break-all' : ''}`}>{value}</span>
         </div>
     );
 }

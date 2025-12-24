@@ -92,8 +92,8 @@ export function InternalNotes({ ticketId }: InternalNotesProps) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <StickyNote className="w-5 h-5 text-yellow-400" />
-        <h3 className="text-lg font-semibold text-white">Internal Notes</h3>
-        <span className="text-xs text-white/40">(Support team only)</span>
+        <h3 className="text-lg font-semibold text-zinc-200">Internal Notes</h3>
+        <span className="text-xs text-muted-foreground">(Support team only)</span>
       </div>
 
       {/* Add Note Form */}
@@ -108,13 +108,13 @@ export function InternalNotes({ ticketId }: InternalNotesProps) {
           onChange={(e) => setNewNote(e.target.value)}
           placeholder="Add an internal note (only visible to support team)..."
           rows={3}
-          className="w-full px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-white placeholder-white/40 focus:outline-none focus:border-yellow-500/50 transition-colors resize-none"
+          className="w-full px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-yellow-500/50 transition-colors resize-none"
           maxLength={5000}
         />
         <button
           type="submit"
           disabled={adding || !newNote.trim()}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-500/80 to-yellow-600/80 hover:from-yellow-500 hover:to-yellow-600 text-white font-medium transition-all shadow-lg shadow-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white font-medium transition-all shadow-lg shadow-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {adding ? (
             <>
@@ -133,14 +133,14 @@ export function InternalNotes({ ticketId }: InternalNotesProps) {
       {/* Notes List */}
       <div className="space-y-3 mt-6">
         {notes.length === 0 ? (
-          <div className="text-center py-6 text-white/40 text-sm">
+          <div className="text-center py-6 text-muted-foreground text-sm">
             No internal notes yet
           </div>
         ) : (
           notes.map((note) => (
             <div
               key={note.id}
-              className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20"
+              className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/10"
             >
               <div className="flex items-start gap-3 mb-2">
                 <div className="w-8 h-8 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center flex-shrink-0">
@@ -148,15 +148,15 @@ export function InternalNotes({ ticketId }: InternalNotesProps) {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-white">
+                    <span className="text-sm font-medium text-zinc-200">
                       {note.agent.name || note.agent.username || 'Agent'}
                     </span>
-                    <span className="text-xs text-white/40 flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
                     </span>
                   </div>
-                  <p className="text-sm text-white/80 whitespace-pre-wrap">{note.content}</p>
+                  <p className="text-sm text-zinc-300 whitespace-pre-wrap">{note.content}</p>
                 </div>
               </div>
             </div>

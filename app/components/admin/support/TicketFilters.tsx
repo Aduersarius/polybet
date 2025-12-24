@@ -84,17 +84,28 @@ export function TicketFilters({ filters, onFilterChange, agents }: TicketFilters
     filters.assignedTo !== '' ||
     filters.search !== '';
 
+  const getStatusClass = (status: string, isActive: boolean) => {
+    if (!isActive) return 'bg-white/5 text-muted-foreground border border-white/5 hover:bg-white/10';
+    switch (status) {
+      case 'open': return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20';
+      case 'pending': return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20';
+      case 'resolved': return 'bg-primary/20 text-primary border border-primary/20';
+      case 'closed': return 'bg-white/10 text-zinc-400 border border-white/10';
+      default: return 'bg-white/5 text-muted-foreground border border-white/5';
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           type="text"
           value={filters.search}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search tickets, users..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500/50 transition-colors"
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-emerald-500/50 transition-colors"
         />
       </div>
 
@@ -105,47 +116,42 @@ export function TicketFilters({ filters, onFilterChange, agents }: TicketFilters
           <button
             key={status.value}
             onClick={() => handleStatusToggle(status.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              filters.status.includes(status.value)
-                ? `bg-${status.color}-500/20 text-${status.color}-400 border border-${status.color}-500/30`
-                : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${getStatusClass(status.value, filters.status.includes(status.value))
+              }`}
           >
             {status.label}
           </button>
         ))}
 
         {/* Divider */}
-        <div className="w-px h-8 bg-white/10" />
+        <div className="w-px h-8 bg-white/5" />
 
         {/* Priority Filters */}
         {PRIORITIES.map((priority) => (
           <button
             key={priority.value}
             onClick={() => handlePriorityToggle(priority.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              filters.priority.includes(priority.value)
-                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filters.priority.includes(priority.value)
+                ? 'bg-primary/20 text-primary border border-primary/20'
+                : 'bg-white/5 text-muted-foreground border border-white/5 hover:bg-white/10'
+              }`}
           >
             {priority.label}
           </button>
         ))}
 
         {/* Divider */}
-        <div className="w-px h-8 bg-white/10" />
+        <div className="w-px h-8 bg-white/5" />
 
         {/* Category Filters */}
         {CATEGORIES.map((category) => (
           <button
             key={category.value}
             onClick={() => handleCategoryToggle(category.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              filters.category.includes(category.value)
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filters.category.includes(category.value)
+                ? 'bg-primary/20 text-primary border border-primary/20'
+                : 'bg-white/5 text-muted-foreground border border-white/5 hover:bg-white/10'
+              }`}
           >
             {category.label}
           </button>
@@ -157,7 +163,7 @@ export function TicketFilters({ filters, onFilterChange, agents }: TicketFilters
         <select
           value={filters.assignedTo}
           onChange={(e) => handleAssignedToChange(e.target.value)}
-          className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+          className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
         >
           <option value="">All Tickets</option>
           <option value="unassigned">Unassigned</option>

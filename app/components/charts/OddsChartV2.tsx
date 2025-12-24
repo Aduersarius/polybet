@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -15,7 +15,7 @@ import {
 import type { OddsPeriod } from './axis/TimelineTick';
 import { TimelineTick } from './axis/TimelineTick';
 import { PeriodSelector } from './controls/PeriodSelector';
-import { OddsLegend } from './legend/OddsLegend';
+import { OutcomeSelector } from './controls/OutcomeSelector';
 import { ChartTooltipBridge } from './tooltip/ChartTooltipBridge';
 import { OddsCursor } from './cursor/OddsCursor';
 
@@ -72,10 +72,46 @@ function renderCapForPeriod(period: OddsPeriod) {
 export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, currentYesPrice }: OddsChartV2Props) {
   const [period, setPeriod] = useState<OddsPeriod>('all');
   const [hoveredDataPoint, setHoveredDataPoint] = useState<any | null>(null);
+  const [selectedOutcomeIds, setSelectedOutcomeIds] = useState<Set<string>>(new Set());
 
   const effectiveOutcomes = liveOutcomes || outcomes;
   const isMultipleOutcomes = eventType === 'MULTIPLE' && Array.isArray(effectiveOutcomes) && effectiveOutcomes.length > 0;
+  const hasMany = isMultipleOutcomes && effectiveOutcomes.length > 4;
+
   const coloredOutcomes = useMemo(() => (isMultipleOutcomes ? assignOutcomeColors(effectiveOutcomes) : []), [effectiveOutcomes, isMultipleOutcomes]);
+
+  // Initialize selected outcomes: top 4 by probability when there are many
+  useEffect(() => {
+    if (hasMany && selectedOutcomeIds.size === 0) {
+      const sorted = [...effectiveOutcomes].sort((a, b) => b.probability - a.probability);
+      const top4Ids = sorted.slice(0, 4).map(o => o.id);
+      setSelectedOutcomeIds(new Set(top4Ids));
+    } else if (!hasMany && isMultipleOutcomes) {
+      // Show all when less than 4
+      setSelectedOutcomeIds(new Set(effectiveOutcomes.map(o => o.id)));
+    }
+  }, [hasMany, effectiveOutcomes, isMultipleOutcomes]);
+
+  // Filter outcomes based on selection (only when 4+)
+  const visibleOutcomes = useMemo(() => {
+    if (!hasMany) return coloredOutcomes;
+    return coloredOutcomes.filter(o => selectedOutcomeIds.has(o.id));
+  }, [coloredOutcomes, selectedOutcomeIds, hasMany]);
+
+  const toggleOutcome = useCallback((id: string) => {
+    setSelectedOutcomeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        // Don't allow deselecting all
+        if (next.size > 1) {
+          next.delete(id);
+        }
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const renderCap = useMemo(() => renderCapForPeriod(period), [period]);
 
@@ -91,7 +127,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   const renderData = useMemo(() => limitPoints(chartData as any[], renderCap), [chartData, renderCap]);
 
-  const outcomeKeys = useMemo(() => coloredOutcomes.map((o) => `outcome_${o.id}`), [coloredOutcomes]);
+  const outcomeKeys = useMemo(() => visibleOutcomes.map((o) => `outcome_${o.id}`), [visibleOutcomes]);
 
   const yAxisDomain = useMemo(
     () => computeYAxisDomain({ chartData: chartData as any[], isMultipleOutcomes, outcomeKeys }),
@@ -160,15 +196,31 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
     );
   };
 
-  const chartMargin = useMemo(() => ({ top: 60, right: 0, left: -40, bottom: 15 }), []);
-  const yAxisPadding = useMemo(() => ({ bottom: 40 }), []);
+  const chartMargin = useMemo(() => ({
+    top: isMultipleOutcomes ? (hasMany ? 10 : 60) : 0,
+    right: 0,
+    left: -40,
+    bottom: 15
+  }), [isMultipleOutcomes, hasMany]);
+  const yAxisPadding = useMemo(() => ({ top: 0, bottom: 0 }), []);
 
   return (
     <div
-      className="relative h-full w-full bg-[#1a1d28] select-none cursor-crosshair outline-none ring-0 focus:outline-none active:outline-none"
+      className="flex flex-col relative h-full w-full bg-[#1a1d28] select-none cursor-crosshair outline-none ring-0 focus:outline-none active:outline-none"
       onMouseDown={(e) => e.preventDefault()}
     >
-      <div className="absolute inset-0">
+      {/* External Outcome Selector for large sets */}
+      {hasMany && (
+        <OutcomeSelector
+          outcomes={coloredOutcomes}
+          selectedIds={selectedOutcomeIds}
+          onToggle={toggleOutcome}
+          currentValues={currentValues}
+          hoveredDataPoint={hoveredDataPoint}
+        />
+      )}
+
+      <div className="flex-1 relative min-h-0 w-full">
         {isLoading && history.length === 0 ? (
           <div className="flex h-full w-full items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#BB86FC]" />
@@ -178,7 +230,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
             <AreaChart data={renderData as any[]} margin={chartMargin}>
               <defs>
                 {isMultipleOutcomes ? (
-                  coloredOutcomes.map((o) => (
+                  visibleOutcomes.map((o) => (
                     <linearGradient key={o.id} id={`gradient_${o.id}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={o.color} stopOpacity={0.3} />
                       <stop offset="95%" stopColor={o.color} stopOpacity={0} />
@@ -246,7 +298,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
               />
 
               {isMultipleOutcomes ? (
-                coloredOutcomes.map((o) => (
+                visibleOutcomes.map((o) => (
                   <Area
                     key={o.id}
                     type="monotone"
@@ -279,7 +331,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
               {/* Current point pulse markers (rendered after series so they sit on top) */}
               {showCurrentPulse && lastPoint ? (
                 isMultipleOutcomes ? (
-                  coloredOutcomes.map((o) => (
+                  visibleOutcomes.map((o) => (
                     <ReferenceDot
                       key={`pulse_${o.id}`}
                       x={lastPoint.timestamp}
@@ -306,18 +358,31 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
         )}
       </div>
 
-      {/* Header */}
-      <div className="absolute top-3 left-4 right-4 flex items-start justify-between pointer-events-none">
-        <div className="pointer-events-auto rounded-lg bg-[#1a1d28] backdrop-blur-sm px-3 py-2 flex flex-col items-end border border-white/10">
-          <OddsLegend
-            isMultipleOutcomes={isMultipleOutcomes}
-            coloredOutcomes={coloredOutcomes as any}
-            hoveredDataPoint={hoveredDataPoint}
-            currentValues={currentValues}
-            binaryValue={binaryValue}
-          />
+      {/* Internal Overlay Legend (Only for small multiple sets) */}
+      {isMultipleOutcomes && !hasMany && (
+        <div className="absolute top-3 left-4 right-4 flex items-start justify-between pointer-events-none">
+          <div className="pointer-events-auto rounded-lg bg-[#1a1d28] backdrop-blur-sm px-3 py-2 flex flex-col gap-2 border border-white/10 max-w-[90%]">
+            <div className="flex flex-wrap items-center gap-3">
+              {coloredOutcomes.map((o) => {
+                const value = hoveredDataPoint ? (hoveredDataPoint[`outcome_${o.id}`] || 0) : (currentValues[`outcome_${o.id}`] || 0);
+
+                return (
+                  <div key={o.id} className="flex items-center gap-1.5">
+                    <div
+                      className="h-2 w-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: o.color }}
+                    />
+                    <span className="text-xs font-medium text-gray-300 truncate max-w-[80px]">{o.name}</span>
+                    <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: o.color }}>
+                      {Math.round(value)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bottom Controls */}
       <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between pointer-events-none">

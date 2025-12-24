@@ -80,9 +80,9 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
 
     if (isLoading) {
         return (
-            <Card className="border-0 bg-[#0d0f14]">
+            <Card className="border-0 bg-surface">
                 <CardHeader>
-                    <CardTitle className="text-white">Events</CardTitle>
+                    <CardTitle className="text-zinc-200">Events</CardTitle>
                     <CardDescription>Loading events…</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -93,15 +93,15 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
     }
 
     return (
-        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+        <Card className="border-0 bg-surface">
             <CardHeader className="gap-2">
                 <div className="flex items-center justify-between gap-2">
                     <div>
-                        <CardTitle className="text-white">Events</CardTitle>
-                        <CardDescription className="text-gray-400">Manage markets, visibility, and status</CardDescription>
+                        <CardTitle className="text-zinc-200">Events</CardTitle>
+                        <CardDescription className="text-muted-foreground">Manage markets, visibility, and status</CardDescription>
                     </div>
                     {debouncedSearch && (
-                        <div className="text-sm text-gray-400">Found {totalEvents} events</div>
+                        <div className="text-sm text-muted-foreground">Found {totalEvents} events</div>
                     )}
                 </div>
                 <div className="flex items-center gap-3">
@@ -111,10 +111,10 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search by title, description, categories, creator, status, or type..."
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 pl-10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                            className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-2 pl-10 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
                         />
                         <svg
-                            className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                            className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -127,8 +127,8 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
 
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-200">
-                        <thead className="bg-white/5 text-xs uppercase text-gray-400">
+                    <table className="w-full text-left text-sm text-zinc-200">
+                        <thead className="bg-white/5 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="px-4 py-3 font-semibold">Title</th>
                                 <th className="px-4 py-3 font-semibold">Type</th>
@@ -150,151 +150,151 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                                 const categories = Array.isArray(event.categories) ? event.categories : [];
 
                                 return (
-                                <tr
-                                    key={event.id || `event-${idx}`}
-                                    className="hover:bg-white/5 cursor-pointer transition-colors"
-                                    onClick={() => onEditEvent(event)}
-                                >
-                                    <td className="px-4 py-3">
-                                        <div className="font-semibold text-white hover:text-blue-400 transition-colors">
-                                            {event.title}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-cyan-300 border border-cyan-500/20">
-                                            {event.type === 'BINARY' ? 'Binary' : 'Multiple'}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-wrap gap-1">
-                                            {categories.slice(0, 2).map((cat, idx) => (
-                                                <span key={idx} className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-200 border border-white/10">
-                                                    {cat}
-                                                </span>
-                                            ))}
-                                            {categories.length > 2 && (
-                                                <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-400 border border-white/10">
-                                                    +{categories.length - 2}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-300">
-                                        {creatorLabel}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className="px-2 py-1 rounded-full text-xs bg-blue-500/10 border border-blue-500/30 text-blue-100">
-                                            {event._count.bets}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className={`px-2 py-1 rounded-full text-xs border ${event.status === 'ACTIVE'
-                                            ? 'bg-emerald-500/10 text-emerald-100 border-emerald-500/30'
-                                            : 'bg-white/5 text-gray-400 border-white/10'
-                                            }`}>
-                                            {event.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className={`px-2 py-1 rounded-full text-xs border ${event.isHidden
-                                            ? 'bg-red-500/10 text-red-100 border-red-500/30'
-                                            : 'bg-emerald-500/10 text-emerald-100 border-emerald-500/30'
-                                            }`}>
-                                            {event.isHidden ? 'Hidden' : 'Public'}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    updateEventMutation.mutate({
-                                                        eventId: event.id,
-                                                        action: 'toggleHide',
-                                                        value: !event.isHidden
-                                                    });
-                                                }}
-                                                className="text-xs px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
-                                            >
-                                                {event.isHidden ? 'Show' : 'Hide'}
-                                            </button>
-                                            {event.status === 'ACTIVE' && (
-                                                <>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (confirm('Resolve this event as YES?')) {
-                                                                updateEventMutation.mutate({
-                                                                    eventId: event.id,
-                                                                    action: 'resolve',
-                                                                    value: 'YES'
-                                                                });
-                                                            }
-                                                        }}
-                                                    className="text-xs px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors"
-                                                >
-                                                    ✓ YES
-                                                </button>
+                                    <tr
+                                        key={event.id || `event-${idx}`}
+                                        className="hover:bg-white/5 cursor-pointer transition-colors"
+                                        onClick={() => onEditEvent(event)}
+                                    >
+                                        <td className="px-4 py-3">
+                                            <div className="font-semibold text-zinc-200 hover:text-primary transition-colors">
+                                                {event.title}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-cyan-300 border border-cyan-500/20">
+                                                {event.type === 'BINARY' ? 'Binary' : 'Multiple'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-wrap gap-1">
+                                                {categories.slice(0, 2).map((cat, idx) => (
+                                                    <span key={idx} className="px-2 py-1 rounded-full text-xs bg-white/5 text-zinc-300 border border-white/5">
+                                                        {cat}
+                                                    </span>
+                                                ))}
+                                                {categories.length > 2 && (
+                                                    <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-muted-foreground border border-white/5">
+                                                        +{categories.length - 2}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-zinc-400">
+                                            {creatorLabel}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="px-2 py-1 rounded-full text-xs bg-primary/10 border border-primary/30 text-blue-100">
+                                                {event._count.bets}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-1 rounded-full text-xs border ${event.status === 'ACTIVE'
+                                                ? 'bg-emerald-500/10 text-emerald-100 border-emerald-500/30'
+                                                : 'bg-white/5 text-muted-foreground border-white/5'
+                                                }`}>
+                                                {event.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-1 rounded-full text-xs border ${event.isHidden
+                                                ? 'bg-red-500/10 text-red-100 border-red-500/30'
+                                                : 'bg-emerald-500/10 text-emerald-100 border-emerald-500/30'
+                                                }`}>
+                                                {event.isHidden ? 'Hidden' : 'Public'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex gap-2">
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                            if (confirm('Resolve this event as NO?')) {
-                                                                updateEventMutation.mutate({
-                                                                    eventId: event.id,
-                                                                    action: 'resolve',
-                                                                    value: 'NO'
-                                                                });
-                                                            }
-                                                        }}
-                                                    className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
-                                                >
-                                                    ✗ NO
-                                                </button>
-                                            </>
-                                        )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (confirm('Delete this event? This will unmap any Polymarket link.')) {
                                                         updateEventMutation.mutate({
                                                             eventId: event.id,
-                                                            action: 'delete',
-                                                            value: true
+                                                            action: 'toggleHide',
+                                                            value: !event.isHidden
                                                         });
-                                                        // Refresh events and polymarket intake views
-                                                        queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
-                                                        queryClient.invalidateQueries({ queryKey: ['polymarket', 'intake'] });
-                                                    }
-                                                }}
-                                                className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
-                                            >
-                                                Delete
-                                            </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                                    }}
+                                                    className="text-xs px-2 py-1 rounded-md border border-white/5 bg-white/5 text-zinc-300 hover:bg-white/10 transition-colors"
+                                                >
+                                                    {event.isHidden ? 'Show' : 'Hide'}
+                                                </button>
+                                                {event.status === 'ACTIVE' && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm('Resolve this event as YES?')) {
+                                                                    updateEventMutation.mutate({
+                                                                        eventId: event.id,
+                                                                        action: 'resolve',
+                                                                        value: 'YES'
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="text-xs px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors"
+                                                        >
+                                                            ✓ YES
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm('Resolve this event as NO?')) {
+                                                                    updateEventMutation.mutate({
+                                                                        eventId: event.id,
+                                                                        action: 'resolve',
+                                                                        value: 'NO'
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                                                        >
+                                                            ✗ NO
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm('Delete this event? This will unmap any Polymarket link.')) {
+                                                            updateEventMutation.mutate({
+                                                                eventId: event.id,
+                                                                action: 'delete',
+                                                                value: true
+                                                            });
+                                                            // Refresh events and polymarket intake views
+                                                            queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+                                                            queryClient.invalidateQueries({ queryKey: ['polymarket', 'intake'] });
+                                                        }
+                                                    }}
+                                                    className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
 
-                {events.length === 0 && (
-                    <div className="text-center py-12 text-gray-500">
-                        {debouncedSearch ? 'No events found matching your search.' : 'No events found. Create your first event!'}
-                    </div>
+                    {events.length === 0 && (
+                        <div className="text-center py-12 text-muted-foreground">
+                            {debouncedSearch ? 'No events found matching your search.' : 'No events found. Create your first event!'}
+                        </div>
+                    )}
+                </div>
+
+                {/* Pagination */}
+                {totalEvents > itemsPerPage && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(totalEvents / itemsPerPage)}
+                        totalItems={totalEvents}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                    />
                 )}
-            </div>
-
-            {/* Pagination */}
-            {totalEvents > itemsPerPage && (
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={Math.ceil(totalEvents / itemsPerPage)}
-                    totalItems={totalEvents}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                />
-            )}
             </CardContent>
         </Card>
     );

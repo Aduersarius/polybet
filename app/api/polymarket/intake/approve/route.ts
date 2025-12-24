@@ -832,25 +832,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Trim low-probability outcomes for large Multiple events
-    // Rule: If >= 4 outcomes, remove any with < 1% probability
+    // Rule: If >= 4 outcomes, remove any with < 1% probability, but always keep at least 4 outcomes
     let outcomesFromMapping = normalizedOutcomeMapping;
     if ((type === 'MULTIPLE' || dbEvent.type === 'MULTIPLE') && outcomesFromMapping.length >= 4) {
       const originalCount = outcomesFromMapping.length;
-      outcomesFromMapping = outcomesFromMapping.filter((o: any) => {
-        // Probability is prioritized, fallback to price
+
+      // Sort by probability descending first
+      const sortedOutcomes = [...outcomesFromMapping].sort((a: any, b: any) => {
+        const pA = typeof a.probability === 'number' ? a.probability : Number(a.price || 0);
+        const pB = typeof b.probability === 'number' ? b.probability : Number(b.price || 0);
+        return pB - pA;
+      });
+
+      // Filter outcomes with >= 1% probability
+      const significantOutcomes = sortedOutcomes.filter((o: any) => {
         const p = typeof o.probability === 'number' ? o.probability : Number(o.price || 0);
         return p >= 0.01;
       });
 
-      // Safety: If we trimmed too aggressively (e.g. infinite flat tail), ensure we keep at least top 5 or 2
-      if (outcomesFromMapping.length < 2 && originalCount >= 2) {
-        outcomesFromMapping = [...normalizedOutcomeMapping]
-          .sort((a: any, b: any) => {
-            const pA = typeof a.probability === 'number' ? a.probability : Number(a.price || 0);
-            const pB = typeof b.probability === 'number' ? b.probability : Number(b.price || 0);
-            return pB - pA;
-          })
-          .slice(0, 5);
+      // Keep at least 4 outcomes - if filtering removed too many, keep top 4 by probability
+      if (significantOutcomes.length >= 4) {
+        outcomesFromMapping = significantOutcomes;
+      } else {
+        // Not enough significant outcomes, keep top 4 regardless of probability
+        outcomesFromMapping = sortedOutcomes.slice(0, Math.max(4, significantOutcomes.length));
       }
 
       if (outcomesFromMapping.length < originalCount) {

@@ -139,9 +139,9 @@ export function AdminOverview() {
     return (
         <div className="space-y-6">
             {loading && (
-                <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                <Card className="border-0 bg-surface">
                     <CardHeader>
-                        <CardTitle className="text-white">Overview</CardTitle>
+                        <CardTitle className="text-zinc-200">Overview</CardTitle>
                         <CardDescription>Loading overview metrics…</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -213,13 +213,13 @@ export function AdminOverview() {
                         ].map((card) => (
                             <div
                                 key={card.label}
-                                className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30"
+                                className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm text-gray-400">{card.label}</p>
-                                        <p className="mt-2 text-2xl font-bold text-white">{card.value}</p>
-                                        <p className="text-xs text-gray-500">{card.sub}</p>
+                                        <p className="text-sm text-muted-foreground">{card.label}</p>
+                                        <p className="mt-2 text-2xl font-bold text-zinc-200">{card.value}</p>
+                                        <p className="text-xs text-muted-foreground">{card.sub}</p>
                                     </div>
                                     <div className="rounded-lg bg-white/5 p-2">{card.icon}</div>
                                 </div>
@@ -228,14 +228,14 @@ export function AdminOverview() {
                     </div>
 
                     <div className="grid gap-4 lg:grid-cols-2">
-                        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                        <Card className="border-0 bg-surface">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-white">New vs daily users</CardTitle>
+                                <CardTitle className="text-zinc-200">New vs daily users</CardTitle>
                                 <CardDescription>Last {data.windowDays} days</CardDescription>
                             </CardHeader>
                             <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                                 {userChartData.length === 0 ? (
-                                    <div className="text-gray-400">No data</div>
+                                    <div className="text-muted-foreground">No data</div>
                                 ) : (
                                     <ChartContainer config={chartConfigUsers} className="aspect-auto h-[260px] w-full">
                                         <AreaChart data={userChartData}>
@@ -249,7 +249,7 @@ export function AdminOverview() {
                                                     <stop offset="95%" stopColor="var(--color-activeBettors)" stopOpacity={0.05} />
                                                 </linearGradient>
                                             </defs>
-                                            <CartesianGrid vertical={false} className="stroke-white/20" />
+                                            <CartesianGrid vertical={false} className="stroke-white/10" />
                                             <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
                                             <ChartTooltip
                                                 cursor={false}
@@ -277,14 +277,14 @@ export function AdminOverview() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                        <Card className="border-0 bg-surface">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-white">Number of bets</CardTitle>
+                                <CardTitle className="text-zinc-200">Number of bets</CardTitle>
                                 <CardDescription>Daily bet counts</CardDescription>
                             </CardHeader>
                             <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                                 {betsChartData.length === 0 ? (
-                                    <div className="text-gray-400">No data</div>
+                                    <div className="text-muted-foreground">No data</div>
                                 ) : (
                                     <ChartContainer config={chartConfigBets} className="aspect-auto h-[260px] w-full">
                                         <AreaChart data={betsChartData}>
@@ -294,7 +294,7 @@ export function AdminOverview() {
                                                     <stop offset="95%" stopColor="var(--color-bets)" stopOpacity={0.05} />
                                                 </linearGradient>
                                             </defs>
-                                            <CartesianGrid vertical={false} className="stroke-white/20" />
+                                            <CartesianGrid vertical={false} className="stroke-white/10" />
                                             <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
                                             <ChartTooltip
                                                 cursor={false}
@@ -315,14 +315,14 @@ export function AdminOverview() {
                     </div>
 
                     <div className="grid gap-4 lg:grid-cols-2">
-                        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                        <Card className="border-0 bg-surface">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-white">Deposits vs withdrawals</CardTitle>
+                                <CardTitle className="text-zinc-200">Deposits vs withdrawals</CardTitle>
                                 <CardDescription>Completed amounts by day</CardDescription>
                             </CardHeader>
                             <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                                 {paymentsChartData.length === 0 ? (
-                                    <div className="text-gray-400">No data</div>
+                                    <div className="text-muted-foreground">No data</div>
                                 ) : (
                                     <ChartContainer config={chartConfigPayments} className="aspect-auto h-[260px] w-full">
                                         <AreaChart data={paymentsChartData}>
@@ -336,7 +336,7 @@ export function AdminOverview() {
                                                     <stop offset="95%" stopColor="var(--color-withdrawals)" stopOpacity={0.05} />
                                                 </linearGradient>
                                             </defs>
-                                            <CartesianGrid vertical={false} className="stroke-white/20" />
+                                            <CartesianGrid vertical={false} className="stroke-white/10" />
                                             <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
                                             <ChartTooltip
                                                 cursor={false}
@@ -364,14 +364,14 @@ export function AdminOverview() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-0 bg-gradient-to-b from-[#1f1f1f] via-[#171717] to-[#0f0f0f]">
+                        <Card className="border-0 bg-surface">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-white">Bet volume</CardTitle>
+                                <CardTitle className="text-zinc-200">Bet volume</CardTitle>
                                 <CardDescription>Daily bet volume</CardDescription>
                             </CardHeader>
                             <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                                 {volumeChartData.length === 0 ? (
-                                    <div className="text-gray-400">No data</div>
+                                    <div className="text-muted-foreground">No data</div>
                                 ) : (
                                     <ChartContainer config={chartConfigVolume} className="aspect-auto h-[260px] w-full">
                                         <AreaChart data={volumeChartData}>
@@ -381,7 +381,7 @@ export function AdminOverview() {
                                                     <stop offset="95%" stopColor="var(--color-volume)" stopOpacity={0.05} />
                                                 </linearGradient>
                                             </defs>
-                                            <CartesianGrid vertical={false} className="stroke-white/20" />
+                                            <CartesianGrid vertical={false} className="stroke-white/10" />
                                             <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
                                             <ChartTooltip
                                                 cursor={false}

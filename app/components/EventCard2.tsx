@@ -1006,7 +1006,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             whileHover={{ y: -2 }}
             transition={{ duration: 0.2, delay: 0, ease: "easeOut" }}
             style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
-            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-300 flex flex-col justify-between h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] ${isEnded ? 'opacity-50' : ''
+            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-300 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] ${isEnded ? 'opacity-50' : ''
               }`}
           >
             {/* 1. Header: Image & Title */}
@@ -1200,7 +1200,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                     };
 
                     return (
-                      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent space-y-1.5 max-h-[60px]">
+                      <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent space-y-1.5 max-h-[60px]">
                         {(liveOutcomes || event.outcomes || []).map((outcome, idx) => {
                           const probability = outcome.probability ?? 0;
                           const percentage = probability > 1 ? probability : Math.round(probability * 100);
@@ -1961,7 +1961,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             )}
 
             {/* 3. Stats Row */}
-            <div className="flex items-center justify-between text-white/60 pt-0.5">
+            <div className="flex items-center justify-between text-white/60 pt-0.5 mt-auto">
               <div className="flex items-center justify-between flex-1 pr-1">
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

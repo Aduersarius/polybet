@@ -98,7 +98,7 @@ export default function AdminSupportPage() {
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-3 border-emerald-500 border-t-transparent" />
+        <div className="animate-spin rounded-full h-12 w-12 border-[3px] border-emerald-500 border-t-transparent" />
       </div>
     );
   }
@@ -106,16 +106,16 @@ export default function AdminSupportPage() {
   const user = session?.user as any;
 
   return (
-    <div className="min-h-screen bg-transparent text-white p-6">
+    <div className="min-h-screen bg-transparent text-zinc-200 p-6">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500/20 to-purple-500/20 border border-emerald-500/20">
+          <div className="p-3 rounded-xl bg-surface-elevated border border-emerald-500/20">
             <Headphones className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
             <h1 className="text-3xl font-bold">Support Dashboard</h1>
-            <p className="text-white/60">Manage support tickets and customer requests</p>
+            <p className="text-muted-foreground">Manage support tickets and customer requests</p>
           </div>
         </div>
       </div>
@@ -124,12 +124,12 @@ export default function AdminSupportPage() {
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Open Tickets */}
-          <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20">
+          <div className="p-5 rounded-xl bg-surface-elevated border border-emerald-500/20">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 rounded-lg bg-emerald-500/20">
                 <AlertCircle className="w-5 h-5 text-emerald-400" />
               </div>
-              <h3 className="text-sm font-medium text-white/80">Open Tickets</h3>
+              <h3 className="text-sm font-medium text-zinc-300">Open Tickets</h3>
             </div>
             <p className="text-3xl font-bold text-emerald-400">{stats.openTickets}</p>
             {stats.pendingTickets > 0 && (
@@ -138,50 +138,50 @@ export default function AdminSupportPage() {
           </div>
 
           {/* Today's Tickets */}
-          <div className="p-5 rounded-xl bg-white/5 border border-white/10">
+          <div className="p-5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <TrendingUp className="w-5 h-5 text-blue-400" />
+              <div className="p-2 rounded-lg bg-primary/20">
+                <TrendingUp className="w-5 h-5 text-primary" />
               </div>
-              <h3 className="text-sm font-medium text-white/80">Today</h3>
+              <h3 className="text-sm font-medium text-zinc-300">Today</h3>
             </div>
-            <p className="text-3xl font-bold text-blue-400">{stats.ticketsToday}</p>
-            <p className="text-xs text-white/40 mt-1">{stats.resolvedToday} resolved</p>
+            <p className="text-3xl font-bold text-primary">{stats.ticketsToday}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stats.resolvedToday} resolved</p>
           </div>
 
           {/* Avg Response Time */}
-          <div className="p-5 rounded-xl bg-white/5 border border-white/10">
+          <div className="p-5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 rounded-lg bg-purple-500/20">
                 <Clock className="w-5 h-5 text-purple-400" />
               </div>
-              <h3 className="text-sm font-medium text-white/80">Avg Response</h3>
+              <h3 className="text-sm font-medium text-zinc-300">Avg Response</h3>
             </div>
             <p className="text-3xl font-bold text-purple-400">{stats.avgFirstResponseTime}m</p>
-            <p className="text-xs text-white/40 mt-1">First response time</p>
+            <p className="text-xs text-muted-foreground mt-1">First response time</p>
           </div>
 
           {/* Avg Resolution Time */}
-          <div className="p-5 rounded-xl bg-white/5 border border-white/10">
+          <div className="p-5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 rounded-lg bg-orange-500/20">
                 <CheckCircle className="w-5 h-5 text-orange-400" />
               </div>
-              <h3 className="text-sm font-medium text-white/80">Avg Resolution</h3>
+              <h3 className="text-sm font-medium text-zinc-300">Avg Resolution</h3>
             </div>
             <p className="text-3xl font-bold text-orange-400">{stats.avgResolutionTime}h</p>
-            <p className="text-xs text-white/40 mt-1">Time to resolve</p>
+            <p className="text-xs text-muted-foreground mt-1">Time to resolve</p>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="mb-6 p-6 rounded-xl bg-white/5 border border-white/10">
+      <div className="mb-6 p-6 rounded-xl bg-white/5 border border-white/5">
         <TicketFilters filters={filters} onFilterChange={setFilters} agents={agents} />
       </div>
 
       {/* Ticket Inbox */}
-      <div className="p-6 rounded-xl bg-white/5 border border-white/10">
+      <div className="p-6 rounded-xl bg-white/5 border border-white/5">
         <div className="flex items-center gap-2 mb-6">
           <MessageSquare className="w-5 h-5 text-emerald-400" />
           <h2 className="text-xl font-bold">Ticket Inbox</h2>

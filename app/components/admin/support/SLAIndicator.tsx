@@ -50,9 +50,9 @@ export function SLAIndicator({ createdAt, firstResponseAt, priority, status, siz
       Icon = CheckCircle;
     } else {
       slaStatus = 'met'; // Late but responded
-      color = 'text-blue-400';
-      bgColor = 'bg-blue-500/10';
-      borderColor = 'border-blue-500/20';
+      color = 'text-primary';
+      bgColor = 'bg-primary/10';
+      borderColor = 'border-primary/20';
       Icon = CheckCircle;
     }
   } else {
@@ -73,9 +73,9 @@ export function SLAIndicator({ createdAt, firstResponseAt, priority, status, siz
       Icon = Clock;
     } else {
       slaStatus = 'pending';
-      color = 'text-gray-400';
-      bgColor = 'bg-gray-500/10';
-      borderColor = 'border-gray-500/20';
+      color = 'text-muted-foreground';
+      bgColor = 'bg-white/5';
+      borderColor = 'border-white/5';
       Icon = Clock;
     }
   }
@@ -96,7 +96,7 @@ export function SLAIndicator({ createdAt, firstResponseAt, priority, status, siz
       <Icon className="w-4 h-4" />
       <div className="text-sm">
         <span className="font-medium">{displayTime}</span>
-        <span className="text-white/40 ml-1">/ {target.label}</span>
+        <span className="text-muted-foreground ml-1">/ {target.label}</span>
       </div>
     </div>
   );

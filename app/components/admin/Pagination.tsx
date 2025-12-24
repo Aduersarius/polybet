@@ -47,8 +47,8 @@ export function Pagination({
     };
 
     return (
-        <div className="flex items-center justify-between mt-6 px-4 py-3 bg-[#2a2a2a] border border-white/10 rounded-lg">
-            <div className="text-sm text-gray-400">
+        <div className="flex items-center justify-between mt-6 px-4 py-3 bg-white/5 border border-white/5 rounded-lg">
+            <div className="text-sm text-muted-foreground">
                 Showing {startItem} to {endItem} of {totalItems} results
             </div>
 
@@ -57,7 +57,7 @@ export function Pagination({
                 <button
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="px-3 py-2 text-sm font-medium text-gray-300 bg-[#1e1e1e] border border-white/10 rounded-md hover:bg-[#374151] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+                    className="px-3 py-2 text-sm font-medium text-zinc-300 bg-white/5 border border-white/5 rounded-md hover:bg-white/10 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
                 >
                     ← Previous
                 </button>
@@ -70,10 +70,10 @@ export function Pagination({
                             onClick={() => typeof page === 'number' && onPageChange(page)}
                             disabled={page === '...'}
                             className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-150 ${page === currentPage
-                                    ? 'bg-blue-600 text-white border border-blue-500'
-                                    : page === '...'
-                                        ? 'text-gray-500 cursor-default'
-                                        : 'text-gray-300 bg-[#1e1e1e] border border-white/10 hover:bg-[#374151] hover:text-white'
+                                ? 'bg-primary text-zinc-200 border border-primary'
+                                : page === '...'
+                                    ? 'text-muted-foreground cursor-default'
+                                    : 'text-zinc-300 bg-white/5 border border-white/5 hover:bg-white/10 hover:text-zinc-200'
                                 }`}
                         >
                             {page}
@@ -85,7 +85,7 @@ export function Pagination({
                 <button
                     onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="px-3 py-2 text-sm font-medium text-gray-300 bg-[#1e1e1e] border border-white/10 rounded-md hover:bg-[#374151] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+                    className="px-3 py-2 text-sm font-medium text-zinc-300 bg-white/5 border border-white/5 rounded-md hover:bg-white/10 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
                 >
                     Next →
                 </button>
