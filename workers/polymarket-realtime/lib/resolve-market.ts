@@ -3,7 +3,8 @@
  * Extracted from hybrid-trading.ts for standalone use
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import Decimal from 'decimal.js';
 
 const prisma = new PrismaClient();
 
@@ -13,11 +14,24 @@ interface ResolveResult {
     totalFees: number;
 }
 
+interface Outcome {
+    id: string;
+    name: string;
+    probability: number | null;
+}
+
+interface EventWithOutcomes {
+    id: string;
+    type: string;
+    status: string;
+    outcomes: Outcome[];
+}
+
 export async function resolveMarket(eventId: string, winningOutcomeId: string): Promise<ResolveResult> {
     const event = await prisma.event.findUnique({
         where: { id: eventId },
         include: { outcomes: true },
-    });
+    }) as EventWithOutcomes | null;
 
     if (!event) {
         throw new Error(`Event ${eventId} not found`);
@@ -30,25 +44,21 @@ export async function resolveMarket(eventId: string, winningOutcomeId: string): 
     const isBinary = event.type === 'BINARY';
 
     // Determine winner
-    let winningOutcome = isBinary
+    const winningOutcome = isBinary
         ? winningOutcomeId.toUpperCase()
         : winningOutcomeId;
 
     // For multiple-type events, find the outcome
     if (!isBinary) {
-        const outcome = event.outcomes.find(o => o.id === winningOutcomeId);
+        const outcome = event.outcomes.find((o: Outcome) => o.id === winningOutcomeId);
         if (!outcome) {
             throw new Error(`Outcome ${winningOutcomeId} not found for event ${eventId}`);
         }
     }
 
     // Process payouts in a transaction
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: typeof prisma) => {
         // Find all winning positions (balances)
-        const winningTokenSymbol = isBinary
-            ? `${eventId}_${winningOutcome}`
-            : `${eventId}_${winningOutcomeId}`;
-
         const winningBalances = await tx.balance.findMany({
             where: {
                 eventId,
@@ -77,12 +87,12 @@ export async function resolveMarket(eventId: string, winningOutcomeId: string): 
                     },
                 },
                 update: {
-                    amount: { increment: new Prisma.Decimal(netPayout) },
+                    amount: { increment: new Decimal(netPayout) as any },
                 },
                 create: {
                     userId: balance.userId,
                     tokenSymbol: 'TUSD',
-                    amount: new Prisma.Decimal(netPayout),
+                    amount: new Decimal(netPayout) as any,
                 },
             });
 

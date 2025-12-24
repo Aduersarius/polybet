@@ -13,6 +13,7 @@
     "dependencies": {
         "@polymarket/real-time-data-client": "^1.4.0",
         "@prisma/client": "^6.1.0",
+        "decimal.js": "^10.4.3",
         "ioredis": "^5.4.1",
         "pg": "^8.13.1"
     },
