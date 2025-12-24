@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all agents (users with supportRole OR isAdmin)
+    // Get all agents (users with supportRole OR isAdmin, including support managers)
     const agents = await prisma.user.findMany({
       where: {
         OR: [
           {
             supportRole: {
-              in: ['agent', 'admin'],
+              in: ['agent', 'admin', 'support_manager'],
             },
           },
           {
@@ -106,9 +106,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    if (!body.role || !['agent', 'admin', null].includes(body.role)) {
+    if (!body.role || !['agent', 'admin', 'support_manager', null].includes(body.role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be "agent", "admin", or null to remove role' },
+        { error: 'Invalid role. Must be "agent", "admin", "support_manager", or null to remove role' },
         { status: 400 }
       );
     }

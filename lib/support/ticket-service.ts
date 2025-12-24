@@ -112,10 +112,9 @@ export class TicketService {
       }
     );
 
-    // Auto-assign if priority is high or critical
-    if (data.priority === 'high' || data.priority === 'critical') {
-      await this.autoAssignTicket(ticket.id);
-    }
+    // Auto-assign to support managers for equal distribution
+    // This happens for all tickets to ensure fair workload distribution
+    await this.autoAssignToSupportManagers(ticket.id);
 
     // Fetch full ticket detail
     return this.getTicketDetail(ticket.id);
@@ -417,14 +416,14 @@ export class TicketService {
           throw new Error('Ticket not found');
         }
 
-        // Check if user is a valid agent/admin (either supportRole or isAdmin)
+        // Check if user is a valid agent/admin/support_manager (either supportRole or isAdmin)
         const isValidAgent = agent && (
           agent.isAdmin ||
-          (agent.supportRole && ['agent', 'admin'].includes(agent.supportRole))
+          (agent.supportRole && ['agent', 'admin', 'support_manager'].includes(agent.supportRole))
         );
 
         if (!isValidAgent) {
-          throw new Error('Invalid agent: user must have agent or admin role');
+          throw new Error('Invalid agent: user must have agent, support_manager, or admin role');
         }
 
         await tx.supportTicket.update({
@@ -502,6 +501,57 @@ export class TicketService {
     await auditService.logAction(ticketId, 'system', 'auto_assigned', {
       agentId: leastBusyAgent.id,
       workload: leastBusyAgent._count.ticketsAssigned,
+    });
+  }
+
+  /**
+   * Auto-assign ticket to support managers with equal distribution
+   * This distributes tickets evenly among all support managers
+   */
+  async autoAssignToSupportManagers(ticketId: string): Promise<void> {
+    // Get all support managers
+    const supportManagers = await prisma.user.findMany({
+      where: {
+        supportRole: 'support_manager',
+      },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            ticketsAssigned: {
+              where: {
+                status: {
+                  in: ['open', 'pending'],
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        id: 'asc', // Consistent ordering for round-robin
+      },
+    });
+
+    if (supportManagers.length === 0) {
+      // No support managers available, fall back to regular auto-assignment
+      return this.autoAssignTicket(ticketId);
+    }
+
+    // Find support manager with least workload (equal distribution)
+    const leastBusyManager = supportManagers.reduce((min: any, manager: any) =>
+      manager._count.ticketsAssigned < min._count.ticketsAssigned ? manager : min
+    );
+
+    await prisma.supportTicket.update({
+      where: { id: ticketId },
+      data: { assignedToId: leastBusyManager.id },
+    });
+
+    await auditService.logAction(ticketId, 'system', 'auto_assigned_to_manager', {
+      managerId: leastBusyManager.id,
+      workload: leastBusyManager._count.ticketsAssigned,
+      totalManagers: supportManagers.length,
     });
   }
 

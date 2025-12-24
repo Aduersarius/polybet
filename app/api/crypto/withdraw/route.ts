@@ -146,7 +146,16 @@ export async function POST(req: NextRequest) {
         }
 
         const service = getCryptoService();
-        await service.requestWithdrawal(userId, amountNumber, address, token, idempotencyKey);
+        const withdrawalId = await service.requestWithdrawal(userId, amountNumber, address, token, idempotencyKey);
+
+        // Notify admins via Telegram (non-blocking)
+        import('@/lib/telegram/notification-service').then(({ telegramNotificationService }) => {
+            telegramNotificationService.notifyWithdrawalRequest(withdrawalId).catch((error) => {
+                console.error('Failed to send withdrawal notification:', error);
+            });
+        }).catch((error) => {
+            console.error('Failed to load Telegram notification service:', error);
+        });
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

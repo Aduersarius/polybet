@@ -11,41 +11,58 @@ export class TelegramLinkingService {
    * Generate a 6-digit link code valid for 10 minutes
    */
   async generateLinkCode(telegramId: string, chatId: string, telegramUsername?: string | null): Promise<string> {
-    // Generate 6-digit code
-    const code = randomInt(100000, 999999).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    try {
+      console.log(`[Linking] Generating link code for telegramId: ${telegramId}, chatId: ${chatId}`);
+      
+      // Generate 6-digit code
+      const code = randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      console.log(`[Linking] Generated code: ${code}, expires at: ${expiresAt.toISOString()}`);
 
-    // Check if TelegramUser already exists
-    let telegramUser = await prisma.telegramUser.findUnique({
-      where: { telegramId },
-    });
-
-    if (telegramUser) {
-      // Update existing with new link code
-      await prisma.telegramUser.update({
+      // Check if TelegramUser already exists
+      let telegramUser = await prisma.telegramUser.findUnique({
         where: { telegramId },
-        data: {
-          linkCode: code,
-          linkCodeExpiry: expiresAt,
-          chatId,
-          username: telegramUsername || telegramUser.username,
-        },
       });
-    } else {
-      // Create new TelegramUser entry
-      await prisma.telegramUser.create({
-        data: {
-          telegramId,
-          chatId,
-          username: telegramUsername,
-          linkCode: code,
-          linkCodeExpiry: expiresAt,
-          isVerified: false,
-        },
-      });
-    }
+      console.log(`[Linking] Existing telegramUser found: ${!!telegramUser}`);
 
-    return code;
+      if (telegramUser) {
+        // Update existing with new link code
+        console.log(`[Linking] Updating existing TelegramUser with new link code`);
+        await prisma.telegramUser.update({
+          where: { telegramId },
+          data: {
+            linkCode: code,
+            linkCodeExpiry: expiresAt,
+            chatId,
+            username: telegramUsername || telegramUser.username,
+          },
+        });
+        console.log(`[Linking] Successfully updated TelegramUser`);
+      } else {
+        // Create new TelegramUser entry
+        console.log(`[Linking] Creating new TelegramUser`);
+        await prisma.telegramUser.create({
+          data: {
+            telegramId,
+            chatId,
+            username: telegramUsername,
+            linkCode: code,
+            linkCodeExpiry: expiresAt,
+            isVerified: false,
+          },
+        });
+        console.log(`[Linking] Successfully created TelegramUser`);
+      }
+
+      console.log(`[Linking] Returning code: ${code}`);
+      return code;
+    } catch (error) {
+      console.error('[Linking] Error generating link code:', error);
+      if (error instanceof Error) {
+        console.error('[Linking] Error stack:', error.stack);
+      }
+      throw error;
+    }
   }
 
   /**

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user owns the ticket or is support agent
-    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
     if (ticket.userId !== user.id && !isAgent) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

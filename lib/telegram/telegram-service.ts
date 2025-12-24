@@ -25,9 +25,12 @@ export class TelegramService {
    */
   async processUpdate(update: TelegramUpdate): Promise<void> {
     try {
+      console.log('[Telegram] Processing update:', JSON.stringify(update, null, 2));
+      
       const message = update.message;
       
       if (!message || !message.from || message.from.is_bot) {
+        console.log('[Telegram] Ignoring bot message or invalid update');
         return; // Ignore bot messages and invalid updates
       }
 
@@ -35,8 +38,11 @@ export class TelegramService {
       const telegramId = message.from.id.toString();
       const text = message.text || message.caption || '';
 
+      console.log(`[Telegram] Message from ${telegramId} in chat ${chatId}: ${text}`);
+
       // Handle commands
       if (text.startsWith('/')) {
+        console.log(`[Telegram] Handling command: ${text}`);
         await this.handleCommand(text, chatId, telegramId, message);
         return;
       }
@@ -44,7 +50,10 @@ export class TelegramService {
       // Handle regular messages (create/update ticket)
       await this.handleMessage(text, chatId, telegramId, message);
     } catch (error) {
-      console.error('Error processing Telegram update:', error);
+      console.error('[Telegram] Error processing Telegram update:', error);
+      if (error instanceof Error) {
+        console.error('[Telegram] Error stack:', error.stack);
+      }
     }
   }
 
@@ -211,10 +220,14 @@ Visit: ${this.websiteUrl}/support
     message: TelegramMessage
   ): Promise<void> {
     try {
+      console.log(`[Telegram] Handling /link command for telegramId: ${telegramId}, chatId: ${chatId}`);
+      
       // Check if already linked
       const isLinked = await telegramLinkingService.isLinked(telegramId);
+      console.log(`[Telegram] Is linked: ${isLinked}`);
       
       if (isLinked) {
+        console.log(`[Telegram] User already linked, sending confirmation`);
         await this.sendMessage(
           chatId,
           '✅ Your Telegram account is already linked to your PolyBet account!'
@@ -222,12 +235,14 @@ Visit: ${this.websiteUrl}/support
         return;
       }
 
+      console.log(`[Telegram] Generating link code...`);
       // Generate link code
       const code = await telegramLinkingService.generateLinkCode(
         telegramId,
         chatId,
         message.from?.username
       );
+      console.log(`[Telegram] Generated link code: ${code}`);
 
       const text = `
 🔗 *Link Your Account*
@@ -246,9 +261,14 @@ Your 6-digit verification code:
 Note: You must be logged into your PolyBet account on the website.
 `;
 
-      await this.sendMessage(chatId, text);
+      console.log(`[Telegram] Sending link code message to chatId: ${chatId}`);
+      const sent = await this.sendMessage(chatId, text);
+      console.log(`[Telegram] Message sent: ${sent}`);
     } catch (error) {
-      console.error('Error handling /link command:', error);
+      console.error('[Telegram] Error handling /link command:', error);
+      if (error instanceof Error) {
+        console.error('[Telegram] Error stack:', error.stack);
+      }
       await this.sendMessage(chatId, '❌ Failed to generate link code. Please try again later.');
     }
   }
@@ -352,11 +372,12 @@ Note: You must be logged into your PolyBet account on the website.
     }
   ): Promise<boolean> {
     if (!this.botToken) {
-      console.warn('Telegram bot token not configured');
+      console.warn('[Telegram] Bot token not configured');
       return false;
     }
 
     try {
+      console.log(`[Telegram] Sending message to chatId: ${chatId}, text length: ${text.length}`);
       const response = await fetch(`${this.baseUrl}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -369,15 +390,20 @@ Note: You must be logged into your PolyBet account on the website.
       });
 
       const data = await response.json();
+      console.log(`[Telegram] API response status: ${response.status}, ok: ${data.ok}`);
 
       if (!response.ok || !data.ok) {
-        console.error('Telegram API error:', data);
+        console.error('[Telegram] API error:', JSON.stringify(data, null, 2));
         return false;
       }
 
+      console.log(`[Telegram] Message sent successfully`);
       return true;
     } catch (error) {
-      console.error('Failed to send Telegram message:', error);
+      console.error('[Telegram] Failed to send Telegram message:', error);
+      if (error instanceof Error) {
+        console.error('[Telegram] Error stack:', error.stack);
+      }
       return false;
     }
   }

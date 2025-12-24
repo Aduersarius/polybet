@@ -79,7 +79,7 @@ model User {
   telemetryEvents      TelemetryEvent[]
   
   // Support System Relations
-  supportRole          String?              // null | "agent" | "admin"
+  supportRole          String?              // null | "agent" | "admin" | "support_manager"
   ticketsCreated       SupportTicket[]      @relation("TicketUser")
   ticketsAssigned      SupportTicket[]      @relation("TicketAgent")
   supportMessages      SupportMessage[]     @relation("SupportMessageUser")

@@ -229,6 +229,120 @@ You can reply to this chat to add more details to your ticket.
       return false;
     }
   }
+
+  /**
+   * Notify admins about a new withdrawal request
+   */
+  async notifyWithdrawalRequest(withdrawalId: string): Promise<boolean> {
+    try {
+      // Get withdrawal details with user info
+      const withdrawal = await prisma.withdrawal.findUnique({
+        where: { id: withdrawalId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              username: true,
+            },
+          },
+        },
+      });
+
+      if (!withdrawal) {
+        console.warn('Withdrawal not found:', withdrawalId);
+        return false;
+      }
+
+      // Check if we should filter admins by environment variable
+      const allowedAdminIds = process.env.ADMIN_TELEGRAM_NOTIFICATIONS
+        ? process.env.ADMIN_TELEGRAM_NOTIFICATIONS.split(',').map(id => id.trim()).filter(Boolean)
+        : null;
+
+      // Build where clause for admins
+      const adminWhere: any = {
+        OR: [
+          { isAdmin: true },
+          { supportRole: 'admin' },
+        ],
+        telegramLink: {
+          isVerified: true,
+        },
+      };
+
+      // Filter by specific admin IDs if configured
+      if (allowedAdminIds && allowedAdminIds.length > 0) {
+        adminWhere.id = { in: allowedAdminIds };
+      }
+
+      // Get all admins with verified Telegram accounts
+      const admins = await prisma.user.findMany({
+        where: adminWhere,
+        include: {
+          telegramLink: {
+            select: {
+              chatId: true,
+            },
+          },
+        },
+      });
+
+      if (admins.length === 0) {
+        console.log('No admins with verified Telegram accounts found');
+        return false;
+      }
+
+      // Format withdrawal details
+      const userName = withdrawal.user.name || withdrawal.user.username || withdrawal.user.email || 'Unknown User';
+      const amount = Number(withdrawal.amount).toFixed(2);
+      const currency = withdrawal.currency || 'USDC';
+      const timestamp = new Date(withdrawal.createdAt).toLocaleString('en-US', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
+
+      // Get admin panel URL
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://polybet.ru';
+      const adminPanelUrl = `${baseUrl}/admin/withdrawals`;
+
+      // Format message
+      const text = `
+💰 *New Withdrawal Request*
+
+ID: *${withdrawalId}*
+User: ${userName} (${withdrawal.user.email || 'No email'})
+Amount: *$${amount} ${currency}*
+Address: \`${withdrawal.toAddress}\`
+Status: PENDING
+Time: ${timestamp}
+
+[View in Admin Panel →](${adminPanelUrl})
+`;
+
+      // Send notification to all admins (non-blocking)
+      const results = await Promise.allSettled(
+        admins.map((admin: typeof admins[0]) =>
+          this.sendTelegramMessage(admin.telegramLink!.chatId, text)
+        )
+      );
+
+      // Count successful sends
+      const successCount = results.filter(
+        (result) => result.status === 'fulfilled' && result.value.success
+      ).length;
+
+      if (successCount > 0) {
+        console.log(`Sent withdrawal notification to ${successCount}/${admins.length} admins`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Failed to notify withdrawal request:', error);
+      return false;
+    }
+  }
 }
 
 export const telegramNotificationService = new TelegramNotificationService();

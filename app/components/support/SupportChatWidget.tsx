@@ -151,11 +151,29 @@ export function SupportChatWidget() {
 
       if (!response.ok) {
         console.error('Failed to fetch tickets:', response.status, response.statusText);
+        // On error, try to restore from localStorage
+        try {
+          const stored = localStorage.getItem(`support_tickets_${session.user.id}`);
+          if (stored) {
+            const parsedTickets = JSON.parse(stored);
+            setTickets(parsedTickets);
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
         return;
       }
 
       const data = await response.json();
-      setTickets(data.data || []);
+      const ticketsData = data.data || [];
+      setTickets(ticketsData);
+      
+      // Persist tickets to localStorage
+      try {
+        localStorage.setItem(`support_tickets_${session.user.id}`, JSON.stringify(ticketsData));
+      } catch {
+        // Ignore localStorage errors
+      }
       
       // Update unread count separately - don't let it block ticket fetching
       updateUnreadCount().catch(() => {
@@ -163,6 +181,18 @@ export function SupportChatWidget() {
       });
     } catch (err) {
       console.error('Failed to fetch tickets:', err);
+      // On error, try to restore from localStorage
+      if (session?.user?.id) {
+        try {
+          const stored = localStorage.getItem(`support_tickets_${session.user.id}`);
+          if (stored) {
+            const parsedTickets = JSON.parse(stored);
+            setTickets(parsedTickets);
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -175,10 +205,33 @@ export function SupportChatWidget() {
         credentials: 'include',
       });
 
-      if (!response.ok) return;
+      if (!response.ok) {
+        // On error, try to restore from localStorage
+        if (session?.user?.id) {
+          try {
+            const stored = localStorage.getItem(`support_ticket_detail_${ticketId}_${session.user.id}`);
+            if (stored) {
+              const parsedDetail = JSON.parse(stored);
+              setTicketDetail(parsedDetail);
+            }
+          } catch {
+            // Ignore localStorage errors
+          }
+        }
+        return;
+      }
 
       const data = await response.json();
       setTicketDetail(data);
+      
+      // Persist ticket detail to localStorage
+      if (session?.user?.id) {
+        try {
+          localStorage.setItem(`support_ticket_detail_${ticketId}_${session.user.id}`, JSON.stringify(data));
+        } catch {
+          // Ignore localStorage errors
+        }
+      }
       
       // Scroll to bottom
       setTimeout(() => {
@@ -186,8 +239,59 @@ export function SupportChatWidget() {
       }, 100);
     } catch (err) {
       console.error('Failed to fetch ticket detail:', err);
+      // On error, try to restore from localStorage
+      if (session?.user?.id && selectedTicketId) {
+        try {
+          const stored = localStorage.getItem(`support_ticket_detail_${selectedTicketId}_${session.user.id}`);
+          if (stored) {
+            const parsedDetail = JSON.parse(stored);
+            setTicketDetail(parsedDetail);
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
+      }
     }
-  }, []);
+  }, [session?.user?.id, selectedTicketId]);
+
+  // Restore tickets from localStorage on mount
+  useEffect(() => {
+    if (mounted && session?.user?.id) {
+      try {
+        const storedTickets = localStorage.getItem(`support_tickets_${session.user.id}`);
+        const storedSelectedId = localStorage.getItem(`support_selected_ticket_${session.user.id}`);
+        
+        if (storedTickets) {
+          const parsedTickets = JSON.parse(storedTickets);
+          setTickets(parsedTickets);
+        }
+        
+        if (storedSelectedId) {
+          setSelectedTicketId(storedSelectedId);
+          
+          // Try to restore ticket detail from localStorage
+          try {
+            const storedDetail = localStorage.getItem(`support_ticket_detail_${storedSelectedId}_${session.user.id}`);
+            if (storedDetail) {
+              const parsedDetail = JSON.parse(storedDetail);
+              setTicketDetail(parsedDetail);
+            }
+          } catch {
+            // Ignore localStorage errors for detail
+          }
+          
+          // Optionally restore the view to chat if there's a selected ticket and widget is open
+          if (isOpen) {
+            setCurrentView('chat');
+            // Fetch fresh ticket detail in background
+            fetchTicketDetail(storedSelectedId);
+          }
+        }
+      } catch {
+        // Ignore localStorage errors
+      }
+    }
+  }, [mounted, session?.user?.id, isOpen, fetchTicketDetail]);
 
   // Load tickets when widget opens
   useEffect(() => {
@@ -256,6 +360,16 @@ export function SupportChatWidget() {
   const handleTicketClick = (ticketId: string) => {
     setSelectedTicketId(ticketId);
     setCurrentView('chat');
+    
+    // Persist selected ticket ID
+    if (session?.user?.id) {
+      try {
+        localStorage.setItem(`support_selected_ticket_${session.user.id}`, ticketId);
+      } catch {
+        // Ignore localStorage errors
+      }
+    }
+    
     fetchTicketDetail(ticketId);
   };
 
@@ -444,6 +558,14 @@ export function SupportChatWidget() {
                     setCurrentView('list');
                     setSelectedTicketId(null);
                     setTicketDetail(null);
+                    // Clear persisted selected ticket
+                    if (session?.user?.id) {
+                      try {
+                        localStorage.removeItem(`support_selected_ticket_${session.user.id}`);
+                      } catch {
+                        // Ignore localStorage errors
+                      }
+                    }
                   }}
                   className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                   aria-label="Close"

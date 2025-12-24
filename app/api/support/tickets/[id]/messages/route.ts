@@ -37,7 +37,7 @@ export async function GET(
     }
 
     // Get messages (exclude internal messages for non-agents)
-    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
 
     const messages = await prisma.supportMessage.findMany({
       where: {
@@ -115,7 +115,7 @@ export async function POST(
     }
 
     // Determine message source
-    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.isAdmin;
+    const isAgent = user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin;
     const source = isAgent ? 'agent' : 'web';
 
     // Create message

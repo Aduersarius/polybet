@@ -15,26 +15,35 @@ const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[Webhook] Received Telegram webhook request');
+    
     // Verify webhook secret
     const secretToken = request.headers.get('x-telegram-bot-api-secret-token');
     
     if (WEBHOOK_SECRET && secretToken !== WEBHOOK_SECRET) {
-      console.warn('Invalid webhook secret');
+      console.warn('[Webhook] Invalid webhook secret');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Parse update
     const update: TelegramUpdate = await request.json();
+    console.log('[Webhook] Parsed update, message text:', update.message?.text || 'no text');
 
     // Process update asynchronously (don't block webhook response)
     telegramService.processUpdate(update).catch((error) => {
-      console.error('Error processing Telegram update:', error);
+      console.error('[Webhook] Error processing Telegram update:', error);
+      if (error instanceof Error) {
+        console.error('[Webhook] Error stack:', error.stack);
+      }
     });
 
     // Return 200 OK immediately (Telegram requires fast response)
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('[Webhook] Webhook error:', error);
+    if (error instanceof Error) {
+      console.error('[Webhook] Error stack:', error.stack);
+    }
     // Still return 200 to prevent Telegram from disabling webhook
     return NextResponse.json({ ok: true });
   }
