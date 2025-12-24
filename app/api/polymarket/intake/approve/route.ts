@@ -25,7 +25,7 @@ async function categorizeWithLLM(title: string): Promise<string[]> {
 Choose 1-2 categories from: [${CATEGORY_PROMPT_LIST}].
 Return ONLY the category names, comma-separated.`;
 
-    const content = await promptLLM(prompt);
+    const content = await promptLLM(prompt, { operation: 'categorize_event' });
     if (!content) return [];
 
     const categories = content.split(',')
@@ -62,7 +62,7 @@ Requirements:
 - Make it sound like a teaser that gets users interested
 - Return ONLY the description, no quotes or prefixes`;
 
-    const content = await promptLLM(prompt, { maxTokens: 100 });
+    const content = await promptLLM(prompt, { maxTokens: 100, operation: 'generate_description' });
     if (!content) return '';
 
     // Clean up any quotes or prefixes
