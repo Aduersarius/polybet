@@ -831,23 +831,23 @@ export class TicketService {
     ]);
 
     // Calculate average first response time (in minutes)
-    const avgFirstResponseTime = avgResponseTime.length > 0
+    const calculatedAvgFirstResponseTime = avgResponseTime.length > 0
       ? Math.round(
-          avgResponseTime.reduce((sum: number, ticket: any) => {
-            const diffMs = ticket.firstResponseAt.getTime() - ticket.createdAt.getTime();
-            return sum + diffMs;
-          }, 0) / avgResponseTime.length / 1000 / 60 // Convert to minutes
-        )
+        avgResponseTime.reduce((sum: number, ticket: any) => {
+          const diffMs = ticket.firstResponseAt.getTime() - ticket.createdAt.getTime();
+          return sum + diffMs;
+        }, 0) / avgResponseTime.length / 1000 / 60 // Convert to minutes
+      )
       : 0;
 
     // Calculate average resolution time (in hours)
-    const avgResolutionTime = avgResolutionTime.length > 0
+    const calculatedAvgResolutionTime = avgResolutionTime.length > 0
       ? Math.round(
-          (avgResolutionTime.reduce((sum: number, ticket: any) => {
-            const diffMs = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
-            return sum + diffMs;
-          }, 0) / avgResolutionTime.length / 1000 / 60 / 60) * 10 // Convert to hours, round to 1 decimal
-        ) / 10
+        (avgResolutionTime.reduce((sum: number, ticket: any) => {
+          const diffMs = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
+          return sum + diffMs;
+        }, 0) / avgResolutionTime.length / 1000 / 60 / 60) * 10 // Convert to hours, round to 1 decimal
+      ) / 10
       : 0;
 
     // Format results
