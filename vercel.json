@@ -4,5 +4,22 @@
       "path": "/api/sports/sync",
       "schedule": "0 2 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/telegram/webhook",
+      "destination": "/api/telegram/webhook"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/telegram/webhook",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
+    }
   ]
 }
