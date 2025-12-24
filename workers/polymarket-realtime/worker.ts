@@ -33,6 +33,7 @@ if (REDIS_URL) {
     redis = new Redis(REDIS_URL, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => Math.min(times * 100, 3000),
+        tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
     });
     redis.on('error', (err) => console.error('[Redis] Error:', err.message));
 }
@@ -361,8 +362,8 @@ function connect(): void {
         }
 
         // Subscribe to LastTradePrice and PriceChanges for our tokens
-        // Filter format for clob-market: JSON array of token IDs
-        const filter = JSON.stringify(subscriptionTokenIds);
+        // Filter format for clob-market: JSON object with assets_ids array
+        const filter = JSON.stringify({ assets_ids: subscriptionTokenIds });
 
         client.subscribe({
             subscriptions: [
@@ -418,7 +419,7 @@ async function refreshMappings(): Promise<void> {
         if (subscriptionTokenIds.length !== oldCount && wsClient) {
             console.log('[Worker] Mappings changed, resubscribing...');
 
-            const filter = JSON.stringify(subscriptionTokenIds);
+            const filter = JSON.stringify({ assets_ids: subscriptionTokenIds });
             wsClient.subscribe({
                 subscriptions: [
                     {
