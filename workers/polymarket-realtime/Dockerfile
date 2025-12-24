@@ -20,6 +20,7 @@ RUN npx prisma generate
 # Copy worker source files
 COPY workers/polymarket-realtime/tsconfig.json ./
 COPY workers/polymarket-realtime/worker.ts ./
+COPY workers/polymarket-realtime/lib/ ./lib/
 
 # Build TypeScript
 RUN npm run build
