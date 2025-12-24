@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scaleVolumeForStorage } from '@/lib/volume-scaler';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
         source: 'POLYMARKET',
         polymarketId,
         resolutionSource: 'POLYMARKET',
-        externalVolume: evt.volume ?? 0,
+        externalVolume: scaleVolumeForStorage(evt.volume ?? 0),
         externalBetCount: evt.betCount ?? 0,
         creatorId,
         isHidden: false,
@@ -118,15 +119,15 @@ export async function POST(request: Request) {
 
       const dbEvent = existing
         ? await prisma.event.update({
-            where: { id: existing.id },
-            data: baseData,
-          })
+          where: { id: existing.id },
+          data: baseData,
+        })
         : await prisma.event.create({
-            data: {
-              id: polymarketId,
-              ...baseData,
-            },
-          });
+          data: {
+            id: polymarketId,
+            ...baseData,
+          },
+        });
 
       if (existing) {
         updated++;
@@ -135,7 +136,7 @@ export async function POST(request: Request) {
       }
 
       const outcomes = Array.isArray(evt.outcomes) ? evt.outcomes.slice(0, 8) : [];
-      
+
       // For binary events, extract YES/NO probabilities to set qYes/qNo
       let yesProb = 0.5;
       let noProb = 0.5;
@@ -151,7 +152,7 @@ export async function POST(request: Request) {
           noProb = noProb / sum;
         }
       }
-      
+
       // Update qYes/qNo for binary events if we have valid probabilities
       if (type === 'BINARY' && (yesProb !== 0.5 || noProb !== 0.5)) {
         const b = dbEvent.liquidityParameter || 20000.0;
@@ -159,21 +160,21 @@ export async function POST(request: Request) {
         // For small probabilities, approximate: q ≈ b * ln(p / (1-p))
         const qYes = yesProb > 0.01 && yesProb < 0.99 ? b * Math.log(yesProb / (1 - yesProb)) : 0;
         const qNo = noProb > 0.01 && noProb < 0.99 ? b * Math.log(noProb / (1 - noProb)) : 0;
-        
+
         await prisma.event.update({
           where: { id: dbEvent.id },
           data: { qYes, qNo },
         });
       }
-      
+
       for (const outcome of outcomes) {
         const polymarketOutcomeId = outcome.id?.toString();
         // Only use probability if it's valid (0-1 range), otherwise leave undefined
         const rawProb = outcome.probability;
-        const probability = rawProb != null && typeof rawProb === 'number' && rawProb >= 0 && rawProb <= 1 
-          ? clamp01(rawProb) 
+        const probability = rawProb != null && typeof rawProb === 'number' && rawProb >= 0 && rawProb <= 1
+          ? clamp01(rawProb)
           : undefined;
-        
+
         // For binary events, try to infer YES/NO from name or position
         let name = outcome.name || '';
         if (type === 'BINARY' && !name) {
@@ -188,13 +189,13 @@ export async function POST(request: Request) {
 
         const existingOutcome = polymarketOutcomeId
           ? await prisma.outcome.findFirst({
-              where: { polymarketOutcomeId },
-              select: { id: true },
-            })
+            where: { polymarketOutcomeId },
+            select: { id: true },
+          })
           : await prisma.outcome.findFirst({
-              where: { eventId: dbEvent.id, name },
-              select: { id: true },
-            });
+            where: { eventId: dbEvent.id, name },
+            select: { id: true },
+          });
 
         // Only update probability if we have a valid value (0-1 range)
         // Ensure we never store percentages (> 1) or invalid values
@@ -207,7 +208,7 @@ export async function POST(request: Request) {
           // Clamp to valid range
           finalProbability = clamp01(finalProbability);
         }
-        
+
         const updateData: any = {
           eventId: dbEvent.id,
           name,

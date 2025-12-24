@@ -58,9 +58,36 @@ async function loadPolymarketHistory(eventId: string, period: string) {
     }),
   ]);
 
-  const isMultiple = outcomes.length > 2;
+  // Deduplicate outcomes based on case-insensitive name matching
+  // This handles cases where we have both "Yes" and "YES" or "No" and "NO"
+  const outcomeNameToCanonical = new Map<string, { id: string; name: string }>();
+  const outcomeIdToCanonical = new Map<string, string>(); // Maps outcome ID to canonical ID
+
+  for (const o of outcomes) {
+    const normalizedName = o.name.toLowerCase();
+    // Normalize YES/NO to uppercase for binary markets
+    let canonicalName = o.name;
+    if (/^yes$/i.test(o.name)) {
+      canonicalName = 'YES';
+    } else if (/^no$/i.test(o.name)) {
+      canonicalName = 'NO';
+    }
+
+    if (!outcomeNameToCanonical.has(normalizedName)) {
+      outcomeNameToCanonical.set(normalizedName, { id: o.id, name: canonicalName });
+    }
+    // Map this outcome ID to the canonical outcome ID
+    outcomeIdToCanonical.set(o.id, outcomeNameToCanonical.get(normalizedName)!.id);
+  }
+
+  // Create deduplicated outcomes list
+  const deduplicatedOutcomes = Array.from(outcomeNameToCanonical.values());
+  const isMultiple = deduplicatedOutcomes.length > 2;
+
   const outcomeNames = new Map<string, string>();
-  for (const o of outcomes) outcomeNames.set(o.id, o.name);
+  for (const o of deduplicatedOutcomes) {
+    outcomeNames.set(o.id, o.name);
+  }
 
   const byTs = new Map<number, any>();
   for (const row of rows) {
@@ -74,14 +101,27 @@ async function loadPolymarketHistory(eventId: string, period: string) {
       });
     }
     const entry = byTs.get(ts);
-    entry.outcomes.push({
-      id: row.outcomeId,
-      name: outcomeNames.get(row.outcomeId) || row.outcomeId,
-      probability: row.probability,
-    });
-    // Only derive yes/no helpers for binary markets; multi should rely on per-outcome series.
+
+    // Use canonical outcome ID for deduplication
+    const canonicalOutcomeId = outcomeIdToCanonical.get(row.outcomeId) || row.outcomeId;
+    const outcomeName = outcomeNames.get(canonicalOutcomeId) || row.outcomeId;
+
+    // Check if we already have this outcome in this timestamp's outcomes array
+    const existingOutcome = entry.outcomes.find((o: any) => o.id === canonicalOutcomeId);
+    if (!existingOutcome) {
+      entry.outcomes.push({
+        id: canonicalOutcomeId,
+        name: outcomeName,
+        probability: row.probability,
+      });
+    } else if (existingOutcome.probability === 0 && row.probability !== 0) {
+      // If existing outcome has 0 probability, prefer non-zero value
+      existingOutcome.probability = row.probability;
+    }
+
+    // Only derive yes/no helpers for binary markets
     if (!isMultiple) {
-      const name = outcomeNames.get(row.outcomeId) || '';
+      const name = outcomeName;
       if (/yes/i.test(name)) {
         entry.yesPrice = row.probability;
       } else if (/no/i.test(name)) {

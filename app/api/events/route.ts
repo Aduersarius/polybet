@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { calculateDisplayVolume } from '@/lib/volume-scaler';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,12 +40,18 @@ export async function GET(request: Request) {
     let effectiveCategory = category;
     if (category && category !== 'ALL' && category !== 'TRENDING' && category !== 'NEW' && category !== 'FAVORITES') {
         const categoryMap: { [key: string]: string } = {
-            'SPORTS': 'Sports',
-            'CRYPTO': 'Crypto',
-            'POLITICS': 'Politics',
             'BUSINESS': 'Business',
+            'CRYPTO': 'Crypto',
+            'CULTURE': 'Culture',
+            'ECONOMY': 'Economy',
+            'ELECTIONS': 'Elections',
+            'ESPORTS': 'Esports',
+            'FINANCE': 'Finance',
+            'POLITICS': 'Politics',
             'SCIENCE': 'Science',
-            'POP CULTURE': 'Pop Culture',
+            'SPORTS': 'Sports',
+            'TECH': 'Tech',
+            'WORLD': 'World',
         };
         effectiveCategory = categoryMap[category] || category;
     }
@@ -102,7 +109,7 @@ export async function GET(request: Request) {
                 {
                     OR: [
                         { categories: { isEmpty: true } },
-                        { 
+                        {
                             NOT: {
                                 OR: [
                                     { categories: { has: 'Sports' } },
@@ -197,6 +204,8 @@ export async function GET(request: Request) {
                 liquidityParameter: true,
                 type: true,
                 isEsports: true,
+                externalVolume: true,
+                externalBetCount: true,
                 outcomes: {
                     select: {
                         id: true,
@@ -309,8 +318,11 @@ export async function GET(request: Request) {
 
         // Process events with stats and filtering
         let eventsWithStats = events.map((event: (typeof events)[number]) => {
-            const volume = volumeMap.get(event.id) ?? event.externalVolume ?? 0;
-            const betCount = betCountMap.get(event.id) ?? event.externalBetCount ?? 0;
+            // Apply time-based growth to external volume for proportional display
+            const baseExternalVol = (event as any).externalVolume ?? 0;
+            const grownExternalVol = calculateDisplayVolume(baseExternalVol, event.createdAt);
+            const volume = volumeMap.get(event.id) ?? grownExternalVol;
+            const betCount = betCountMap.get(event.id) ?? (event as any).externalBetCount ?? 0;
 
             // Calculate liquidity (total tokens in the market)
             let liquidity = 0;

@@ -101,7 +101,7 @@ export function getCategoryColorClasses(category: string): string {
   const categoryMap: Record<string, string> = {
     'CRYPTO': 'text-amber-400 border-amber-500/30 bg-amber-500/10',
     'SPORTS': 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
-    'ESPORTS': 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', // Same as Sports
+    'ESPORTS': 'text-purple-500 border-purple-500/30 bg-purple-500/10',
     'POLITICS': 'text-blue-400 border-blue-500/30 bg-blue-500/10',
     'ELECTIONS': 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10',
     'ELECTION': 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10', // Singular form
@@ -111,9 +111,7 @@ export function getCategoryColorClasses(category: string): string {
     'FINANCE': 'text-green-400 border-green-500/30 bg-green-500/10',
     'SCIENCE': 'text-pink-400 border-pink-500/30 bg-pink-500/10',
     'CULTURE': 'text-rose-400 border-rose-500/30 bg-rose-500/10',
-    'POP CULTURE': 'text-rose-400 border-rose-500/30 bg-rose-500/10', // Alias for CULTURE
     'ECONOMY': 'text-teal-400 border-teal-500/30 bg-teal-500/10',
-    'ECONOMICS': 'text-teal-400 border-teal-500/30 bg-teal-500/10', // Alias for ECONOMY
     'WORLD': 'text-violet-400 border-violet-500/30 bg-violet-500/10',
   };
 

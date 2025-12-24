@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '@/lib/auth';
+import { promptLLM } from '@/lib/llm';
+import { scaleVolumeForStorage } from '@/lib/volume-scaler';
 
 export const runtime = 'nodejs';
 
@@ -12,40 +14,23 @@ const FALLBACK_CHUNK_DAYS = 7; // Fallback chunk size if MAX_CHUNK_DAYS is rejec
 const POLYMARKET_CLOB_API_URL = process.env.POLYMARKET_CLOB_API_URL || 'https://clob.polymarket.com';
 
 const ALLOWED_CATEGORIES = [
-  "Crypto", "Politics", "Sports", "Business", "Entertainment",
-  "Science", "Technology", "Economics", "AI", "Pop Culture", "News"
+  "Business", "Crypto", "Culture", "Economy", "Elections",
+  "Finance", "Politics", "Science", "Sports", "Tech", "World", "Esports"
 ];
 const CATEGORY_PROMPT_LIST = ALLOWED_CATEGORIES.join(", ");
 
 async function categorizeWithLLM(title: string): Promise<string[]> {
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) return [];
-
     const prompt = `Classify event: "${title}".
 Choose 1-2 categories from: [${CATEGORY_PROMPT_LIST}].
 Return ONLY the category names, comma-separated.`;
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://polybet.com",
-      },
-      body: JSON.stringify({
-        model: "xiaomi/mimo-v2-flash:free",
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-
-    if (!res.ok) return [];
-    const json = await res.json();
-    const content = json.choices?.[0]?.message?.content || "";
+    const content = await promptLLM(prompt);
+    if (!content) return [];
 
     const categories = content.split(',')
       .map((s: string) => s.trim())
-      .filter((s: string) => s.length > 0 && ALLOWED_CATEGORIES.includes(s)) // Strict validation
+      .filter((s: string) => s.length > 0 && ALLOWED_CATEGORIES.includes(s))
       .slice(0, 2);
 
     console.log(`[LLM] Categorized "${title}" ->`, categories);
@@ -53,6 +38,44 @@ Return ONLY the category names, comma-separated.`;
   } catch (err) {
     console.warn("[LLM] Categorization failed", err);
     return [];
+  }
+}
+
+/**
+ * Generate a short, engaging description for an event using LLM.
+ * Based on title and rules (from Polymarket).
+ */
+async function generateDescriptionWithLLM(title: string, rules?: string): Promise<string> {
+  try {
+    const rulesContext = rules && rules.trim().length > 0
+      ? `\n\nResolution rules: ${rules.slice(0, 500)}`
+      : '';
+
+    const prompt = `Write a 1-2 sentence engaging description for this prediction market event:
+
+Title: "${title}"${rulesContext}
+
+Requirements:
+- Be concise and informative (max 150 characters)
+- Don't repeat the title
+- Don't include resolution criteria
+- Make it sound like a teaser that gets users interested
+- Return ONLY the description, no quotes or prefixes`;
+
+    const content = await promptLLM(prompt, { maxTokens: 100 });
+    if (!content) return '';
+
+    // Clean up any quotes or prefixes
+    const cleaned = content
+      .replace(/^["']|["']$/g, '')
+      .replace(/^description:\s*/i, '')
+      .trim();
+
+    console.log(`[LLM] Generated description for "${title.slice(0, 30)}...": "${cleaned.slice(0, 50)}..."`);
+    return cleaned;
+  } catch (err) {
+    console.warn("[LLM] Description generation failed", err);
+    return '';
   }
 }
 
@@ -100,20 +123,31 @@ function dedupeOutcomeNames(raw: any[] = []) {
 
     // For binary markets, default to Yes/No when names are missing or generic.
     if (looksGeneric && isBinary) {
-      name = idx === 0 ? 'Yes' : 'No';
+      name = idx === 0 ? 'YES' : 'NO';
+    }
+
+    // For binary markets, normalize Yes/No variants to uppercase
+    if (isBinary) {
+      if (/^yes$/i.test(name)) {
+        name = 'YES';
+      } else if (/^no$/i.test(name)) {
+        name = 'NO';
+      }
     }
 
     if (!name) {
       name = `Outcome ${idx + 1}`;
     }
 
-    // Ensure uniqueness even if the intake sent duplicate labels.
+    // Use case-insensitive comparison for deduplication to prevent
+    // "Yes" and "YES" from being treated as different outcomes
+    const canonicalKey = name.toLowerCase();
     let candidate = name;
     let suffix = 2;
-    while (seen.has(candidate)) {
+    while (seen.has(candidate.toLowerCase())) {
       candidate = `${name} ${suffix++}`;
     }
-    seen.add(candidate);
+    seen.add(candidate.toLowerCase());
 
     return { ...o, name: candidate };
   });
@@ -713,9 +747,21 @@ export async function POST(request: NextRequest) {
     const status = resolutionDate.getTime() < Date.now() ? 'CLOSED' : 'ACTIVE';
     const imageUrl = eventData?.image || eventData?.imageUrl || null;
 
+    // Polymarket's "description" field actually contains resolution rules
+    // We store it in the `rules` column and generate a short description via LLM
+    const rules = eventData?.rules || eventData?.description || '';
+    const title = eventData?.title || `Polymarket ${polymarketId.slice(0, 8)}`;
+
+    // Generate a concise, engaging description using LLM
+    let generatedDescription = '';
+    if (title) {
+      generatedDescription = await generateDescriptionWithLLM(title, rules);
+    }
+
     const baseEventData: any = {
-      title: eventData?.title || `Polymarket ${polymarketId.slice(0, 8)}`,
-      description: eventData?.description || '',
+      title,
+      description: generatedDescription || '', // LLM-generated short description
+      rules: rules || null, // Polymarket's resolution rules
       categories,
       imageUrl,
       resolutionDate,
@@ -725,7 +771,7 @@ export async function POST(request: NextRequest) {
       source: 'POLYMARKET',
       polymarketId,
       resolutionSource: eventData?.resolutionSource || 'POLYMARKET',
-      externalVolume: eventData?.volume ?? 0,
+      externalVolume: scaleVolumeForStorage(eventData?.volume ?? 0),
       externalBetCount: eventData?.betCount ?? 0,
       isHidden: false,
     };
@@ -754,6 +800,27 @@ export async function POST(request: NextRequest) {
       await invalidate(`poly:${polymarketId}`, 'event');
     } catch {
       // best-effort cache bust
+    }
+
+    // Upload event image to Vercel Blob (fire-and-forget for non-blocking)
+    // Only upload if we have an external image URL that's not already in Blob
+    if (imageUrl && !imageUrl.includes('blob.vercel-storage.com')) {
+      (async () => {
+        try {
+          const { uploadEventImageToBlob } = await import('@/lib/event-image-blob');
+          const blobUrl = await uploadEventImageToBlob(imageUrl, dbEvent.id);
+          if (blobUrl && blobUrl !== imageUrl) {
+            // Update the event with the new Blob URL
+            await prisma.event.update({
+              where: { id: dbEvent.id },
+              data: { imageUrl: blobUrl },
+            });
+            console.log(`[Polymarket] ✓ Event image uploaded to Blob: ${dbEvent.id}`);
+          }
+        } catch (imgErr) {
+          console.warn('[Polymarket] Image blob upload failed (non-critical):', imgErr);
+        }
+      })();
     }
 
     // Ensure mapping uses the actual event id

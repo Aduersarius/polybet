@@ -26,18 +26,18 @@ function getCategoryImage(categories: string[]): string {
     if (!categories || categories.length === 0) return '/events/crypto.png';
 
     const categoryMap: { [key: string]: string } = {
+        'BUSINESS': '/events/crypto.png',
         'CRYPTO': '/events/crypto.png',
-        'SPORTS': '/events/sports.png',
+        'CULTURE': '/events/entertainment.png',
+        'ECONOMY': '/events/crypto.png',
+        'ELECTIONS': '/events/politics.png',
+        'ESPORTS': '/events/entertainment.png',
+        'FINANCE': '/events/crypto.png',
         'POLITICS': '/events/politics.png',
-        'ENTERTAINMENT': '/events/entertainment.png',
-        'TECH': '/events/crypto.png', // Use crypto for tech
-        'SCIENCE': '/events/crypto.png', // Use crypto for science
-        'FINANCE': '/events/crypto.png', // Use crypto for finance
-        'CULTURE': '/events/entertainment.png', // Use entertainment for culture
-        'ECONOMY': '/events/crypto.png', // Use crypto for economy
-        'ELECTIONS': '/events/politics.png', // Use politics for elections
-        'BUSINESS': '/events/crypto.png', // Use crypto for business
-        'WORLD': '/events/politics.png', // Use politics for world
+        'SCIENCE': '/events/crypto.png',
+        'SPORTS': '/events/sports.png',
+        'TECH': '/events/crypto.png',
+        'WORLD': '/events/politics.png',
     };
 
     for (const category of categories) {
@@ -377,6 +377,23 @@ export default function EventPage() {
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* Rules Section - Only shown if rules exist */}
+                                        {liveEvent.rules && liveEvent.rules.trim() && (
+                                            <div className="bg-[#1a1d28] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                                <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+                                                    <svg className="w-4 h-4 text-[#bb86fc]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                    <span className="font-semibold text-sm text-gray-200">Resolution Rules</span>
+                                                </div>
+                                                <div className="p-4">
+                                                    <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">
+                                                        {liveEvent.rules}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
 
 
                                         {/* Comments Section */}
