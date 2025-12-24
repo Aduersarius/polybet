@@ -37,6 +37,24 @@ if (REDIS_URL) {
     redis.on('error', (err) => console.error('[Redis] Error:', err.message));
 }
 
+// Types
+interface EventInfo {
+    id: string;
+    title?: string;
+    type: string;
+    status?: string;
+    liquidityParameter: number | null;
+}
+
+interface MappingRecord {
+    id: string;
+    internalEventId: string;
+    polymarketId: string;
+    yesTokenId: string | null;
+    noTokenId: string | null;
+    outcomeMapping: any;
+}
+
 // In-memory caches
 interface MarketMapping {
     internalEventId: string;
@@ -73,7 +91,7 @@ async function loadMappings(): Promise<void> {
     }
 
     // Get associated events
-    const eventIds = mappings.map(m => m.internalEventId).filter(Boolean);
+    const eventIds = mappings.map((m: MappingRecord) => m.internalEventId).filter(Boolean);
     const events = await prisma.event.findMany({
         where: {
             id: { in: eventIds },
@@ -86,7 +104,7 @@ async function loadMappings(): Promise<void> {
             liquidityParameter: true,
         },
     });
-    const eventById = new Map(events.map(e => [e.id, e]));
+    const eventById = new Map<string, EventInfo>(events.map((e: EventInfo) => [e.id, e]));
 
     // Build token -> mapping lookup
     const newMappings = new Map<string, MarketMapping>();
@@ -364,7 +382,7 @@ function connect(): void {
         console.log(`[Worker] Subscribed to ${subscriptionTokenIds.length} token IDs`);
     };
 
-    const onMessage = (message: Message): void => {
+    const onMessage = (_client: RealTimeDataClient, message: Message): void => {
         handleMessage(message).catch(err => {
             console.error('[Worker] Async error:', err);
         });
@@ -381,16 +399,12 @@ function connect(): void {
         }, 5000);
     };
 
-    const onError = (error: Error): void => {
-        console.error('[Worker] WebSocket error:', error.message);
-    };
-
-    new RealTimeDataClient({
+    const client = new RealTimeDataClient({
         onMessage,
         onConnect,
-        onDisconnect,
-        onError,
-    }).connect();
+    });
+
+    client.connect();
 }
 
 /**
@@ -572,7 +586,7 @@ async function runResolutionSync(): Promise<void> {
         }
 
         // Get events
-        const eventIds = mappings.map(m => m.internalEventId).filter(Boolean);
+        const eventIds = mappings.map((m: MappingRecord) => m.internalEventId).filter(Boolean);
         const events = await prisma.event.findMany({
             where: {
                 id: { in: eventIds },
@@ -581,7 +595,7 @@ async function runResolutionSync(): Promise<void> {
             },
             select: { id: true, title: true, status: true, type: true },
         });
-        const eventById = new Map(events.map(e => [e.id, e]));
+        const eventById = new Map<string, EventInfo>(events.map((e: EventInfo) => [e.id, e]));
 
         // Fetch resolved events from Polymarket
         const response = await fetch(

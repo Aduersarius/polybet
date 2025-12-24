@@ -1,8 +1,0 @@
--- AlterTable
-ALTER TABLE "Balance" ALTER COLUMN "amount" SET DATA TYPE DECIMAL;
-
--- AlterTable
-ALTER TABLE "Deposit" ALTER COLUMN "amount" SET DATA TYPE DECIMAL;
-
--- AlterTable
-ALTER TABLE "Withdrawal" ALTER COLUMN "amount" SET DATA TYPE DECIMAL;
