@@ -3,6 +3,10 @@
     {
       "path": "/api/sports/sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/hedge/snapshot-cron",
+      "schedule": "0 3 * * *"
     }
   ],
   "rewrites": [

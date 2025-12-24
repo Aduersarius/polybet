@@ -8,19 +8,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hedgeManager } from '@/lib/hedge-manager';
 import { polymarketTrading } from '@/lib/polymarket-trading';
+import { requireAdminAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // Require admin authentication for sensitive risk data
+    await requireAdminAuth(request);
+
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '24h';
+
 
     // Calculate time range
     const now = new Date();
     const periodMs = period === '1h' ? 60 * 60 * 1000
       : period === '24h' ? 24 * 60 * 60 * 1000
-      : period === '7d' ? 7 * 24 * 60 * 60 * 1000
-      : 24 * 60 * 60 * 1000;
-    
+        : period === '7d' ? 7 * 24 * 60 * 60 * 1000
+          : 24 * 60 * 60 * 1000;
+
     const startDate = new Date(now.getTime() - periodMs);
 
     // Get current exposure
@@ -43,11 +48,11 @@ export async function GET(request: NextRequest) {
     const totalProfit = successfulHedges.reduce((sum: number, h: any) => sum + h.netProfit, 0);
     const totalFees = successfulHedges.reduce((sum: number, h: any) => sum + h.polymarketFees + h.gasCost, 0);
     const totalSpreadCaptured = successfulHedges.reduce((sum: number, h: any) => sum + h.spreadCaptured, 0);
-    
+
     const avgHedgeTime = successfulHedges.length > 0
       ? successfulHedges
-          .filter((h: any) => h.hedgedAt)
-          .reduce((sum: number, h: any) => sum + (h.hedgedAt!.getTime() - h.createdAt.getTime()), 0) / successfulHedges.length
+        .filter((h: any) => h.hedgedAt)
+        .reduce((sum: number, h: any) => sum + (h.hedgedAt!.getTime() - h.createdAt.getTime()), 0) / successfulHedges.length
       : 0;
 
     const successRate = hedgePositions.length > 0
@@ -84,7 +89,7 @@ export async function GET(request: NextRequest) {
         const mapping = await prisma.polymarketMarketMapping.findFirst({
           where: { polymarketId: stat.polymarketMarketId },
         });
-        
+
         return {
           marketId: stat.polymarketMarketId,
           eventId: mapping?.internalEventId || 'unknown',

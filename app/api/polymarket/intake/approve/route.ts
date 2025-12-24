@@ -650,17 +650,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch tokens up front to infer multiplicity and for hedging support
+    let normalizedOutcomeMapping = Array.isArray(outcomeMapping) ? dedupeOutcomeNames(outcomeMapping) : [];
+    const { tokens: marketTokens = [] } = await fetchTokensForMarket(polymarketId);
+
     const data: any = {
       internalEventId,
       polymarketId,
       polymarketConditionId: polymarketConditionId ?? null,
       polymarketTokenId: tokenIdForLegacy,
+      // CRITICAL: Populate yesTokenId and noTokenId for hedging to work
+      // marketTokens[0] is typically YES, marketTokens[1] is typically NO for binary events
+      yesTokenId: marketTokens[0] || null,
+      noTokenId: marketTokens[1] || null,
       isActive: true,
     };
-
-    let normalizedOutcomeMapping = Array.isArray(outcomeMapping) ? dedupeOutcomeNames(outcomeMapping) : [];
-    // Fetch tokens up front to infer multiplicity from the market even if mapping is incomplete.
-    const { tokens: marketTokens = [] } = await fetchTokensForMarket(polymarketId);
 
     // If the admin/UI sent an incomplete mapping (common root cause of "multi-outcome loads as binary"),
     // expand it using Polymarket token list so we don't silently collapse to 2 outcomes.
@@ -673,6 +677,7 @@ export async function POST(request: NextRequest) {
         });
       }
       normalizedOutcomeMapping = dedupeOutcomeNames(normalizedOutcomeMapping);
+
     }
 
     // Include optional fields guarded; not all environments may have migrated schema
