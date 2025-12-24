@@ -32,14 +32,22 @@ async function setupWebhook() {
 
   try {
     console.log('🔧 Setting up Telegram webhook...');
-    console.log(`📡 Webhook URL: ${WEBHOOK_URL}`);
+    
+    // Ensure webhook URL doesn't have www (to avoid redirects)
+    const webhookUrl = WEBHOOK_URL?.replace('https://www.', 'https://') || '';
+    console.log(`📡 Webhook URL: ${webhookUrl}`);
+    
+    if (webhookUrl.includes('www.')) {
+      console.warn('⚠️  Warning: Webhook URL contains www. This may cause 307 redirects.');
+      console.warn('   Consider using non-www URL to avoid redirect issues.');
+    }
 
     // Set webhook
     const response = await fetch(`${baseUrl}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url: WEBHOOK_URL,
+        url: webhookUrl,
         secret_token: WEBHOOK_SECRET,
         allowed_updates: ['message', 'callback_query'],
         drop_pending_updates: false,
