@@ -254,53 +254,68 @@ function parseShortOutcomes(market: PolymarketMarket): string[] {
 // Smart category detection based on event content
 function inferCategory(title: string, description?: string): string {
     const text = `${title} ${description || ''}`.toLowerCase();
-    
+
+    // Business patterns
+    if (/(company|business|corporate|ceo|merger|acquisition|startup|ipo|earnings|revenue|profit|corporation)/i.test(text)) {
+        return 'Business';
+    }
+
     // Crypto patterns
-    if (/(bitcoin|btc|ethereum|eth|crypto|solana|sol|dogecoin|doge|blockchain|defi|nft|token|coin|crypto)/i.test(text)) {
+    if (/(bitcoin|btc|ethereum|eth|crypto|solana|sol|dogecoin|doge|blockchain|defi|nft|token|coin|cryptocurrency)/i.test(text)) {
         return 'Crypto';
     }
-    
+
+    // Culture patterns (entertainment + pop culture combined)
+    if (/(movie|film|oscar|grammy|emmy|netflix|spotify|music|album|artist|actor|actress|celebrity|hollywood|entertainment|tv show|series|streaming|kardashian|swift|taylor|beyonce|kanye|drake|meme|viral|tiktok|instagram|youtube|influencer)/i.test(text)) {
+        return 'Culture';
+    }
+
+    // Economy patterns
+    if (/(inflation|gdp|economy|economic|interest rate|recession|fed|federal reserve|monetary|fiscal|unemployment|jobs|labor)/i.test(text)) {
+        return 'Economy';
+    }
+
+    // Elections patterns
+    if (/(election|vote|ballot|primary|caucus|campaign|candidate|polling|electoral|midterm)/i.test(text)) {
+        return 'Elections';
+    }
+
+    // Esports patterns
+    if (/(esports|e-sports|gaming|league of legends|dota|csgo|valorant|overwatch|fortnite|twitch|streamer|tournament|gamer)/i.test(text)) {
+        return 'Esports';
+    }
+
+    // Finance patterns
+    if (/(stock|market|nasdaq|s&p|dow jones|trading|investment|hedge fund|bank|wall street|price|valuation|ipo)/i.test(text)) {
+        return 'Finance';
+    }
+
     // Politics patterns
-    if (/(trump|biden|president|election|congress|senate|republican|democrat|political|politics|vote|governor|mayor|supreme court|kamala|desantis|nikki haley)/i.test(text)) {
+    if (/(trump|biden|president|congress|senate|republican|democrat|political|politics|governor|mayor|supreme court|kamala|desantis|nikki haley|legislation|policy|government)/i.test(text)) {
         return 'Politics';
     }
-    
+
+    // Science patterns
+    if (/(covid|vaccine|virus|pandemic|climate|global warming|nasa|space|spacex|science|research|study|scientist|discovery|medicine|medical|health|ai|artificial intelligence|openai|chatgpt)/i.test(text)) {
+        return 'Science';
+    }
+
     // Sports patterns
     if (/(nfl|nba|mlb|nhl|fifa|world cup|super bowl|playoffs|championship|football|basketball|baseball|soccer|tennis|golf|boxing|ufc|mma|premier league|la liga|athlete|sport)/i.test(text)) {
         return 'Sports';
     }
-    
-    // Business/Finance patterns
-    if (/(stock|market|nasdaq|s&p|dow jones|fed|federal reserve|inflation|gdp|economy|economic|interest rate|recession|bull market|bear market|ipo|merger|acquisition|revenue|earnings|ceo|company)/i.test(text)) {
-        return 'Business';
-    }
-    
+
     // Tech patterns
-    if (/(apple|google|meta|microsoft|amazon|tesla|nvidia|openai|chatgpt|ai|artificial intelligence|tech|technology|software|hardware|startup|silicon valley|elon musk)/i.test(text)) {
+    if (/(apple|google|meta|microsoft|amazon|tesla|nvidia|tech|technology|software|hardware|startup|silicon valley|elon musk|chip|semiconductor)/i.test(text)) {
         return 'Tech';
     }
-    
-    // Science patterns
-    if (/(covid|vaccine|virus|pandemic|climate|global warming|nasa|space|spacex|science|research|study|scientist|discovery|medicine|medical|health)/i.test(text)) {
-        return 'Science';
-    }
-    
-    // Entertainment patterns
-    if (/(movie|film|oscar|grammy|emmy|netflix|spotify|music|album|artist|actor|actress|celebrity|hollywood|entertainment|tv show|series|streaming)/i.test(text)) {
-        return 'Entertainment';
-    }
-    
-    // Pop Culture patterns
-    if (/(kardashian|swift|taylor|beyonce|kanye|drake|meme|viral|tiktok|instagram|youtube|influencer|celebrity gossip)/i.test(text)) {
-        return 'Pop Culture';
-    }
-    
-    // World events patterns
+
+    // World patterns
     if (/(war|ukraine|russia|china|israel|palestine|iran|nato|un|united nations|international|global|conflict|peace|treaty|diplomacy)/i.test(text)) {
         return 'World';
     }
-    
-    return 'General';
+
+    return 'World'; // Default to World instead of General
 }
 
 // Normalize Polymarket market into the shape consumed by EventCard2 (DbEvent)
@@ -321,12 +336,12 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
 
     const title = market.question ?? parent?.title ?? 'Untitled market';
     const description = market.description ?? parent?.description ?? '';
-    
+
     // Use Polymarket's category if available and not "General", otherwise infer from content
     const polymarketCategory = market.category ?? market.categories?.[0] ?? parent?.category;
     const shouldInferCategory = !polymarketCategory || polymarketCategory.toLowerCase() === 'general';
     const inferredCategory = shouldInferCategory ? inferCategory(title, description) : polymarketCategory;
-    
+
     const base = {
         id: market.id || market.slug || crypto.randomUUID(),
         title,
@@ -354,7 +369,7 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
     if (type === 'MULTIPLE') {
         const shortNames = parseShortOutcomes(market);
         const outcomeCount = shortNames.length || outs.length;
-        
+
         // First pass: collect all valid probabilities
         const validProbabilities: number[] = [];
         for (let idx = 0; idx < outcomeCount; idx++) {
@@ -364,17 +379,17 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
                 validProbabilities.push(prob);
             }
         }
-        
+
         // Calculate fallback probability (equal distribution if no valid probs, or average if some valid)
         const fallbackProb = validProbabilities.length > 0
             ? validProbabilities.reduce((a, b) => a + b, 0) / validProbabilities.length
             : 1.0 / outcomeCount;
-        
+
         const mapped = (shortNames.length ? shortNames : outs.map((o) => o.name))
             .map((name, idx) => {
                 // Try multiple sources for probability
                 const rawPrice = prices[idx] ?? outs[idx]?.price ?? outs[idx]?.probability;
-                
+
                 // Use normalizeProbValue which rejects values > 100 (strike levels)
                 let probability = normalizeProbValue(rawPrice, fallbackProb);
                 // If we got undefined (invalid value > 100), use fallback only if we have no valid probs
@@ -383,7 +398,7 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
                     // Otherwise, leave undefined so UI can show "—"
                     probability = validProbabilities.length === 0 ? fallbackProb : undefined;
                 }
-                
+
                 // Ensure probability is in valid range (0-1), not a percentage
                 if (probability !== undefined) {
                     probability = clamp01(probability);
@@ -403,13 +418,13 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
             })
             .sort((a, b) => (b.probability || 0) - (a.probability || 0))
             .slice(0, 5);
-        
+
         // Normalize probabilities to sum to 1 (for display purposes)
         // But only if we have valid probabilities (not all fallbacks)
         const validMapped = mapped.filter(o => o.probability !== undefined && o.probability >= 0);
         const totalProb = validMapped.reduce((sum, o) => sum + (o.probability ?? 0), 0);
         const hasValidProbs = validMapped.length > 0 && totalProb > 0;
-        
+
         if (hasValidProbs && totalProb !== 1) {
             // Only normalize if we have at least some valid probabilities
             validMapped.forEach(o => {
@@ -418,7 +433,7 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
                 o.price = o.probability;
             });
         }
-        
+
         // For outcomes without valid probabilities, set to sentinel value
         mapped.forEach(o => {
             if (o.probability === undefined || o.probability < 0) {
@@ -562,10 +577,10 @@ function flattenAndMap(events: PolymarketEvent[], seen: Set<string>) {
             const vol = bestVolume(mkt, evt);
             const prices = normalizeOutcomePrices(mkt.outcomePrices);
             // Exclude if: inactive, closed, zero volume, or has 100% probability (likely resolved)
-            return mkt.active !== false && 
-                   mkt.closed !== true && 
-                   vol > 0 && 
-                   prices[0] < 0.99; // Exclude markets with ≥99% (likely resolved)
+            return mkt.active !== false &&
+                mkt.closed !== true &&
+                vol > 0 &&
+                prices[0] < 0.99; // Exclude markets with ≥99% (likely resolved)
         });
 
         const markets = activeMarkets.length > 0 ? activeMarkets : allMarkets;
@@ -621,7 +636,7 @@ export async function GET(request: Request) {
         );
         // When fetching by ID, use a much smaller limit for speed
         // Otherwise pull a reasonable amount (2x for aggregation buffer)
-        const fetchLimit = idParam 
+        const fetchLimit = idParam
             ? Math.min(targetCount * 2, 20) // For specific ID, fetch less
             : Math.min(Math.max(targetCount * 2, targetCount), MAX_FETCH); // Reduced from 6x to 2x
 
@@ -658,22 +673,22 @@ export async function GET(request: Request) {
             (async () => {
                 try {
                     const { prisma } = await import('@/lib/prisma');
-                    
+
                     // Batch check existing mappings (much faster than one-by-one)
                     const eventIds = topByVolume.map(e => e.id);
                     const existingMappings = await prisma.polymarketMarketMapping.findMany({
                         where: { internalEventId: { in: eventIds } },
                         select: { internalEventId: true, lastSyncedAt: true, id: true }
                     });
-                    
+
                     const existingMap = new Map(existingMappings.map((m: any) => [m.internalEventId, m]));
                     const toCreate: any[] = [];
                     const toUpdate: any[] = [];
                     const oneHourAgo = Date.now() - 3600000;
-                    
+
                     for (const event of topByVolume) {
                         const existing: any = existingMap.get(event.id);
-                        
+
                         if (!existing) {
                             // New mapping needed
                             toCreate.push({
@@ -700,7 +715,7 @@ export async function GET(request: Request) {
                             });
                         }
                     }
-                    
+
                     // Batch insert new mappings
                     if (toCreate.length > 0) {
                         await prisma.polymarketMarketMapping.createMany({
@@ -709,11 +724,11 @@ export async function GET(request: Request) {
                         });
                         console.log(`[Polymarket] Created ${toCreate.length} mappings`);
                     }
-                    
+
                     // Batch update stale mappings (if needed)
                     if (toUpdate.length > 0) {
                         await Promise.all(
-                            toUpdate.map(u => 
+                            toUpdate.map(u =>
                                 prisma.polymarketMarketMapping.update({
                                     where: { id: u.id },
                                     data: { lastSyncedAt: u.lastSyncedAt, isActive: u.isActive },
@@ -735,7 +750,7 @@ export async function GET(request: Request) {
         response.headers.set('Cache-Control', `s-maxage=${cacheTime}, stale-while-revalidate=60`);
         // Add timestamp to help identify fresh data
         response.headers.set('X-Generated-At', new Date().toISOString());
-        
+
         return response;
     } catch (error) {
         console.error('Polymarket fetch failed', error);

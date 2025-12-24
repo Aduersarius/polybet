@@ -305,3 +305,94 @@ export async function GET(
         );
     }
 }
+
+/**
+ * DELETE /api/events/[id]
+ * Delete an event and its associated image from Vercel Blob storage
+ * Requires admin authentication
+ */
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { requireAdminAuth } = await import('@/lib/auth');
+        await requireAdminAuth(request);
+
+        const { id } = await params;
+
+        const { prisma } = await import('@/lib/prisma');
+
+        // First, get the event to retrieve the image URL
+        const event = await prisma.event.findUnique({
+            where: { id },
+            select: { id: true, imageUrl: true, polymarketId: true },
+        });
+
+        if (!event) {
+            return NextResponse.json(
+                { error: 'Event not found' },
+                { status: 404 }
+            );
+        }
+
+        // Delete image from Vercel Blob if it exists
+        if (event.imageUrl && event.imageUrl.includes('blob.vercel-storage.com')) {
+            try {
+                const { deleteEventImageFromBlob } = await import('@/lib/event-image-blob');
+                await deleteEventImageFromBlob(event.imageUrl);
+                console.log(`[Event Delete] ✓ Deleted image from Blob: ${event.id}`);
+            } catch (imgErr) {
+                console.warn('[Event Delete] Failed to delete image from Blob (non-critical):', imgErr);
+            }
+        }
+
+        // Delete related records first (due to foreign key constraints)
+        await prisma.$transaction([
+            // Delete odds history
+            prisma.oddsHistory.deleteMany({ where: { eventId: id } }),
+            // Delete market activity
+            prisma.marketActivity.deleteMany({ where: { eventId: id } }),
+            // Delete user favorites
+            prisma.userFavorite.deleteMany({ where: { eventId: id } }),
+            // Delete positions
+            prisma.position.deleteMany({ where: { eventId: id } }),
+            // Delete outcomes
+            prisma.outcome.deleteMany({ where: { eventId: id } }),
+            // Delete polymarket mapping if exists
+            ...(event.polymarketId
+                ? [prisma.polymarketMarketMapping.deleteMany({ where: { polymarketId: event.polymarketId } })]
+                : []),
+            // Finally delete the event
+            prisma.event.delete({ where: { id } }),
+        ]);
+
+        // Invalidate cache
+        try {
+            const { invalidate } = await import('@/lib/cache');
+            await invalidate(`evt:${id}`, 'event');
+            if (event.polymarketId) {
+                await invalidate(`poly:${event.polymarketId}`, 'event');
+            }
+        } catch {
+            // best-effort cache bust
+        }
+
+        console.log(`[Event Delete] ✓ Deleted event: ${id}`);
+        return NextResponse.json({ success: true, deletedId: id });
+    } catch (error) {
+        console.error('[Event Delete] Failed:', error);
+
+        if (error instanceof Error && error.message === 'Unauthorized') {
+            return NextResponse.json(
+                { error: 'Unauthorized - Admin access required' },
+                { status: 403 }
+            );
+        }
+
+        return NextResponse.json(
+            { error: 'Failed to delete event', message: error instanceof Error ? error.message : String(error) },
+            { status: 500 }
+        );
+    }
+}

@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { calculateDisplayVolume } from '@/lib/volume-scaler';
 
 /**
  * GET /api/sports
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     const sport = searchParams.get('sport'); // New parameter
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
-    
+
     // Build where clause based on filter
     const where: any = {
       status: 'ACTIVE',
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
         }
       ],
     };
-    
+
     // Apply sport-specific filter (e.g., cs2, nfl, nba)
     if (sport && sport !== 'popular') {
       // Map common sport IDs to database values
@@ -52,27 +53,27 @@ export async function GET(request: Request) {
         'lol': { isEsports: true, title: { contains: 'League of Legends', mode: 'insensitive' } },
         'dota2': { isEsports: true, title: { contains: 'Dota', mode: 'insensitive' } },
         'rocket-league': { isEsports: true, title: { contains: 'Rocket League', mode: 'insensitive' } },
-        
+
         // Traditional sports - filter by league
         'nfl': { league: 'NFL' },
         'nba': { league: 'NBA' },
         'nhl': { league: 'NHL' },
         'ufc': { league: 'UFC' },
         'cfb': { sport: 'football', title: { contains: 'College', mode: 'insensitive' } },
-        
+
         // Soccer leagues
         'epl': { league: 'Premier League' },
         'la-liga': { league: 'La Liga' },
         'bundesliga': { league: 'Bundesliga' },
         'serie-a': { league: 'Serie A' },
-        
+
         // Other sports by sport field
         'football': { sport: 'soccer' },
         'cricket': { sport: 'cricket' },
         'tennis': { sport: 'tennis' },
         'golf': { sport: 'golf' },
       };
-      
+
       const sportFilter = sportMapping[sport.toLowerCase()];
       if (sportFilter) {
         // Merge sport-specific filters into where clause
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
         });
       }
     }
-    
+
     // Apply filter
     switch (filter) {
       case 'live':
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
           }
         ];
         break;
-        
+
       case 'upcoming':
         // Include upcoming games (eventType='upcoming') OR old non-live events
         where.AND = [
@@ -111,7 +112,7 @@ export async function GET(request: Request) {
           }
         ];
         break;
-        
+
       case 'esports':
         where.isEsports = true;
         // Exclude only explicit 'futures', allow null
@@ -124,7 +125,7 @@ export async function GET(request: Request) {
           }
         ];
         break;
-        
+
       case 'traditional':
         where.isEsports = false;
         where.OR = [
@@ -140,7 +141,7 @@ export async function GET(request: Request) {
           }
         ];
         break;
-        
+
       case 'all':
         // Show all except explicit long-term futures
         where.AND = [
@@ -153,7 +154,7 @@ export async function GET(request: Request) {
         ];
         break;
     }
-    
+
     // Query events
     const events = await prisma.event.findMany({
       where,
@@ -179,7 +180,7 @@ export async function GET(request: Request) {
         noOdds: true,
         type: true,
         polymarketId: true, // Add for duplicate detection
-        
+
         // Sports fields
         league: true,
         sport: true,
@@ -194,7 +195,7 @@ export async function GET(request: Request) {
         gameStatus: true,
         startTime: true,
         isEsports: true,
-        
+
         // Include outcomes for multi-outcome events
         outcomes: {
           select: {
@@ -206,10 +207,10 @@ export async function GET(request: Request) {
         },
       },
     });
-    
+
     // Count total for pagination
     const total = await prisma.event.count({ where });
-    
+
     // Debug logging to understand duplicate issues
     console.log('[Sports API] Query results:', {
       totalCount: total,
@@ -218,7 +219,7 @@ export async function GET(request: Request) {
       sport,
       sampleTitles: events.slice(0, 5).map((e: any) => ({ title: e.title, polymarketId: e.polymarketId })),
     });
-    
+
     // Check for duplicates by polymarketId
     if (sport === 'cs2') {
       const polymarketIds = events.map((e: any) => e.polymarketId).filter(Boolean);
@@ -231,7 +232,7 @@ export async function GET(request: Request) {
         });
       }
     }
-    
+
     // Transform events to match EventCard2 format (remove polymarketId from output)
     const transformed = events.map((event: any) => ({
       id: event.id,
@@ -242,13 +243,13 @@ export async function GET(request: Request) {
       resolutionDate: event.resolutionDate.toISOString(),
       createdAt: event.createdAt.toISOString(),
       imageUrl: event.imageUrl,
-      volume: event.externalVolume || 0,
+      volume: calculateDisplayVolume(event.externalVolume || 0, event.createdAt),
       betCount: event.externalBetCount || 0,
       yesOdds: event.yesOdds,
       noOdds: event.noOdds,
       type: event.type,
       outcomes: event.outcomes,
-      
+
       // Sports metadata
       league: event.league,
       sport: event.sport,
@@ -264,7 +265,7 @@ export async function GET(request: Request) {
       startTime: event.startTime?.toISOString(),
       isEsports: event.isEsports,
     }));
-    
+
     return NextResponse.json({
       events: transformed,
       total,

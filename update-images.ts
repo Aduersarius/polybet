@@ -18,19 +18,43 @@ async function main() {
         const event = events[i];
 
         let keywords = 'technology';
-        const category = event.categories[0] || 'TECHNOLOGY'; // Use first category or default
+        const category = event.categories[0] || 'TECH'; // Use first category or default
         switch (category) {
+            case 'BUSINESS':
+                keywords = 'business,office,corporate';
+                break;
             case 'CRYPTO':
                 keywords = 'bitcoin,crypto,blockchain';
                 break;
-            case 'SPORTS':
-                keywords = 'sports,athlete,stadium';
+            case 'CULTURE':
+                keywords = 'cinema,movie,concert';
+                break;
+            case 'ECONOMY':
+                keywords = 'economy,money,finance';
+                break;
+            case 'ELECTIONS':
+                keywords = 'election,vote,democracy';
+                break;
+            case 'ESPORTS':
+                keywords = 'gaming,esports,computer';
+                break;
+            case 'FINANCE':
+                keywords = 'stock,market,trading';
                 break;
             case 'POLITICS':
                 keywords = 'politics,news,government';
                 break;
-            case 'ENTERTAINMENT':
-                keywords = 'cinema,movie,concert';
+            case 'SCIENCE':
+                keywords = 'science,research,space';
+                break;
+            case 'SPORTS':
+                keywords = 'sports,athlete,stadium';
+                break;
+            case 'TECH':
+                keywords = 'technology,computer,software';
+                break;
+            case 'WORLD':
+                keywords = 'world,globe,international';
                 break;
         }
 

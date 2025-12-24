@@ -9,7 +9,7 @@ export const colorTokens = {
   background: '#111827', // gray-900
   surface: '#1a1d28', // Elevated surface with rich navy undertones - premium contrast
   surfaceElevated: '#232736', // Higher elevation for modals/dialogs - lighter navy
-  
+
   // Primary Brand Colors - Premium Navy Blue
   primary: {
     50: '#eff6ff',
@@ -23,7 +23,7 @@ export const colorTokens = {
     800: '#1e40af',
     900: '#1e3a8a',
   },
-  
+
   // Secondary (Success/Emerald)
   secondary: {
     50: '#ecfdf5',
@@ -37,7 +37,7 @@ export const colorTokens = {
     800: '#065f46',
     900: '#064e3b',
   },
-  
+
   // Accent (Purple)
   accent: {
     50: '#faf5ff',
@@ -51,7 +51,7 @@ export const colorTokens = {
     800: '#5b21b6',
     900: '#4c1d95',
   },
-  
+
   // Semantic Colors
   error: {
     50: '#fef2f2',
@@ -65,7 +65,7 @@ export const colorTokens = {
     800: '#991b1b',
     900: '#7f1d1d',
   },
-  
+
   warning: {
     50: '#fffbeb',
     100: '#fef3c7',
@@ -78,7 +78,7 @@ export const colorTokens = {
     800: '#92400e',
     900: '#78350f',
   },
-  
+
   success: {
     50: '#ecfdf5',
     100: '#d1fae5',
@@ -91,7 +91,7 @@ export const colorTokens = {
     800: '#065f46',
     900: '#064e3b',
   },
-  
+
   // Neutral/Gray Scale
   gray: {
     50: '#f9fafb',
@@ -105,7 +105,7 @@ export const colorTokens = {
     800: '#1f2937',
     900: '#111827',
   },
-  
+
   zinc: {
     50: '#fafafa',
     100: '#f4f4f5',
@@ -118,7 +118,7 @@ export const colorTokens = {
     800: '#1a1d28', // Updated to match surface color - rich navy
     900: '#0f1117', // Updated to match background color - premium deep navy
   },
-  
+
   // Text Colors
   text: {
     primary: '#ffffff',
@@ -126,7 +126,7 @@ export const colorTokens = {
     muted: '#71717a',
     inverse: '#18181b',
   },
-  
+
   // Chart Colors
   chart: {
     1: '#3b82f6', // Blue
@@ -140,7 +140,7 @@ export const colorTokens = {
     9: '#14b8a6', // Teal
     10: '#f43f5e', // Rose
   },
-  
+
   // Outcome Colors (for charts/trading)
   outcomes: [
     '#BB86FC', // Primary purple
@@ -158,7 +158,7 @@ export const colorTokens = {
     '#D946EF', // Fuchsia
     '#06B6D4', // Cyan
   ],
-  
+
   // Category Colors (semantic mapping)
   categories: {
     CRYPTO: {
@@ -215,6 +215,11 @@ export const colorTokens = {
       text: '#a78bfa', // violet-400
       border: 'rgba(139, 92, 246, 0.3)', // violet-500/30
       bg: 'rgba(139, 92, 246, 0.1)', // violet-500/10
+    },
+    ESPORTS: {
+      text: '#a855f7', // purple-500
+      border: 'rgba(168, 85, 247, 0.3)', // purple-500/30
+      bg: 'rgba(168, 85, 247, 0.1)', // purple-500/10
     },
     DEFAULT: {
       text: '#9ca3af', // gray-400

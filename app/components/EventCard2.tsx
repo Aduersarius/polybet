@@ -1269,12 +1269,13 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                     const allOutcomesUnfiltered = outcomesForCalculation || [];
 
                     // Get all valid outcomes with probabilities - shared between slider and buttons
+                    // Include outcomes with 0% probability - they're still valid choices
                     const allOutcomes = useMemo(() => {
                       return allOutcomesUnfiltered.filter((outcome) => {
                         const probValue = outcome?.probability;
+                        // Only filter out truly invalid outcomes (null/undefined/negative)
+                        // Keep 0% outcomes as they're valid choices users can bet on
                         if (probValue == null || probValue < 0) return false;
-                        const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                        if (probability === 0) return false;
                         return true;
                       });
                     }, [allOutcomesUnfiltered]);

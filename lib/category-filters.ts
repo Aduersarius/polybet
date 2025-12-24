@@ -7,41 +7,77 @@ export interface CategoryDefinition {
 }
 
 export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
+  // Business
+  {
+    name: 'Business',
+    keywords: ['company', 'business', 'corporate', 'ceo', 'merger', 'acquisition', 'startup', 'ipo', 'earnings', 'revenue', 'profit'],
+    subcategories: ['Companies', 'Startups', 'Corporate']
+  },
   // Crypto
   {
     name: 'Crypto',
-    keywords: ['btc', 'bitcoin', 'eth', 'ethereum', 'sol', 'solana', 'nft', 'opensea', 'airdrop', 'layerzero', 'crypto', 'blockchain', 'defi', 'web3'],
+    keywords: ['btc', 'bitcoin', 'eth', 'ethereum', 'sol', 'solana', 'nft', 'opensea', 'airdrop', 'layerzero', 'crypto', 'blockchain', 'defi', 'web3', 'token', 'coin'],
     subcategories: ['Bitcoin', 'Ethereum', 'Solana', 'NFTs', 'Airdrops']
+  },
+  // Culture
+  {
+    name: 'Culture',
+    keywords: ['movie', 'oscar', 'box office', 'song', 'album', 'grammy', 'spotify', 'twitter', 'x', 'youtube', 'mrbeast', 'celebrity', 'entertainment', 'netflix', 'disney', 'streaming'],
+    subcategories: ['Movies', 'Music', 'Social', 'Entertainment']
+  },
+  // Economy
+  {
+    name: 'Economy',
+    keywords: ['inflation', 'gdp', 'recession', 'fed', 'rate', 'interest', 'unemployment', 'jobs', 'labor', 'economic', 'monetary', 'fiscal'],
+    subcategories: ['Monetary Policy', 'Employment', 'Growth']
+  },
+  // Elections
+  {
+    name: 'Elections',
+    keywords: ['election', 'vote', 'ballot', 'primary', 'caucus', 'campaign', 'candidate', 'polling', 'electoral', 'midterm'],
+    subcategories: ['US Elections', 'Global Elections', 'Primaries']
+  },
+  // Finance
+  {
+    name: 'Finance',
+    keywords: ['stock', 'market', 'nasdaq', 'dow', 's&p', 'trading', 'investment', 'hedge', 'fund', 'bank', 'wall street', 'price', 'valuation'],
+    subcategories: ['Stocks', 'Markets', 'Banking']
   },
   // Politics
   {
     name: 'Politics',
-    keywords: ['trump', 'biden', 'harris', 'election', 'war', 'uk', 'eu', 'china', 'law', 'bill', 'fed', 'rate', 'policy', 'government', 'president', 'senate', 'congress'],
-    subcategories: ['US Election', 'Global', 'Policy']
-  },
-  // Sports
-  {
-    name: 'Sports',
-    keywords: ['soccer', 'premier league', 'champions', 'ufc', 'fight', 'mcgregor', 'nba', 'lebron', 'f1', 'formula', 'football', 'basketball', 'mma', 'racing', 'sports'],
-    subcategories: ['Football', 'MMA/UFC', 'Basketball', 'Racing']
-  },
-  // Business
-  {
-    name: 'Business',
-    keywords: ['inflation', 'gdp', 'recession', 'stock', 'apple', 'tesla', 'nvidia', 'price', 'economy', 'market', 'company', 'business', 'finance'],
-    subcategories: ['Economy', 'Stocks']
+    keywords: ['trump', 'biden', 'harris', 'war', 'uk', 'eu', 'china', 'law', 'bill', 'policy', 'government', 'president', 'senate', 'congress', 'legislation'],
+    subcategories: ['US Politics', 'Global', 'Policy']
   },
   // Science
   {
     name: 'Science',
-    keywords: ['gpt', 'openai', 'gemini', 'artificial', 'spacex', 'mars', 'nasa', 'moon', 'temp', 'climate', 'degree', 'ai', 'space', 'science', 'technology'],
-    subcategories: ['AI', 'Space', 'Climate']
+    keywords: ['gpt', 'openai', 'gemini', 'artificial', 'spacex', 'mars', 'nasa', 'moon', 'temp', 'climate', 'degree', 'ai', 'space', 'science', 'research', 'discovery'],
+    subcategories: ['AI', 'Space', 'Climate', 'Research']
   },
-  // Pop Culture
+  // Sports
   {
-    name: 'Pop Culture',
-    keywords: ['movie', 'oscar', 'box office', 'song', 'album', 'grammy', 'spotify', 'twitter', 'x', 'youtube', 'mrbeast', 'celebrity', 'entertainment'],
-    subcategories: ['Movies', 'Music', 'Social']
+    name: 'Sports',
+    keywords: ['soccer', 'premier league', 'champions', 'ufc', 'fight', 'mcgregor', 'nba', 'lebron', 'f1', 'formula', 'football', 'basketball', 'mma', 'racing', 'sports', 'nfl', 'mlb'],
+    subcategories: ['Football', 'MMA/UFC', 'Basketball', 'Racing']
+  },
+  // Tech
+  {
+    name: 'Tech',
+    keywords: ['apple', 'google', 'microsoft', 'meta', 'amazon', 'nvidia', 'chip', 'semiconductor', 'software', 'hardware', 'app', 'technology', 'tech', 'device'],
+    subcategories: ['Big Tech', 'Hardware', 'Software']
+  },
+  // World
+  {
+    name: 'World',
+    keywords: ['international', 'global', 'united nations', 'treaty', 'diplomatic', 'foreign', 'geopolitical', 'conflict', 'peace', 'summit'],
+    subcategories: ['Geopolitics', 'Diplomacy', 'Conflicts']
+  },
+  // Esports
+  {
+    name: 'Esports',
+    keywords: ['esports', 'e-sports', 'gaming', 'league of legends', 'dota', 'csgo', 'valorant', 'overwatch', 'fortnite', 'twitch', 'streamer', 'tournament'],
+    subcategories: ['League of Legends', 'Dota 2', 'CS:GO', 'Valorant']
   }
 ];
 

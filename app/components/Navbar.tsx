@@ -52,6 +52,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
         { id: 'CULTURE', label: 'Culture' },
         { id: 'ECONOMY', label: 'Economy' },
         { id: 'ELECTIONS', label: 'Elections' },
+        { id: 'ESPORTS', label: 'Esports' },
         { id: 'FINANCE', label: 'Finance' },
         { id: 'POLITICS', label: 'Politics' },
         { id: 'SCIENCE', label: 'Science' },
@@ -60,7 +61,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
         { id: 'WORLD', label: 'World' },
     ];
     const { data: session } = useSession();
-    
+
     // Only render session-dependent UI after mounting on client
     useEffect(() => {
         setIsMounted(true);
@@ -126,7 +127,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                             <div className="relative">
                                 <img src="/diamond_logo_nobg.png" alt="PolyBet Logo" className="relative h-10 w-auto object-contain group-hover:scale-110 transition-all duration-300" />
                             </div>
-                            <span className="text-lg font-black tracking-tight group-hover:scale-105 transition-all duration-300 uppercase text-white" style={{letterSpacing: '0.05em', fontWeight: 800}}>
+                            <span className="text-lg font-black tracking-tight group-hover:scale-105 transition-all duration-300 uppercase text-white" style={{ letterSpacing: '0.05em', fontWeight: 800 }}>
                                 PolyBet
                             </span>
                         </Link>

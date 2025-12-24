@@ -17,7 +17,7 @@ async function main() {
     console.log('✅ Created system user:', user.id);
 
     // Generate 50 diverse events
-    const categories = ['CRYPTO', 'SPORTS', 'POLITICS', 'CULTURE', 'FINANCE', 'TECH', 'WORLD', 'ECONOMY', 'ELECTIONS', 'SCIENCE'];
+    const categories = ['BUSINESS', 'CRYPTO', 'CULTURE', 'ECONOMY', 'ELECTIONS', 'ESPORTS', 'FINANCE', 'POLITICS', 'SCIENCE', 'SPORTS', 'TECH', 'WORLD'];
     const eventTemplates = [
         // Crypto events
         { title: 'Will BTC break $100k before 2025?', description: 'Bitcoin has been on a bull run throughout 2024. Will it reach the psychological $100,000 milestone before the new year?', category: 'CRYPTO', months: 1 },
