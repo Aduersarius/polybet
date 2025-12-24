@@ -240,9 +240,9 @@ export function AdminProductAnalytics() {
         <div className="space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Product analytics</p>
-                    <h2 className="text-3xl font-bold text-white">Trading & liquidity health</h2>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Product analytics</p>
+                    <h2 className="text-3xl font-bold text-zinc-200">Trading & liquidity health</h2>
+                    <p className="text-sm text-muted-foreground">
                         Acquisition, engagement, payouts, and treasury signals for the selected window.
                     </p>
                 </div>
@@ -251,11 +251,10 @@ export function AdminProductAnalytics() {
                         <button
                             key={t.value}
                             onClick={() => setRange(t.value)}
-                            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                                range === t.value
-                                    ? 'bg-white text-black'
-                                    : 'bg-white/5 text-gray-300 hover:bg-white/10'
-                            }`}
+                            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${range === t.value
+                                    ? 'bg-primary text-white'
+                                    : 'bg-white/5 text-zinc-300 hover:bg-white/10'
+                                }`}
                         >
                             {t.label}
                         </button>
@@ -264,8 +263,8 @@ export function AdminProductAnalytics() {
             </div>
 
             {loading && (
-                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#161616] p-4 text-gray-400">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <div className="flex items-center gap-2 rounded-lg border border-white/5 bg-surface p-4 text-muted-foreground">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     Loading analytics...
                 </div>
             )}
@@ -298,13 +297,13 @@ export function AdminProductAnalytics() {
                         {cards.map((card) => (
                             <div
                                 key={card.label}
-                                className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30"
+                                className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm text-gray-400">{card.label}</p>
-                                        <p className="mt-2 text-2xl font-bold text-white">{card.value}</p>
-                                        <p className="text-xs text-gray-500">{card.sub}</p>
+                                        <p className="text-sm text-muted-foreground">{card.label}</p>
+                                        <p className="mt-2 text-2xl font-bold text-zinc-200">{card.value}</p>
+                                        <p className="text-xs text-zinc-500">{card.sub}</p>
                                     </div>
                                     <div className="rounded-lg bg-white/5 p-2">{card.icon}</div>
                                 </div>
@@ -313,13 +312,13 @@ export function AdminProductAnalytics() {
                     </div>
 
                     <div className="grid gap-4 lg:grid-cols-3">
-                        <div className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30 lg:col-span-2">
+                        <div className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30 lg:col-span-2">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-400">Engagement & volume</p>
-                                    <p className="text-xl font-semibold text-white">Betting activity</p>
+                                    <p className="text-sm text-muted-foreground">Engagement & volume</p>
+                                    <p className="text-xl font-semibold text-zinc-200">Betting activity</p>
                                 </div>
-                                <Activity className="h-5 w-5 text-gray-400" />
+                                <Activity className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                 <StatChip label="Unique bettors" value={formatNumber(data.engagement.uniqueBettors)} />
@@ -392,13 +391,13 @@ export function AdminProductAnalytics() {
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30">
+                        <div className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-400">Treasury & liquidity</p>
-                                    <p className="text-xl font-semibold text-white">Liquidity posture</p>
+                                    <p className="text-sm text-muted-foreground">Treasury & liquidity</p>
+                                    <p className="text-xl font-semibold text-zinc-200">Liquidity posture</p>
                                 </div>
-                                <Gauge className="h-5 w-5 text-gray-400" />
+                                <Gauge className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div className="mt-4 space-y-3">
                                 <StatChip
@@ -428,13 +427,13 @@ export function AdminProductAnalytics() {
                     </div>
 
                     <div className="grid gap-4 lg:grid-cols-3">
-                        <div className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30 lg:col-span-2">
+                        <div className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30 lg:col-span-2">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-400">Events & supply</p>
-                                    <p className="text-xl font-semibold text-white">Content performance</p>
+                                    <p className="text-sm text-muted-foreground">Events & supply</p>
+                                    <p className="text-xl font-semibold text-zinc-200">Content performance</p>
                                 </div>
-                                <BarChart3 className="h-5 w-5 text-gray-400" />
+                                <BarChart3 className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div className="mt-4 grid gap-3 sm:grid-cols-3">
                                 <StatChip label="Active events" value={formatNumber(data.content.activeEvents)} />
@@ -442,28 +441,28 @@ export function AdminProductAnalytics() {
                                 <StatChip label="New events" value={formatNumber(data.content.newEvents)} />
                             </div>
                             <div className="mt-4">
-                                <p className="text-xs uppercase tracking-[0.1em] text-gray-400 mb-2">Top categories</p>
+                                <p className="text-xs uppercase tracking-[0.1em] text-muted-foreground mb-2">Top categories</p>
                                 <div className="space-y-2">
                                     {data.content.categories.length === 0 && (
-                                        <p className="text-sm text-gray-500">No categories in window.</p>
+                                        <p className="text-sm text-zinc-500">No categories in window.</p>
                                     )}
                                     {data.content.categories.map((cat) => (
                                         <div key={cat.name} className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-200">{cat.name}</span>
-                                            <span className="text-gray-400">{cat.count}</span>
+                                            <span className="text-zinc-300">{cat.name}</span>
+                                            <span className="text-muted-foreground">{cat.count}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30">
+                        <div className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-400">Risk & ops</p>
-                                    <p className="text-xl font-semibold text-white">Payout health</p>
+                                    <p className="text-sm text-muted-foreground">Risk & ops</p>
+                                    <p className="text-xl font-semibold text-zinc-200">Payout health</p>
                                 </div>
-                                <AlertTriangle className="h-5 w-5 text-gray-400" />
+                                <AlertTriangle className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div className="mt-4 space-y-3">
                                 <StatChip
@@ -495,17 +494,17 @@ export function AdminProductAnalytics() {
                         </div>
                     </div>
 
-                    <div className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30">
+                    <div className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-400">Top events</p>
-                                <p className="text-xl font-semibold text-white">Volume leaders</p>
+                                <p className="text-sm text-muted-foreground">Top events</p>
+                                <p className="text-xl font-semibold text-zinc-200">Volume leaders</p>
                             </div>
-                            <Clock className="h-5 w-5 text-gray-400" />
+                            <Clock className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="mt-4 overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead className="border-b border-white/10 text-left text-xs uppercase text-gray-400">
+                                <thead className="border-b border-white/5 text-left text-xs uppercase text-muted-foreground">
                                     <tr>
                                         <th className="py-2 pr-3 font-medium">Event</th>
                                         <th className="py-2 pr-3 font-medium">Volume</th>
@@ -515,18 +514,18 @@ export function AdminProductAnalytics() {
                                 <tbody className="divide-y divide-white/5">
                                     {data.content.topEvents.length === 0 && (
                                         <tr>
-                                            <td className="py-3 pr-3 text-gray-400" colSpan={3}>
+                                            <td className="py-3 pr-3 text-muted-foreground" colSpan={3}>
                                                 No event activity in this window.
                                             </td>
                                         </tr>
                                     )}
                                     {data.content.topEvents.map((evt) => (
                                         <tr key={evt.id} className="hover:bg-white/5 transition-colors">
-                                            <td className="py-3 pr-3 text-white">{evt.title}</td>
-                                            <td className="py-3 pr-3 text-gray-200 font-semibold">
+                                            <td className="py-3 pr-3 text-zinc-200">{evt.title}</td>
+                                            <td className="py-3 pr-3 text-zinc-300 font-semibold">
                                                 {formatCurrency(evt.volume)}
                                             </td>
-                                            <td className="py-3 pr-3 text-gray-300">
+                                            <td className="py-3 pr-3 text-zinc-300">
                                                 {formatNumber(evt.uniqueBettors)}
                                             </td>
                                         </tr>
@@ -556,8 +555,8 @@ function StatChip({ label, value, tone = 'emerald' }: StatChipProps) {
         red: 'border-red-500/30 bg-red-500/5 text-red-200',
     };
     return (
-        <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-            <p className="text-xs text-gray-400">{label}</p>
+        <div className="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+            <p className="text-xs text-muted-foreground">{label}</p>
             <p className={`text-sm font-semibold ${toneClasses[toneKey]} mt-1 inline-flex px-2 py-1 rounded-md`}>
                 {value}
             </p>

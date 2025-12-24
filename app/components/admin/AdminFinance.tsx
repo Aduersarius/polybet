@@ -140,27 +140,27 @@ export function AdminFinance() {
         <div className="space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Money & Flows</h2>
-                    <p className="text-sm text-gray-400">
+                    <h2 className="text-2xl font-bold text-zinc-200">Money & Flows</h2>
+                    <p className="text-sm text-muted-foreground">
                         Platform-level deposits, withdrawals, balances, and ledger activity.
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <a
                         href="/admin/withdrawals"
-                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-white/10 transition-colors"
                     >
                         Review withdrawals
                     </a>
                     <a
                         href="/admin/withdraw"
-                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-white/10 transition-colors"
                     >
                         New withdrawal
                     </a>
                     <button
                         onClick={onRefresh}
-                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-white/10 transition-colors"
                     >
                         <RefreshCw className="h-4 w-4" />
                         Refresh
@@ -171,8 +171,8 @@ export function AdminFinance() {
             {/* Stats */}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {loadingStats ? (
-                    <div className="col-span-full flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#161616] p-6 text-gray-400">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                    <div className="col-span-full flex items-center justify-center gap-2 rounded-lg border border-white/5 bg-surface p-6 text-muted-foreground">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                         Loading finance stats...
                     </div>
                 ) : error ? (
@@ -232,13 +232,13 @@ export function AdminFinance() {
                     ].map((card) => (
                         <div
                             key={card.label}
-                            className="rounded-xl border border-white/10 bg-[#161616] p-5 shadow-lg shadow-black/30"
+                            className="rounded-xl border border-white/5 bg-surface p-5 shadow-lg shadow-black/30"
                         >
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-400">{card.label}</p>
-                                    <p className="mt-2 text-2xl font-bold text-white">{card.value}</p>
-                                    <p className="text-xs text-gray-500">{card.sub}</p>
+                                    <p className="text-sm text-muted-foreground">{card.label}</p>
+                                    <p className="mt-2 text-2xl font-bold text-zinc-200">{card.value}</p>
+                                    <p className="text-xs text-zinc-500">{card.sub}</p>
                                 </div>
                                 <div className="rounded-lg bg-white/5 p-2">{card.icon}</div>
                             </div>
@@ -248,11 +248,11 @@ export function AdminFinance() {
             </div>
 
             {/* Transactions */}
-            <div className="rounded-xl border border-white/10 bg-[#161616] shadow-lg shadow-black/30">
+            <div className="rounded-xl border border-white/5 bg-surface shadow-lg shadow-black/30">
                 <div className="flex flex-col gap-3 border-b border-white/5 p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h3 className="text-lg font-semibold text-white">Transactions</h3>
-                        <p className="text-xs text-gray-400">Recent deposits and withdrawals across the platform.</p>
+                        <h3 className="text-lg font-semibold text-zinc-200">Transactions</h3>
+                        <p className="text-xs text-muted-foreground">Recent deposits and withdrawals across the platform.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         {(['ALL', 'DEPOSIT', 'WITHDRAWAL'] as const).map((option) => (
@@ -260,8 +260,8 @@ export function AdminFinance() {
                                 key={option}
                                 onClick={() => setTypeFilter(option)}
                                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${typeFilter === option
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                                    ? 'bg-primary text-white'
+                                    : 'bg-white/5 text-zinc-300 hover:bg-white/10'
                                     }`}
                             >
                                 {option === 'ALL' ? 'All' : option === 'DEPOSIT' ? 'Deposits' : 'Withdrawals'}
@@ -271,18 +271,18 @@ export function AdminFinance() {
                 </div>
 
                 {loadingTx ? (
-                    <div className="flex items-center justify-center gap-2 p-6 text-gray-400">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                    <div className="flex items-center justify-center gap-2 p-6 text-muted-foreground">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                         Loading transactions...
                     </div>
                 ) : error ? (
                     <div className="p-6 text-sm text-red-300">{error}</div>
                 ) : filteredTransactions.length === 0 ? (
-                    <div className="p-6 text-sm text-gray-400">No transactions found.</div>
+                    <div className="p-6 text-sm text-muted-foreground">No transactions found.</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-white/5 text-left text-xs uppercase text-gray-400">
+                            <thead className="bg-white/5 text-left text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th className="px-5 py-3 font-medium">Type</th>
                                     <th className="px-5 py-3 font-medium">User</th>
@@ -308,29 +308,29 @@ export function AdminFinance() {
                                             </span>
                                         </td>
                                         <td className="px-5 py-3">
-                                            <div className="text-white">
+                                            <div className="text-zinc-200">
                                                 {tx.user.username || tx.user.email || 'Unknown'}
                                             </div>
-                                            <div className="text-xs text-gray-400">{tx.user.email}</div>
+                                            <div className="text-xs text-muted-foreground">{tx.user.email}</div>
                                         </td>
-                                        <td className="px-5 py-3 font-semibold text-white">
+                                        <td className="px-5 py-3 font-semibold text-zinc-200">
                                             {formatCurrency(tx.amount)}
                                         </td>
-                                        <td className="px-5 py-3 text-gray-300">{tx.currency}</td>
+                                        <td className="px-5 py-3 text-zinc-300">{tx.currency}</td>
                                         <td className="px-5 py-3">
                                             <span
-                                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${statusColors[tx.status?.toUpperCase()] || 'bg-white/5 text-gray-300 border border-white/10'
+                                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${statusColors[tx.status?.toUpperCase()] || 'bg-white/5 text-zinc-300 border border-white/5'
                                                     }`}
                                             >
                                                 {tx.status}
                                             </span>
                                         </td>
                                         <td className="px-5 py-3">
-                                            <div className="text-xs font-mono text-gray-300 max-w-[220px] truncate">
+                                            <div className="text-xs font-mono text-zinc-300 max-w-[220px] truncate">
                                                 {tx.txHash || tx.toAddress || tx.fromAddress || '—'}
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3 text-gray-300">{formatDate(tx.createdAt)}</td>
+                                        <td className="px-5 py-3 text-zinc-300">{formatDate(tx.createdAt)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -341,7 +341,7 @@ export function AdminFinance() {
                     <div className="border-t border-white/5 p-4 text-center">
                         <button
                             onClick={() => fetchTransactions({ append: true, before: nextCursor })}
-                            className="inline-flex items-center justify-center rounded-md bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition-colors"
+                            className="inline-flex items-center justify-center rounded-md bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-white/10 transition-colors"
                         >
                             Load more
                         </button>

@@ -94,25 +94,25 @@ export function AdminWithdrawalRequests() {
         <div className="space-y-6">
             {/* Stats Cards */}
             <div className="grid gap-6 md:grid-cols-4">
-                <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6 backdrop-blur-sm">
+                <div className="rounded-xl border border-white/5 bg-surface p-6 backdrop-blur-sm">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-zinc-400">Available (TUSD)</p>
-                            <p className="mt-2 text-3xl font-bold text-white">
+                            <p className="text-sm text-muted-foreground">Available (TUSD)</p>
+                            <p className="mt-2 text-3xl font-bold text-zinc-200">
                                 {loadingBalance ? '—' : `$${availableTusd.toFixed(2)}`}
                             </p>
                         </div>
-                        <div className="p-3 rounded-lg bg-blue-500/10">
-                            <Wallet className="w-6 h-6 text-blue-400" />
+                        <div className="p-3 rounded-lg bg-primary/10">
+                            <Wallet className="w-6 h-6 text-primary" />
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6 backdrop-blur-sm">
+                <div className="rounded-xl border border-white/5 bg-surface p-6 backdrop-blur-sm">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-zinc-400">Pending Requests</p>
-                            <p className="mt-2 text-3xl font-bold text-white">{stats.pending}</p>
+                            <p className="text-sm text-muted-foreground">Pending Requests</p>
+                            <p className="mt-2 text-3xl font-bold text-zinc-200">{stats.pending}</p>
                         </div>
                         <div className="p-3 rounded-lg bg-yellow-500/10">
                             <Clock className="w-6 h-6 text-yellow-400" />
@@ -120,39 +120,39 @@ export function AdminWithdrawalRequests() {
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6 backdrop-blur-sm">
+                <div className="rounded-xl border border-white/5 bg-surface p-6 backdrop-blur-sm">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-zinc-400">Total Amount Pending</p>
-                            <p className="mt-2 text-3xl font-bold text-white">${stats.totalAmount.toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground">Total Amount Pending</p>
+                            <p className="mt-2 text-3xl font-bold text-zinc-200">${stats.totalAmount.toFixed(2)}</p>
                         </div>
-                        <div className="p-3 rounded-lg bg-blue-500/10">
-                            <Wallet className="w-6 h-6 text-blue-400" />
+                        <div className="p-3 rounded-lg bg-primary/10">
+                            <Wallet className="w-6 h-6 text-primary" />
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6 backdrop-blur-sm">
+                <div className="rounded-xl border border-white/5 bg-surface p-6 backdrop-blur-sm">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-zinc-400">Total Processed</p>
-                            <p className="mt-2 text-3xl font-bold text-white">{withdrawals.length - stats.pending}</p>
+                            <p className="text-sm text-muted-foreground">Total Processed</p>
+                            <p className="mt-2 text-3xl font-bold text-zinc-200">{withdrawals.length - stats.pending}</p>
                         </div>
-                        <div className="p-3 rounded-lg bg-green-500/10">
-                            <TrendingUp className="w-6 h-6 text-green-400" />
+                        <div className="p-3 rounded-lg bg-emerald-500/10">
+                            <TrendingUp className="w-6 h-6 text-emerald-400" />
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Withdrawals Table */}
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/50 backdrop-blur-sm">
-                <div className="p-6 border-b border-white/10">
-                    <h2 className="text-lg font-semibold text-white">Withdrawal Requests</h2>
+            <div className="overflow-hidden rounded-xl border border-white/5 bg-surface backdrop-blur-sm">
+                <div className="p-6 border-b border-white/5">
+                    <h2 className="text-lg font-semibold text-zinc-200">Withdrawal Requests</h2>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-zinc-800/50 text-xs uppercase text-zinc-400 border-b border-white/10">
+                        <thead className="bg-white/5 text-xs uppercase text-muted-foreground border-b border-white/5">
                             <tr>
                                 <th className="px-6 py-4 font-medium">User</th>
                                 <th className="px-6 py-4 font-medium">Amount</th>
@@ -162,19 +162,19 @@ export function AdminWithdrawalRequests() {
                                 <th className="px-6 py-4 font-medium">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/10">
+                        <tbody className="divide-y divide-white/5">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                                         <div className="flex items-center justify-center gap-2">
-                                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
+                                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
                                             Loading...
                                         </div>
                                     </td>
                                 </tr>
                             ) : withdrawals.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                                         No withdrawal requests found
                                     </td>
                                 </tr>
@@ -182,19 +182,19 @@ export function AdminWithdrawalRequests() {
                                 withdrawals.map((w) => (
                                     <tr key={w.id} className="hover:bg-white/5 transition-colors">
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-white">{w.user.username || 'Unknown'}</div>
-                                            <div className="text-xs text-zinc-400">{w.user.email}</div>
+                                            <div className="font-medium text-zinc-200">{w.user.username || 'Unknown'}</div>
+                                            <div className="text-xs text-muted-foreground">{w.user.email}</div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="font-bold text-white">${Number(w.amount ?? 0).toFixed(2)}</div>
-                                            <div className="text-xs text-zinc-400">{w.currency}</div>
+                                            <div className="font-bold text-zinc-200">${Number(w.amount ?? 0).toFixed(2)}</div>
+                                            <div className="text-xs text-muted-foreground">{w.currency}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="font-mono text-xs text-zinc-300 max-w-[200px] truncate">
                                                 {w.toAddress}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-zinc-400">
+                                        <td className="px-6 py-4 text-muted-foreground">
                                             {new Date(w.createdAt).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
@@ -203,8 +203,8 @@ export function AdminWithdrawalRequests() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${w.status === 'PENDING' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                                                    w.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                                        'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                w.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                    'bg-red-500/10 text-red-400 border border-red-500/20'
                                                 }`}>
                                                 {w.status === 'PENDING' && <Clock className="w-3 h-3" />}
                                                 {w.status === 'COMPLETED' && <CheckCircle2 className="w-3 h-3" />}
@@ -217,7 +217,7 @@ export function AdminWithdrawalRequests() {
                                                 <div className="flex gap-2">
                                                     <button
                                                         onClick={() => handleAction(w.id, 'APPROVE')}
-                                                        className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-colors flex items-center gap-1"
+                                                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors flex items-center gap-1"
                                                     >
                                                         <CheckCircle2 className="w-3 h-3" />
                                                         Approve

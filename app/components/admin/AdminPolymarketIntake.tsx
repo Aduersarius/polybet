@@ -325,14 +325,14 @@ export function AdminPolymarketIntake() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Polymarket Intake</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-2xl font-semibold text-zinc-200">Polymarket Intake</h2>
+          <p className="text-sm text-muted-foreground">
             Gamma-backed view with richer context: title, image, rules, prices, volume, and history.
           </p>
         </div>
         <button
           onClick={load}
-          className="px-3 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 border border-white/10"
+          className="px-3 py-2 rounded-lg bg-white/5 text-zinc-200 hover:bg-white/10 border border-white/5"
           disabled={loading}
         >
           {loading ? 'Refreshing...' : 'Refresh'}
@@ -345,9 +345,9 @@ export function AdminPolymarketIntake() {
         </div>
       )}
 
-      <div className="overflow-auto rounded-xl border border-white/10">
+      <div className="overflow-auto rounded-xl border border-white/5">
         <table className="min-w-full text-sm">
-          <thead className="bg-white/5 text-gray-300">
+          <thead className="bg-white/5 text-zinc-300">
             <tr>
               <th className="px-4 py-3 text-left">Market</th>
               <th className="px-4 py-3 text-left">Categories</th>
@@ -359,16 +359,16 @@ export function AdminPolymarketIntake() {
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5 bg-[#0f0f12]">
+          <tbody className="divide-y divide-white/5 bg-background">
             {filtered.map((item, idx) => (
               <tr key={item.polymarketId || `poly-${idx}`}>
-                <td className="px-4 py-3 text-white">
+                <td className="px-4 py-3 text-zinc-200">
                   <div className="flex items-start gap-3">
                     {item.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image} alt="" className="h-12 w-12 rounded-md object-cover border border-white/10" />
+                      <img src={item.image} alt="" className="h-12 w-12 rounded-md object-cover border border-white/5" />
                     ) : (
-                      <div className="h-12 w-12 rounded-md border border-white/10 bg-white/5" />
+                      <div className="h-12 w-12 rounded-md border border-white/5 bg-white/5" />
                     )}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -409,13 +409,13 @@ export function AdminPolymarketIntake() {
 
                           {/* Dropdown Menu */}
                           {openDropdownId === item.polymarketId && (
-                            <div className="absolute top-full left-0 mt-1 w-40 rounded-md border border-white/10 bg-[#1e1e26] shadow-xl z-50 overflow-hidden">
+                            <div className="absolute top-full left-0 mt-1 w-40 rounded-md border border-white/5 bg-surface-elevated shadow-xl z-50 overflow-hidden">
                               <button
                                 onClick={() => {
                                   setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'MULTIPLE' }));
                                   setOpenDropdownId(null);
                                 }}
-                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-zinc-100 flex items-center gap-2"
                               >
                                 <span className="text-blue-400">📊</span> Multi (Exclusive)
                               </button>
@@ -424,7 +424,7 @@ export function AdminPolymarketIntake() {
                                   setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'GROUPED_BINARY' }));
                                   setOpenDropdownId(null);
                                 }}
-                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-zinc-100 flex items-center gap-2"
                               >
                                 <span className="text-purple-400">🧩</span> Sub-Bets (Indep.)
                               </button>
@@ -432,10 +432,10 @@ export function AdminPolymarketIntake() {
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-gray-400 line-clamp-2">
+                      <div className="text-xs text-muted-foreground line-clamp-2">
                         {item.question || item.description || 'No question provided'}
                       </div>
-                      <div className="text-[11px] text-gray-500 flex gap-2 flex-wrap">
+                      <div className="text-[11px] text-zinc-500 flex gap-2 flex-wrap">
                         <span>Orderbook: {item.enableOrderBook ? 'Yes' : 'No'}</span>
                         <span>Active: {item.acceptingOrders ? 'Yes' : 'No'}</span>
                         {item.isGroupedBinary && (
@@ -455,43 +455,43 @@ export function AdminPolymarketIntake() {
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-200">
+                <td className="px-4 py-3 text-zinc-200">
                   <div className="flex flex-wrap gap-1">
                     {(item.categories || []).slice(0, 4).map((c) => (
                       <span
                         key={`${item.polymarketId}-${c}`}
-                        className="px-2 py-1 rounded-full bg-white/10 text-xs text-gray-200"
+                        className="px-2 py-1 rounded-full bg-white/5 text-xs text-zinc-200"
                       >
                         {c}
                       </span>
                     ))}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-200">
+                <td className="px-4 py-3 text-zinc-200">
                   <div className="flex flex-wrap gap-2">
                     {(item.outcomes || []).slice(0, 4).map((o, i) => (
                       <div
                         key={o.id || `${item.polymarketId}-o-${i}`}
-                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs"
+                        className="rounded-lg border border-white/5 bg-white/5 px-2 py-1 text-xs"
                       >
-                        <div className="text-white">{o.name}</div>
-                        <div className="text-gray-300">{formatProb(o.probability ?? o.price)}</div>
+                        <div className="text-zinc-200">{o.name}</div>
+                        <div className="text-zinc-300">{formatProb(o.probability ?? o.price)}</div>
                       </div>
                     ))}
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-1">
+                  <div className="text-[11px] text-zinc-500 mt-1">
                     Bid {item.bestBid?.toFixed(2) ?? '—'} · Ask {item.bestAsk?.toFixed(2) ?? '—'}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-200">
-                  <div className="text-sm text-white">{formatUsd(item.volume)}</div>
-                  <div className="text-[11px] text-gray-500">24h {formatUsd(item.volume24hr)}</div>
+                <td className="px-4 py-3 text-zinc-200">
+                  <div className="text-sm text-zinc-200">{formatUsd(item.volume)}</div>
+                  <div className="text-[11px] text-zinc-500">24h {formatUsd(item.volume24hr)}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-200">
+                <td className="px-4 py-3 text-zinc-200">
                   <div className="text-sm">{formatChange(item.oneDayPriceChange)}</div>
-                  <div className="text-[11px] text-gray-500">1h {formatChange(item.oneHourPriceChange)}</div>
+                  <div className="text-[11px] text-zinc-500">1h {formatChange(item.oneHourPriceChange)}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-200">{formatDate(item.endDate)}</td>
+                <td className="px-4 py-3 text-zinc-200">{formatDate(item.endDate)}</td>
                 <td className="px-4 py-3">
                   {loadingId === item.polymarketId ? (
                     <div className="flex items-center gap-2 px-2 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
@@ -504,18 +504,18 @@ export function AdminPolymarketIntake() {
                         ? 'bg-emerald-500/10 text-emerald-300'
                         : item.status === 'rejected'
                           ? 'bg-red-500/10 text-red-300'
-                          : 'bg-white/10 text-gray-200'
+                          : 'bg-white/5 text-zinc-200'
                         }`}
                     >
                       {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                     </span>
                   )}
                   {item.internalEventId && (
-                    <div className="text-[11px] text-gray-400 mt-1 break-words">{item.internalEventId}</div>
+                    <div className="text-[11px] text-muted-foreground mt-1 break-words">{item.internalEventId}</div>
                   )}
-                  <div className="text-[11px] text-gray-500 font-mono mt-1">{item.polymarketId}</div>
+                  <div className="text-[11px] text-zinc-500 font-mono mt-1">{item.polymarketId}</div>
                   {item.variantCount && item.variantCount > 1 && (
-                    <div className="text-[11px] text-gray-500 mt-1">{item.variantCount} variants</div>
+                    <div className="text-[11px] text-zinc-500 mt-1">{item.variantCount} variants</div>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -540,7 +540,7 @@ export function AdminPolymarketIntake() {
             ))}
             {filtered.length === 0 && !loading && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                   No markets available.
                 </td>
               </tr>
@@ -551,11 +551,11 @@ export function AdminPolymarketIntake() {
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-[#111113] p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-xl border border-white/5 bg-surface p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Reject market</h3>
+              <h3 className="text-lg font-semibold text-zinc-200">Reject market</h3>
               <button
-                className="text-gray-400 hover:text-white"
+                className="text-muted-foreground hover:text-white"
                 onClick={() => setModal(null)}
                 aria-label="Close"
               >
@@ -565,10 +565,10 @@ export function AdminPolymarketIntake() {
 
             {modal.type === 'reject' && (
               <div className="space-y-3">
-                <label className="block text-sm text-gray-300">
+                <label className="block text-sm text-zinc-300">
                   Reason (optional)
                   <textarea
-                    className="mt-1 w-full rounded-md bg-white/5 border border-white/10 px-3 py-2 text-white text-sm"
+                    className="mt-1 w-full rounded-md bg-white/5 border border-white/5 px-3 py-2 text-zinc-200 text-sm"
                     rows={2}
                     value={form.notes}
                     onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -576,7 +576,7 @@ export function AdminPolymarketIntake() {
                 </label>
                 <div className="flex justify-end gap-2">
                   <button
-                    className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20"
+                    className="px-3 py-2 rounded-lg bg-white/5 text-zinc-200 border border-white/5"
                     onClick={() => setModal(null)}
                     disabled={loading}
                   >

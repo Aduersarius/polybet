@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateLMSROdds } from '@/lib/amm';
+import { calculateDisplayVolume } from '@/lib/volume-scaler';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -169,17 +170,23 @@ export async function GET(
                     throw new Error('Event not found');
                 }
 
+                const eventId = (event as any).id;
                 const [volumeRow, betCount] = await Promise.all([
                     prisma.$queryRaw<{ volume: number }[]>`
                         SELECT COALESCE(SUM("amount" * COALESCE("price", 1)), 0)::float AS volume
                         FROM "MarketActivity"
-                        WHERE "eventId" = ${id} AND "type" IN ('BET', 'TRADE')
+                        WHERE "eventId" = ${eventId} AND "type" IN ('BET', 'TRADE')
                     `,
                     prisma.marketActivity.count({
-                        where: { eventId: id, type: { in: ['BET', 'TRADE'] } },
+                        where: { eventId: eventId, type: { in: ['BET', 'TRADE'] } },
                     }),
                 ]);
-                const volume = volumeRow?.[0]?.volume ?? 0;
+                const activityVolume = volumeRow?.[0]?.volume ?? 0;
+
+                // Use activity volume if available, otherwise fall back to external volume with time-based growth
+                const externalVol = (event as any).externalVolume ?? 0;
+                const grownExternalVol = calculateDisplayVolume(externalVol, (event as any).createdAt);
+                const volume = activityVolume > 0 ? activityVolume : grownExternalVol;
 
                 // If outcomes > 2, enforce MULTIPLE to avoid stale binary type
                 const inferredType = (event as any).outcomes?.length > 2 ? 'MULTIPLE' : (event as any).type;

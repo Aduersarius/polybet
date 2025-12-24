@@ -47,21 +47,16 @@ async function loadPolymarketHistory(eventId: string, period: string) {
 
   const { prisma } = await import('@/lib/prisma');
 
-  const [outcomes, rows] = await Promise.all([
-    prisma.outcome.findMany({
-      where: { eventId },
-      select: { id: true, name: true },
-    }),
-    prisma.oddsHistory.findMany({
-      where: { eventId, timestamp: { gte: fromDate } },
-      orderBy: { timestamp: 'asc' },
-    }),
-  ]);
+  // 1. Fetch all outcomes with probability to determine significance
+  const outcomes = await prisma.outcome.findMany({
+    where: { eventId },
+    select: { id: true, name: true, probability: true },
+  });
 
   // Deduplicate outcomes based on case-insensitive name matching
   // This handles cases where we have both "Yes" and "YES" or "No" and "NO"
-  const outcomeNameToCanonical = new Map<string, { id: string; name: string }>();
-  const outcomeIdToCanonical = new Map<string, string>(); // Maps outcome ID to canonical ID
+  const outcomeNameToCanonical = new Map<string, { id: string; name: string; probability: number }>();
+  const outcomeIdToCanonical = new Map<string, string>(); // Maps raw outcome ID to canonical ID
 
   for (const o of outcomes) {
     const normalizedName = o.name.toLowerCase();
@@ -74,18 +69,47 @@ async function loadPolymarketHistory(eventId: string, period: string) {
     }
 
     if (!outcomeNameToCanonical.has(normalizedName)) {
-      outcomeNameToCanonical.set(normalizedName, { id: o.id, name: canonicalName });
+      outcomeNameToCanonical.set(normalizedName, { id: o.id, name: canonicalName, probability: o.probability });
     }
     // Map this outcome ID to the canonical outcome ID
     outcomeIdToCanonical.set(o.id, outcomeNameToCanonical.get(normalizedName)!.id);
   }
 
   // Create deduplicated outcomes list
-  const deduplicatedOutcomes = Array.from(outcomeNameToCanonical.values());
-  const isMultiple = deduplicatedOutcomes.length > 2;
+  const allDeduplicatedOutcomes = Array.from(outcomeNameToCanonical.values());
+  const isMultiple = allDeduplicatedOutcomes.length > 2;
+
+  // Filter significant outcomes: >= 1% or top 4 (same as intake logic)
+  allDeduplicatedOutcomes.sort((a, b) => b.probability - a.probability);
+
+  let significantOutcomes = allDeduplicatedOutcomes.filter(o => o.probability >= 0.01);
+  if (significantOutcomes.length < 4) {
+    significantOutcomes = allDeduplicatedOutcomes.slice(0, 4);
+  }
+
+  const significantCanonicalIds = new Set(significantOutcomes.map(o => o.id));
+
+  // Determine which raw outcome IDs we need to fetch history for
+  // We need rows for any ID that maps to a significant canonical ID
+  const idsToFetch: string[] = [];
+  for (const [rawId, canonicalId] of outcomeIdToCanonical.entries()) {
+    if (significantCanonicalIds.has(canonicalId)) {
+      idsToFetch.push(rawId);
+    }
+  }
+
+  // 2. Fetch history only for significant outcomes
+  const rows = await prisma.oddsHistory.findMany({
+    where: {
+      eventId,
+      timestamp: { gte: fromDate },
+      outcomeId: { in: idsToFetch }
+    },
+    orderBy: { timestamp: 'asc' },
+  });
 
   const outcomeNames = new Map<string, string>();
-  for (const o of deduplicatedOutcomes) {
+  for (const o of allDeduplicatedOutcomes) {
     outcomeNames.set(o.id, o.name);
   }
 

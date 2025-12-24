@@ -46,13 +46,13 @@ interface TicketInboxProps {
 const STATUS_CONFIG = {
   open: { label: 'Open', color: 'emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
   pending: { label: 'Pending', color: 'yellow', bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' },
-  resolved: { label: 'Resolved', color: 'blue', bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
-  closed: { label: 'Closed', color: 'gray', bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/20' },
+  resolved: { label: 'Resolved', color: 'blue', bg: 'bg-primary/10', text: 'text-primary', border: 'border-primary/20' },
+  closed: { label: 'Closed', color: 'gray', bg: 'bg-white/10', text: 'text-zinc-400', border: 'border-white/10' },
 };
 
 const PRIORITY_COLORS = {
-  low: 'text-gray-400',
-  medium: 'text-blue-400',
+  low: 'text-muted-foreground',
+  medium: 'text-primary',
   high: 'text-orange-400',
   critical: 'text-red-400',
 };
@@ -71,22 +71,22 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      
+
       // Build query params
       const params = new URLSearchParams();
-      
+
       if (filters.status.length > 0) {
         params.append('status', filters.status.join(','));
       }
-      
+
       if (filters.priority.length > 0) {
         params.append('priority', filters.priority.join(','));
       }
-      
+
       if (filters.category.length > 0) {
         params.append('category', filters.category.join(','));
       }
-      
+
       if (filters.assignedTo) {
         if (filters.assignedTo === 'me' && currentUserId) {
           params.append('assignedTo', currentUserId);
@@ -96,18 +96,18 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
           params.append('assignedTo', filters.assignedTo);
         }
       }
-      
+
       if (filters.search) {
         params.append('search', filters.search);
       }
-      
+
       params.append('page', page.toString());
       params.append('limit', '20');
       params.append('sortBy', 'createdAt');
       params.append('sortOrder', 'desc');
 
       const response = await fetch(`/api/support/tickets?${params.toString()}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch tickets');
       }
@@ -145,8 +145,8 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-4">
           <MessageSquare className="w-8 h-8 text-emerald-400" />
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">No Tickets Found</h3>
-        <p className="text-white/60">Try adjusting your filters</p>
+        <h3 className="text-xl font-semibold text-zinc-200 mb-2">No Tickets Found</h3>
+        <p className="text-muted-foreground">Try adjusting your filters</p>
       </div>
     );
   }
@@ -165,13 +165,12 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
               <button
                 key={ticket.id}
                 onClick={() => onTicketClick(ticket.id)}
-                className={`w-full p-4 rounded-xl border transition-all text-left group ${
-                  isUnassigned
+                className={`w-full p-4 rounded-xl border transition-all text-left group ${isUnassigned
                     ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40'
                     : isHighPriority
-                    ? 'bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40'
-                    : 'bg-white/5 border-white/10 hover:border-emerald-500/30'
-                } hover:bg-white/10`}
+                      ? 'bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40'
+                      : 'bg-white/5 border-white/5 hover:border-emerald-500/30'
+                  } hover:bg-white/10`}
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* Main Content */}
@@ -189,23 +188,23 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
                           {ticket.priority}
                         </span>
                       )}
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 capitalize">
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 capitalize">
                         {ticket.category}
                       </span>
                     </div>
 
                     {/* Second Row: Subject */}
-                    <h3 className="text-white font-medium group-hover:text-emerald-400 transition-colors truncate">
+                    <h3 className="text-zinc-200 font-medium group-hover:text-emerald-400 transition-colors truncate">
                       {ticket.subject}
                     </h3>
 
                     {/* Third Row: User + Assignment + Messages */}
-                    <div className="flex items-center gap-4 text-xs text-white/50 flex-wrap">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                       <div className="flex items-center gap-1.5">
                         <User className="w-3 h-3" />
                         <span>{ticket.user.name || ticket.user.username || 'User'}</span>
                       </div>
-                      
+
                       {ticket.assignedTo ? (
                         <div className="flex items-center gap-1.5 text-emerald-400">
                           <span>→</span>
@@ -236,7 +235,7 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
                       status={ticket.status}
                       size="sm"
                     />
-                    <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white transition-colors" />
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-zinc-200 transition-colors" />
                   </div>
                 </div>
               </button>
@@ -251,17 +250,17 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Previous
           </button>
-          <span className="text-sm text-white/60">
+          <span className="text-sm text-muted-foreground">
             Page {page} of {totalPages}
           </span>
           <button
             onClick={() => setPage(Math.min(totalPages, page + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Next
           </button>

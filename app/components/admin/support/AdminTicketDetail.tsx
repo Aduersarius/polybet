@@ -84,7 +84,7 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
     try {
       setLoading(true);
       const response = await fetch(`/api/support/tickets/${ticketId}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch ticket');
       }
@@ -100,7 +100,7 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newMessage.trim() || !ticket) return;
 
     const messageContent = newMessage.trim();
@@ -155,13 +155,13 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
       }
 
       const newMessageData = await response.json();
-      
+
       // Replace optimistic message with real one from server
       setTicket((prevTicket) => {
         if (!prevTicket) return prevTicket;
         return {
           ...prevTicket,
-          messages: prevTicket.messages.map(msg => 
+          messages: prevTicket.messages.map(msg =>
             msg.id === optimisticMessage.id ? newMessageData : msg
           ),
         };
@@ -299,20 +299,20 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-6xl bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-6xl bg-surface-elevated rounded-2xl border border-white/5 shadow-2xl overflow-hidden"
         >
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-purple-500/5 pointer-events-none" />
 
           {/* Header */}
-          <div className="relative px-6 py-4 border-b border-white/10">
+          <div className="relative px-6 py-4 border-b border-white/5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
                 <button
                   onClick={onClose}
                   className="p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
                 >
-                  <ArrowLeft className="w-5 h-5 text-white/60 hover:text-white transition-colors" />
+                  <ArrowLeft className="w-5 h-5 text-muted-foreground hover:text-zinc-200 transition-colors" />
                 </button>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
@@ -324,8 +324,8 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
                       status={ticket.status}
                     />
                   </div>
-                  <h2 className="text-xl font-bold text-white mb-2">{ticket.subject}</h2>
-                  <div className="flex items-center gap-3 text-xs text-white/50">
+                  <h2 className="text-xl font-bold text-zinc-200 mb-2">{ticket.subject}</h2>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>User: {ticket.user.name || ticket.user.username || ticket.user.email}</span>
                     <span>•</span>
                     <span>Source: {ticket.source}</span>
@@ -338,7 +338,7 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
                 onClick={onClose}
                 className="p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
               >
-                <X className="w-5 h-5 text-white/60 hover:text-white transition-colors" />
+                <X className="w-5 h-5 text-muted-foreground hover:text-zinc-200 transition-colors" />
               </button>
             </div>
           </div>
@@ -346,7 +346,7 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 max-h-[80vh] overflow-y-auto">
             {/* Left Column: Messages (2/3 width) */}
             <div className="lg:col-span-2 space-y-4">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-zinc-200 flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-emerald-400" />
                 Messages ({ticket.messages.length})
               </h3>
@@ -354,20 +354,20 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 {ticket.messages.map((message) => {
                   const isAgent = message.source === 'agent';
-                  
+
                   return (
                     <div key={message.id} className="flex gap-3">
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary/20 text-primary'}`}>
                         <User className="w-4 h-4" />
                       </div>
 
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-white">
+                          <span className="text-sm font-medium text-zinc-200">
                             {message.user.name || message.user.username || 'User'}
                           </span>
                           {isAgent && (
-                            <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
                               Support
                             </span>
                           )}
@@ -376,13 +376,13 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
                               Internal
                             </span>
                           )}
-                          <span className="text-xs text-white/40 flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                           </span>
                         </div>
-                        <div className={`p-3 rounded-xl ${message.isInternal ? 'bg-yellow-500/10 border border-yellow-500/20' : isAgent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/10'}`}>
-                          <p className="text-white/90 text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                        <div className={`p-3 rounded-xl ${message.isInternal ? 'bg-yellow-500/10 border border-yellow-500/20' : isAgent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
+                          <p className="text-zinc-200 text-sm whitespace-pre-wrap break-words">{message.content}</p>
                         </div>
                       </div>
                     </div>
@@ -392,7 +392,7 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
               </div>
 
               {/* Message Input */}
-              <form onSubmit={handleSendMessage} className="pt-4 border-t border-white/10">
+              <form onSubmit={handleSendMessage} className="pt-4 border-t border-white/5">
                 {error && (
                   <div className="mb-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
                     {error}
@@ -404,14 +404,14 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Reply to user..."
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-emerald-500/50 transition-colors"
                     disabled={sending}
                     maxLength={5000}
                   />
                   <button
                     type="submit"
                     disabled={sending || !newMessage.trim()}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
                   >
                     {sending ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -431,12 +431,12 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
               {/* Status & Priority */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Status</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Status</label>
                   <select
                     value={ticket.status}
                     onChange={(e) => handleStatusChange(e.target.value)}
                     disabled={updating}
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors capitalize disabled:opacity-50"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-200 focus:outline-none focus:border-emerald-500/50 transition-colors capitalize disabled:opacity-50"
                   >
                     {STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status} className="capitalize">
@@ -447,12 +447,12 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Priority</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Priority</label>
                   <select
                     value={ticket.priority}
                     onChange={(e) => handlePriorityChange(e.target.value)}
                     disabled={updating}
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors capitalize disabled:opacity-50"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-200 focus:outline-none focus:border-emerald-500/50 transition-colors capitalize disabled:opacity-50"
                   >
                     {PRIORITY_OPTIONS.map((priority) => (
                       <option key={priority} value={priority} className="capitalize">
@@ -463,12 +463,12 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Assign To</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Assign To</label>
                   <select
                     value={ticket.assignedTo?.id || ''}
                     onChange={(e) => handleAssign(e.target.value)}
                     disabled={updating}
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 text-zinc-200 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
                   >
                     <option value="">Unassigned</option>
                     <option value={currentUserId}>Assign to me</option>
@@ -485,12 +485,12 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
 
               {/* Quick Actions */}
               <div className="space-y-2">
-                <h4 className="text-sm font-medium text-white/80">Quick Actions</h4>
+                <h4 className="text-sm font-medium text-zinc-300">Quick Actions</h4>
                 {ticket.status !== 'closed' && (
                   <button
                     onClick={() => handleStatusChange('closed')}
                     disabled={updating}
-                    className="w-full px-4 py-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full px-4 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <CheckCircle className="w-4 h-4" />
                     Close Ticket
@@ -509,7 +509,7 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
               </div>
 
               {/* Internal Notes */}
-              <div className="pt-4 border-t border-white/10">
+              <div className="pt-4 border-t border-white/5">
                 <InternalNotes ticketId={ticketId} />
               </div>
             </div>

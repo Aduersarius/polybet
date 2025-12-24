@@ -87,8 +87,8 @@ export function AdminSuggestedEvents() {
                             key={status}
                             onClick={() => { setStatusFilter(status); setCurrentPage(1); }}
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${statusFilter === status
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#333]'
+                                ? 'bg-primary text-white'
+                                : 'bg-white/5 text-zinc-300 hover:bg-white/10'
                                 }`}
                         >
                             {status}
@@ -101,43 +101,43 @@ export function AdminSuggestedEvents() {
                         value={searchQuery}
                         onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                         placeholder="Search suggestions..."
-                        className="w-full bg-[#2a2a2a] border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-2 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
                     />
                 </div>
             </div>
 
-            <div className="overflow-hidden border border-white/10 rounded-xl bg-zinc-800">
+            <div className="overflow-hidden border border-white/5 rounded-xl bg-surface">
                 {suggestions.length === 0 ? (
-                    <div className="text-center py-10 text-gray-400">No suggestions yet.</div>
+                    <div className="text-center py-10 text-muted-foreground">No suggestions yet.</div>
                 ) : (
-                    <div className="divide-y divide-white/10">
+                    <div className="divide-y divide-white/5">
                         {suggestions.map((suggestion) => (
-                            <div key={suggestion.id} className="p-4 hover:bg-[#242424] transition-colors">
+                            <div key={suggestion.id} className="p-4 hover:bg-white/[0.02] transition-colors">
                                 <div className="flex justify-between items-start gap-3">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-lg font-semibold text-white">{suggestion.title}</span>
-                                            <span className="text-xs px-2 py-1 rounded-full bg-[#2a2a2a] text-gray-300">
+                                            <span className="text-lg font-semibold text-zinc-200">{suggestion.title}</span>
+                                            <span className="text-xs px-2 py-1 rounded-full bg-white/5 text-zinc-300">
                                                 {suggestion.type === 'MULTIPLE' ? 'Multiple' : 'Binary'}
                                             </span>
                                             <span className={`text-xs px-2 py-1 rounded-full ${suggestion.status === 'PENDING'
                                                 ? 'bg-yellow-500/20 text-yellow-400'
                                                 : suggestion.status === 'APPROVED'
-                                                    ? 'bg-green-500/20 text-green-400'
+                                                    ? 'bg-emerald-500/20 text-emerald-400'
                                                     : 'bg-red-500/20 text-red-400'
                                                 }`}>
                                                 {suggestion.status}
                                             </span>
                                         </div>
-                                        <p className="text-sm text-gray-300 mb-2 line-clamp-2">{suggestion.description}</p>
-                                        <div className="flex flex-wrap gap-2 text-xs text-gray-400 mb-2">
+                                        <p className="text-sm text-zinc-300 mb-2 line-clamp-2">{suggestion.description}</p>
+                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
                                             {suggestion.categories?.map((cat) => (
-                                                <span key={cat} className="px-2 py-1 rounded bg-[#2a2a2a]">{cat}</span>
+                                                <span key={cat} className="px-2 py-1 rounded bg-white/5">{cat}</span>
                                             ))}
                                         </div>
                                         {suggestion.outcomes && suggestion.outcomes.length > 0 && (
-                                            <div className="text-xs text-gray-400 mb-2">
-                                                <span className="font-semibold text-gray-300 mr-1">Outcomes:</span>
+                                            <div className="text-xs text-muted-foreground mb-2">
+                                                <span className="font-semibold text-zinc-300 mr-1">Outcomes:</span>
                                                 {suggestion.outcomes.map((o, idx) => (
                                                     <span key={idx} className="mr-2">
                                                         {o.name}{typeof o.probability === 'number' ? ` (${Math.round(o.probability * 100)}%)` : ''}
@@ -145,19 +145,19 @@ export function AdminSuggestedEvents() {
                                                 ))}
                                             </div>
                                         )}
-                                        <div className="text-xs text-gray-400">
+                                        <div className="text-xs text-muted-foreground">
                                             Resolution: {new Date(suggestion.resolutionDate).toLocaleString()}
                                         </div>
-                                        <div className="text-xs text-gray-400">
+                                        <div className="text-xs text-muted-foreground">
                                             Submitted by: {suggestion.user.username || suggestion.user.email || suggestion.user.address || 'User'}
                                         </div>
                                         {suggestion.reviewNote && (
-                                            <div className="text-xs text-gray-400 mt-1">
+                                            <div className="text-xs text-muted-foreground mt-1">
                                                 Note: {suggestion.reviewNote}
                                             </div>
                                         )}
                                         {suggestion.approvedEventId && (
-                                            <div className="text-xs text-green-400 mt-1">
+                                            <div className="text-xs text-emerald-400 mt-1">
                                                 Published as:{' '}
                                                 <Link href={`/event/${suggestion.approvedEventId}`} className="underline">
                                                     {suggestion.approvedEventId}
@@ -170,7 +170,7 @@ export function AdminSuggestedEvents() {
                                             <>
                                                 <button
                                                     onClick={() => reviewMutation.mutate({ suggestionId: suggestion.id, action: 'approve' })}
-                                                    className="px-3 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-500 transition-colors"
+                                                    className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-500 transition-colors"
                                                     disabled={reviewMutation.isPending}
                                                 >
                                                     Approve
@@ -184,7 +184,7 @@ export function AdminSuggestedEvents() {
                                                 </button>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-gray-400">
+                                            <div className="text-xs text-muted-foreground">
                                                 Reviewed {suggestion.reviewedAt ? new Date(suggestion.reviewedAt).toLocaleString() : ''}
                                             </div>
                                         )}
