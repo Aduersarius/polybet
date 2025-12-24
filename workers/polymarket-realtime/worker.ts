@@ -425,6 +425,257 @@ async function refreshMappings(): Promise<void> {
     }
 }
 
+// ============================================
+// PERIODIC TASKS (replaces Vercel crons)
+// ============================================
+
+const GAMMA_API_BASE = 'https://gamma-api.polymarket.com';
+
+interface PolymarketMarket {
+    id: string;
+    closed: boolean;
+    active: boolean;
+    outcomes?: string | any[];
+    outcomePrices?: string | number[];
+    tokens?: any[];
+    winningOutcome?: string;
+    groupItemTitle?: string;
+    slug?: string;
+    question?: string;
+}
+
+interface PolymarketEvent {
+    id: string;
+    slug?: string;
+    title?: string;
+    closed: boolean;
+    active: boolean;
+    markets?: PolymarketMarket[] | string;
+}
+
+function parsePolyOutcomes(raw: any): Array<{ name: string; id?: string; outcome?: string }> {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw) || [];
+        } catch { return []; }
+    }
+    return [];
+}
+
+function parsePolyPrices(raw: any): number[] {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.map(Number);
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw).map(Number); } catch { return []; }
+    }
+    return [];
+}
+
+function parsePolyMarkets(raw: any): PolymarketMarket[] {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw) || []; } catch { return []; }
+    }
+    return [];
+}
+
+function determineWinner(market: PolymarketMarket): string | null {
+    if (market.winningOutcome) return market.winningOutcome;
+    const outcomes = parsePolyOutcomes(market.outcomes);
+    const prices = parsePolyPrices(market.outcomePrices);
+    for (let i = 0; i < Math.min(outcomes.length, prices.length); i++) {
+        if (prices[i] >= 0.95) {
+            const o = outcomes[i];
+            return typeof o === 'string' ? o : o.name || o.outcome || `Outcome ${i}`;
+        }
+    }
+    if (market.tokens && Array.isArray(market.tokens)) {
+        for (const t of market.tokens) {
+            if (Number(t.price ?? t.lastTradePrice ?? 0) >= 0.95) {
+                return t.outcome || t.name || null;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Reconcile hedge orders and close expired events
+ * Runs every 5 minutes
+ */
+async function runReconciliation(): Promise<void> {
+    if (DRY_RUN) {
+        console.log('[Reconcile] Skipped (DRY_RUN)');
+        return;
+    }
+
+    console.log('[Reconcile] Starting...');
+    const start = Date.now();
+
+    try {
+        // Check for open Polymarket orders
+        const openOrders = await prisma.polyOrder.findMany({
+            where: { status: { in: ['pending', 'placed', 'partial'] }, polymarketOrderId: { not: null } },
+            take: 50,
+        });
+
+        let updated = 0;
+        // Note: We skip order status checks here since polymarketTrading requires keys
+        // Just close expired events
+
+        const now = new Date();
+        const closedEvents = await prisma.event.updateMany({
+            where: {
+                source: 'POLYMARKET',
+                status: 'ACTIVE',
+                resolutionDate: { lt: now },
+            },
+            data: {
+                status: 'CLOSED',
+                resolvedAt: now,
+                resolutionSource: 'POLYMARKET',
+            },
+        });
+
+        console.log(`[Reconcile] Done: ${closedEvents.count} events closed, ${Date.now() - start}ms`);
+    } catch (err) {
+        console.error('[Reconcile] Error:', err);
+    }
+}
+
+/**
+ * Check for resolved markets and trigger payouts
+ * Runs every 10 minutes
+ */
+async function runResolutionSync(): Promise<void> {
+    if (DRY_RUN) {
+        console.log('[Resolution] Skipped (DRY_RUN)');
+        return;
+    }
+
+    console.log('[Resolution] Starting...');
+    const start = Date.now();
+    let resolved = 0;
+
+    try {
+        // Get active mappings
+        const mappings = await prisma.polymarketMarketMapping.findMany({
+            where: { isActive: true },
+        });
+
+        if (!mappings.length) {
+            console.log('[Resolution] No active mappings');
+            return;
+        }
+
+        // Get events
+        const eventIds = mappings.map(m => m.internalEventId).filter(Boolean);
+        const events = await prisma.event.findMany({
+            where: {
+                id: { in: eventIds },
+                status: { in: ['ACTIVE', 'CLOSED'] },
+                source: 'POLYMARKET',
+            },
+            select: { id: true, title: true, status: true, type: true },
+        });
+        const eventById = new Map(events.map(e => [e.id, e]));
+
+        // Fetch resolved events from Polymarket
+        const response = await fetch(
+            `${GAMMA_API_BASE}/events?closed=true&active=false&limit=100&order=endDate&ascending=false`,
+            { cache: 'no-store', headers: { 'Accept': 'application/json' } }
+        );
+
+        if (!response.ok) {
+            console.error('[Resolution] Gamma API error:', response.status);
+            return;
+        }
+
+        const resolvedEvents: PolymarketEvent[] = await response.json();
+        const resolvedMap = new Map(resolvedEvents.map(e => [e.id, e]));
+
+        // Dynamic import of resolveMarket
+        const { resolveMarket } = await import('./lib/resolve-market.js');
+
+        for (const mapping of mappings) {
+            const event = eventById.get(mapping.internalEventId);
+            if (!event || event.status === 'RESOLVED') continue;
+
+            let polyEvent = resolvedMap.get(mapping.polymarketId);
+
+            // Fetch directly if not in batch
+            if (!polyEvent) {
+                try {
+                    const r = await fetch(`${GAMMA_API_BASE}/events?id=${mapping.polymarketId}&limit=1`);
+                    if (r.ok) {
+                        const d = await r.json();
+                        if (d?.[0]) polyEvent = d[0];
+                    }
+                } catch { }
+            }
+
+            if (!polyEvent || !polyEvent.closed || polyEvent.active) continue;
+
+            const markets = parsePolyMarkets(polyEvent.markets);
+            if (!markets.length) continue;
+
+            let winningOutcomeId: string | null = null;
+            let winningOutcomeName: string | null = null;
+
+            if (event.type === 'MULTIPLE' || event.type === 'GROUPED_BINARY') {
+                for (const market of markets) {
+                    const winner = determineWinner(market);
+                    if (winner?.toLowerCase() === 'yes') {
+                        winningOutcomeName = market.groupItemTitle || market.slug || market.question || null;
+                        break;
+                    }
+                }
+                if (winningOutcomeName) {
+                    const outcome = await prisma.outcome.findFirst({
+                        where: { eventId: event.id, name: { contains: winningOutcomeName, mode: 'insensitive' } },
+                        select: { id: true, name: true },
+                    });
+                    if (outcome) {
+                        winningOutcomeId = outcome.id;
+                        winningOutcomeName = outcome.name;
+                    }
+                }
+            } else {
+                const winner = determineWinner(markets[0]);
+                if (winner) {
+                    winningOutcomeId = winner.toUpperCase() === 'YES' ? 'YES' : 'NO';
+                    winningOutcomeName = winningOutcomeId;
+                }
+            }
+
+            if (!winningOutcomeId) continue;
+
+            try {
+                console.log(`[Resolution] Resolving ${event.title} -> ${winningOutcomeName}`);
+                await resolveMarket(event.id, winningOutcomeId);
+
+                await prisma.polymarketMarketMapping.update({
+                    where: { id: mapping.id },
+                    data: { isActive: false },
+                });
+
+                resolved++;
+            } catch (err: any) {
+                if (!err.message?.includes('already resolved')) {
+                    console.error(`[Resolution] Failed ${event.title}:`, err.message);
+                }
+            }
+        }
+
+        console.log(`[Resolution] Done: ${resolved} resolved, ${Date.now() - start}ms`);
+    } catch (err) {
+        console.error('[Resolution] Error:', err);
+    }
+}
+
 /**
  * Graceful shutdown
  */
@@ -469,6 +720,16 @@ async function main(): Promise<void> {
     // Refresh mappings every 5 minutes
     setInterval(refreshMappings, 5 * 60 * 1000);
 
+    // Reconciliation every 5 minutes
+    setInterval(runReconciliation, 5 * 60 * 1000);
+
+    // Resolution sync every 10 minutes
+    setInterval(runResolutionSync, 10 * 60 * 1000);
+
+    // Run once on startup after a delay
+    setTimeout(runReconciliation, 30_000);
+    setTimeout(runResolutionSync, 60_000);
+
     // Heartbeat log
     setInterval(() => {
         console.log(`[Worker] Heartbeat: ${subscriptionTokenIds.length} subscriptions, ${lastPrices.size} cached prices`);
@@ -479,3 +740,4 @@ main().catch((err) => {
     console.error('[Worker] Fatal error:', err);
     process.exit(1);
 });
+
