@@ -117,13 +117,23 @@ export class TicketService {
     await this.autoAssignToSupportManagers(ticket.id);
 
     // Fetch full ticket detail
-    return this.getTicketDetail(ticket.id);
+    return this.getTicketDetail(ticket.id, false, undefined);
   }
 
   /**
    * Get ticket detail with all relations
    */
-  async getTicketDetail(ticketId: string, includeNotes = false): Promise<TicketDetail> {
+  async getTicketDetail(ticketId: string, includeNotes = false, userId?: string): Promise<TicketDetail> {
+    // Determine if user is an agent/admin (can see internal messages)
+    let isAgent = false;
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { supportRole: true, isAdmin: true },
+      });
+      isAgent = user ? (user.supportRole === 'agent' || user.supportRole === 'admin' || user.supportRole === 'support_manager' || user.isAdmin) : false;
+    }
+
     const ticket = await prisma.supportTicket.findUnique({
       where: { id: ticketId },
       include: {
@@ -144,9 +154,7 @@ export class TicketService {
           },
         },
         messages: {
-          where: {
-            isInternal: false, // Exclude internal messages from main list
-          },
+          where: isAgent ? {} : { isInternal: false }, // Agents see all messages, users only see non-internal
           include: {
             user: {
               select: {
@@ -213,8 +221,13 @@ export class TicketService {
     const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc' } = pagination;
     const skip = (page - 1) * limit;
 
-    // Build where clause
+    // Build where clause - userId should always be at the top level for optimal query performance
     const where: any = {};
+
+    // userId filter MUST be at top level (not in OR) for proper indexing
+    if (filters.userId) {
+      where.userId = filters.userId;
+    }
 
     if (filters.status) {
       where.status = Array.isArray(filters.status) ? { in: filters.status } : filters.status;
@@ -232,21 +245,29 @@ export class TicketService {
       where.assignedToId = filters.assignedToId;
     }
 
-    if (filters.userId) {
-      where.userId = filters.userId;
-    }
-
     if (filters.source) {
       where.source = filters.source;
     }
 
+    // Search filter - optimize query structure based on whether userId is set
     if (filters.search) {
-      where.OR = [
+      const searchConditions = [];
+      
+      // Always search ticket fields
+      searchConditions.push(
         { ticketNumber: { contains: filters.search, mode: 'insensitive' } },
-        { subject: { contains: filters.search, mode: 'insensitive' } },
-        { user: { username: { contains: filters.search, mode: 'insensitive' } } },
-        { user: { email: { contains: filters.search, mode: 'insensitive' } } },
-      ];
+        { subject: { contains: filters.search, mode: 'insensitive' } }
+      );
+      
+      // Only search user fields if userId is not set (agents/admins can search across users)
+      if (!filters.userId) {
+        searchConditions.push(
+          { user: { username: { contains: filters.search, mode: 'insensitive' } } },
+          { user: { email: { contains: filters.search, mode: 'insensitive' } } }
+        );
+      }
+      
+      where.OR = searchConditions;
     }
 
     // Fetch tickets and total count
@@ -722,8 +743,8 @@ export class TicketService {
       ticketsByCategory,
       todayTickets,
       todayResolved,
-      avgResponseTime,
-      avgResolutionTime,
+      ticketsWithResponse,
+      ticketsWithResolution,
       agentWorkload,
     ] = await Promise.all([
       // Tickets by status
@@ -831,22 +852,22 @@ export class TicketService {
     ]);
 
     // Calculate average first response time (in minutes)
-    const avgFirstResponseTime = avgResponseTime.length > 0
+    const calculatedAvgFirstResponseTime = ticketsWithResponse.length > 0
       ? Math.round(
-          avgResponseTime.reduce((sum: number, ticket: any) => {
+          ticketsWithResponse.reduce((sum: number, ticket: any) => {
             const diffMs = ticket.firstResponseAt.getTime() - ticket.createdAt.getTime();
             return sum + diffMs;
-          }, 0) / avgResponseTime.length / 1000 / 60 // Convert to minutes
+          }, 0) / ticketsWithResponse.length / 1000 / 60 // Convert to minutes
         )
       : 0;
 
     // Calculate average resolution time (in hours)
-    const avgResolutionTime = avgResolutionTime.length > 0
+    const calculatedAvgResolutionTime = ticketsWithResolution.length > 0
       ? Math.round(
-          (avgResolutionTime.reduce((sum: number, ticket: any) => {
+          (ticketsWithResolution.reduce((sum: number, ticket: any) => {
             const diffMs = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
             return sum + diffMs;
-          }, 0) / avgResolutionTime.length / 1000 / 60 / 60) * 10 // Convert to hours, round to 1 decimal
+          }, 0) / ticketsWithResolution.length / 1000 / 60 / 60) * 10 // Convert to hours, round to 1 decimal
         ) / 10
       : 0;
 
@@ -898,3 +919,5 @@ export class TicketService {
 
 // Export singleton instance
 export const ticketService = new TicketService();
+
+

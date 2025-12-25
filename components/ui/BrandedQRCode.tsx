@@ -94,3 +94,4 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
     </div>
   );
 }
+

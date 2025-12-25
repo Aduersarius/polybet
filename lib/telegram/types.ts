@@ -105,3 +105,4 @@ export interface TicketNotification {
   message: string;
   type: 'new_reply' | 'status_change' | 'assignment';
 }
+

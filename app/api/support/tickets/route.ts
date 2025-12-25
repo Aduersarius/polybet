@@ -64,8 +64,11 @@ export async function GET(request: NextRequest) {
       filters.search = search;
     }
 
-    // Non-agents can only see their own tickets
-    if (!user.supportRole && !user.isAdmin) {
+    // Non-agents/admins can only see their own tickets
+    // Enforce userId filter for regular users (not agents or admins)
+    // This ensures users in the support live chat window only see their own tickets
+    const isAgentOrAdmin = (user.supportRole === 'agent' || user.supportRole === 'admin') || user.isAdmin;
+    if (!isAgentOrAdmin) {
       filters.userId = user.id;
     }
 
@@ -146,6 +149,29 @@ export async function POST(request: NextRequest) {
 
     const ticket = await ticketService.createTicket(input);
 
+    // Broadcast ticket creation to all agents/admins via Redis (non-blocking)
+    (async () => {
+      try {
+        const { publishAdminEvent } = await import('@/lib/redis-admin');
+        const payload = {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          subject: ticket.subject,
+          status: ticket.status,
+          priority: ticket.priority,
+          category: ticket.category,
+          userId: (ticket as any).userId || (ticket as any).user?.id,
+          createdAt: ticket.createdAt,
+        };
+        console.log('📡 [API] Publishing ticket-created event:', payload);
+        await publishAdminEvent('ticket-created', payload);
+        console.log('✅ [API] Successfully published ticket-created event');
+      } catch (error) {
+        console.error('❌ [API] Failed to broadcast ticket creation:', error);
+        // Continue even if broadcast fails - ticket creation should succeed
+      }
+    })();
+
     return NextResponse.json(ticket, { status: 201 });
   } catch (error) {
     console.error('Error creating ticket:', error);
@@ -161,3 +187,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+

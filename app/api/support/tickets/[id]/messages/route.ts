@@ -165,8 +165,55 @@ export async function POST(
     // Get ticket to find the user ID for WebSocket notification
     const ticket = await prisma.supportTicket.findUnique({
       where: { id: ticketId },
-      select: { userId: true },
+      select: { userId: true, subject: true },
     });
+
+    // Create notification if message is from agent to a different user's ticket
+    // (No notification if agent is replying to their own ticket - ticket.userId === user.id)
+    if (isAgent && !messageInput.isInternal && ticket?.userId && ticket.userId !== user.id) {
+      // Create notification asynchronously (don't block response, but log success/failure)
+      (async () => {
+        try {
+          const notification = await prisma.notification.create({
+            data: {
+              userId: ticket.userId,
+              type: 'SUPPORT_REPLY',
+              message: `Support replied to your ticket: ${ticket.subject}`,
+              resourceId: ticketId,
+            },
+          });
+          console.log('✅ Support notification created:', {
+            notificationId: notification.id,
+            userId: ticket.userId,
+            ticketId,
+            ticketSubject: ticket.subject,
+          });
+        } catch (error) {
+          console.error('❌ Failed to create support notification:', error);
+          console.error('Error details:', {
+            userId: ticket.userId,
+            type: 'SUPPORT_REPLY',
+            ticketId,
+            ticketSubject: ticket.subject,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+        }
+      })();
+    } else {
+      // Log why notification was not created (for debugging)
+      console.log('ℹ️ Notification not created:', {
+        isAgent,
+        isInternal: messageInput.isInternal,
+        hasTicketUserId: !!ticket?.userId,
+        ticketUserId: ticket?.userId,
+        currentUserId: user.id,
+        reason: !isAgent ? 'not_agent' : 
+                messageInput.isInternal ? 'internal_message' :
+                !ticket?.userId ? 'no_ticket_user' :
+                ticket.userId === user.id ? 'same_user' : 'unknown',
+      });
+    }
 
     // Publish to Redis for WebSocket broadcasting (non-blocking)
     if (ticket?.userId) {
@@ -214,3 +261,5 @@ export async function POST(
     );
   }
 }
+
+
