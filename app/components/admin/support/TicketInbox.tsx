@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { User, MessageSquare, Clock, AlertCircle, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { SLAIndicator } from './SLAIndicator';
@@ -64,11 +64,7 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchTickets();
-  }, [filters, page, refreshTrigger]);
-
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -120,7 +116,14 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, page, currentUserId]);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets, refreshTrigger]);
+
+  // Note: Real-time updates are handled by AdminSupportDashboard via refreshTrigger prop
+  // This component just responds to refreshTrigger changes by re-fetching tickets
 
   if (loading && tickets.length === 0) {
     return (
@@ -270,3 +273,5 @@ export function TicketInbox({ filters, onTicketClick, refreshTrigger, currentUse
     </div>
   );
 }
+
+

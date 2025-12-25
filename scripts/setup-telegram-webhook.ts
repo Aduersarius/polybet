@@ -203,3 +203,4 @@ switch (command) {
     console.log('  info            - Get webhook info');
     process.exit(1);
 }
+

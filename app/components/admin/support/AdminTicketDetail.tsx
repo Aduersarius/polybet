@@ -519,3 +519,4 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
     </AnimatePresence>
   );
 }
+

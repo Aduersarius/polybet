@@ -364,7 +364,7 @@ export default function Home() {
                 {/* Filters */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 w-full sm:w-auto">
                   {/* Time Horizon Filter */}
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {[
                       { key: 'all', label: 'All' },
                       { key: '1d', label: '1D' },
@@ -374,9 +374,9 @@ export default function Home() {
                       <button
                         key={option.key}
                         onClick={() => setTimeHorizon(option.key as typeof timeHorizon)}
-                        className={`h-9 px-4 text-xs font-bold rounded-xl transition-all duration-300 uppercase tracking-wide ${timeHorizon === option.key
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.3)]'
-                          : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10'
+                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors uppercase ${timeHorizon === option.key
+                          ? 'bg-blue-500 text-white'
+                          : 'text-gray-400 hover:text-white'
                           }`}
                       >
                         {option.label}
@@ -385,7 +385,7 @@ export default function Home() {
                   </div>
 
                   {/* Sort Controls */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {[
                       { key: 'newest', label: 'Newest' },
                       { key: 'volume_high', label: 'Vol ↑' },
@@ -396,9 +396,9 @@ export default function Home() {
                       <button
                         key={option.key}
                         onClick={() => setSortBy(option.key as typeof sortBy)}
-                        className={`h-9 px-4 text-xs font-bold rounded-xl transition-all duration-300 uppercase tracking-wide ${sortBy === option.key
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-[0_4px_16px_rgba(59,130,246,0.3)]'
-                          : 'bg-white/5 backdrop-blur-sm text-gray-400 hover:text-white border border-white/10 hover:border-blue-400/30 hover:bg-white/10'
+                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors uppercase ${sortBy === option.key
+                          ? 'bg-blue-500 text-white'
+                          : 'text-gray-400 hover:text-white'
                           }`}
                       >
                         {option.label}

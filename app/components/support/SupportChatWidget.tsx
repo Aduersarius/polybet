@@ -5,7 +5,9 @@ import { MessageCircle, X, Minimize2, Plus, Send, ArrowLeft, Clock, User, Paperc
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { useSession } from '@/lib/auth-client';
+import { useSupportChat } from '@/contexts/SupportChatContext';
 import { FileUpload } from './FileUpload';
+import { toast } from '@/components/ui/use-toast';
 
 type View = 'list' | 'create' | 'chat';
 
@@ -64,7 +66,7 @@ interface TicketDetail {
 }
 
 const STATUS_CONFIG = {
-  open: { label: 'Open', color: 'emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+  open: { label: 'Open', color: 'blue', bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-400/20' },
   pending: { label: 'Pending', color: 'yellow', bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' },
   resolved: { label: 'Resolved', color: 'blue', bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
   closed: { label: 'Closed', color: 'gray', bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/20' },
@@ -82,7 +84,7 @@ const CATEGORIES = [
 export function SupportChatWidget() {
   const [mounted, setMounted] = useState(false);
   const { data: session, isPending } = useSession() as { data: any; isPending: boolean };
-  const [isOpen, setIsOpen] = useState(false);
+  const { isChatOpen: isOpen, isChatMinimized, closeChat, minimizeChat, maximizeChat, openChat } = useSupportChat();
   const [currentView, setCurrentView] = useState<View>('list');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -103,6 +105,28 @@ export function SupportChatWidget() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Listen for open-support-chat custom event (from notification bell)
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const handleOpenSupportChat = (event: any) => {
+      const { ticketId } = event.detail || {};
+      if (ticketId) {
+        openChat();
+        setSelectedTicketId(ticketId);
+        setCurrentView('chat');
+        // Fetch ticket detail will be triggered by the selectedTicketId change
+      } else {
+        openChat();
+      }
+    };
+
+    window.addEventListener('open-support-chat', handleOpenSupportChat as EventListener);
+    return () => {
+      window.removeEventListener('open-support-chat', handleOpenSupportChat as EventListener);
+    };
+  }, [mounted, openChat]);
 
   // Update unread count (simplified - count all messages in open/pending tickets)
   // Defined first because fetchTickets depends on it
@@ -200,6 +224,11 @@ export function SupportChatWidget() {
 
   // Fetch ticket detail
   const fetchTicketDetail = useCallback(async (ticketId: string) => {
+    if (!ticketId) {
+      setTicketDetail(null);
+      return;
+    }
+    
     try {
       const response = await fetch(`/api/support/tickets/${ticketId}`, {
         credentials: 'include',
@@ -240,9 +269,9 @@ export function SupportChatWidget() {
     } catch (err) {
       console.error('Failed to fetch ticket detail:', err);
       // On error, try to restore from localStorage
-      if (session?.user?.id && selectedTicketId) {
+      if (session?.user?.id && ticketId) {
         try {
-          const stored = localStorage.getItem(`support_ticket_detail_${selectedTicketId}_${session.user.id}`);
+          const stored = localStorage.getItem(`support_ticket_detail_${ticketId}_${session.user.id}`);
           if (stored) {
             const parsedDetail = JSON.parse(stored);
             setTicketDetail(parsedDetail);
@@ -252,7 +281,17 @@ export function SupportChatWidget() {
         }
       }
     }
-  }, [session?.user?.id, selectedTicketId]);
+  }, [session?.user?.id]);
+
+  // Fetch ticket detail when selectedTicketId changes
+  useEffect(() => {
+    if (selectedTicketId && currentView === 'chat') {
+      fetchTicketDetail(selectedTicketId);
+    } else if (!selectedTicketId) {
+      // Clear ticket detail when selectedTicketId is cleared
+      setTicketDetail(null);
+    }
+  }, [selectedTicketId, currentView, fetchTicketDetail]);
 
   // Restore tickets from localStorage on mount
   useEffect(() => {
@@ -328,6 +367,17 @@ export function SupportChatWidget() {
       // Listen for support updates
       handleUserUpdate = (data: any) => {
         if (data.type === 'SUPPORT_MESSAGE' || data.type === 'TICKET_UPDATE') {
+          const isAgentMessage = data.payload?.source === 'agent';
+          const isCurrentUserTicket = selectedTicketId === data.payload?.ticketId;
+          
+          // Show toast notification if message is from agent and not currently viewing that ticket
+          if (isAgentMessage && !isCurrentUserTicket) {
+            toast({
+              title: 'Support Reply',
+              description: `You have a new reply from support${data.payload?.username ? ` from ${data.payload.username}` : ''}`,
+            });
+          }
+          
           // Refresh tickets if on list view
           if (currentView === 'list') {
             fetchTickets();
@@ -504,30 +554,58 @@ export function SupportChatWidget() {
     return null;
   }
 
-  return (
-    <>
-      {/* Floating Button */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-blue-600 text-white shadow-xl shadow-emerald-500/30 border border-white/20 hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center group"
-            aria-label="Open support chat"
-          >
-            <MessageCircle className="w-6 h-6 relative z-10" strokeWidth={2.5} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center border-2 border-gray-900">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </motion.button>
-        )}
-      </AnimatePresence>
+  // Don't show anything if chat is not open (hidden by default, only opens via profile menu)
+  if (!isOpen) {
+    return null;
+  }
 
-      {/* Chat Widget */}
+  // If minimized, show only header bar attached to bottom (same width as expanded window)
+  if (isChatMinimized) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        className="fixed bottom-0 right-6 z-50 w-[380px] bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-t-2xl border-t border-l border-r border-white/10 shadow-2xl"
+      >
+        <div className="relative px-4 py-3 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white">Support</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={maximizeChat}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              aria-label="Maximize"
+            >
+              <Minimize2 className="w-4 h-4 text-white/60 hover:text-white rotate-180" />
+            </button>
+            <button
+              onClick={() => {
+                closeChat();
+                setCurrentView('list');
+                setSelectedTicketId(null);
+                setTicketDetail(null);
+                // Clear persisted selected ticket
+                if (session?.user?.id) {
+                  try {
+                    localStorage.removeItem(`support_selected_ticket_${session.user.id}`);
+                  } catch {
+                    // Ignore localStorage errors
+                  }
+                }
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4 text-white/60 hover:text-white" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Chat Widget - only shown when isOpen is true (controlled by context)
+  return (
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -535,18 +613,21 @@ export function SupportChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-6 right-6 z-50 w-[380px] h-[600px] bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden sm:w-[380px]"
-            style={{ maxHeight: 'calc(100vh - 3rem)', maxWidth: 'calc(100vw - 3rem)' }}
+            className="fixed bottom-6 right-6 z-50 w-[380px] h-[600px] rounded-2xl border border-blue-400/10 shadow-2xl flex flex-col overflow-hidden sm:w-[380px]"
+            style={{ 
+              backgroundColor: 'var(--surface)',
+              maxHeight: 'calc(100vh - 3rem)', 
+              maxWidth: 'calc(100vw - 3rem)',
+              boxShadow: '0 8px 32px rgba(59, 130, 246, 0.15)'
+            }}
           >
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-blue-500/5 pointer-events-none" />
 
             {/* Header */}
             <div className="relative px-4 py-3 border-b border-white/10 flex-shrink-0 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Support</h3>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={minimizeChat}
                   className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                   aria-label="Minimize"
                 >
@@ -554,7 +635,7 @@ export function SupportChatWidget() {
                 </button>
                 <button
                   onClick={() => {
-                    setIsOpen(false);
+                    closeChat();
                     setCurrentView('list');
                     setSelectedTicketId(null);
                     setTicketDetail(null);
@@ -583,7 +664,7 @@ export function SupportChatWidget() {
                     <h4 className="text-sm font-semibold text-white/80">Your Tickets</h4>
                     <button
                       onClick={() => setCurrentView('create')}
-                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-medium transition-all flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-medium transition-all flex items-center gap-1.5"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       New
@@ -591,7 +672,7 @@ export function SupportChatWidget() {
                   </div>
                   {loading ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-500 border-t-transparent" />
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent" />
                     </div>
                   ) : tickets.length === 0 ? (
                     <div className="text-center py-12">
@@ -599,7 +680,7 @@ export function SupportChatWidget() {
                       <p className="text-sm text-white/60 mb-4">No tickets yet</p>
                       <button
                         onClick={() => setCurrentView('create')}
-                        className="px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-sm font-medium transition-colors border border-emerald-500/20"
+                        className="px-4 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-sm font-medium transition-colors border border-blue-500/20"
                       >
                         Create Ticket
                       </button>
@@ -612,12 +693,12 @@ export function SupportChatWidget() {
                           <button
                             key={ticket.id}
                             onClick={() => handleTicketClick(ticket.id)}
-                            className="w-full p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-emerald-500/30 transition-all text-left"
+                            className="w-full p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-blue-400/30 transition-all text-left"
                           >
                             <div className="flex items-start justify-between gap-2 mb-2">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-xs font-mono text-emerald-400">
+                                  <span className="text-xs font-mono text-blue-400">
                                     {ticket.ticketNumber}
                                   </span>
                                   <div className={`px-2 py-0.5 rounded-md ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border} text-xs font-medium`}>
@@ -671,7 +752,7 @@ export function SupportChatWidget() {
                         value={createFormData.subject}
                         onChange={(e) => setCreateFormData({ ...createFormData, subject: e.target.value })}
                         placeholder="Brief description"
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500/50 transition-colors text-sm"
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-blue-400/30 transition-colors text-sm"
                         maxLength={200}
                       />
                     </div>
@@ -682,7 +763,7 @@ export function SupportChatWidget() {
                       <select
                         value={createFormData.category}
                         onChange={(e) => setCreateFormData({ ...createFormData, category: e.target.value as any })}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 transition-colors text-sm"
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-400/30 transition-colors text-sm"
                       >
                         {CATEGORIES.map((cat) => (
                           <option key={cat.value} value={cat.value}>
@@ -701,14 +782,14 @@ export function SupportChatWidget() {
                         onChange={(e) => setCreateFormData({ ...createFormData, message: e.target.value })}
                         placeholder="Describe your issue..."
                         rows={6}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none text-sm"
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-blue-400/30 transition-colors resize-none text-sm"
                         maxLength={5000}
                       />
                     </div>
                     <button
                       type="submit"
                       disabled={sending || !createFormData.subject || !createFormData.message}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                      className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                     >
                       {sending ? (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -729,9 +810,25 @@ export function SupportChatWidget() {
                     <div className="flex items-center gap-2 mb-2">
                       <button
                         onClick={() => {
+                          // Capture ticketId before clearing
+                          const ticketIdToClear = selectedTicketId;
+                          
+                          // Clear state
                           setCurrentView('list');
                           setSelectedTicketId(null);
                           setTicketDetail(null);
+                          
+                          // Clear persisted selected ticket from localStorage
+                          if (session?.user?.id) {
+                            try {
+                              localStorage.removeItem(`support_selected_ticket_${session.user.id}`);
+                              if (ticketIdToClear) {
+                                localStorage.removeItem(`support_ticket_detail_${ticketIdToClear}_${session.user.id}`);
+                              }
+                            } catch {
+                              // Ignore localStorage errors
+                            }
+                          }
                         }}
                         className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                       >
@@ -739,7 +836,7 @@ export function SupportChatWidget() {
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-mono text-emerald-400">{ticketDetail.ticketNumber}</span>
+                          <span className="text-xs font-mono text-blue-400">{ticketDetail.ticketNumber}</span>
                           <div className={`px-2 py-0.5 rounded-md ${STATUS_CONFIG[ticketDetail.status].bg} ${STATUS_CONFIG[ticketDetail.status].text} border ${STATUS_CONFIG[ticketDetail.status].border} text-xs font-medium`}>
                             {STATUS_CONFIG[ticketDetail.status].label}
                           </div>
@@ -758,7 +855,7 @@ export function SupportChatWidget() {
                           key={message.id}
                           className={`flex gap-2 ${isCurrentUser && !isAgent ? 'flex-row-reverse' : ''}`}
                         >
-                          <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                          <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${isAgent ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/80'}`}>
                             <User className="w-3.5 h-3.5" />
                           </div>
                           <div className={`flex-1 max-w-[75%] ${isCurrentUser && !isAgent ? 'items-end' : ''}`}>
@@ -767,7 +864,7 @@ export function SupportChatWidget() {
                                 {message.user.name || message.user.username || 'User'}
                               </span>
                               {isAgent && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-400/30">
                                   Support
                                 </span>
                               )}
@@ -776,7 +873,7 @@ export function SupportChatWidget() {
                                 {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                               </span>
                             </div>
-                            <div className={`p-2.5 rounded-xl text-sm ${isAgent ? 'bg-emerald-500/10 border border-emerald-500/20' : isCurrentUser ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-white/5 border border-white/10'}`}>
+                            <div className={`p-2.5 rounded-xl text-sm ${isAgent ? 'bg-blue-500/10 border border-blue-400/20' : isCurrentUser ? 'bg-white/10 border border-white/20' : 'bg-white/5 border border-white/10'}`}>
                               <p className="text-white/90 whitespace-pre-wrap break-words">{message.content}</p>
                               {message.attachments && message.attachments.length > 0 && (
                                 <div className="mt-2 space-y-1.5">
@@ -809,14 +906,14 @@ export function SupportChatWidget() {
                           value={newMessage}
                           onChange={(e) => setNewMessage(e.target.value)}
                           placeholder="Type a message..."
-                          className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-emerald-500/50 transition-colors text-sm"
+                          className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-blue-400/30 transition-colors text-sm"
                           disabled={sending}
                           maxLength={5000}
                         />
                         <button
                           type="submit"
                           disabled={sending || !newMessage.trim()}
-                          className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Send className="w-4 h-4" />
                         </button>
@@ -837,7 +934,7 @@ export function SupportChatWidget() {
                       <button
                         type="button"
                         onClick={() => setShowAttachments(!showAttachments)}
-                        className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                        className="mt-2 text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                       >
                         <Paperclip className="w-3 h-3" />
                         {showAttachments ? 'Hide attachments' : 'Add attachments'}
@@ -850,6 +947,7 @@ export function SupportChatWidget() {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
   );
 }
+
+

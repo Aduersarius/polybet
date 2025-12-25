@@ -166,3 +166,4 @@ export function InternalNotes({ ticketId }: InternalNotesProps) {
     </div>
   );
 }
+

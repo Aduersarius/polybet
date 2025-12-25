@@ -244,3 +244,4 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
     </AnimatePresence>
   );
 }
+

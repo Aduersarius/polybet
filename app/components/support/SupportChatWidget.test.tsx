@@ -75,3 +75,4 @@ export const SupportChatWidget = dynamic(
   () => Promise.resolve({ default: SupportChatWidgetContent }),
   { ssr: false }
 );
+

@@ -44,7 +44,7 @@ export async function GET(
     // Include internal notes only for agents/admins
     const includeNotes = canViewInternalNotes(user);
 
-    const ticket = await ticketService.getTicketDetail(ticketId, includeNotes);
+    const ticket = await ticketService.getTicketDetail(ticketId, includeNotes, user.id);
 
     return NextResponse.json(ticket);
   } catch (error) {
@@ -158,7 +158,7 @@ export async function PATCH(
 
     // Fetch updated ticket
     const includeNotes = canViewInternalNotes(user);
-    const ticket = await ticketService.getTicketDetail(ticketId, includeNotes);
+    const ticket = await ticketService.getTicketDetail(ticketId, includeNotes, user.id);
 
     return NextResponse.json(ticket);
   } catch (error) {
@@ -174,3 +174,5 @@ export async function PATCH(
     );
   }
 }
+
+

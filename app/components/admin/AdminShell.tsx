@@ -14,8 +14,8 @@ import {
     Plus,
     Shield,
     Headphones,
-    Menu,
     ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -89,7 +89,7 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                             {sidebarOpen ? (
                                 <ChevronLeft className="h-4 w-4" />
                             ) : (
-                                <Menu className="h-4 w-4" />
+                                <ChevronRight className="h-4 w-4" />
                             )}
                         </button>
                     </div>
