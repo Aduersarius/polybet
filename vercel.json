@@ -7,18 +7,6 @@
     {
       "path": "/api/hedge/snapshot-cron",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/polymarket/odds-cron",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/polymarket/resolution-sync",
-      "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/polymarket/reconcile",
-      "schedule": "*/5 * * * *"
     }
   ],
   "rewrites": [
