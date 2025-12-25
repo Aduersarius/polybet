@@ -155,3 +155,4 @@ export function isValidPriority(priority: string): boolean {
 export function isValidStatus(status: string): boolean {
   return ['open', 'pending', 'resolved', 'closed'].includes(status);
 }
+

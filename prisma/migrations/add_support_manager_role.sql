@@ -6,3 +6,4 @@
 -- No SQL changes needed as supportRole is a String? field
 -- The validation happens at the application level
 -- To apply this, run: npx prisma db push
+

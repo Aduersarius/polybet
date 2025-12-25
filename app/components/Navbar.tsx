@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
-import { Plus, Wallet } from 'lucide-react';
+import { Plus, Wallet, Headphones } from 'lucide-react';
 import { authClient, useSession, signOut } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
@@ -17,6 +17,7 @@ import { OnboardingTour } from './OnboardingTour';
 import { useCustomTour } from '@/contexts/CustomTourContext';
 import { CreateEventModal } from './admin/CreateEventModal';
 import { CategoryBar } from './CategoryBar';
+import { useSupportChat } from '@/contexts/SupportChatContext';
 
 
 interface NavbarProps {
@@ -31,6 +32,18 @@ interface NavbarProps {
 interface Category {
     id: string;
     label: string;
+}
+
+function SupportLink() {
+    const { openChat } = useSupportChat();
+    return (
+        <button
+            onClick={() => openChat()}
+            className="block w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-emerald-500/10 rounded-xl transition-all duration-200 font-medium"
+        >
+            Support
+        </button>
+    );
 }
 
 function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage, activeAdminView, onAdminViewChange, onCreateEvent }: NavbarProps) {
@@ -153,7 +166,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 <>
                                     <button
                                         onClick={() => setShowDepositModal(true)}
-                                        className="deposit-button hidden md:inline-flex items-center gap-2 h-8 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_24px_rgba(16,185,129,0.4)] hover:scale-105"
+                                        className="deposit-button hidden md:inline-flex items-center gap-2 h-8 px-4 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-bold transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(59,130,246,0.3)] hover:shadow-[0_6px_24px_rgba(59,130,246,0.4)] hover:scale-105"
                                     >
                                         <Wallet className="w-3.5 h-3.5" />
                                         Deposit
@@ -198,6 +211,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 <Link href="/faq" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-purple-500/10 rounded-xl transition-all duration-200 font-medium">
                                                     Help & FAQ
                                                 </Link>
+                                                <SupportLink />
                                                 <button
                                                     onClick={() => setShowSuggestModal(true)}
                                                     className="block w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium"

@@ -149,3 +149,4 @@ export function TicketList({ onTicketClick, refreshTrigger }: TicketListProps) {
     </div>
   );
 }
+

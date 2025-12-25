@@ -158,3 +158,4 @@ export async function POST(request: NextRequest) {
 
 // Body size limit is handled in the route handler via MAX_FILE_SIZE constant
 // No need for deprecated config export in App Router
+
