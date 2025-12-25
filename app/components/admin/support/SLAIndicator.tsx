@@ -101,3 +101,4 @@ export function SLAIndicator({ createdAt, firstResponseAt, priority, status, siz
     </div>
   );
 }
+

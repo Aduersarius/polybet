@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createAuthClient } from "better-auth/react";
+import { useSupportChat } from '@/contexts/SupportChatContext';
 
 const authClient = createAuthClient({
     baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000",
@@ -12,7 +13,7 @@ const { useSession } = authClient;
 
 interface Notification {
     id: string;
-    type: 'REPLY' | 'MENTION' | 'BET_RESULT' | 'FAVORITE_UPDATE';
+    type: 'REPLY' | 'MENTION' | 'BET_RESULT' | 'FAVORITE_UPDATE' | 'SUPPORT_REPLY';
     message: string;
     resourceId: string | null;
     isRead: boolean;
@@ -24,6 +25,7 @@ export function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
+    const { openChat } = useSupportChat();
 
     const { data } = useQuery<{ notifications: Notification[], unreadCount: number }>({
         queryKey: ['notifications', (session as any)?.user?.id],
@@ -59,8 +61,15 @@ export function NotificationBell() {
         }
 
         if (notification.resourceId) {
-            // Navigate to resource (simplified)
-            window.location.href = `/event/${notification.resourceId}`;
+            // Navigate to resource - support tickets open support chat, events go to event page
+            if (notification.type === 'SUPPORT_REPLY') {
+                // Open support chat widget with the ticket
+                openChat();
+                // Dispatch event for SupportChatWidget to handle ticket selection
+                window.dispatchEvent(new CustomEvent('open-support-chat', { detail: { ticketId: notification.resourceId } }));
+            } else {
+                window.location.href = `/event/${notification.resourceId}`;
+            }
         }
         setIsOpen(false);
     };
@@ -143,6 +152,9 @@ export function NotificationBell() {
                                                 )}
                                                 {notification.type === 'BET_RESULT' && (
                                                     <div className="w-2 h-2 rounded-full bg-[#cf6679]" />
+                                                )}
+                                                {notification.type === 'SUPPORT_REPLY' && (
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
                                                 )}
                                             </div>
                                             <div>

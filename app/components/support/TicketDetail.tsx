@@ -377,3 +377,4 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
     </AnimatePresence>
   );
 }
+

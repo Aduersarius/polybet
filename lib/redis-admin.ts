@@ -54,12 +54,36 @@ export function getRedisClient(): Redis {
 export async function publishAdminEvent(eventType: string, payload?: any) {
     try {
         const redis = getRedisClient();
-        await redis.publish('admin-events', JSON.stringify({
+        if (!redis) {
+            console.warn(`⚠️ [Redis Admin] No Redis client available, skipping admin event broadcast: ${eventType}`);
+            return;
+        }
+        
+        // Check connection status
+        const status = redis.status;
+        if (status !== 'ready' && status !== 'connect') {
+            console.warn(`⚠️ [Redis Admin] Redis not ready (status: ${status}), skipping admin event broadcast: ${eventType}`);
+            // Try to connect if not already connecting/connected
+            if (status === 'end' || status === 'close') {
+                console.log(`🔄 [Redis Admin] Attempting to reconnect Redis...`);
+                redis.connect().catch((err) => {
+                    console.error(`❌ [Redis Admin] Failed to reconnect:`, err);
+                });
+            }
+            return;
+        }
+        
+        const message = JSON.stringify({
             type: eventType,
             payload: payload || {},
             timestamp: new Date().toISOString()
-        }));
+        });
+        
+        console.log(`📡 [Redis Admin] Publishing to 'admin-events' channel:`, { type: eventType, payload });
+        const result = await redis.publish('admin-events', message);
+        console.log(`✅ [Redis Admin] Published successfully, ${result} subscriber(s) received the message`);
     } catch (error) {
-        console.error('Failed to publish admin event:', error);
+        console.error('❌ [Redis Admin] Failed to publish admin event:', error);
+        // Don't throw - allow the request to complete even if broadcast fails
     }
 }

@@ -84,3 +84,4 @@ export const cryptoIcons = {
   bnb: BNBIcon,
   arbitrum: ArbitrumIcon,
 };
+

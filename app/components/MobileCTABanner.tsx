@@ -134,3 +134,4 @@ export function MobileCTABanner({ onSignupClick }: MobileCTABannerProps) {
     </AnimatePresence>
   );
 }
+
