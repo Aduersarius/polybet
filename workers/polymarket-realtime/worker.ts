@@ -7,9 +7,9 @@
  * This runs as a persistent container alongside the main app.
  */
 
-import { RealTimeDataClient, type Message } from '@polymarket/real-time-data-client';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
+import WebSocket from 'ws';
 
 // Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
