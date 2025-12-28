@@ -1,5 +1,4 @@
 import Link from 'next/link';
-
 export function Footer() {
     return (
         <footer className="border-t border-white/10 bg-gray-800 mt-auto relative z-50 pointer-events-auto">
