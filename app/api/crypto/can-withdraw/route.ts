@@ -27,22 +27,16 @@ export async function GET(req: NextRequest) {
 
         const userRecord = await prisma.user.findUnique({
             where: { id: userId },
-            select: { twoFactorEnabled: true }
+            select: { twoFactorEnabled: true, emailVerified: true }
         });
         const twoFactor = await prisma.twoFactor.findUnique({
             where: { userId },
             select: { secret: true }
         });
 
-        if (!userRecord?.twoFactorEnabled || !twoFactor?.secret) {
-            return NextResponse.json({
-                canWithdraw: false,
-                reason: 'Two-factor authentication is required to withdraw'
-            });
-        }
-
-        const maxSingle = Number(process.env.WITHDRAW_MAX_SINGLE ?? 5000);
-        const maxDaily = Number(process.env.WITHDRAW_MAX_DAILY ?? 20000);
+        // Check requirements
+        const has2FA = !!(userRecord?.twoFactorEnabled && twoFactor?.secret);
+        const emailVerified = !!userRecord?.emailVerified;
 
         // Check if user has made any bets or trades
         const betCount = await prisma.marketActivity.count({
@@ -51,13 +45,7 @@ export async function GET(req: NextRequest) {
                 type: { in: ['BET', 'TRADE'] }
             }
         });
-
-        if (betCount === 0) {
-            return NextResponse.json({
-                canWithdraw: false,
-                reason: 'You must place at least one bet before requesting a withdrawal'
-            });
-        }
+        const hasPlacedBet = betCount > 0;
 
         // Get user balance
         const balance = await prisma.balance.findFirst({
@@ -68,14 +56,40 @@ export async function GET(req: NextRequest) {
                 outcomeId: null
             }
         });
+        const hasBalance = !!(balance && balance.amount.gt(0));
+        const balanceAmount = balance ? Number(balance.amount) : 0;
 
-        if (!balance || balance.amount.lte(0)) {
+        // Determine which requirement is missing
+        let reason = '';
+        if (!has2FA) {
+            reason = 'Two-factor authentication is required to withdraw';
+        } else if (!emailVerified) {
+            reason = 'Email must be verified to withdraw';
+        } else if (!hasPlacedBet) {
+            reason = 'You must place at least one bet before requesting a withdrawal';
+        } else if (!hasBalance) {
+            reason = 'Insufficient balance';
+        }
+
+        // Return requirements status
+        const requirements = {
+            twoFactorEnabled: has2FA,
+            emailVerified: emailVerified,
+            hasPlacedBet: hasPlacedBet,
+            hasBalance: hasBalance
+        };
+
+        if (reason) {
             return NextResponse.json({
                 canWithdraw: false,
-                reason: 'Insufficient balance',
-                balance: 0
+                reason,
+                balance: balanceAmount,
+                requirements
             });
         }
+
+        const maxSingle = Number(process.env.WITHDRAW_MAX_SINGLE ?? 5000);
+        const maxDaily = Number(process.env.WITHDRAW_MAX_DAILY ?? 20000);
 
         const startOfDay = new Date();
         startOfDay.setUTCHours(0, 0, 0, 0);
@@ -104,6 +118,12 @@ export async function GET(req: NextRequest) {
                 daily: maxDaily,
                 usedToday,
                 remainingToday: Math.max(0, maxDaily - usedToday)
+            },
+            requirements: {
+                twoFactorEnabled: true,
+                emailVerified: true,
+                hasPlacedBet: true,
+                hasBalance: true
             }
         });
     } catch (error) {

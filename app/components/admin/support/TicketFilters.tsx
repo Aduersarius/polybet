@@ -190,3 +190,4 @@ export function TicketFilters({ filters, onFilterChange, agents }: TicketFilters
     </div>
   );
 }
+

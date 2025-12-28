@@ -229,3 +229,4 @@ export class ServerNotificationService {
     // Example: io.to(`ticket-${ticketId}`).emit('support:assigned', { ticketId, agent });
   }
 }
+
