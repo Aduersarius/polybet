@@ -302,8 +302,8 @@ async function handleMessage(message: Message): Promise<void> {
     }
 
     try {
-        if (topic === 'clob-market') {
-            if (type === 'last-trade-price') {
+        if (topic === 'clob_market') {
+            if (type === 'last_trade_price') {
                 // LastTradePrice: { asset_id, market, price, side, size, fee_rate_bps }
                 const { asset_id, price } = payload as any;
                 if (!asset_id || price === undefined) return;
@@ -320,7 +320,7 @@ async function handleMessage(message: Message): Promise<void> {
 
                 await updateOutcomeProbability(mapping.internalEventId, asset_id, priceNum, mapping);
                 console.log(`[Worker] Updated ${asset_id}: ${(priceNum * 100).toFixed(1)}%`);
-            } else if (type === 'price-change') {
+            } else if (type === 'price_change') {
                 // PriceChanges: { m (market), pc (price changes array), t (timestamp) }
                 const { pc } = payload as any;
                 if (!Array.isArray(pc)) return;
@@ -380,13 +380,13 @@ function connect(): void {
         client.subscribe({
             subscriptions: [
                 {
-                    topic: 'clob-market',
-                    type: 'last-trade-price',
+                    topic: 'clob_market',
+                    type: 'last_trade_price',
                     filters: filter,
                 },
                 {
-                    topic: 'clob-market',
-                    type: 'price-change',
+                    topic: 'clob_market',
+                    type: 'price_change',
                     filters: filter,
                 },
             ],
@@ -434,13 +434,13 @@ async function refreshMappings(): Promise<void> {
             wsClient.subscribe({
                 subscriptions: [
                     {
-                        topic: 'clob-market',
-                        type: 'last-trade-price',
+                        topic: 'clob_market',
+                        type: 'last_trade_price',
                         filters: filter,
                     },
                     {
-                        topic: 'clob-market',
-                        type: 'price-change',
+                        topic: 'clob_market',
+                        type: 'price_change',
                         filters: filter,
                     },
                 ],
