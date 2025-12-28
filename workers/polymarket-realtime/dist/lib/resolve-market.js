@@ -3,8 +3,17 @@
  * Extracted from hybrid-trading.ts for standalone use
  */
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import Decimal from 'decimal.js';
-const prisma = new PrismaClient();
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
+    max: 5,
+});
+const prisma = new PrismaClient({
+    adapter: new PrismaPg(pool),
+});
 export async function resolveMarket(eventId, winningOutcomeId) {
     const event = await prisma.event.findUnique({
         where: { id: eventId },
