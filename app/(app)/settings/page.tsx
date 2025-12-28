@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession, signOut, twoFactor, email, authClient } from '@/lib/auth-client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/app/components/Navbar';
 import { Footer } from '@/app/components/Footer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -102,7 +102,7 @@ function SettingRow({ label, description, children }: { label: string; descripti
     );
 }
 
-export default function SettingsPage() {
+function SettingsPageContent() {
     const { data: session, isPending } = useSession();
     const router = useRouter();
     const user = (session as any)?.user;
@@ -137,6 +137,7 @@ export default function SettingsPage() {
     }, [resendCooldown]);
 
     // Check 2FA status on mount
+    const [hasChecked2FA, setHasChecked2FA] = useState(false);
     useEffect(() => {
         const check2FAStatus = async () => {
             try {
@@ -145,15 +146,35 @@ export default function SettingsPage() {
                 if (res.ok) {
                     const data = await res.json();
                     setIs2FAEnabled(data.enabled);
+                    setHasChecked2FA(true);
                 }
             } catch (err) {
                 console.error('Failed to check 2FA status:', err);
+                setHasChecked2FA(true);
             }
         };
         if (user) {
             check2FAStatus();
         }
     }, [user]);
+
+    // Check URL params for 2FA setup (after 2FA status is checked)
+    const searchParams = useSearchParams();
+    useEffect(() => {
+        if (!hasChecked2FA || !user) return;
+        
+        const setup2fa = searchParams.get('setup2fa');
+        if (setup2fa === 'true' && !is2FAEnabled) {
+            // Switch to account category and open 2FA password prompt
+            setActiveCategory('account');
+            // Small delay to ensure category switch is visible
+            setTimeout(() => {
+                setShow2FAPasswordPrompt(true);
+            }, 200);
+            // Clean up URL
+            router.replace('/settings?category=account');
+        }
+    }, [searchParams, user, is2FAEnabled, hasChecked2FA, router]);
 
     // Fetch settings on mount
     useEffect(() => {
@@ -1063,5 +1084,20 @@ export default function SettingsPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function SettingsPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen text-white relative z-10 flex flex-col">
+                <Navbar />
+                <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-1 flex items-center justify-center" style={{ paddingTop: 'calc(var(--navbar-height) + 1rem)' }}>
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+                </main>
+            </div>
+        }>
+            <SettingsPageContent />
+        </Suspense>
     );
 }

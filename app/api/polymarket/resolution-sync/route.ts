@@ -204,7 +204,7 @@ export async function POST(request: Request) {
         }
 
         // Get associated events (manual join)
-        const eventIds = mappings.map(m => m.internalEventId).filter(Boolean);
+        const eventIds = mappings.map((m: { internalEventId: string | null }) => m.internalEventId).filter(Boolean);
         const events = await prisma.event.findMany({
             where: {
                 id: { in: eventIds },
@@ -221,10 +221,17 @@ export async function POST(request: Request) {
         });
 
         // Build lookup map
-        const eventById = new Map(events.map(e => [e.id, e]));
+        type EventType = {
+            id: string;
+            title: string | null;
+            status: string;
+            type: string | null;
+            polymarketId: string | null;
+        };
+        const eventById = new Map<string, EventType>(events.map((e: EventType) => [e.id, e]));
 
         // Filter mappings to those with non-resolved events
-        const activeMappings = mappings.filter(m => eventById.has(m.internalEventId));
+        const activeMappings = mappings.filter((m: { internalEventId: string | null }) => m.internalEventId !== null && eventById.has(m.internalEventId));
 
         if (!activeMappings.length) {
             return NextResponse.json({
@@ -348,7 +355,7 @@ export async function POST(request: Request) {
                     results.push({
                         eventId: event.id,
                         polymarketId: polyId,
-                        title: event.title,
+                        title: event.title || '',
                         winningOutcome: 'UNKNOWN',
                         success: false,
                         error: 'Could not determine winning outcome from Polymarket data',
@@ -365,7 +372,7 @@ export async function POST(request: Request) {
                     results.push({
                         eventId: event.id,
                         polymarketId: polyId,
-                        title: event.title,
+                        title: event.title || '',
                         winningOutcome: winningOutcomeName || winningOutcomeId,
                         success: true,
                         payoutResult,
@@ -390,7 +397,7 @@ export async function POST(request: Request) {
                     results.push({
                         eventId: event.id,
                         polymarketId: polyId,
-                        title: event.title,
+                        title: event.title || '',
                         winningOutcome: winningOutcomeName || winningOutcomeId,
                         success: false,
                         error: errorMsg,
