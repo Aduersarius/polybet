@@ -43,6 +43,7 @@
     "build",
     "dist",
     "vps",
+    "workers/**/*",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.spec.ts",

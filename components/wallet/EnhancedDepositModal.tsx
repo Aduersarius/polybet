@@ -60,7 +60,9 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
 
     const fetchBalance = async () => {
         try {
-            const res = await fetch('/api/balance');
+            const res = await fetch('/api/balance', {
+                credentials: 'include', // Include cookies for authentication
+            });
             if (!res.ok) return;
             const data = await res.json();
             setBalance(Number(data.balance ?? 0));
@@ -73,11 +75,27 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
     const fetchDepositAddress = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/crypto/deposit');
+            const response = await fetch('/api/crypto/deposit', {
+                credentials: 'include', // Include cookies for authentication
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to fetch deposit address' }));
+                console.error('Failed to fetch deposit address:', response.status, errorData);
+                setDepositAddress(''); // Clear address on error
+                return;
+            }
+            
             const data = await response.json();
-            setDepositAddress(data.address);
+            if (data.address) {
+                setDepositAddress(data.address);
+            } else {
+                console.error('No address in response:', data);
+                setDepositAddress('');
+            }
         } catch (error) {
             console.error('Failed to fetch deposit address:', error);
+            setDepositAddress(''); // Clear address on error
         } finally {
             setLoading(false);
         }

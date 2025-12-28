@@ -153,7 +153,7 @@ export async function POST(request: Request) {
         }
 
         // Get the associated events (manual join since no relation exists)
-        const eventIds = mappings.map(m => m.internalEventId).filter(Boolean);
+        const eventIds = mappings.map((m: { internalEventId: string | null }) => m.internalEventId).filter(Boolean);
         const events = await prisma.event.findMany({
             where: {
                 id: { in: eventIds },
@@ -171,10 +171,18 @@ export async function POST(request: Request) {
         });
 
         // Build a lookup map
-        const eventById = new Map(events.map(e => [e.id, e]));
+        type EventType = {
+            id: string;
+            title: string | null;
+            type: string | null;
+            qYes: number | null;
+            qNo: number | null;
+            liquidityParameter: number | null;
+        };
+        const eventById = new Map<string, EventType>(events.map((e: EventType) => [e.id, e]));
 
         // Filter mappings to only those with active events
-        const activeMappings = mappings.filter(m => eventById.has(m.internalEventId));
+        const activeMappings = mappings.filter((m: { internalEventId: string | null }) => m.internalEventId !== null && eventById.has(m.internalEventId));
 
         if (!activeMappings.length) {
             return NextResponse.json({
