@@ -3,10 +3,10 @@ import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
 import { MultipleTradingPanelModal } from "../components/MultipleTradingPanelModal";
 import { EventCard2 } from "../components/EventCard2";
@@ -15,6 +15,8 @@ import { ChartContainer, ChartConfig } from "@/components/ui/chart";
 import { MobileCTABanner } from "../components/MobileCTABanner";
 import { SignupModal } from "../components/auth/SignupModal";
 import { LoginModal } from "../components/auth/LoginModal";
+
+const EVENTS_PER_PAGE = 20;
 
 // Cookie utility functions
 function setCookie(name: string, value: string, days: number) {
@@ -81,6 +83,9 @@ export default function Home() {
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // Footer visibility - show after scrolling past ~5 rows of cards
+  const [showFooter, setShowFooter] = useState(false);
+
   const router = useRouter();
 
   const handleCategoryChange = (category: string) => {
@@ -88,51 +93,56 @@ export default function Home() {
     setSelectedCategory(category);
   };
 
-  // Fetch events from DB (includes synced Polymarket markets)
-  const { data: eventsData } = useQuery<DbEvent[]>({
+  // Fetch events from DB with infinite scroll (20 events per page)
+  const {
+    data: eventsPages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isLoadingEvents,
+  } = useInfiniteQuery({
     queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
       const params = new URLSearchParams({
         category: selectedCategory === 'ALL' ? '' : selectedCategory,
         timeHorizon,
         sortBy,
-        limit: '120',
+        limit: String(EVENTS_PER_PAGE),
+        offset: String(pageParam),
       });
       const res = await fetch(`/api/events?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch events');
       const json = await res.json();
       const data = Array.isArray(json) ? json : json.data;
+      const pagination = json.pagination || { hasMore: false, total: 0 };
       const normalized = (data || []).map((evt: any) => ({
         ...evt,
         category: evt.category || (evt.categories?.[0] ?? 'General'),
       }));
-      // #region agent log
-      // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     sessionId: 'debug-session',
-      //     runId: 'pre-fix',
-      //     hypothesisId: 'H-client-fetch',
-      //     location: 'app/(app)/page.tsx:queryFn',
-      //     message: 'fetched events',
-      //     data: {
-      //       selectedCategory,
-      //       timeHorizon,
-      //       sortBy,
-      //       fetchedCount: (data || []).length,
-      //       normalizedCount: normalized.length
-      //     },
-      //     timestamp: Date.now(),
-      //   }),
-      // }).catch(() => { });
-      // #endregion
-      return normalized as DbEvent[];
+      return {
+        events: normalized as DbEvent[],
+        nextOffset: pageParam + EVENTS_PER_PAGE,
+        hasMore: pagination.hasMore,
+      };
     },
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextOffset : undefined,
+    initialPageParam: 0,
     staleTime: 30_000,
     gcTime: 5 * 60 * 1000,
-    placeholderData: keepPreviousData,
   });
+
+  // Flatten all pages into a single array and dedupe by ID
+  const eventsData = useMemo(() => {
+    if (!eventsPages) return [];
+    const all = eventsPages.pages.flatMap(page => page.events);
+    // Dedupe by event ID (pagination can cause overlaps due to DB vs JS filtering)
+    const seen = new Set<string>();
+    return all.filter(event => {
+      if (seen.has(event.id)) return false;
+      seen.add(event.id);
+      return true;
+    });
+  }, [eventsPages]);
 
   // Fetch user's favorite events
   const { data: favoriteEvents } = useQuery<DbEvent[]>({
@@ -216,6 +226,18 @@ export default function Home() {
     }
   }, []);
 
+  // Show footer after scrolling past ~5 rows of cards (~1000px)
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollThreshold = 1000; // ~5 rows of cards
+      setShowFooter(window.scrollY > scrollThreshold);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Check initial position
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const { activeEvents, endedEvents } = useMemo(() => {
     const now = new Date();
@@ -307,6 +329,31 @@ export default function Home() {
   // }, [selectedCategory, timeHorizon, sortBy, searchQuery, eventsData, activeEvents.length, endedEvents.length]);
   // #endregion
 
+  // Infinite scroll: intersection observer
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const getTimeRemaining = (endDate: Date) => {
     const now = new Date();
@@ -421,38 +468,27 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Ended Markets Section */}
-            {
-              endedEvents.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <h2 className="text-2xl font-bold mb-6 text-gray-600 flex items-center gap-4 tracking-tight uppercase" style={{ letterSpacing: '0.03em' }}>
-                    Ended Markets
-                    <div className="h-px bg-white/10 flex-1" />
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
-                    {endedEvents.map((event, idx) => (
-                      <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
-                        <EventCard2
-                          event={event}
-                          isEnded={true}
-                          index={idx}
-                          onCategoryClick={handleCategoryChange}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )
-            }
+            {/* Infinite scroll sentinel and loading indicator */}
+            <div ref={loadMoreRef} className={`w-full flex justify-center ${isFetchingNextPage || (isLoadingEvents && activeEvents.length === 0) ? 'py-6' : 'py-1'}`}>
+              {isFetchingNextPage && (
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-gray-400 text-sm">Loading more markets...</span>
+                </div>
+              )}
+              {isLoadingEvents && activeEvents.length === 0 && (
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-gray-400">Loading markets...</span>
+                </div>
+              )}
+            </div>
           </div >
         </motion.div >
       </div>
 
-      <Footer />
+      {/* Footer appears after scrolling past ~5 rows of cards */}
+      {showFooter && <Footer />}
 
       {/* Trading Panel Modal */}
       {selectedEvent && (

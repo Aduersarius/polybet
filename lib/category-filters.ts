@@ -83,16 +83,25 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
 
 /**
  * Categorize an event based on its title and description using keyword matching
+ * Uses word boundary matching to prevent false positives (e.g., "Coinbase" matching "nba")
  */
 export function categorizeEvent(title: string, description: string): string[] {
   const text = `${title} ${description}`.toLowerCase();
   const categories: string[] = [];
 
   for (const category of CATEGORY_DEFINITIONS) {
-    // Check if any keywords match
-    const hasKeywordMatch = category.keywords.some(keyword =>
-      text.includes(keyword.toLowerCase())
-    );
+    // Check if any keywords match using word boundaries
+    const hasKeywordMatch = category.keywords.some(keyword => {
+      const keywordLower = keyword.toLowerCase();
+      // Use word boundary regex for short keywords (<=4 chars) to avoid false matches
+      // e.g., "nba" shouldn't match "Coinbase", "f1" shouldn't match "ref1"
+      if (keywordLower.length <= 4) {
+        const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        return regex.test(text);
+      }
+      // For longer keywords, substring matching is fine
+      return text.includes(keywordLower);
+    });
 
     if (hasKeywordMatch) {
       categories.push(category.name);
