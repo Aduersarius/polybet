@@ -14,7 +14,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const REDIS_URL = process.env.REDIS_URL;
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
-const ODDS_HISTORY_BUCKET_MS = 5 * 60 * 1000; // 5 minutes
+const ODDS_HISTORY_BUCKET_MS = 30 * 60 * 1000; // 30 minutes - consistent with historical backfill candles
 if (!DATABASE_URL) {
     console.error('[Worker] DATABASE_URL is required');
     process.exit(1);
