@@ -132,8 +132,10 @@ export async function GET(request: Request) {
             where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) };
         } else if (timeHorizon === '1m') {
             where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) };
+        } else {
+            // 'all' - still exclude ended events (past resolution date)
+            where.resolutionDate = { gte: now };
         }
-        // 'all' doesn't add any time filtering
 
         // Favorites filtering (outside transaction to avoid long TX)
         if (category === 'FAVORITES' && user) {
@@ -219,7 +221,7 @@ export async function GET(request: Request) {
                     }
                 },
             },
-            take: limit * 2, // Fetch more to allow for keyword filtering
+            take: limit * 5, // Fetch 5x more to account for JS-side sports filtering
             skip: offset,
         });
 

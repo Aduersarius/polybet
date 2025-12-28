@@ -28,6 +28,7 @@ if (REDIS_URL) {
     redis = new Redis(REDIS_URL, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times) => Math.min(times * 100, 3000),
+        tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
     });
     redis.on('error', (err) => console.error('[Redis] Error:', err.message));
 }
@@ -291,7 +292,7 @@ function connect() {
             return;
         }
         // Subscribe to LastTradePrice and PriceChanges for our tokens
-        // Filter format for clob-market: JSON array of token IDs
+        // Filter format for clob-market: JSON array of token IDs (per Polymarket docs)
         const filter = JSON.stringify(subscriptionTokenIds);
         client.subscribe({
             subscriptions: [
@@ -314,18 +315,18 @@ function connect() {
             console.error('[Worker] Async error:', err);
         });
     };
-    const onDisconnect = () => {
-        console.log('[Worker] Disconnected from WebSocket');
-        wsClient = null;
-        // Reconnect after delay
-        setTimeout(() => {
-            console.log('[Worker] Reconnecting...');
-            connect();
-        }, 5000);
+    // Use onStatusChange for connection state logging
+    const onStatusChange = (status) => {
+        console.log(`[Worker] Connection status: ${status}`);
+        if (status === 'disconnected' || status === 'error') {
+            wsClient = null;
+        }
     };
     const client = new RealTimeDataClient({
         onMessage,
         onConnect,
+        onStatusChange,
+        autoReconnect: true, // Library handles reconnection automatically
     });
     client.connect();
 }

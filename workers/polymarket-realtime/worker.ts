@@ -7,9 +7,9 @@
  * This runs as a persistent container alongside the main app.
  */
 
+import { RealTimeDataClient, Message } from '@polymarket/real-time-data-client';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
-import WebSocket from 'ws';
 
 // Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -362,8 +362,8 @@ function connect(): void {
         }
 
         // Subscribe to LastTradePrice and PriceChanges for our tokens
-        // Filter format for clob-market: JSON object with assets_ids array
-        const filter = JSON.stringify({ assets_ids: subscriptionTokenIds });
+        // Filter format for clob-market: JSON array of token IDs (per Polymarket docs)
+        const filter = JSON.stringify(subscriptionTokenIds);
 
         client.subscribe({
             subscriptions: [
@@ -389,20 +389,19 @@ function connect(): void {
         });
     };
 
-    const onDisconnect = (): void => {
-        console.log('[Worker] Disconnected from WebSocket');
-        wsClient = null;
-
-        // Reconnect after delay
-        setTimeout(() => {
-            console.log('[Worker] Reconnecting...');
-            connect();
-        }, 5000);
+    // Use onStatusChange for connection state logging
+    const onStatusChange = (status: string): void => {
+        console.log(`[Worker] Connection status: ${status}`);
+        if (status === 'disconnected' || status === 'error') {
+            wsClient = null;
+        }
     };
 
     const client = new RealTimeDataClient({
         onMessage,
         onConnect,
+        onStatusChange,
+        autoReconnect: true, // Library handles reconnection automatically
     });
 
     client.connect();
@@ -419,7 +418,7 @@ async function refreshMappings(): Promise<void> {
         if (subscriptionTokenIds.length !== oldCount && wsClient) {
             console.log('[Worker] Mappings changed, resubscribing...');
 
-            const filter = JSON.stringify({ assets_ids: subscriptionTokenIds });
+            const filter = JSON.stringify(subscriptionTokenIds);
             wsClient.subscribe({
                 subscriptions: [
                     {
