@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Headphones, TrendingUp, Clock, AlertCircle, CheckCircle, MessageSquare } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import { TicketInbox } from '@/app/components/admin/support/TicketInbox';
 import { TicketFilters } from '@/app/components/admin/support/TicketFilters';
 import { AdminTicketDetail } from '@/app/components/admin/support/AdminTicketDetail';
+import { socket } from '@/lib/socket';
 
 interface DashboardStats {
   openTickets: number;
@@ -37,15 +38,13 @@ export function AdminSupportDashboard() {
     assignedTo: '',
     search: '',
   });
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (session) {
-      fetchDashboardStats();
-      fetchAgents();
-    }
-  }, [session, refreshTrigger]);
+    setMounted(true);
+  }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
       const response = await fetch('/api/support/admin/dashboard');
       if (response.ok) {
@@ -55,7 +54,51 @@ export function AdminSupportDashboard() {
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (session) {
+      fetchDashboardStats();
+      fetchAgents();
+    }
+  }, [session, refreshTrigger, fetchDashboardStats]);
+
+  // WebSocket setup for real-time dashboard updates
+  useEffect(() => {
+    if (!mounted || !session?.user?.id || typeof window === 'undefined') return;
+
+    // Ensure socket is connected
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    // Listen for admin events (ticket creation, updates, etc.)
+    // Note: server emits data.payload directly, so the handler receives the payload object
+    const handleTicketCreated = (payload: any) => {
+      console.log('🟢 [AdminSupportDashboard] Received admin:ticket-created event:', payload);
+      // Refresh dashboard stats and trigger ticket list refresh
+      fetchDashboardStats();
+      setRefreshTrigger((prev) => prev + 1);
+    };
+
+    const handleTicketUpdated = (payload: any) => {
+      console.log('🟢 [AdminSupportDashboard] Received admin:ticket-updated event:', payload);
+      // Refresh dashboard stats and trigger ticket list refresh
+      fetchDashboardStats();
+      setRefreshTrigger((prev) => prev + 1);
+    };
+
+    socket.on('admin:ticket-created', handleTicketCreated);
+    socket.on('admin:ticket-updated', handleTicketUpdated);
+
+    console.log('✅ [AdminSupportDashboard] WebSocket listeners registered for ticket events');
+
+    return () => {
+      socket.off('admin:ticket-created', handleTicketCreated);
+      socket.off('admin:ticket-updated', handleTicketUpdated);
+      console.log('🧹 [AdminSupportDashboard] WebSocket listeners cleaned up');
+    };
+  }, [mounted, session?.user?.id, fetchDashboardStats]);
 
   const fetchAgents = async () => {
     try {
@@ -182,3 +225,5 @@ export function AdminSupportDashboard() {
     </>
   );
 }
+
+
