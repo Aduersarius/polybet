@@ -9,6 +9,8 @@
 
 import { RealTimeDataClient, Message } from '@polymarket/real-time-data-client';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import Redis from 'ioredis';
 
 // Configuration
@@ -23,9 +25,18 @@ if (!DATABASE_URL) {
     process.exit(1);
 }
 
-// Initialize clients
+// Initialize Prisma with pg adapter (Prisma 7 pattern)
+const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+});
+
 const prisma = new PrismaClient({
     log: ['error', 'warn'],
+    adapter: new PrismaPg(pool),
 });
 
 let redis: Redis | null = null;
