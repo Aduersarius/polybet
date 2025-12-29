@@ -18,6 +18,9 @@ export async function GET(request: Request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Cap at 100
     const offset = parseInt(searchParams.get('offset') || '0');
     const source = searchParams.get('source'); // optional source filter (e.g., POLYMARKET)
+    const searchQuery = searchParams.get('search')?.trim();
+
+    // ... (rest of the code remains the same until where clause construction)
 
     // #region agent log
     // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
@@ -87,41 +90,112 @@ export async function GET(request: Request) {
 
     try {
         const { prisma } = await import('@/lib/prisma');
-        const { categorizeEvent, getAllCategories } = await import('@/lib/category-filters');
+        const { categorizeEvent, getAllCategories, getCategoryByName } = await import('@/lib/category-filters');
 
         // Build where clause - only filter by isHidden, show all non-hidden events regardless of status
         let where: any = { isHidden: false };
 
-        // Category filtering
-        if (effectiveCategory && effectiveCategory !== 'ALL') {
-            if (getAllCategories().includes(effectiveCategory)) {
-                // Use keyword-based filtering for our defined categories
-                // Fetch all events, filter by keywords in JavaScript
+        // 0. Source Filtering (if provided)
+        if (source) {
+            if (source === 'POLYMARKET') {
+                where.OR = [
+                    { source: 'POLYMARKET' },
+                    { polymarketId: { not: null } }
+                ];
             } else {
-                // Legacy category filtering
-                where.categories = { has: effectiveCategory };
+                where.source = source;
+            }
+        }
+
+        // 1. Search Filtering (Top Priority / Global)
+        if (searchQuery) {
+            const searchFilter = {
+                OR: [
+                    { title: { contains: searchQuery, mode: 'insensitive' as const } },
+                    { description: { contains: searchQuery, mode: 'insensitive' as const } }
+                ]
+            };
+            if (where.OR && source === 'POLYMARKET') {
+                // Special case: combine source OR with search OR
+                where.AND = [
+                    { OR: where.OR },
+                    searchFilter
+                ];
+                delete where.OR;
+            } else if (where.AND) {
+                where.AND.push(searchFilter);
+            } else {
+                where.AND = [searchFilter];
+            }
+        }
+
+        // 2. Category filtering (Keyword-based or Legacy)
+        if (effectiveCategory && effectiveCategory !== 'ALL') {
+            const catDef = getCategoryByName(effectiveCategory);
+            const catFilter: any = {};
+
+            if (catDef) {
+                // DB-side Keyword Filtering
+                // Sports needs special handling to include isEsports or specific categories
+                if (effectiveCategory === 'Sports') {
+                    catFilter.OR = [
+                        { isEsports: true },
+                        { categories: { has: 'Sports' } },
+                        { categories: { has: 'SPORTS' } },
+                        { categories: { has: 'Esports' } },
+                        { categories: { has: 'ESPORTS' } },
+                        ...catDef.keywords.map((kw: string) => ({
+                            title: { contains: kw, mode: 'insensitive' as const }
+                        })),
+                        ...catDef.keywords.map((kw: string) => ({
+                            description: { contains: kw, mode: 'insensitive' as const }
+                        }))
+                    ];
+                } else {
+                    catFilter.OR = [
+                        { categories: { has: effectiveCategory } },
+                        ...catDef.keywords.map((kw: string) => ({
+                            title: { contains: kw, mode: 'insensitive' as const }
+                        })),
+                        ...catDef.keywords.map((kw: string) => ({
+                            description: { contains: kw, mode: 'insensitive' as const }
+                        }))
+                    ];
+                }
+            } else {
+                // Legacy / Exact match
+                catFilter.categories = { has: effectiveCategory };
+            }
+
+            // Combine with Search if present
+            if (where.AND) {
+                where.AND.push(catFilter);
+            } else {
+                Object.assign(where, catFilter);
             }
         } else if (!effectiveCategory || effectiveCategory === 'ALL') {
-            // When showing ALL categories, exclude sports and esports events
-            // They should only appear in the Sports tab
-            where.AND = [
-                { isEsports: false },
-                {
-                    OR: [
-                        { categories: { isEmpty: true } },
-                        {
-                            NOT: {
-                                OR: [
-                                    { categories: { has: 'Sports' } },
-                                    { categories: { has: 'Esports' } },
-                                    { categories: { has: 'SPORTS' } },
-                                    { categories: { has: 'ESPORTS' } }
-                                ]
-                            }
+            // When showing ALL, apply global exclusions (like Sports/Esports) at the DB level
+            const exclusionFilter = {
+                AND: [
+                    { isEsports: false },
+                    {
+                        NOT: {
+                            OR: [
+                                { categories: { has: 'Sports' } },
+                                { categories: { has: 'Esports' } },
+                                { categories: { has: 'SPORTS' } },
+                                { categories: { has: 'ESPORTS' } }
+                            ]
                         }
-                    ]
-                }
-            ];
+                    }
+                ]
+            };
+
+            if (where.AND) {
+                where.AND.push(exclusionFilter);
+            } else {
+                Object.assign(where, exclusionFilter);
+            }
         }
 
         // Time horizon filtering
@@ -132,8 +206,9 @@ export async function GET(request: Request) {
             where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) };
         } else if (timeHorizon === '1m') {
             where.resolutionDate = { gte: now, lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) };
+        } else {
+            where.resolutionDate = { gte: now };
         }
-        // 'all' doesn't add any time filtering
 
         // Favorites filtering (outside transaction to avoid long TX)
         if (category === 'FAVORITES' && user) {
@@ -156,14 +231,24 @@ export async function GET(request: Request) {
             where.id = { in: eventIds };
         }
 
-        // Build orderBy based on effectiveSortBy parameter
-        let orderBy: any = { createdAt: 'desc' }; // default
+        // 3. Sorting logic
+        let orderBy: any = {};
         if (effectiveSortBy === 'newest') {
             orderBy = { createdAt: 'desc' };
-        } else if (effectiveSortBy === 'ending_soon') {
+        } else if (effectiveSortBy === 'oldest') {
+            orderBy = { createdAt: 'asc' };
+        } else if (effectiveSortBy === 'expiring') {
             orderBy = { resolutionDate: 'asc' };
+        } else if (effectiveSortBy === 'volume_high') {
+            orderBy = { externalVolume: 'desc' };
+        } else if (effectiveSortBy === 'volume_low') {
+            orderBy = { externalVolume: 'asc' };
+        } else if (effectiveSortBy === 'liquidity_high') {
+            orderBy = { initialLiquidity: 'desc' };
+        } else {
+            // Default to newest
+            orderBy = { createdAt: 'desc' };
         }
-        // For volume and liquidity sorting, we'll sort in JavaScript after calculating stats
 
         // Get events with bets
 
@@ -219,9 +304,12 @@ export async function GET(request: Request) {
                     }
                 },
             },
-            take: limit * 2, // Fetch more to allow for keyword filtering
+            take: limit + 1, // Fetch one extra to determine if there's more
             skip: offset,
         });
+
+        const hasMore = events.length > limit;
+        const pagedEvents = hasMore ? events.slice(0, limit) : events;
 
         // #region agent log
         // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
@@ -246,7 +334,7 @@ export async function GET(request: Request) {
         // #endregion
 
         // Get aggregations for volume and betCount
-        const eventIds = events.map((e: (typeof events)[number]) => e.id);
+        const eventIds = pagedEvents.map((e: (typeof pagedEvents)[number]) => e.id);
         const activities = eventIds.length
             ? await prisma.marketActivity.findMany({
                 where: {
@@ -317,7 +405,7 @@ export async function GET(request: Request) {
         }
 
         // Process events with stats and filtering
-        let eventsWithStats = events.map((event: (typeof events)[number]) => {
+        let eventsWithStats = pagedEvents.map((event: (typeof pagedEvents)[number]) => {
             // Apply time-based growth to external volume for proportional display
             const baseExternalVol = (event as any).externalVolume ?? 0;
             const grownExternalVol = calculateDisplayVolume(baseExternalVol, event.createdAt);
@@ -378,134 +466,14 @@ export async function GET(request: Request) {
             };
         });
 
-        // #region agent log
-        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         sessionId: 'debug-session',
-        //         runId: 'pre-fix',
-        //         hypothesisId: 'H-api-map',
-        //         location: 'app/api/events/route.ts:map',
-        //         message: 'mapped eventsWithStats',
-        //         data: {
-        //             mappedCount: eventsWithStats.length,
-        //             sample: eventsWithStats[0] ? {
-        //                 id: eventsWithStats[0].id,
-        //                 title: eventsWithStats[0].title,
-        //                 source: eventsWithStats[0].source,
-        //                 categories: eventsWithStats[0].categories,
-        //             } : null
-        //         },
-        //         timestamp: Date.now(),
-        //     })
-        // }).catch(() => { });
-        // #endregion
-
-        // When showing ALL categories, exclude sports and esports events (they should only appear in Sports tab)
-        // This catches any events that might have been detected as Sports by categorizeEvent but weren't caught by DB filter
-        if (!effectiveCategory || effectiveCategory === 'ALL') {
-            eventsWithStats = eventsWithStats.filter((event: (typeof eventsWithStats)[number]) => {
-                // Exclude if isEsports flag is set
-                if ((event as any).isEsports === true) {
-                    return false;
-                }
-                // Exclude if categories include Sports or Esports
-                const categories = (event.categories || []).map((c: string) => c.toLowerCase());
-                if (categories.includes('sports') || categories.includes('esports')) {
-                    return false;
-                }
-                // Exclude if categorizeEvent detects it as Sports
-                const detectedCategories = categorizeEvent(event.title, event.description || '');
-                if (detectedCategories.includes('Sports')) {
-                    return false;
-                }
-                return true;
-            });
-        }
-
-        // Apply keyword-based category filtering if needed
-        if (effectiveCategory && getAllCategories().includes(effectiveCategory)) {
-            eventsWithStats = eventsWithStats.filter((event: (typeof eventsWithStats)[number]) => {
-                // For Sports category, also include events with Sports/Esports in categories or isEsports flag
-                if (effectiveCategory === 'Sports') {
-                    const categories = (event.categories || []).map((c: string) => c.toLowerCase());
-                    if (categories.includes('sports') || categories.includes('esports') || (event as any).isEsports === true) {
-                        return true;
-                    }
-                }
-                // Use keyword-based detection
-                const detectedCategories = categorizeEvent(event.title, event.description || '');
-                return detectedCategories.includes(effectiveCategory);
-            });
-        }
-
-        // Apply source filtering client-side to avoid schema drift errors
-        if (source) {
-            eventsWithStats = eventsWithStats.filter((event: any) => {
-                if (event.source === source) return true;
-                // Fallback: treat presence of polymarketId as Polymarket source
-                if (source === 'POLYMARKET' && event.polymarketId) return true;
-                return false;
-            });
-        }
-
-        // Apply volume/liquidity sorting
-        if (effectiveSortBy === 'volume_high') {
-            eventsWithStats.sort(
-                (a: (typeof eventsWithStats)[number], b: (typeof eventsWithStats)[number]) =>
-                    (b.volume || 0) - (a.volume || 0)
-            );
-        } else if (effectiveSortBy === 'volume_low') {
-            eventsWithStats.sort(
-                (a: (typeof eventsWithStats)[number], b: (typeof eventsWithStats)[number]) =>
-                    (a.volume || 0) - (b.volume || 0)
-            );
-        } else if (effectiveSortBy === 'liquidity_high') {
-            eventsWithStats.sort(
-                (a: (typeof eventsWithStats)[number], b: (typeof eventsWithStats)[number]) =>
-                    (b.liquidity || 0) - (a.liquidity || 0)
-            );
-        }
-
-        const totalCount = eventsWithStats.length;
-
-        // Apply limit after filtering and sorting
-        const paged = eventsWithStats.slice(0, limit);
-
-        // #region agent log
-        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         sessionId: 'debug-session',
-        //         runId: 'pre-fix',
-        //         hypothesisId: 'H-api-results',
-        //         location: 'app/api/events/route.ts:result',
-        //         message: 'events api result counts',
-        //         data: {
-        //             category: category || 'ALL',
-        //             effectiveCategory: effectiveCategory || 'ALL',
-        //             timeHorizon,
-        //             sortBy: effectiveSortBy,
-        //             limit,
-        //             offset,
-        //             fetchedCount: events.length,
-        //             filteredCount: eventsWithStats.length,
-        //             pagedCount: paged.length
-        //         },
-        //         timestamp: Date.now(),
-        //     })
-        // }).catch(() => { });
-        // #endregion
 
         const result = {
-            data: paged,
+            data: eventsWithStats,
             pagination: {
                 limit,
                 offset,
-                total: totalCount,
-                hasMore: offset + limit < totalCount,
+                total: eventsWithStats.length, // This is now per-page total, ideally we'd want a global count
+                hasMore,
             },
         };
 

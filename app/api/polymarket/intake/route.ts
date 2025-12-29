@@ -144,9 +144,20 @@ function findYesToken(tokens: Array<{ tokenId: string; outcome?: string; price?:
   return byName || tokens[0];
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const upstream = await fetch('https://gamma-api.polymarket.com/events?limit=150&closed=false&archived=false', {
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search');
+    const status = searchParams.get('status') || 'all';
+
+    // Fetch a larger pool from Gamma to ensure filters have enough data to work with
+    const fetchLimit = search ? 100 : 1000;
+    let url = `https://gamma-api.polymarket.com/events?limit=${fetchLimit}&closed=false&archived=false&order=volume&ascending=false`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+
+    const upstream = await fetch(url, {
       cache: 'no-store',
       headers: HEADERS,
     });
@@ -490,7 +501,13 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json(results);
+    // Server-side filtering by status
+    let filteredResults = results;
+    if (status !== 'all') {
+      filteredResults = results.filter(r => r.status === status);
+    }
+
+    return NextResponse.json(filteredResults);
   } catch (error) {
     console.error('[Polymarket Intake] GET failed', error);
     return NextResponse.json(

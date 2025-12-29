@@ -3,10 +3,10 @@ import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "../components/TradingPanelModal";
 import { MultipleTradingPanelModal } from "../components/MultipleTradingPanelModal";
 import { EventCard2 } from "../components/EventCard2";
@@ -15,6 +15,8 @@ import { ChartContainer, ChartConfig } from "@/components/ui/chart";
 import { MobileCTABanner } from "../components/MobileCTABanner";
 import { SignupModal } from "../components/auth/SignupModal";
 import { LoginModal } from "../components/auth/LoginModal";
+
+const EVENTS_PER_PAGE = 20;
 
 // Cookie utility functions
 function setCookie(name: string, value: string, days: number) {
@@ -81,6 +83,10 @@ export default function Home() {
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // Footer visibility - show after 4th row becomes visible
+  const [showFooter, setShowFooter] = useState(false);
+  const fourthRowRef = useRef<HTMLDivElement>(null);
+
   const router = useRouter();
 
   const handleCategoryChange = (category: string) => {
@@ -88,51 +94,67 @@ export default function Home() {
     setSelectedCategory(category);
   };
 
-  // Fetch events from DB (includes synced Polymarket markets)
-  const { data: eventsData } = useQuery<DbEvent[]>({
-    queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy],
-    queryFn: async () => {
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch events from DB with infinite scroll (20 events per page)
+  const {
+    data: eventsPages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isLoadingEvents,
+  } = useInfiniteQuery({
+    queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy, debouncedSearchQuery],
+    queryFn: async ({ pageParam = 0 }) => {
       const params = new URLSearchParams({
         category: selectedCategory === 'ALL' ? '' : selectedCategory,
         timeHorizon,
         sortBy,
-        limit: '120',
+        search: debouncedSearchQuery,
+        limit: String(EVENTS_PER_PAGE),
+        offset: String(pageParam),
       });
       const res = await fetch(`/api/events?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch events');
       const json = await res.json();
       const data = Array.isArray(json) ? json : json.data;
+      const pagination = json.pagination || { hasMore: false, total: 0 };
       const normalized = (data || []).map((evt: any) => ({
         ...evt,
         category: evt.category || (evt.categories?.[0] ?? 'General'),
       }));
-      // #region agent log
-      // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     sessionId: 'debug-session',
-      //     runId: 'pre-fix',
-      //     hypothesisId: 'H-client-fetch',
-      //     location: 'app/(app)/page.tsx:queryFn',
-      //     message: 'fetched events',
-      //     data: {
-      //       selectedCategory,
-      //       timeHorizon,
-      //       sortBy,
-      //       fetchedCount: (data || []).length,
-      //       normalizedCount: normalized.length
-      //     },
-      //     timestamp: Date.now(),
-      //   }),
-      // }).catch(() => { });
-      // #endregion
-      return normalized as DbEvent[];
+      return {
+        events: normalized as DbEvent[],
+        nextOffset: pageParam + EVENTS_PER_PAGE,
+        hasMore: pagination.hasMore,
+      };
     },
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextOffset : undefined,
+    initialPageParam: 0,
     staleTime: 30_000,
     gcTime: 5 * 60 * 1000,
-    placeholderData: keepPreviousData,
   });
+
+  // Flatten all pages into a single array and dedupe by ID
+  const eventsData = useMemo(() => {
+    if (!eventsPages) return [];
+    const all = eventsPages.pages.flatMap(page => page.events);
+    // Dedupe by event ID (pagination can cause overlaps due to DB vs JS filtering)
+    const seen = new Set<string>();
+    return all.filter(event => {
+      if (seen.has(event.id)) return false;
+      seen.add(event.id);
+      return true;
+    });
+  }, [eventsPages]);
 
   // Fetch user's favorite events
   const { data: favoriteEvents } = useQuery<DbEvent[]>({
@@ -221,37 +243,12 @@ export default function Home() {
     const now = new Date();
     let filtered = (eventsData || []).slice();
 
-    // Apply category filters client-side for Polymarket data
+    // Favorites are already fetched from a separate hook, but if they are in eventsData, we dedupe
     if (selectedCategory === 'FAVORITES') {
       filtered = (favoriteEvents || []).slice();
-    } else if (selectedCategory !== 'ALL' && selectedCategory !== 'TRENDING' && selectedCategory !== 'NEW') {
-      const catLower = selectedCategory.toLowerCase();
-      filtered = filtered.filter((e: DbEvent) => {
-        const categories = [
-          e.category,
-          ...(((e as any).categories as string[] | undefined) || []),
-        ]
-          .filter(Boolean)
-          .map((c) => String(c).toLowerCase());
-        return categories.some((c) => c.includes(catLower));
-      });
     }
 
-    // Time horizon filtering
-    if (timeHorizon !== 'all') {
-      const horizonMs =
-        timeHorizon === '1d'
-          ? 24 * 60 * 60 * 1000
-          : timeHorizon === '1w'
-            ? 7 * 24 * 60 * 60 * 1000
-            : 30 * 24 * 60 * 60 * 1000;
-      filtered = filtered.filter((e: DbEvent) => {
-        const end = new Date(e.resolutionDate).getTime();
-        return end >= now.getTime() && end <= now.getTime() + horizonMs;
-      });
-    }
-
-    // Apply search filter
+    // Apply search filter locally for instant feedback
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((e: DbEvent) =>
@@ -260,7 +257,7 @@ export default function Home() {
       );
     }
 
-    // Sort locally based on selection
+    // Sorting is handled by the API but we keep this for local consistency
     const effectiveSort =
       selectedCategory === 'TRENDING' ? 'volume_high' :
         selectedCategory === 'NEW' ? 'newest' : sortBy;
@@ -277,7 +274,28 @@ export default function Home() {
       activeEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) > now),
       endedEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
     };
-  }, [selectedCategory, searchQuery, eventsData, favoriteEvents, timeHorizon, sortBy]);
+  }, [selectedCategory, searchQuery, eventsData, favoriteEvents, sortBy]);
+
+  // Show footer after 4th row is visible (using IntersectionObserver)
+  useEffect(() => {
+    const fourthRowElement = fourthRowRef.current;
+    if (!fourthRowElement) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Show footer when the 4th row element has been scrolled past (not intersecting)
+        // or is intersecting (meaning we've reached it)
+        const entry = entries[0];
+        if (entry.isIntersecting || entry.boundingClientRect.top < 0) {
+          setShowFooter(true);
+        }
+      },
+      { threshold: 0, rootMargin: '100px' }
+    );
+
+    observer.observe(fourthRowElement);
+    return () => observer.disconnect();
+  }, [activeEvents.length]);
 
   // #region agent log
   // useEffect(() => {
@@ -307,6 +325,31 @@ export default function Home() {
   // }, [selectedCategory, timeHorizon, sortBy, searchQuery, eventsData, activeEvents.length, endedEvents.length]);
   // #endregion
 
+  // Infinite scroll: intersection observer
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const getTimeRemaining = (endDate: Date) => {
     const now = new Date();
@@ -340,7 +383,7 @@ export default function Home() {
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
           {/* Markets Content - Added pt-32 to account for fixed navbar height */}
-          <div className="relative z-10 pt-32 px-6 max-w-7xl mx-auto pb-20">
+          <div className="relative z-10 pt-32 px-6 max-w-7xl mx-auto pb-8">
 
             {/* Sort Options */}
             <motion.div
@@ -409,9 +452,13 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-4" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
               {activeEvents.map((event, idx) => (
-                <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
+                <div
+                  key={event.id}
+                  ref={idx === 15 ? fourthRowRef : undefined}
+                  style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}
+                >
                   <EventCard2
                     event={event}
                     index={idx}
@@ -419,40 +466,33 @@ export default function Home() {
                   />
                 </div>
               ))}
+              {/* Fallback sentinel if we have fewer than 16 events */}
+              {activeEvents.length > 0 && activeEvents.length < 16 && (
+                <div ref={fourthRowRef} className="hidden" />
+              )}
             </div>
 
-            {/* Ended Markets Section */}
-            {
-              endedEvents.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <h2 className="text-2xl font-bold mb-6 text-gray-600 flex items-center gap-4 tracking-tight uppercase" style={{ letterSpacing: '0.03em' }}>
-                    Ended Markets
-                    <div className="h-px bg-white/10 flex-1" />
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
-                    {endedEvents.map((event, idx) => (
-                      <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
-                        <EventCard2
-                          event={event}
-                          isEnded={true}
-                          index={idx}
-                          onCategoryClick={handleCategoryChange}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )
-            }
+            {/* Infinite scroll sentinel and loading indicator */}
+            <div ref={loadMoreRef} className={`w-full flex justify-center ${isFetchingNextPage || (isLoadingEvents && activeEvents.length === 0) ? 'py-6' : 'py-1'}`}>
+              {isFetchingNextPage && (
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-gray-400 text-sm">Loading more markets...</span>
+                </div>
+              )}
+              {isLoadingEvents && activeEvents.length === 0 && (
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-gray-400">Loading markets...</span>
+                </div>
+              )}
+            </div>
           </div >
         </motion.div >
       </div>
 
-      <Footer />
+      {/* Footer appears after 4th row (16th card) becomes visible */}
+      {showFooter && <Footer />}
 
       {/* Trading Panel Modal */}
       {selectedEvent && (

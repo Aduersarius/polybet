@@ -168,38 +168,52 @@ export default function EventPage() {
         const { socket } = require('@/lib/socket');
 
         function onTradeUpdate(update: any) {
-            console.log('Received trade update:', update);
-            if (update.eventId === eventId) {
-                console.log('Updating live event data for', eventId);
-                // Update live event data with new odds/outcomes
-                const { eventId: _, ...updateData } = update;
-                if (liveEvent) {
-                    // Normalize outcomes to ensure price and odds are calculated from probability
-                    // This ensures consistency between trading panel, buttons, and odds graph
-                    if (updateData.outcomes && Array.isArray(updateData.outcomes)) {
-                        updateData.outcomes = updateData.outcomes.map((outcome: any) => {
-                            const probability = outcome.probability ?? 0;
-                            const price = outcome.price ?? probability;
-                            const odds = outcome.odds ?? (probability > 0 ? 1 / probability : 1);
-                            return {
-                                ...outcome,
-                                probability,
-                                price,
-                                odds,
-                            };
-                        });
-                    }
-                    setLiveEvent({ ...liveEvent, ...updateData });
+            console.log('Received real-time update:', update);
+            if (update.eventId !== eventId) return;
+
+            setLiveEvent((prev: any) => {
+                if (!prev) return prev;
+
+                const updateData: any = { ...update };
+
+                // Normalize outcomes if they exist in the update
+                if (updateData.outcomes && Array.isArray(updateData.outcomes)) {
+                    updateData.outcomes = updateData.outcomes.map((outcome: any) => {
+                        const probability = outcome.probability ?? 0;
+                        const p = probability > 1 ? probability / 100 : probability;
+                        return {
+                            ...outcome,
+                            probability: p,
+                            price: p,
+                            odds: p > 0 ? 1 / p : 1,
+                        };
+                    });
                 }
-            }
+
+                // For Binary events, update yesOdds/noOdds directly with normalization
+                const next = { ...prev };
+                if (update.yesPrice !== undefined) {
+                    const p = update.yesPrice > 1 ? update.yesPrice / 100 : update.yesPrice;
+                    next.yesOdds = p;
+                    if (update.noPrice === undefined && prev.type === 'BINARY') next.noOdds = 1 - p;
+                }
+                if (update.noPrice !== undefined) {
+                    const p = update.noPrice > 1 ? update.noPrice / 100 : update.noPrice;
+                    next.noOdds = p;
+                    if (update.yesPrice === undefined && prev.type === 'BINARY') next.yesOdds = 1 - p;
+                }
+                if (update.outcomes) next.outcomes = updateData.outcomes;
+
+                return next;
+            });
         }
 
         socket.emit('join-event', eventId);
-        socket.on('odds-update', onTradeUpdate);
+        socket.on(`odds-update-${eventId}`, onTradeUpdate);
 
         return () => {
             socket.emit('leave-event', eventId);
-            socket.off('odds-update', onTradeUpdate);
+            socket.off(`odds-update-${eventId}`, onTradeUpdate);
         };
     }, [eventId]);
 
