@@ -88,6 +88,7 @@ interface MarketMapping {
 
 let marketMappings: Map<string, MarketMapping> = new Map(); // tokenId -> mapping
 let lastPrices: Map<string, number> = new Map(); // tokenId -> price
+let spikeTracker: Map<string, { price: number, count: number }> = new Map(); // tokenId -> spike status
 let subscriptionTokenIds: string[] = [];
 let wsClient: RealTimeDataClient | null = null;
 let stats = { messages: 0, updates: 0, errors: 0 };
@@ -226,8 +227,25 @@ async function updateOutcomeProbability(
     if (currentProbability !== undefined && currentProbability > 0) {
         const deviation = Math.abs(probability - currentProbability);
         if (deviation > MAX_PRICE_DEVIATION) {
-            console.warn(`[Worker] ⚠️ REJECTED SPIKE for ${eventId} (${tokenId}): ${(currentProbability * 100).toFixed(1)}% → ${(probability * 100).toFixed(1)}% (gap ${(deviation * 100).toFixed(1)}% > ${MAX_PRICE_DEVIATION * 100}%)`);
-            return;
+            // Track if this "spike" is actually a sustained move
+            const tracker = spikeTracker.get(tokenId);
+            const isSustained = tracker && Math.abs(tracker.price - probability) < 0.05;
+            const count = isSustained ? (tracker.count + 1) : 1;
+
+            spikeTracker.set(tokenId, { price: probability, count });
+
+            // If we've seen this price 3 times, allow it (sustained move)
+            if (count >= 3) {
+                console.log(`[Worker] ✅ ACCEPTING SUSTAINED MOVE for ${eventId} (${tokenId}): ${(probability * 100).toFixed(1)}% (was ${(currentProbability * 100).toFixed(1)}%)`);
+                spikeTracker.delete(tokenId);
+                // Continue to update
+            } else {
+                console.warn(`[Worker] ⚠️ REJECTED SPIKE for ${eventId} (${tokenId}): ${(currentProbability * 100).toFixed(1)}% → ${(probability * 100).toFixed(1)}% (gap ${(deviation * 100).toFixed(1)}% > ${MAX_PRICE_DEVIATION * 100}%) [Sustained count: ${count}]`);
+                return;
+            }
+        } else {
+            // Price is normal, clear any pending spike tracking
+            spikeTracker.delete(tokenId);
         }
     }
 
