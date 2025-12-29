@@ -31,16 +31,27 @@ const DEFAULT_CONFIG: HedgeConfig = {
 
 export class HedgeManager {
   private config: HedgeConfig;
+  private configCache: { config: HedgeConfig; timestamp: number } | null = null;
+  private readonly CONFIG_CACHE_TTL_MS = 60000; // 60 seconds
 
   constructor() {
     this.config = { ...DEFAULT_CONFIG };
   }
 
   /**
-   * Load configuration from database
+   * Load configuration from database with caching
    */
-  async loadConfig(): Promise<HedgeConfig> {
+  async loadConfig(forceRefresh: boolean = false): Promise<HedgeConfig> {
     try {
+      // Check cache if not forcing refresh
+      if (!forceRefresh && this.configCache) {
+        const cacheAge = Date.now() - this.configCache.timestamp;
+        if (cacheAge < this.CONFIG_CACHE_TTL_MS) {
+          console.log(`[HedgeManager] Using cached config (age: ${Math.round(cacheAge / 1000)}s)`);
+          return this.configCache.config;
+        }
+      }
+
       const configs = await prisma.hedgeConfig.findMany();
 
       for (const cfg of configs) {
@@ -54,11 +65,26 @@ export class HedgeManager {
         this.config.enabled = false;
       }
 
+      // Update cache
+      this.configCache = {
+        config: { ...this.config },
+        timestamp: Date.now(),
+      };
+
+      console.log('[HedgeManager] Loaded fresh config from DB');
       return this.config;
     } catch (error) {
       console.error('[HedgeManager] Failed to load config:', error);
       return this.config;
     }
+  }
+
+  /**
+   * Invalidate config cache (call after updating config)
+   */
+  invalidateCache(): void {
+    this.configCache = null;
+    console.log('[HedgeManager] Config cache invalidated');
   }
 
   /**
@@ -79,8 +105,9 @@ export class HedgeManager {
       },
     });
 
-    // Update in-memory config
-    (this.config as any)[key] = value;
+    // Invalidate cache and reload
+    this.invalidateCache();
+    await this.loadConfig(true);
   }
 
   /**
@@ -288,6 +315,12 @@ export class HedgeManager {
         throw new Error('No Polymarket market mapping found');
       }
 
+      // Validate mapping before proceeding
+      const validation = this.validateMapping(mapping);
+      if (!validation.valid) {
+        throw new Error(`Invalid mapping: ${validation.error}`);
+      }
+
       // Calculate spread and hedge price
       const spreadBps = this.calculateSpread({ eventId, size });
       const { hedgePrice } = this.calculateHedgePrices({
@@ -360,66 +393,87 @@ export class HedgeManager {
       },
     });
 
-    try {
-      const polymarketOrder = await polymarketTrading.placeMarketOrder(
-        mapping.polymarketId,
-        mapping.polymarketConditionId || '',
-        mapping.polymarketTokenId || '',
-        side === 'buy' ? 'BUY' : 'SELL',
-        size
-      );
+    // Retry logic with exponential backoff
+    const maxRetries = this.config.retryAttempts;
+    let lastError: any;
 
-      const fees = estimatePolymarketFees(size, hedgePrice);
-      const netProfit = hedgePosition.spreadCaptured - fees;
-      
-      await prisma.hedgePosition.update({
-        where: { id: hedgePosition.id },
-        data: {
-          polymarketOrderId: polymarketOrder.orderId,
-          status: 'hedged',
-          hedgedAt: new Date(),
-          polymarketFees: fees,
-          netProfit,
-        },
-      });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[HedgeManager] Placing Polymarket order (attempt ${attempt}/${maxRetries})`);
+        const polymarketOrder = await polymarketTrading.placeMarketOrder(
+          mapping.polymarketId,
+          mapping.polymarketConditionId || '',
+          mapping.polymarketTokenId || '',
+          side === 'buy' ? 'BUY' : 'SELL',
+          size
+        );
 
-      console.log(`[HedgeManager] Successfully hedged order ${userOrderId}`);
+        const fees = estimatePolymarketFees(size, hedgePrice);
+        const netProfit = hedgePosition.spreadCaptured - fees;
 
-      // Track affiliate referral trade stats (non-blocking)
-      if (netProfit > 0) {
-        try {
-          const order = await prisma.order.findUnique({
-            where: { id: userOrderId },
-            select: { userId: true, amount: true }
-          });
+        await prisma.hedgePosition.update({
+          where: { id: hedgePosition.id },
+          data: {
+            polymarketOrderId: polymarketOrder.orderId,
+            status: 'hedged',
+            hedgedAt: new Date(),
+            polymarketFees: fees,
+            netProfit,
+            retryCount: attempt - 1,
+          },
+        });
 
-          if (order) {
-            const { updateReferralTradeStats } = await import('@/lib/affiliate-tracking');
-            await updateReferralTradeStats(order.userId, {
-              volume: order.amount,
-              revenue: netProfit // Platform profit from this hedge
+        console.log(`[HedgeManager] Successfully hedged order ${userOrderId} on attempt ${attempt}`);
+
+        // Track affiliate referral trade stats (non-blocking)
+        if (netProfit > 0) {
+          try {
+            const order = await prisma.order.findUnique({
+              where: { id: userOrderId },
+              select: { userId: true, amount: true }
             });
+
+            if (order) {
+              const { updateReferralTradeStats } = await import('@/lib/affiliate-tracking');
+              await updateReferralTradeStats(order.userId, {
+                volume: order.amount,
+                revenue: netProfit // Platform profit from this hedge
+              });
+            }
+          } catch (affiliateError) {
+            // Don't fail hedge if affiliate tracking fails
+            console.error('[HedgeManager] Affiliate tracking error (non-blocking):', affiliateError);
           }
-        } catch (affiliateError) {
-          // Don't fail hedge if affiliate tracking fails
-          console.error('[HedgeManager] Affiliate tracking error (non-blocking):', affiliateError);
+        }
+
+        return {
+          success: true,
+          hedgePositionId: hedgePosition.id,
+        };
+      } catch (hedgeError: any) {
+        lastError = hedgeError;
+        console.error(`[HedgeManager] Hedge attempt ${attempt}/${maxRetries} failed:`, hedgeError.message);
+
+        // If not the last attempt, wait with exponential backoff
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+          console.log(`[HedgeManager] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
-
-      return {
-        success: true,
-        hedgePositionId: hedgePosition.id,
-      };
-    } catch (hedgeError: any) {
-      await prisma.hedgePosition.update({
-        where: { id: hedgePosition.id },
-        data: {
-          status: 'failed',
-          failureReason: hedgeError.message,
-        },
-      });
-      throw hedgeError;
     }
+
+    // All retries failed
+    await prisma.hedgePosition.update({
+      where: { id: hedgePosition.id },
+      data: {
+        status: 'failed',
+        failureReason: lastError?.message || 'Unknown error',
+        retryCount: maxRetries,
+      },
+    });
+
+    throw lastError || new Error('Hedge failed after all retries');
   }
 
   /**
@@ -711,6 +765,14 @@ export class HedgeManager {
   /**
    * Settle a hedge position after event resolution
    * Calculates final P/L and marks position as closed
+   * 
+   * This tracks the COMPLETE hedge P/L including:
+   * 1. Polymarket position P/L (what we receive/owe to Polymarket)
+   * 2. User liability P/L (what we owe/receive from user - handled separately in resolveMarket)
+   * 3. Spread captured upfront
+   * 4. Fees paid
+   * 
+   * For a perfect hedge, the Polymarket and user sides should net to ~$0, leaving just the spread.
    */
   async settleHedgePosition(
     hedgePositionId: string,
@@ -731,44 +793,68 @@ export class HedgeManager {
         return { settled: true, pnl: hedgePosition.netProfit || 0 };
       }
 
-      // Calculate settlement P/L
-      // If we bought shares on Polymarket:
-      //   - If outcome won: we get $1/share, profit = (1 - hedgePrice) * amount - fees
-      //   - If outcome lost: shares worth $0, loss = hedgePrice * amount + fees
-      // If we sold shares on Polymarket:
-      //   - If outcome won: we owe $1/share, loss = (1 - hedgePrice) * amount + fees
-      //   - If outcome lost: we keep premium, profit = hedgePrice * amount - fees
-
+      // Determine which outcome we hedged and whether it won
       const userOrderOutcome = hedgePosition.userOrder?.outcomeId || hedgePosition.userOrder?.option;
-      const hedgeWon = userOrderOutcome === winningOutcome;
+      const outcomeWon = userOrderOutcome === winningOutcome;
       const hedgeSide = hedgePosition.side; // 'BUY' or 'SELL' on Polymarket
 
-      let settlementPnl = 0;
+      // Calculate Polymarket side P/L
+      let polymarketPnl = 0;
 
       if (hedgeSide === 'BUY') {
-        if (hedgeWon) {
-          // Bought winning shares: profit
-          settlementPnl = (resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
+        if (outcomeWon) {
+          // We bought winning shares on Polymarket: we get paid $1/share
+          polymarketPnl = (resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
         } else {
-          // Bought losing shares: loss
-          settlementPnl = -hedgePosition.hedgePrice * hedgePosition.amount;
+          // We bought losing shares on Polymarket: we lose our stake
+          polymarketPnl = -hedgePosition.hedgePrice * hedgePosition.amount;
         }
       } else {
         // SELL
-        if (hedgeWon) {
-          // Sold winning shares (must pay out): loss
-          settlementPnl = -(resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
+        if (outcomeWon) {
+          // We sold winning shares on Polymarket: we must pay out $1/share
+          polymarketPnl = -(resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
         } else {
-          // Sold losing shares (keep premium): profit
-          settlementPnl = hedgePosition.hedgePrice * hedgePosition.amount;
+          // We sold losing shares on Polymarket: we keep the premium
+          polymarketPnl = hedgePosition.hedgePrice * hedgePosition.amount;
         }
       }
 
-      // Subtract fees
-      settlementPnl -= (hedgePosition.polymarketFees || 0) + (hedgePosition.gasCost || 0);
+      // Calculate User liability side P/L
+      // Note: The actual user payout happens in resolveMarket(), but we need to account for it here
+      // to show the complete hedge P/L
+      let userLiabilityPnl = 0;
 
-      // Add spread captured
-      const totalPnl = hedgePosition.spreadCaptured + settlementPnl;
+      if (hedgeSide === 'BUY') {
+        // If we bought on Polymarket, user bought from us (we have liability)
+        if (outcomeWon) {
+          // User gets $1/share, we paid userPrice, so we owe the difference
+          // This is already handled in resolveMarket, but we track it here for accounting
+          userLiabilityPnl = -(resolutionPrice * hedgePosition.amount);
+        } else {
+          // User gets $0, we don't owe anything
+          userLiabilityPnl = 0;
+        }
+      } else {
+        // SELL - if we sold on Polymarket, user sold to us (we own the shares)
+        if (outcomeWon) {
+          // We own winning shares, we get $1/share (handled in resolveMarket)
+          userLiabilityPnl = resolutionPrice * hedgePosition.amount;
+        } else {
+          // We own losing shares, worth $0
+          userLiabilityPnl = 0;
+        }
+      }
+
+      // Net settlement P/L = Polymarket side + User liability side
+      const settlementPnl = polymarketPnl + userLiabilityPnl;
+
+      // Subtract fees
+      const totalFees = (hedgePosition.polymarketFees || 0) + (hedgePosition.gasCost || 0);
+
+      // Total P/L = Spread captured upfront + Settlement P/L - Fees
+      // For a perfect hedge, settlementPnl should be ≈ $0, leaving just (spread - fees)
+      const totalPnl = hedgePosition.spreadCaptured + settlementPnl - totalFees;
 
       // Update the position
       await prisma.hedgePosition.update({
@@ -781,16 +867,22 @@ export class HedgeManager {
             ...(hedgePosition.metadata as object || {}),
             settlementDetails: {
               winningOutcome,
-              hedgeWon,
+              outcomeWon,
+              polymarketPnl,
+              userLiabilityPnl,
               settlementPnl,
+              totalFees,
               resolutionPrice,
               settledAt: new Date().toISOString(),
+              explanation: outcomeWon
+                ? `Hedged outcome WON. Polymarket: $${polymarketPnl.toFixed(2)}, User liability: $${userLiabilityPnl.toFixed(2)}, Net: $${settlementPnl.toFixed(2)}`
+                : `Hedged outcome LOST. Polymarket: $${polymarketPnl.toFixed(2)}, User liability: $${userLiabilityPnl.toFixed(2)}, Net: $${settlementPnl.toFixed(2)}`,
             },
           },
         },
       });
 
-      console.log(`[HedgeManager] Settled hedge ${hedgePositionId}: PnL = $${totalPnl.toFixed(2)}`);
+      console.log(`[HedgeManager] Settled hedge ${hedgePositionId}: Total PnL = $${totalPnl.toFixed(2)} (Spread: $${hedgePosition.spreadCaptured.toFixed(2)}, Settlement: $${settlementPnl.toFixed(2)}, Fees: -$${totalFees.toFixed(2)})`);
 
       return { settled: true, pnl: totalPnl };
     } catch (error: any) {

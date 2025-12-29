@@ -23,6 +23,7 @@ interface GroupedBinaryTradingPanelProps {
     outcomes: Outcome[];
     liveOutcomes?: Outcome[];
     onTradeSuccess?: () => void;
+    onTrade?: () => void; // Alias for onTradeSuccess
     creationDate?: string;
     resolutionDate?: string;
     selectedOutcomeId?: string | null;
@@ -40,6 +41,7 @@ export function GroupedBinaryTradingPanel({
     outcomes,
     liveOutcomes: propsLiveOutcomes,
     onTradeSuccess,
+    onTrade,
     creationDate,
     resolutionDate,
     selectedOutcomeId: externalOutcomeId,
@@ -194,6 +196,7 @@ export function GroupedBinaryTradingPanel({
             queryClient.invalidateQueries({ queryKey: ['user-balances'] });
             queryClient.invalidateQueries({ queryKey: ['orders', eventId] });
             if (onTradeSuccess) onTradeSuccess();
+            if (onTrade) onTrade();
         },
         onError: (err: any) => {
             toast({

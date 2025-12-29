@@ -503,42 +503,69 @@ export async function placeHybridOrder(
                 // Attempt hedge asynchronously (don't block user order)
                 if (result.success && result.placeholderOrderId) {
                     // Import hedgeManager dynamically to avoid circular dependencies
-                    import('./hedge-manager').then(({ hedgeManager }) => {
-                        hedgeManager.loadConfig().then(() => {
-                            // Check if we should hedge this order
-                            hedgeManager.canHedge({
+                    import('./hedge-manager').then(async ({ hedgeManager }) => {
+                        // Import Sentry for error tracking
+                        const Sentry = await import('@sentry/nextjs').catch(() => null);
+
+                        // Create Sentry scope for hedge operation
+                        const hedgeScope = Sentry ? Sentry.getCurrentScope() : null;
+                        if (hedgeScope) {
+                            hedgeScope.setContext('hedge', {
+                                orderId: result.placeholderOrderId,
                                 eventId,
                                 size: quote.shares,
                                 price: quote.avgPrice,
                                 side,
-                            }).then((canHedge) => {
-                                if (canHedge.feasible) {
-                                    console.log(`[HEDGE] Attempting to hedge order ${result.placeholderOrderId}`);
-                                    // Execute hedge asynchronously
-                                    hedgeManager.executeHedge({
-                                        userOrderId: result.placeholderOrderId!,
-                                        eventId,
-                                        size: quote.shares,
-                                        userPrice: quote.avgPrice,
-                                        side,
-                                    }).then((hedgeResult) => {
-                                        if (hedgeResult.success) {
-                                            console.log(`[HEDGE] Successfully hedged order ${result.placeholderOrderId}`);
-                                        } else {
-                                            console.warn(`[HEDGE] Failed to hedge order ${result.placeholderOrderId}:`, hedgeResult.error);
-                                        }
-                                    }).catch((err) => {
-                                        console.error(`[HEDGE] Error executing hedge:`, err);
-                                    });
-                                } else {
-                                    console.log(`[HEDGE] Skipping hedge for order ${result.placeholderOrderId}:`, canHedge.reason);
-                                }
-                            }).catch((err) => {
-                                console.error(`[HEDGE] Error checking hedge feasibility:`, err);
                             });
-                        }).catch((err) => {
-                            console.error(`[HEDGE] Error loading config:`, err);
-                        });
+                        }
+
+                        try {
+                            hedgeScope?.addBreadcrumb({ message: 'Loading hedge config', category: 'hedge' });
+                            await hedgeManager.loadConfig();
+
+                            // Check if we should hedge this order
+                            hedgeScope?.addBreadcrumb({ message: 'Checking hedge feasibility', category: 'hedge' });
+                            const canHedge = await hedgeManager.canHedge({
+                                eventId,
+                                size: quote.shares,
+                                price: quote.avgPrice,
+                                side,
+                            });
+
+                            if (canHedge.feasible) {
+                                console.log(`[HEDGE] Attempting to hedge order ${result.placeholderOrderId}`);
+                                hedgeScope?.addBreadcrumb({ message: 'Executing hedge', category: 'hedge' });
+
+                                // Execute hedge asynchronously
+                                const hedgeResult = await hedgeManager.executeHedge({
+                                    userOrderId: result.placeholderOrderId!,
+                                    eventId,
+                                    size: quote.shares,
+                                    userPrice: quote.avgPrice,
+                                    side,
+                                });
+
+                                if (hedgeResult.success) {
+                                    console.log(`[HEDGE] Successfully hedged order ${result.placeholderOrderId}`);
+                                } else {
+                                    console.warn(`[HEDGE] Failed to hedge order ${result.placeholderOrderId}:`, hedgeResult.error);
+                                    // Report hedge failure to Sentry
+                                    Sentry?.captureException(new Error(`Hedge failed: ${hedgeResult.error}`), {
+                                        level: 'warning',
+                                        tags: { component: 'hedging' },
+                                    });
+                                }
+                            } else {
+                                console.log(`[HEDGE] Skipping hedge for order ${result.placeholderOrderId}:`, canHedge.reason);
+                            }
+                        } catch (err) {
+                            console.error(`[HEDGE] Error in hedge pipeline:`, err);
+                            // Report to Sentry with full context
+                            Sentry?.captureException(err, {
+                                level: 'error',
+                                tags: { component: 'hedging' },
+                            });
+                        }
                     }).catch((err) => {
                         console.error(`[HEDGE] Error importing hedge manager:`, err);
                     });
