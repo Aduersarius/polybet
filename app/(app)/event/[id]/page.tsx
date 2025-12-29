@@ -7,6 +7,7 @@ import { OrderBook } from '@/app/components/OrderBook';
 import { SuggestedEvents } from '@/app/components/SuggestedEvents';
 import { TradingPanel } from '@/app/components/TradingPanel';
 import { MultipleTradingPanel } from '@/app/components/MultipleTradingPanel';
+import { GroupedBinaryTradingPanel } from '@/app/components/GroupedBinaryTradingPanel';
 import { ActivityList } from '@/app/components/ActivityList';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
@@ -307,7 +308,16 @@ export default function EventPage() {
 
                                         {/* Trading panel on mobile (desktop keeps side placement) */}
                                         <div className="lg:hidden">
-                                            {isMultiOutcomeEvent(liveEvent.type) ? (
+                                            {liveEvent.type === 'GROUPED_BINARY' ? (
+                                                <GroupedBinaryTradingPanel
+                                                    eventId={eventId.toString()}
+                                                    outcomes={liveEvent.outcomes || []}
+                                                    liveOutcomes={liveEvent.outcomes || []}
+                                                    creationDate={liveEvent.createdAt || liveEvent.creationDate}
+                                                    resolutionDate={liveEvent.resolutionDate}
+                                                    onTrade={handleTrade}
+                                                />
+                                            ) : isMultiOutcomeEvent(liveEvent.type) ? (
                                                 <MultipleTradingPanel
                                                     outcomes={liveEvent.outcomes || []}
                                                     liveOutcomes={liveEvent.outcomes || []}
@@ -443,7 +453,16 @@ export default function EventPage() {
                                 {/* Right Column - Scrollable */}
                                 <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar pt-[calc(var(--navbar-height)+0.5rem)]">
                                     <div className="space-y-6 trading-panel pb-6 pt-4">
-                                        {isMultiOutcomeEvent(liveEvent.type) ? (
+                                        {liveEvent.type === 'GROUPED_BINARY' ? (
+                                            <GroupedBinaryTradingPanel
+                                                eventId={eventId.toString()}
+                                                outcomes={liveEvent.outcomes || []}
+                                                liveOutcomes={liveEvent.outcomes || []}
+                                                creationDate={liveEvent.createdAt || liveEvent.creationDate}
+                                                resolutionDate={liveEvent.resolutionDate}
+                                                onTrade={handleTrade}
+                                            />
+                                        ) : isMultiOutcomeEvent(liveEvent.type) ? (
                                             <MultipleTradingPanel
                                                 outcomes={liveEvent.outcomes || []}
                                                 liveOutcomes={liveEvent.outcomes || []}
