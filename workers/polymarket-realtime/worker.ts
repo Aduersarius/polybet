@@ -86,6 +86,7 @@ let marketMappings: Map<string, MarketMapping> = new Map(); // tokenId -> mappin
 let lastPrices: Map<string, number> = new Map(); // tokenId -> price
 let subscriptionTokenIds: string[] = [];
 let wsClient: RealTimeDataClient | null = null;
+let stats = { messages: 0, updates: 0, errors: 0 };
 
 /**
  * Load active Polymarket market mappings from database
@@ -294,6 +295,7 @@ async function updateOutcomeProbability(
  * Handle incoming WebSocket messages
  */
 async function handleMessage(message: Message): Promise<void> {
+    stats.messages++;
     const { topic, type, payload } = message;
 
     if (DRY_RUN) {
@@ -319,6 +321,7 @@ async function handleMessage(message: Message): Promise<void> {
                 if (!mapping) return;
 
                 await updateOutcomeProbability(mapping.internalEventId, asset_id, priceNum, mapping);
+                stats.updates++;
                 console.log(`[Worker] Updated ${asset_id}: ${(priceNum * 100).toFixed(1)}%`);
             } else if (type === 'price_change') {
                 // PriceChanges: { m (market), pc (price changes array), t (timestamp) }
@@ -758,7 +761,9 @@ async function main(): Promise<void> {
 
     // Heartbeat log
     setInterval(() => {
-        console.log(`[Worker] Heartbeat: ${subscriptionTokenIds.length} subscriptions, ${lastPrices.size} cached prices`);
+        console.log(`[Worker] Heartbeat: ${subscriptionTokenIds.length} subscriptions, ${lastPrices.size} cached prices. Last 30s: ${stats.messages} msgs, ${stats.updates} updates, ${stats.errors} errors`);
+        // Reset stats
+        stats = { messages: 0, updates: 0, errors: 0 };
     }, HEARTBEAT_INTERVAL_MS);
 }
 
