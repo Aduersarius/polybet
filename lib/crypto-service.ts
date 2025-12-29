@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { ethers } from 'ethers';
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
+import { updateReferralStats } from '@/lib/affiliate-tracking';
 
 const DEPOSIT_ADDRESS_SELECT = {
     address: true,
