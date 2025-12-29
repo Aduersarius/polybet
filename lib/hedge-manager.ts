@@ -370,6 +370,8 @@ export class HedgeManager {
       );
 
       const fees = estimatePolymarketFees(size, hedgePrice);
+      const netProfit = hedgePosition.spreadCaptured - fees;
+      
       await prisma.hedgePosition.update({
         where: { id: hedgePosition.id },
         data: {
@@ -377,11 +379,32 @@ export class HedgeManager {
           status: 'hedged',
           hedgedAt: new Date(),
           polymarketFees: fees,
-          netProfit: hedgePosition.spreadCaptured - fees,
+          netProfit,
         },
       });
 
       console.log(`[HedgeManager] Successfully hedged order ${userOrderId}`);
+
+      // Track affiliate referral trade stats (non-blocking)
+      if (netProfit > 0) {
+        try {
+          const order = await prisma.order.findUnique({
+            where: { id: userOrderId },
+            select: { userId: true, amount: true }
+          });
+
+          if (order) {
+            const { updateReferralTradeStats } = await import('@/lib/affiliate-tracking');
+            await updateReferralTradeStats(order.userId, {
+              volume: order.amount,
+              revenue: netProfit // Platform profit from this hedge
+            });
+          }
+        } catch (affiliateError) {
+          // Don't fail hedge if affiliate tracking fails
+          console.error('[HedgeManager] Affiliate tracking error (non-blocking):', affiliateError);
+        }
+      }
 
       return {
         success: true,
