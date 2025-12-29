@@ -273,12 +273,12 @@ export class CryptoService {
                     const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
 
                     const balances = hasLockedColumn
-                        ? await txPrisma.$queryRaw<Array<{id: string, amount: any, locked: any}>>`
+                        ? await txPrisma.$queryRaw<Array<{ id: string, amount: any, locked: any }>>`
                             SELECT "id", "amount", "locked" FROM "Balance"
                             WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
                             FOR UPDATE
                         `
-                        : await txPrisma.$queryRaw<Array<{id: string, amount: any}>>`
+                        : await txPrisma.$queryRaw<Array<{ id: string, amount: any }>>`
                             SELECT "id", "amount" FROM "Balance"
                             WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
                             FOR UPDATE
@@ -400,7 +400,7 @@ export class CryptoService {
         }
 
         let withdrawalId: string;
-        
+
         try {
             withdrawalId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 // Lock the balance row for update
@@ -456,11 +456,11 @@ export class CryptoService {
             });
 
             this.log(`[WITHDRAWAL] Successfully created withdrawal request for user ${userId}`);
-            
+
             // Return withdrawal ID for notification
             return withdrawalId;
         } catch (error) {
-            console.error(`[WITHDRAWAL] Failed to create withdrawal request for user ${userId}:`, error);
+            console.error('[WITHDRAWAL] Failed to create withdrawal request for user %s:', userId, error);
             throw error;
         }
     }
@@ -589,7 +589,7 @@ export class CryptoService {
                     updateAttempts++;
                     this.warn(`[WITHDRAWAL] DB update attempt ${updateAttempts} failed for ${withdrawalId}:`, dbError);
                     if (updateAttempts >= maxAttempts) {
-                        console.error(`[WITHDRAWAL] Failed to update withdrawal status after successful transfer for ${withdrawalId}:`, dbError);
+                        console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for %s:', withdrawalId, dbError);
                         // At this point, transfer succeeded but DB update failed
                         // This is a critical error that needs manual intervention
                         throw new Error(`Transfer succeeded but database update failed for withdrawal ${withdrawalId} - manual intervention required`);
@@ -601,7 +601,7 @@ export class CryptoService {
 
             return tx.hash;
         } catch (error) {
-            console.error(`[WITHDRAWAL] Withdrawal processing failed for ${withdrawalId}:`, error);
+            console.error('[WITHDRAWAL] Withdrawal processing failed for %s:', withdrawalId, error);
 
             // Attempt to mark as failed and refund
             try {
@@ -645,11 +645,11 @@ export class CryptoService {
                         });
                         this.log(`[WITHDRAWAL] Successfully refunded ${refundAmount} USD to user ${withdrawal.userId}`);
                     } else {
-                        console.error(`[WITHDRAWAL] No balance found to refund for user ${withdrawal.userId}`);
+                        console.error('[WITHDRAWAL] No balance found to refund for user %s', withdrawal.userId);
                     }
                 });
             } catch (refundError) {
-                console.error(`[WITHDRAWAL] CRITICAL: Failed to update withdrawal status and refund for ${withdrawalId}. Manual intervention required:`, refundError);
+                console.error('[WITHDRAWAL] CRITICAL: Failed to update withdrawal status and refund for %s. Manual intervention required:', withdrawalId, refundError);
                 // If both transfer succeeded and refund failed, this is very bad
                 // The user has been debited but transfer may or may not have succeeded
                 throw new Error(`Withdrawal processing failed and rollback incomplete for ${withdrawalId} - manual intervention required`);
