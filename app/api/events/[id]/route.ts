@@ -203,22 +203,37 @@ export async function GET(
                 };
 
                 if (inferredType === 'MULTIPLE') {
-                    // For multiple outcomes, calculate probabilities using LMSR
+                    // For multiple outcomes: use stored probability first (Polymarket-synced events),
+                    // only fall back to LMSR for locally-created events with liquidity positions
                     const { calculateMultipleLMSRProbabilities } = await import('@/lib/amm');
                     const b = (event as any).liquidityParameter || 10000.0;
 
-                    // Create liquidity map from outcomes
+                    // Check if any outcome has stored probability (non-zero, non-default)
+                    const hasStoredProbabilities = (event as any).outcomes.some(
+                        (o: any) => o.probability != null && o.probability !== 0.5 && o.probability > 0
+                    );
+
+                    // Create liquidity map from outcomes for LMSR fallback
                     const outcomeLiquidities = new Map<string, number>();
                     (event as any).outcomes.forEach((outcome: any) => {
                         outcomeLiquidities.set(outcome.id, outcome.liquidity || 0);
                     });
 
-                    // Calculate current probabilities
-                    const probabilities = calculateMultipleLMSRProbabilities(outcomeLiquidities, b);
+                    // Check if there's meaningful liquidity for LMSR calculation
+                    const hasLiquidity = Array.from(outcomeLiquidities.values()).some(l => l > 0);
 
-                    // Add calculated odds to outcomes
+                    // Calculate LMSR probabilities only if we have liquidity and no stored probabilities
+                    const lmsrProbabilities = hasLiquidity && !hasStoredProbabilities
+                        ? calculateMultipleLMSRProbabilities(outcomeLiquidities, b)
+                        : new Map<string, number>();
+
+                    // Add calculated odds to outcomes - prioritize stored probability
                     const outcomesWithOdds = (event as any).outcomes.map((outcome: any) => {
-                        const probability = probabilities.get(outcome.id) || outcome.probability || 0.5;
+                        // Priority: 1) stored probability, 2) LMSR calculated, 3) equal split
+                        let probability = outcome.probability;
+                        if (probability == null || probability === 0) {
+                            probability = lmsrProbabilities.get(outcome.id) || (1 / (event as any).outcomes.length);
+                        }
                         return {
                             ...outcome,
                             probability, // Set the probability field for the component

@@ -261,6 +261,38 @@ export function validateUUID(value: unknown, required: boolean = false): Validat
 }
 
 /**
+ * Validates an event ID (accepts both UUID format and numeric string for Polymarket IDs)
+ */
+export function validateEventId(value: unknown, required: boolean = false): ValidationResult {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const numericPattern = /^\d+$/;
+    // Also allow alphanumeric IDs like "cmiop7iys001fbbofy5tac70l" (cuid format)
+    const cuidPattern = /^[a-z0-9]{20,30}$/i;
+
+    const stringResult = validateString(value, {
+        required,
+        trim: true,
+        maxLength: 100
+    });
+
+    if (!stringResult.valid) {
+        return stringResult;
+    }
+
+    const sanitized = stringResult.sanitized;
+    if (!sanitized && !required) {
+        return { valid: true, sanitized: '' };
+    }
+
+    // Check if it matches any valid format
+    if (uuidPattern.test(sanitized) || numericPattern.test(sanitized) || cuidPattern.test(sanitized)) {
+        return { valid: true, sanitized };
+    }
+
+    return { valid: false, error: 'Invalid event ID format' };
+}
+
+/**
  * Validates a boolean
  */
 export function validateBoolean(value: unknown, required: boolean = false): ValidationResult {

@@ -9,7 +9,7 @@ import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateNumber, validateUUID } from '@/lib/validation';
+import { validateString, validateNumber, validateEventId, validateUUID } from '@/lib/validation';
 import { trackTrade, trackApiLatency, trackError, startTimer } from '@/lib/sentry-metrics';
 
 export async function POST(request: Request) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // Validate inputs
-        const eventIdResult = validateUUID(body.eventId, true);
+        const eventIdResult = validateEventId(body.eventId, true);
         if (!eventIdResult.valid) {
             return createClientErrorResponse(`eventId: ${eventIdResult.error}`, 400);
         }
