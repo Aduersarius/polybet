@@ -20,6 +20,10 @@ const DRY_RUN = process.env.DRY_RUN === 'true';
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
 const ODDS_HISTORY_BUCKET_MS = 30 * 60 * 1000; // 30 minutes - consistent with historical backfill candles
 
+// Price validation thresholds to prevent garbage data
+const MAX_ALLOWED_SPREAD = 0.30; // 30% max bid/ask spread
+const MAX_PRICE_DEVIATION = 0.25; // 25% max deviation from stored value
+
 if (!DATABASE_URL) {
     console.error('[Worker] DATABASE_URL is required');
     process.exit(1);
@@ -185,6 +189,7 @@ async function updateOutcomeProbability(
 
     // Find matching outcome in our database
     let outcomeId: string | null = null;
+    let currentProbability: number | undefined;
 
     // For binary events, map YES/NO based on token ID
     if (mapping.eventType === 'BINARY') {
@@ -194,9 +199,10 @@ async function updateOutcomeProbability(
                 eventId,
                 name: { in: isYes ? ['YES', 'Yes', 'yes'] : ['NO', 'No', 'no'] },
             },
-            select: { id: true },
+            select: { id: true, probability: true },
         });
         outcomeId = outcomeMatch?.id || null;
+        currentProbability = outcomeMatch?.probability;
     } else {
         // For MULTIPLE, find by polymarketOutcomeId
         const outcomeMatch = await prisma.outcome.findFirst({
@@ -204,14 +210,25 @@ async function updateOutcomeProbability(
                 eventId,
                 polymarketOutcomeId: tokenId,
             },
-            select: { id: true },
+            select: { id: true, probability: true },
         });
         outcomeId = outcomeMatch?.id || null;
+        currentProbability = outcomeMatch?.probability;
     }
 
     if (!outcomeId) {
         console.warn(`[Worker] No outcome found for event ${eventId}, token ${tokenId}`);
         return;
+    }
+
+    // SPIKE DETECTION: Reject updates that deviate too much from current stored value
+    // This prevents garbage data from oscillating YES/NO inversions and thin orderbooks
+    if (currentProbability !== undefined && currentProbability > 0) {
+        const deviation = Math.abs(probability - currentProbability);
+        if (deviation > MAX_PRICE_DEVIATION) {
+            console.warn(`[Worker] ⚠️ REJECTED SPIKE for ${eventId} (${tokenId}): ${(currentProbability * 100).toFixed(1)}% → ${(probability * 100).toFixed(1)}% (gap ${(deviation * 100).toFixed(1)}% > ${MAX_PRICE_DEVIATION * 100}%)`);
+            return;
+        }
     }
 
     // Update outcome probability
@@ -278,6 +295,7 @@ async function updateOutcomeProbability(
     // Broadcast update via Redis
     if (redis) {
         try {
+            // 1. Broad sports-odds update (legacy/targeted)
             await redis.publish('sports-odds', JSON.stringify({
                 eventId,
                 outcomeId,
@@ -285,8 +303,35 @@ async function updateOutcomeProbability(
                 price,
                 timestamp: Date.now(),
             }));
-        } catch {
-            // Ignore Redis errors
+
+            // 2. Targeted event-updates for hot ingestion in UI (EventCards, TradingPanels)
+            const eventPayload: any = {
+                eventId,
+                timestamp: Date.now(),
+            };
+
+            if (mapping.eventType === 'BINARY') {
+                const isYes = tokenId === mapping.yesTokenId;
+                const oppositeTokenId = isYes ? mapping.noTokenId : mapping.yesTokenId;
+                const oppositePrice = oppositeTokenId ? (lastPrices.get(oppositeTokenId) ?? (1 - price)) : (1 - price);
+
+                eventPayload.yesPrice = isYes ? price : oppositePrice;
+                eventPayload.noPrice = isYes ? oppositePrice : price;
+            } else {
+                // For Multiple/Grouped, we can send the updated outcomes list
+                // We'll map the current outcome and use cached values for others
+                eventPayload.outcomes = mapping.outcomeMapping.map(oc => {
+                    const ocPrice = oc.polymarketId === tokenId ? price : (lastPrices.get(oc.polymarketId) || 0);
+                    return {
+                        id: oc.internalId,
+                        probability: ocPrice,
+                    };
+                });
+            }
+
+            await redis.publish('event-updates', JSON.stringify(eventPayload));
+        } catch (err) {
+            console.error('[Worker] Redis publish error:', err);
         }
     }
 }
@@ -335,7 +380,17 @@ async function handleMessage(message: Message): Promise<void> {
                     // Use mid price if available, otherwise last trade price
                     let priceNum: number;
                     if (bestBid && bestAsk) {
-                        priceNum = (parseFloat(bestBid) + parseFloat(bestAsk)) / 2;
+                        const bid = parseFloat(bestBid);
+                        const ask = parseFloat(bestAsk);
+                        const spread = ask - bid;
+
+                        // SPREAD VALIDATION: Reject wide spreads that produce garbage mid-prices
+                        if (spread > MAX_ALLOWED_SPREAD) {
+                            // Wide spread - skip this update
+                            continue;
+                        }
+
+                        priceNum = (bid + ask) / 2;
                     } else if (price) {
                         priceNum = parseFloat(price);
                     } else {

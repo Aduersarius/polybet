@@ -17,6 +17,9 @@ const REDIS_URL = process.env.REDIS_URL;
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
 const ODDS_HISTORY_BUCKET_MS = 30 * 60 * 1000; // 30 minutes - consistent with historical backfill candles
+// Price validation thresholds to prevent garbage data
+const MAX_ALLOWED_SPREAD = 0.30; // 30% max bid/ask spread
+const MAX_PRICE_DEVIATION = 0.25; // 25% max deviation from stored value
 if (!DATABASE_URL) {
     console.error('[Worker] DATABASE_URL is required');
     process.exit(1);
@@ -46,6 +49,7 @@ let marketMappings = new Map(); // tokenId -> mapping
 let lastPrices = new Map(); // tokenId -> price
 let subscriptionTokenIds = [];
 let wsClient = null;
+let stats = { messages: 0, updates: 0, errors: 0 };
 /**
  * Load active Polymarket market mappings from database
  */
@@ -126,6 +130,7 @@ async function updateOutcomeProbability(eventId, tokenId, price, mapping) {
     const probability = clamp01(price);
     // Find matching outcome in our database
     let outcomeId = null;
+    let currentProbability;
     // For binary events, map YES/NO based on token ID
     if (mapping.eventType === 'BINARY') {
         const isYes = tokenId === mapping.yesTokenId;
@@ -134,9 +139,10 @@ async function updateOutcomeProbability(eventId, tokenId, price, mapping) {
                 eventId,
                 name: { in: isYes ? ['YES', 'Yes', 'yes'] : ['NO', 'No', 'no'] },
             },
-            select: { id: true },
+            select: { id: true, probability: true },
         });
         outcomeId = outcomeMatch?.id || null;
+        currentProbability = outcomeMatch?.probability;
     }
     else {
         // For MULTIPLE, find by polymarketOutcomeId
@@ -145,13 +151,23 @@ async function updateOutcomeProbability(eventId, tokenId, price, mapping) {
                 eventId,
                 polymarketOutcomeId: tokenId,
             },
-            select: { id: true },
+            select: { id: true, probability: true },
         });
         outcomeId = outcomeMatch?.id || null;
+        currentProbability = outcomeMatch?.probability;
     }
     if (!outcomeId) {
         console.warn(`[Worker] No outcome found for event ${eventId}, token ${tokenId}`);
         return;
+    }
+    // SPIKE DETECTION: Reject updates that deviate too much from current stored value
+    // This prevents garbage data from oscillating YES/NO inversions and thin orderbooks
+    if (currentProbability !== undefined && currentProbability > 0) {
+        const deviation = Math.abs(probability - currentProbability);
+        if (deviation > MAX_PRICE_DEVIATION) {
+            console.warn(`[Worker] ⚠️ REJECTED SPIKE for ${eventId} (${tokenId}): ${(currentProbability * 100).toFixed(1)}% → ${(probability * 100).toFixed(1)}% (gap ${(deviation * 100).toFixed(1)}% > ${MAX_PRICE_DEVIATION * 100}%)`);
+            return;
+        }
     }
     // Update outcome probability
     await prisma.outcome.update({
@@ -228,14 +244,15 @@ async function updateOutcomeProbability(eventId, tokenId, price, mapping) {
  * Handle incoming WebSocket messages
  */
 async function handleMessage(message) {
+    stats.messages++;
     const { topic, type, payload } = message;
     if (DRY_RUN) {
         console.log(`[DRY_RUN] ${topic}/${type}:`, JSON.stringify(payload).slice(0, 200));
         return;
     }
     try {
-        if (topic === 'clob-market') {
-            if (type === 'last-trade-price') {
+        if (topic === 'clob_market') {
+            if (type === 'last_trade_price') {
                 // LastTradePrice: { asset_id, market, price, side, size, fee_rate_bps }
                 const { asset_id, price } = payload;
                 if (!asset_id || price === undefined)
@@ -250,9 +267,10 @@ async function handleMessage(message) {
                 if (!mapping)
                     return;
                 await updateOutcomeProbability(mapping.internalEventId, asset_id, priceNum, mapping);
+                stats.updates++;
                 console.log(`[Worker] Updated ${asset_id}: ${(priceNum * 100).toFixed(1)}%`);
             }
-            else if (type === 'price-change') {
+            else if (type === 'price_change') {
                 // PriceChanges: { m (market), pc (price changes array), t (timestamp) }
                 const { pc } = payload;
                 if (!Array.isArray(pc))
@@ -264,7 +282,15 @@ async function handleMessage(message) {
                     // Use mid price if available, otherwise last trade price
                     let priceNum;
                     if (bestBid && bestAsk) {
-                        priceNum = (parseFloat(bestBid) + parseFloat(bestAsk)) / 2;
+                        const bid = parseFloat(bestBid);
+                        const ask = parseFloat(bestAsk);
+                        const spread = ask - bid;
+                        // SPREAD VALIDATION: Reject wide spreads that produce garbage mid-prices
+                        if (spread > MAX_ALLOWED_SPREAD) {
+                            // Wide spread - skip this update
+                            continue;
+                        }
+                        priceNum = (bid + ask) / 2;
                     }
                     else if (price) {
                         priceNum = parseFloat(price);
@@ -302,18 +328,19 @@ function connect() {
             return;
         }
         // Subscribe to LastTradePrice and PriceChanges for our tokens
-        // Filter format for clob-market: JSON array of token IDs (per Polymarket docs)
+        // Filter format for clob_market: JSON array of token IDs (per Polymarket docs)
+        // We pass a stringified JSON array as filters (SDK expects string)
         const filter = JSON.stringify(subscriptionTokenIds);
         client.subscribe({
             subscriptions: [
                 {
-                    topic: 'clob-market',
-                    type: 'last-trade-price',
+                    topic: 'clob_market',
+                    type: 'last_trade_price',
                     filters: filter,
                 },
                 {
-                    topic: 'clob-market',
-                    type: 'price-change',
+                    topic: 'clob_market',
+                    type: 'price_change',
                     filters: filter,
                 },
             ],
@@ -353,13 +380,13 @@ async function refreshMappings() {
             wsClient.subscribe({
                 subscriptions: [
                     {
-                        topic: 'clob-market',
-                        type: 'last-trade-price',
+                        topic: 'clob_market',
+                        type: 'last_trade_price',
                         filters: filter,
                     },
                     {
-                        topic: 'clob-market',
-                        type: 'price-change',
+                        topic: 'clob_market',
+                        type: 'price_change',
                         filters: filter,
                     },
                 ],
@@ -636,7 +663,9 @@ async function main() {
     setTimeout(runResolutionSync, 60_000);
     // Heartbeat log
     setInterval(() => {
-        console.log(`[Worker] Heartbeat: ${subscriptionTokenIds.length} subscriptions, ${lastPrices.size} cached prices`);
+        console.log(`[Worker] Heartbeat: ${subscriptionTokenIds.length} subscriptions, ${lastPrices.size} cached prices. Last 30s: ${stats.messages} msgs, ${stats.updates} updates, ${stats.errors} errors`);
+        // Reset stats
+        stats = { messages: 0, updates: 0, errors: 0 };
     }, HEARTBEAT_INTERVAL_MS);
 }
 main().catch((err) => {

@@ -189,8 +189,26 @@ async function loadPolymarketHistory(eventId: string, period: string) {
 }
 
 /**
+ * Maximum spread allowed between bid/ask to trust the mid-price.
+ * A spread of 0.50 means bid=0.01, ask=0.51 would be rejected.
+ * This prevents garbage 50/50 mid-prices from thin orderbooks.
+ */
+const MAX_ALLOWED_SPREAD = 0.30; // 30% max spread
+
+/**
+ * Maximum deviation allowed from the last known price.
+ * Prevents sudden spikes from orderbook manipulation or stale data.
+ */
+const MAX_PRICE_DEVIATION = 0.25; // 25% max deviation
+
+/**
  * Fetch live prices directly from Polymarket CLOB API orderbook
  * Returns a single point with current timestamp and mid-prices for each outcome
+ * 
+ * IMPORTANT: This function validates orderbook quality to prevent garbage data:
+ * 1. Requires BOTH bid AND ask to be present (no one-sided books)
+ * 2. Spread must be <= MAX_ALLOWED_SPREAD (rejects thin books like 0.01/0.99)
+ * 3. Price deviation from last known must be <= MAX_PRICE_DEVIATION (prevents spikes)
  */
 async function fetchLivePolymarketPrices(
   outcomes: Array<{ id: string; name: string; probability: number; polymarketOutcomeId: string | null }>,
@@ -219,34 +237,52 @@ async function fetchLivePolymarketPrices(
       const bids = Array.isArray(data?.bids) ? data.bids : [];
       const asks = Array.isArray(data?.asks) ? data.asks : [];
 
-      // Calculate mid-price from best bid/ask
+      // Parse best bid/ask
       const bestBid = bids.length > 0 ? parseFloat(bids[0]?.price ?? '0') : undefined;
       const bestAsk = asks.length > 0 ? parseFloat(asks[0]?.price ?? '0') : undefined;
 
-      let midPrice: number | undefined;
-      if (bestBid !== undefined && bestAsk !== undefined) {
-        midPrice = (bestBid + bestAsk) / 2;
-      } else if (bestAsk !== undefined) {
-        midPrice = bestAsk;
-      } else if (bestBid !== undefined) {
-        midPrice = bestBid;
+      // VALIDATION 1: Require BOTH bid AND ask to exist
+      // One-sided orderbooks (only bids OR only asks) produce unreliable prices
+      if (bestBid === undefined || bestAsk === undefined) {
+        console.warn(`[OddsHistory] Skipping ${outcome.name}: one-sided orderbook (bid=${bestBid}, ask=${bestAsk})`);
+        continue;
       }
 
-      if (midPrice !== undefined && Number.isFinite(midPrice)) {
-        const clampedPrice = Math.max(0, Math.min(1, midPrice));
-        liveOutcomes.push({
-          id: outcome.id,
-          name: outcome.name,
-          probability: clampedPrice,
-        });
+      // VALIDATION 2: Check spread is reasonable
+      // Wide spreads (e.g., 0.01/0.99) produce garbage mid-prices around 0.50
+      const spread = bestAsk - bestBid;
+      if (spread > MAX_ALLOWED_SPREAD) {
+        console.warn(`[OddsHistory] Skipping ${outcome.name}: spread too wide (${(spread * 100).toFixed(1)}% > ${(MAX_ALLOWED_SPREAD * 100)}%)`);
+        continue;
+      }
 
-        // Track yes/no for binary markets
-        if (!isMultiple) {
-          if (/yes/i.test(outcome.name)) {
-            yesPrice = clampedPrice;
-          } else if (/no/i.test(outcome.name)) {
-            noPrice = clampedPrice;
-          }
+      // Calculate mid-price
+      const midPrice = (bestBid + bestAsk) / 2;
+
+      if (!Number.isFinite(midPrice)) continue;
+
+      // VALIDATION 3: Check deviation from last known price
+      // Prevents sudden spikes from orderbook manipulation or stale data
+      const lastKnownPrice = outcome.probability; // From database
+      const deviation = Math.abs(midPrice - lastKnownPrice);
+      if (deviation > MAX_PRICE_DEVIATION) {
+        console.warn(`[OddsHistory] Skipping ${outcome.name}: price deviation too large (${(deviation * 100).toFixed(1)}% > ${(MAX_PRICE_DEVIATION * 100)}%). Live=${(midPrice * 100).toFixed(1)}%, DB=${(lastKnownPrice * 100).toFixed(1)}%`);
+        continue;
+      }
+
+      const clampedPrice = Math.max(0, Math.min(1, midPrice));
+      liveOutcomes.push({
+        id: outcome.id,
+        name: outcome.name,
+        probability: clampedPrice,
+      });
+
+      // Track yes/no for binary markets
+      if (!isMultiple) {
+        if (/yes/i.test(outcome.name)) {
+          yesPrice = clampedPrice;
+        } else if (/no/i.test(outcome.name)) {
+          noPrice = clampedPrice;
         }
       }
     } catch {
