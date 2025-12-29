@@ -1,12 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  binaryTargets   = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
-  previewFeatures = ["driverAdapters"]
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -89,6 +87,11 @@ model User {
   attachmentsUploaded  SupportAttachment[]  @relation("AttachmentUploader")
   auditLogs            SupportAuditLog[]    @relation("AuditUser")
   telegramLink         TelegramUser?        @relation("LinkedTelegramUser")
+  
+  // Affiliate referral tracking
+  referredBy           String?              // Affiliate ID who referred this user
+  referralDate         DateTime?             // When user clicked affiliate link
+  referralRecord       Referral?
 
   @@index([address])
   @@index([lastVisitedAt])
@@ -96,6 +99,7 @@ model User {
   @@index([lastCity])
   @@index([lastRegion])
   @@index([supportRole])
+  @@index([referredBy])
 }
 
 model TelemetryEvent {
@@ -893,4 +897,100 @@ model SupportRateLimit {
   
   @@unique([userId, action, windowStart])
   @@index([userId, action])
+}
+
+// ============================================
+// AFFILIATE SYSTEM
+// ============================================
+
+model Affiliate {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String   // Hashed password
+  name              String
+  companyName       String?
+  website           String?
+  
+  // Tracking identifiers
+  referralCode      String   @unique // e.g., "JOHN2024"
+  
+  // Statistics (counts only - no money amounts)
+  totalReferrals    Int      @default(0)
+  activeReferrals   Int      @default(0) // Users who deposited
+  totalDeposits     Int      @default(0) // Count of deposits
+  
+  // Status
+  isActive          Boolean  @default(true)
+  emailVerified     Boolean  @default(false)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  referrals         Referral[]
+  promoCodes        PromoCode[]
+  
+  @@index([referralCode])
+  @@index([email])
+  @@index([isActive])
+}
+
+model PromoCode {
+  id          String   @id @default(cuid())
+  affiliateId String
+  code        String   @unique // e.g., "SAVE20"
+  description String?
+  
+  usageCount  Int      @default(0)
+  maxUses     Int?     // Null = unlimited
+  
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id])
+  referrals   Referral[]
+  
+  @@index([code])
+  @@index([affiliateId])
+}
+
+model Referral {
+  id              String   @id @default(cuid())
+  affiliateId     String
+  userId          String   @unique // The referred user
+  promoCodeId     String?  // If promo code was used
+  
+  // Tracking metadata
+  referralSource  String?  // "URL" or "PROMO_CODE"
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  ipAddress       String?
+  userAgent       String?
+  
+  // Conversion tracking
+  signupDate      DateTime @default(now())
+  firstDepositDate DateTime?
+  
+  // Counts (visible to affiliate)
+  depositCount    Int      @default(0) // Number of deposits made
+  
+  // Revenue tracking (ADMIN ONLY - not shown to affiliate)
+  totalDepositAmount Decimal  @default(0.0) // Total $ deposited
+  totalVolume       Decimal  @default(0.0) // Total trading volume
+  totalRevenue      Decimal  @default(0.0) // Platform profit from this user
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  affiliate       Affiliate @relation(fields: [affiliateId], references: [id])
+  user            User      @relation(fields: [userId], references: [id])
+  promoCode       PromoCode? @relation(fields: [promoCodeId], references: [id])
+  
+  @@unique([affiliateId, userId])
+  @@index([affiliateId])
+  @@index([userId])
+  @@index([firstDepositDate])
 }

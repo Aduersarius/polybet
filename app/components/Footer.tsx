@@ -15,6 +15,8 @@ export function Footer() {
                         <Link prefetch href="/legal/terms" className="hover:text-white transition-colors">Terms & Conditions</Link>
                         <span className="text-gray-600">•</span>
                         <Link prefetch href="/legal/risk-warning" className="hover:text-white transition-colors">Risk Warning</Link>
+                        <span className="text-gray-600">•</span>
+                        <Link prefetch href="/affiliate/signup" className="hover:text-white transition-colors">Become a Partner</Link>
                     </div>
                     <div className="text-[10px] text-gray-500 text-center">
                         © 2025 PolyBet. All rights reserved.
