@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type IntakeItem = {
   polymarketId: string;
@@ -56,6 +57,11 @@ export function AdminPolymarketIntake() {
   const [forcedTypes, setForcedTypes] = useState<Record<string, 'MULTIPLE' | 'GROUPED_BINARY'>>({});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
 
   useEffect(() => {
     // Click outside to close dropdowns
@@ -286,6 +292,115 @@ export function AdminPolymarketIntake() {
 
   const filtered = useMemo(() => items, [items]);
 
+  // Items that haven't been processed yet
+  const selectableItems = useMemo(() => filtered.filter(i => i.status !== 'approved' && i.status !== 'rejected'), [filtered]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === selectableItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableItems.map((i) => i.polymarketId)));
+    }
+  };
+
+  const bulkApprove = async () => {
+    const toApprove = selectableItems.filter((i) => selectedIds.has(i.polymarketId));
+    if (toApprove.length === 0) return;
+
+    setBulkApproving(true);
+    setBulkProgress({ current: 0, total: toApprove.length });
+    setError(null);
+
+    let successCount = 0;
+    for (let i = 0; i < toApprove.length; i++) {
+      const item = toApprove[i];
+      setBulkProgress({ current: i + 1, total: toApprove.length });
+      setLoadingId(item.polymarketId);
+
+      try {
+        const internalEventId = item.internalEventId || makeRandomInternalId();
+        const outcomeMapping =
+          item.outcomes?.map((o, idx) => {
+            const tokenId = resolveTokenForOutcome(item, idx, o.name);
+            return {
+              internalOutcomeId: `${internalEventId}-${idx}`,
+              polymarketTokenId: tokenId,
+              name: o.name || `Outcome ${idx + 1}`,
+              probability: typeof o.probability === 'number' ? o.probability : o.price,
+            };
+          }) || [];
+
+        const eventData = {
+          title: item.title || item.question,
+          description: item.description || '',
+          categories: item.categories || [],
+          image: item.image,
+          resolutionDate: item.endDate,
+          startDate: item.startDate,
+          createdAt: item.createdAt,
+          resolutionSource: item.resolutionSource,
+          volume: item.volume,
+          betCount: item.volume24hr,
+        };
+
+        const legacyTokenId =
+          resolveTokenForOutcome(item, 0, item.outcomes?.[0]?.name) ||
+          item.tokens[0]?.tokenId ||
+          item.polymarketId;
+
+        const payload = {
+          polymarketId: item.polymarketId,
+          polymarketConditionId: item.conditionId,
+          polymarketTokenId: legacyTokenId,
+          internalEventId,
+          outcomeMapping,
+          eventData,
+          notes: '',
+          isGroupedBinary: (forcedTypes[item.polymarketId] || item.marketType) === 'GROUPED_BINARY',
+          marketType: forcedTypes[item.polymarketId] || item.marketType || 'BINARY',
+        };
+
+        const res = await fetch('/api/polymarket/intake/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          successCount++;
+        } else {
+          console.error(`[Bulk Approve] Failed for ${item.polymarketId}`);
+        }
+      } catch (err) {
+        console.error(`[Bulk Approve] Error for ${item.polymarketId}:`, err);
+      }
+    }
+
+    setLoadingId(null);
+    setBulkApproving(false);
+    setBulkProgress(null);
+    setSelectedIds(new Set());
+
+    // Reload to reflect changes
+    await load();
+
+    if (successCount < toApprove.length) {
+      setError(`Bulk approve: ${successCount}/${toApprove.length} succeeded`);
+    }
+  };
+
   const formatProb = (p?: number) => {
     if (p == null || Number.isNaN(p) || p === undefined) return '—';
     // If p > 100, it's likely not a probability (e.g., price target like 120000)
@@ -345,10 +460,72 @@ export function AdminPolymarketIntake() {
         </div>
       )}
 
+      {/* Bulk Approve Action Bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="fixed top-4 z-[60] left-[calc(var(--sidebar-width,256px)/2+50%)] -translate-x-1/2 w-[calc(100%-2rem)] md:w-[calc(100%-var(--sidebar-width,256px)-4rem)] flex items-center gap-4 rounded-xl border border-emerald-500/30 bg-emerald-950/90 backdrop-blur-xl px-6 py-4 shadow-2xl shadow-black transition-all duration-300"
+          >
+            <span className="text-sm text-emerald-300 font-medium">
+              {selectedIds.size} event{selectedIds.size > 1 ? 's' : ''} selected
+            </span>
+            {bulkProgress && (
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300 ease-out"
+                    style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-emerald-400">
+                  {bulkProgress.current}/{bulkProgress.total}
+                </span>
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                onClick={bulkApprove}
+                disabled={bulkApproving || loading}
+                className="px-4 py-2 rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+              >
+                {bulkApproving ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Approving...
+                  </>
+                ) : (
+                  <>🚀 Bulk Approve</>
+                )}
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                disabled={bulkApproving}
+                className="px-3 py-2 rounded-lg bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 border border-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="overflow-auto rounded-xl border border-white/5">
         <table className="min-w-full text-sm">
           <thead className="bg-white/5 text-zinc-300">
             <tr>
+              <th className="px-3 py-3 text-left w-10">
+                <input
+                  type="checkbox"
+                  checked={selectableItems.length > 0 && selectedIds.size === selectableItems.length}
+                  onChange={selectAll}
+                  disabled={selectableItems.length === 0 || bulkApproving}
+                  className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={selectableItems.length === 0 ? 'No pending items to select' : 'Select all pending'}
+                />
+              </th>
               <th className="px-4 py-3 text-left">Market</th>
               <th className="px-4 py-3 text-left">Categories</th>
               <th className="px-4 py-3 text-left">Outcomes & Prices</th>
@@ -361,7 +538,27 @@ export function AdminPolymarketIntake() {
           </thead>
           <tbody className="divide-y divide-white/5 bg-background">
             {filtered.map((item, idx) => (
-              <tr key={item.polymarketId || `poly-${idx}`}>
+              <tr key={item.polymarketId || `poly-${idx}`} className={selectedIds.has(item.polymarketId) ? 'bg-emerald-500/5' : ''}>
+                <td
+                  className="px-3 py-3 cursor-pointer"
+                  onClick={() => {
+                    if (item.status === 'approved' || item.status === 'rejected' || bulkApproving) return;
+                    toggleSelect(item.polymarketId);
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.polymarketId)}
+                    onChange={(e) => {
+                      // Stop bubbling so td.onClick doesn't fire as well
+                      e.stopPropagation();
+                      toggleSelect(item.polymarketId);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={item.status === 'approved' || item.status === 'rejected' || bulkApproving}
+                    className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  />
+                </td>
                 <td className="px-4 py-3 text-zinc-200">
                   <div className="flex items-start gap-3">
                     {item.image ? (
@@ -540,7 +737,7 @@ export function AdminPolymarketIntake() {
             ))}
             {filtered.length === 0 && !loading && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
                   No markets available.
                 </td>
               </tr>

@@ -386,22 +386,48 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     }
   }, [eventData, event, selectedOption, selectedOutcomeId, showBuyInterface, liveOutcomes]);
 
-  // Listen for real-time odds updates
+  // Listen for real-time odds updates across the entire app
   useEffect(() => {
-    if (!showBuyInterface) return;
     const { socket } = require('@/lib/socket');
 
     function onOddsUpdate(update: any) {
       if (update.eventId !== event.id) return;
-      if (isMultiOutcomeEvent(event.type) && update.outcomes && selectedOutcomeId) {
-        const selectedOutcome = update.outcomes.find((o: any) => o.id === selectedOutcomeId);
-        if (selectedOutcome) {
-          const prob = selectedOutcome.probability ?? 0;
-          const p = prob > 1 ? prob / 100 : prob;
-          setCurrentPrice(event.type === 'GROUPED_BINARY' && selectedOption === 'NO' ? 1 - p : p);
+
+      // Update primary odds state for buttons and card display
+      if (update.yesPrice !== undefined) {
+        const p = update.yesPrice > 1 ? update.yesPrice / 100 : update.yesPrice;
+        setLiveYesOdds(p);
+        // Ensure noOdds is kept in sync if not provided
+        if (update.noPrice === undefined && event.type === 'BINARY') {
+          setLiveNoOdds(1 - p);
         }
-      } else if (update.yesPrice !== undefined) {
-        setCurrentPrice(selectedOption === 'YES' ? update.yesPrice : (1 - update.yesPrice));
+      }
+      if (update.noPrice !== undefined) {
+        const p = update.noPrice > 1 ? update.noPrice / 100 : update.noPrice;
+        setLiveNoOdds(p);
+        // Ensure yesOdds is kept in sync if not provided
+        if (update.yesPrice === undefined && event.type === 'BINARY') {
+          setLiveYesOdds(1 - p);
+        }
+      }
+      if (update.outcomes) setLiveOutcomes(update.outcomes);
+
+      // If trading interface is open, also update the active trade price
+      if (showBuyInterface) {
+        if (isMultiOutcomeEvent(event.type) && update.outcomes && selectedOutcomeId) {
+          const selectedOutcome = update.outcomes.find((o: any) => o.id === selectedOutcomeId);
+          if (selectedOutcome) {
+            const prob = selectedOutcome.probability ?? 0;
+            const p = prob > 1 ? prob / 100 : prob;
+            setCurrentPrice(event.type === 'GROUPED_BINARY' && selectedOption === 'NO' ? 1 - p : p);
+          }
+        } else if (update.yesPrice !== undefined) {
+          const p = update.yesPrice > 1 ? update.yesPrice / 100 : update.yesPrice;
+          setCurrentPrice(selectedOption === 'YES' ? p : (1 - p));
+        } else if (update.noPrice !== undefined) {
+          const p = update.noPrice > 1 ? update.noPrice / 100 : update.noPrice;
+          setCurrentPrice(selectedOption === 'NO' ? p : (1 - p));
+        }
       }
     }
 
@@ -1006,7 +1032,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             whileHover={{ y: -2 }}
             transition={{ duration: 0.2, delay: 0, ease: "easeOut" }}
             style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
-            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-300 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] ${isEnded ? 'opacity-50' : ''
+            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-300 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] relative ${isEnded ? 'opacity-50' : ''
               }`}
           >
             {/* 1. Header: Image & Title */}
@@ -1261,9 +1287,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   })()
                 ) : (
                   (() => {
-                    // Use locked outcomes if available, otherwise use current outcomes
-                    // This ensures we don't recalculate segmentData when liveOutcomes updates
-                    const outcomesForCalculation = lockedOutcomesRef.current || liveOutcomes || event.outcomes;
+                    // Use live outcomes for constant real-time correctness
+                    const outcomesForCalculation = liveOutcomes || event.outcomes;
 
                     // Get all outcomes (unfiltered) to preserve original indices for color matching
                     const allOutcomesUnfiltered = outcomesForCalculation || [];
@@ -1309,18 +1334,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
                     // Pre-calculate ALL segment positions BEFORE rendering - ensures no recalculation
                     // Use stable outcomes to prevent recalculation during animation
-                    // Lock segment data after first calculation to prevent animation restart
                     const segmentData = useMemo(() => {
-                      // If we already have locked segment data, return it (prevents recalculation)
-                      if (segmentDataRef.current !== null) {
-                        return segmentDataRef.current;
-                      }
-
-                      // Lock the outcomes used for this calculation
-                      if (lockedOutcomesRef.current === null) {
-                        lockedOutcomesRef.current = outcomesForCalculation;
-                      }
-
                       // Calculate segment data
                       const calculated = allOutcomes.map((outcome, idx) => {
                         const probValue = outcome.probability ?? 0;
@@ -1358,7 +1372,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                         };
                       });
 
-                      // Lock the segment data after first calculation
+                      // Update the ref for current data but continue to return calculated for live updates
                       segmentDataRef.current = calculated;
 
                       return calculated;
@@ -1687,33 +1701,43 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                         // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
                         const skipAnimation = binaryPercentageAnimatedRef.current || hasEverHoveredRef.current;
 
-                        return (
-                          <motion.div
-                            initial={binaryPercentageAnimatedRef.current ? { left: `${yesDisplay}%`, opacity: shouldShow && yesDisplay > 0 ? 1 : 0 } : { left: '0%', opacity: 0 }}
-                            animate={{
-                              left: `${yesDisplay}%`,
-                              opacity: shouldShow && yesDisplay > 0 ? 1 : 0
-                            }}
-                            transition={{
-                              duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8,
-                              delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3,
-                              ease: "easeOut"
-                            }}
-                            className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
-                            style={{
-                              visibility: shouldShow ? 'visible' : 'hidden'
-                            }}
-                          >
-                            <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
-                              <AnimatedPercentage
-                                value={yesDisplay}
-                                delay={(index * 0.05) + 0.3}
-                                duration={0.8}
-                                skipAnimation={skipAnimation}
-                              />
-                            </span>
-                          </motion.div>
-                        );
+                        const segments = [
+                          { id: 'YES', probability: yesDisplay, position: yesDisplay / 2, show: yesDisplay > 15 },
+                          { id: 'NO', probability: noDisplay, position: yesDisplay + (noDisplay / 2), show: noDisplay > 15 }
+                        ];
+
+                        return segments.map(seg => {
+                          if (!shouldShow || !seg.show) return null;
+
+                          return (
+                            <motion.div
+                              key={seg.id}
+                              initial={binaryPercentageAnimatedRef.current ? { opacity: 1, left: `${seg.position}%` } : { opacity: 0, left: '50%' }}
+                              animate={{
+                                opacity: 1,
+                                left: `${seg.position}%`
+                              }}
+                              transition={{
+                                opacity: { duration: 0.2, ease: "easeOut" },
+                                left: {
+                                  duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8,
+                                  delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3,
+                                  ease: "easeOut"
+                                }
+                              }}
+                              className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                            >
+                              <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
+                                <AnimatedPercentage
+                                  value={seg.probability}
+                                  delay={(index * 0.05) + 0.3}
+                                  duration={0.8}
+                                  skipAnimation={skipAnimation}
+                                />
+                              </span>
+                            </motion.div>
+                          );
+                        });
                       })()}
 
                       {/* Centered outcome name and percentage - shows when hovering */}
@@ -1961,7 +1985,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             )}
 
             {/* 3. Stats Row */}
-            <div className="flex items-center justify-between text-white/60 pt-0.5 mt-auto">
+            <div className={`flex items-center justify-between text-white/60 pt-0.5 ${event.type === 'GROUPED_BINARY' ? 'absolute bottom-2 left-4 right-4' : 'mt-auto'}`}>
               <div className="flex items-center justify-between flex-1 pr-1">
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

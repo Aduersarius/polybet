@@ -33,7 +33,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const eventId = (propEventId || routeEventId) as string | undefined;
     const { data: session } = useSession();
     const isAuthenticated = Boolean((session as any)?.user);
-    
+
     // Outcome colors from centralized system
     const yesColor = getOutcomeColor(1); // #03DAC6
     const noColor = getOutcomeColor(2); // #CF6679
@@ -91,7 +91,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         enabled: !propEventData && !!eventId, // Only fetch if not provided as prop
         staleTime: 30000, // 30 seconds
     });
-    
+
     // Use prop data if available, otherwise use fetched data
     const eventData = propEventData || fetchedEventData;
 
@@ -198,15 +198,26 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     }, [orderType, selectedOption, yesPrice, noPrice]); // Removed price dependency to avoid loop
 
     // Real-time odds updates via WebSocket
+    // Real-time odds updates via WebSocket
     useEffect(() => {
         const handler = (update: any) => {
             if (update.eventId !== eventId) return;
 
             if (update.yesPrice !== undefined) {
-                setYesPrice(update.yesPrice);
+                const p = update.yesPrice > 1 ? update.yesPrice / 100 : update.yesPrice;
+                setYesPrice(p);
+                // Ensure noPrice is also kept in sync if not provided
+                if (update.noPrice === undefined) {
+                    setNoPrice(1 - p);
+                }
             }
             if (update.noPrice !== undefined) {
-                setNoPrice(update.noPrice);
+                const p = update.noPrice > 1 ? update.noPrice / 100 : update.noPrice;
+                setNoPrice(p);
+                // Ensure yesPrice is also kept in sync if not provided
+                if (update.yesPrice === undefined) {
+                    setYesPrice(1 - p);
+                }
             }
         };
 
@@ -219,9 +230,10 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
 
     // Prices are probabilities (0-1), convert to percentages
-    // Handle edge cases and ensure valid probabilities
-    const safeYesPrice = Math.max(0, Math.min(1, yesPrice || 0.5));
-    const safeNoPrice = Math.max(0, Math.min(1, noPrice || 0.5));
+    // Handle edge cases and ensure valid probabilities. 
+    // Do not use || 0.5 which breaks 0% outcomes.
+    const safeYesPrice = Math.max(0, Math.min(1, yesPrice !== undefined ? yesPrice : 0.5));
+    const safeNoPrice = Math.max(0, Math.min(1, noPrice !== undefined ? noPrice : 0.5));
 
     const yesProbability = Math.round(safeYesPrice * 100);
     const noProbability = Math.round(safeNoPrice * 100);
@@ -423,14 +435,14 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 {variant === 'default' && (
                     <HelpBanner
                         type="info"
-                        message={selectedTab === 'buy' 
-                            ? "Buy YES if you think the event will happen, or NO if you think it won't. Your payout depends on the outcome and your entry price." 
+                        message={selectedTab === 'buy'
+                            ? "Buy YES if you think the event will happen, or NO if you think it won't. Your payout depends on the outcome and your entry price."
                             : "Sell your shares to lock in profits or cut losses. You can only sell shares you currently own."
                         }
                         storageKey={`trading-${selectedTab}-help`}
                     />
                 )}
-                
+
                 {/* Outcome Selector */}
                 <div className="grid grid-cols-2 gap-3 outcome-selector">
                     <button
@@ -470,9 +482,9 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     <div className="flex justify-between text-sm text-gray-400">
                         <span className="flex items-center gap-1.5">
                             {selectedTab === 'buy' ? 'Amount' : 'Shares'}
-                            <InfoTooltip 
-                                content={selectedTab === 'buy' 
-                                    ? "Enter the dollar amount you want to spend on this trade. Minimum $0.10, maximum $10,000." 
+                            <InfoTooltip
+                                content={selectedTab === 'buy'
+                                    ? "Enter the dollar amount you want to spend on this trade. Minimum $0.10, maximum $10,000."
                                     : "Enter the number of shares you want to sell from your position."
                                 }
                                 side="top"
@@ -677,11 +689,11 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div 
+                                    <div
                                         className="p-2 rounded-lg"
                                         style={{ backgroundColor: `${selectedOption === 'YES' ? yesColor : noColor}33` }}
                                     >
-                                        <AlertTriangle 
+                                        <AlertTriangle
                                             className="w-5 h-5"
                                             style={{ color: selectedOption === 'YES' ? yesColor : noColor }}
                                         />
@@ -713,7 +725,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">You receive</span>
-                                    <span 
+                                    <span
                                         className="font-bold"
                                         style={{ color: selectedOption === 'YES' ? yesColor : noColor }}
                                     >

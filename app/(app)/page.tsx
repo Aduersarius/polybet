@@ -83,8 +83,9 @@ export default function Home() {
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Footer visibility - show after scrolling past ~5 rows of cards
+  // Footer visibility - show after 4th row becomes visible
   const [showFooter, setShowFooter] = useState(false);
+  const fourthRowRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
 
@@ -92,6 +93,16 @@ export default function Home() {
     router.push(`?category=${category}`);
     setSelectedCategory(category);
   };
+
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Fetch events from DB with infinite scroll (20 events per page)
   const {
@@ -101,12 +112,13 @@ export default function Home() {
     isFetchingNextPage,
     isLoading: isLoadingEvents,
   } = useInfiniteQuery({
-    queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy],
+    queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy, debouncedSearchQuery],
     queryFn: async ({ pageParam = 0 }) => {
       const params = new URLSearchParams({
         category: selectedCategory === 'ALL' ? '' : selectedCategory,
         timeHorizon,
         sortBy,
+        search: debouncedSearchQuery,
         limit: String(EVENTS_PER_PAGE),
         offset: String(pageParam),
       });
@@ -226,54 +238,17 @@ export default function Home() {
     }
   }, []);
 
-  // Show footer after scrolling past ~5 rows of cards (~1000px)
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollThreshold = 1000; // ~5 rows of cards
-      setShowFooter(window.scrollY > scrollThreshold);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Check initial position
-
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const { activeEvents, endedEvents } = useMemo(() => {
     const now = new Date();
     let filtered = (eventsData || []).slice();
 
-    // Apply category filters client-side for Polymarket data
+    // Favorites are already fetched from a separate hook, but if they are in eventsData, we dedupe
     if (selectedCategory === 'FAVORITES') {
       filtered = (favoriteEvents || []).slice();
-    } else if (selectedCategory !== 'ALL' && selectedCategory !== 'TRENDING' && selectedCategory !== 'NEW') {
-      const catLower = selectedCategory.toLowerCase();
-      filtered = filtered.filter((e: DbEvent) => {
-        const categories = [
-          e.category,
-          ...(((e as any).categories as string[] | undefined) || []),
-        ]
-          .filter(Boolean)
-          .map((c) => String(c).toLowerCase());
-        return categories.some((c) => c.includes(catLower));
-      });
     }
 
-    // Time horizon filtering
-    if (timeHorizon !== 'all') {
-      const horizonMs =
-        timeHorizon === '1d'
-          ? 24 * 60 * 60 * 1000
-          : timeHorizon === '1w'
-            ? 7 * 24 * 60 * 60 * 1000
-            : 30 * 24 * 60 * 60 * 1000;
-      filtered = filtered.filter((e: DbEvent) => {
-        const end = new Date(e.resolutionDate).getTime();
-        return end >= now.getTime() && end <= now.getTime() + horizonMs;
-      });
-    }
-
-    // Apply search filter
+    // Apply search filter locally for instant feedback
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((e: DbEvent) =>
@@ -282,7 +257,7 @@ export default function Home() {
       );
     }
 
-    // Sort locally based on selection
+    // Sorting is handled by the API but we keep this for local consistency
     const effectiveSort =
       selectedCategory === 'TRENDING' ? 'volume_high' :
         selectedCategory === 'NEW' ? 'newest' : sortBy;
@@ -299,7 +274,28 @@ export default function Home() {
       activeEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) > now),
       endedEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) <= now)
     };
-  }, [selectedCategory, searchQuery, eventsData, favoriteEvents, timeHorizon, sortBy]);
+  }, [selectedCategory, searchQuery, eventsData, favoriteEvents, sortBy]);
+
+  // Show footer after 4th row is visible (using IntersectionObserver)
+  useEffect(() => {
+    const fourthRowElement = fourthRowRef.current;
+    if (!fourthRowElement) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Show footer when the 4th row element has been scrolled past (not intersecting)
+        // or is intersecting (meaning we've reached it)
+        const entry = entries[0];
+        if (entry.isIntersecting || entry.boundingClientRect.top < 0) {
+          setShowFooter(true);
+        }
+      },
+      { threshold: 0, rootMargin: '100px' }
+    );
+
+    observer.observe(fourthRowElement);
+    return () => observer.disconnect();
+  }, [activeEvents.length]);
 
   // #region agent log
   // useEffect(() => {
@@ -387,7 +383,7 @@ export default function Home() {
           <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
           {/* Markets Content - Added pt-32 to account for fixed navbar height */}
-          <div className="relative z-10 pt-32 px-6 max-w-7xl mx-auto pb-20">
+          <div className="relative z-10 pt-32 px-6 max-w-7xl mx-auto pb-8">
 
             {/* Sort Options */}
             <motion.div
@@ -456,9 +452,13 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-12" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-4" style={{ overflow: 'visible', overflowY: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
               {activeEvents.map((event, idx) => (
-                <div key={event.id} style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}>
+                <div
+                  key={event.id}
+                  ref={idx === 15 ? fourthRowRef : undefined}
+                  style={{ overflow: 'visible', paddingTop: '20px', marginTop: '-20px' }}
+                >
                   <EventCard2
                     event={event}
                     index={idx}
@@ -466,6 +466,10 @@ export default function Home() {
                   />
                 </div>
               ))}
+              {/* Fallback sentinel if we have fewer than 16 events */}
+              {activeEvents.length > 0 && activeEvents.length < 16 && (
+                <div ref={fourthRowRef} className="hidden" />
+              )}
             </div>
 
             {/* Infinite scroll sentinel and loading indicator */}
@@ -487,7 +491,7 @@ export default function Home() {
         </motion.div >
       </div>
 
-      {/* Footer appears after scrolling past ~5 rows of cards */}
+      {/* Footer appears after 4th row (16th card) becomes visible */}
       {showFooter && <Footer />}
 
       {/* Trading Panel Modal */}
