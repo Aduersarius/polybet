@@ -173,8 +173,15 @@ export async function GET(request: Request) {
             } else {
                 Object.assign(where, catFilter);
             }
-        } else if (!effectiveCategory || effectiveCategory === 'ALL') {
+        } else if ((!effectiveCategory || effectiveCategory === 'ALL') && category !== 'FAVORITES') {
             // When showing ALL, apply global exclusions (like Sports/Esports) at the DB level
+            const sportsCat = getCategoryByName('Sports');
+            const esportsCat = getCategoryByName('Esports');
+
+            const sportsKeywords = sportsCat?.keywords || [];
+            const esportsKeywords = esportsCat?.keywords || [];
+            const allExcludedKeywords = [...new Set([...sportsKeywords, ...esportsKeywords])];
+
             const exclusionFilter = {
                 AND: [
                     { isEsports: false },
@@ -184,7 +191,16 @@ export async function GET(request: Request) {
                                 { categories: { has: 'Sports' } },
                                 { categories: { has: 'Esports' } },
                                 { categories: { has: 'SPORTS' } },
-                                { categories: { has: 'ESPORTS' } }
+                                { categories: { has: 'ESPORTS' } },
+                                { categories: { has: 'sports' } },
+                                { categories: { has: 'esports' } },
+                                // Keyword-based exclusion to ensure strict separation
+                                ...allExcludedKeywords.map(kw => ({
+                                    title: { contains: kw, mode: 'insensitive' as const }
+                                })),
+                                ...allExcludedKeywords.map(kw => ({
+                                    description: { contains: kw, mode: 'insensitive' as const }
+                                }))
                             ]
                         }
                     }

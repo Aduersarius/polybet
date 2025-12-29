@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { calculateLMSROdds } from '@/lib/amm';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Search, ChevronRight, ChevronLeft, TrendingUp, TrendingDown, Info, AlertCircle } from 'lucide-react';
 
 interface Outcome {
@@ -241,270 +242,237 @@ export function GroupedBinaryTradingPanel({
 
     return (
         <div className="flex flex-col h-full bg-[#1a1d28] rounded-2xl border border-white/10 overflow-hidden">
-            {/* Header / Sub-market Selection */}
-            <div className="p-4 border-b border-white/10 space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-white uppercase tracking-wider">Sub-Markets</h3>
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            className="bg-black/40 border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors w-40"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
+            {/* Buy/Sell Tabs at Top */}
+            <div className="flex p-1.5 bg-black/40 border-b border-white/10 gap-1">
+                <button
+                    onClick={() => setSelectedTab('buy')}
+                    className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 uppercase tracking-wider",
+                        selectedTab === 'buy' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    )}
+                >
+                    Buy
+                </button>
+                <button
+                    onClick={() => setSelectedTab('sell')}
+                    className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 uppercase tracking-wider",
+                        selectedTab === 'sell' ? "bg-red-600 text-white shadow-lg shadow-red-600/20" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    )}
+                >
+                    Sell
+                </button>
+            </div>
 
-                {/* Horizontal Scrollable Outcome List */}
-                <div className="relative">
-                    <div
-                        ref={scrollContainerRef}
-                        className="flex gap-2 overflow-x-auto pb-2 no-scrollbar"
-                    >
-                        {filteredOutcomes.map((o) => (
-                            <button
-                                key={o.id}
-                                onClick={() => setSelectedOutcomeId(o.id)}
-                                className={cn(
-                                    "flex-shrink-0 px-4 py-2.5 rounded-xl border transition-all duration-200 flex flex-col items-start gap-1 min-w-[120px]",
-                                    selectedOutcomeId === o.id
-                                        ? "bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
-                                        : "bg-white/5 border-white/5 hover:border-white/20"
-                                )}
-                            >
-                                <span className={cn(
-                                    "text-xs font-medium truncate w-full",
-                                    selectedOutcomeId === o.id ? "text-blue-400" : "text-gray-400"
-                                )}>
-                                    {o.name}
-                                </span>
-                                <span className="text-sm font-bold text-white">
-                                    {(o.probability * 100).toFixed(1)}%
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+            {/* Horizontal Scrollable Outcome List */}
+            <div className="p-3 border-b border-white/10">
+                <div
+                    ref={scrollContainerRef}
+                    className="flex gap-2 overflow-x-auto pb-1 no-scrollbar"
+                >
+                    {filteredOutcomes.map((o) => (
+                        <button
+                            key={o.id}
+                            onClick={() => setSelectedOutcomeId(o.id)}
+                            className={cn(
+                                "flex-shrink-0 px-3 py-2 rounded-xl border transition-all duration-200 flex flex-col items-center gap-0.5 min-w-[110px]",
+                                selectedOutcomeId === o.id
+                                    ? "bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                    : "bg-white/5 border-white/5 hover:border-white/20"
+                            )}
+                        >
+                            <span className={cn(
+                                "text-xs font-medium truncate w-full text-center",
+                                selectedOutcomeId === o.id ? "text-blue-400" : "text-gray-400"
+                            )}>
+                                {o.name}
+                            </span>
+                            <span className="text-sm font-bold text-white">
+                                {(o.probability * 100).toFixed(1)}%
+                            </span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {/* Trading Interface for Selected Outcome */}
             <div className="flex-1 flex flex-col min-h-0">
-                <AnimatePresence mode="wait">
-                    {selectedOutcome ? (
-                        <motion.div
-                            key={selectedOutcome.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="p-4 space-y-5 overflow-y-auto no-scrollbar"
-                        >
-                            {/* Selected Outcome Title & Quick Stats */}
-                            <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
-                                <div>
-                                    <div className="text-xs text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Selected Market</div>
-                                    <div className="text-white font-bold">{selectedOutcome.name}</div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-xs text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Implied Odds</div>
-                                    <div className="text-blue-400 font-bold">{(selectedOutcome.probability * 100).toFixed(1)}%</div>
-                                </div>
-                            </div>
-
-                            {/* Buy/Sell Tabs */}
-                            <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
-                                <button
-                                    onClick={() => setSelectedTab('buy')}
-                                    className={cn(
-                                        "flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider",
-                                        selectedTab === 'buy' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:text-gray-300"
-                                    )}
-                                >
-                                    Buy
-                                </button>
-                                <button
-                                    onClick={() => setSelectedTab('sell')}
-                                    className={cn(
-                                        "flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider",
-                                        selectedTab === 'sell' ? "bg-red-600/80 text-white shadow-lg" : "text-gray-500 hover:text-gray-300"
-                                    )}
-                                >
-                                    Sell
-                                </button>
-                            </div>
-
-                            {/* Option Selection (YES/NO) */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={() => setSelectedOption('YES')}
-                                    className={cn(
-                                        "py-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center gap-1",
-                                        selectedOption === 'YES'
-                                            ? "bg-emerald-500/20 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                                            : "bg-white/5 border-transparent hover:border-white/10"
-                                    )}
-                                >
-                                    <span className={cn("text-sm font-bold", selectedOption === 'YES' ? "text-emerald-400" : "text-gray-400")}>YES</span>
-                                    <span className="text-xs text-gray-500">{(selectedOutcome.probability * 100).toFixed(1)}%</span>
-                                </button>
-                                <button
-                                    onClick={() => setSelectedOption('NO')}
-                                    className={cn(
-                                        "py-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center gap-1",
-                                        selectedOption === 'NO'
-                                            ? "bg-rose-500/20 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]"
-                                            : "bg-white/5 border-transparent hover:border-white/10"
-                                    )}
-                                >
-                                    <span className={cn("text-sm font-bold", selectedOption === 'NO' ? "text-rose-400" : "text-gray-400")}>NO</span>
-                                    <span className="text-xs text-gray-500">{((1 - selectedOutcome.probability) * 100).toFixed(1)}%</span>
-                                </button>
-                            </div>
-
-                            {/* Order Type Toggle */}
-                            <div className="flex items-center justify-between px-1">
-                                <div className="text-sm font-bold text-gray-400 uppercase tracking-tighter">Order Type</div>
-                                <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/5">
-                                    <button
-                                        onClick={() => setOrderType('market')}
-                                        className={cn(
-                                            "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
-                                            orderType === 'market' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
-                                        )}
-                                    >
-                                        Market
-                                    </button>
-                                    <button
-                                        onClick={() => setOrderType('limit')}
-                                        className={cn(
-                                            "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
-                                            orderType === 'limit' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
-                                        )}
-                                    >
-                                        Limit
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Inputs */}
-                            <div className="space-y-4">
-                                {/* Price Input (only for Limit) */}
-                                {orderType === 'limit' && (
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
-                                            <span>Limit Price</span>
-                                            <span>Market: {marketPrice.toFixed(2)}</span>
-                                        </div>
-                                        <div className="relative group">
-                                            <input
-                                                type="text"
-                                                value={price}
-                                                onChange={(e) => handlePriceChange(e.target.value)}
-                                                className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
-                                                placeholder="0.00"
-                                            />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">USD</span>
-                                        </div>
-                                    </div>
+                {selectedOutcome ? (
+                    <div className="p-3 space-y-3 overflow-y-auto no-scrollbar">
+                        {/* Option Selection (YES/NO) */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setSelectedOption('YES')}
+                                className={cn(
+                                    "py-2.5 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-0.5",
+                                    selectedOption === 'YES'
+                                        ? "bg-emerald-500/20 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                                        : "bg-white/5 border-transparent hover:border-white/10"
                                 )}
+                            >
+                                <span className={cn("text-sm font-bold", selectedOption === 'YES' ? "text-emerald-400" : "text-gray-400")}>YES</span>
+                                <span className="text-xs text-gray-500">{(selectedOutcome.probability * 100).toFixed(1)}%</span>
+                            </button>
+                            <button
+                                onClick={() => setSelectedOption('NO')}
+                                className={cn(
+                                    "py-2.5 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-0.5",
+                                    selectedOption === 'NO'
+                                        ? "bg-rose-500/20 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]"
+                                        : "bg-white/5 border-transparent hover:border-white/10"
+                                )}
+                            >
+                                <span className={cn("text-sm font-bold", selectedOption === 'NO' ? "text-rose-400" : "text-gray-400")}>NO</span>
+                                <span className="text-xs text-gray-500">{((1 - selectedOutcome.probability) * 100).toFixed(1)}%</span>
+                            </button>
+                        </div>
 
-                                {/* Amount Input */}
+                        {/* Order Type Toggle */}
+                        <div className="flex items-center justify-between px-1">
+                            <div className="text-sm font-bold text-gray-400 uppercase tracking-tighter">Order Type</div>
+                            <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/5">
+                                <button
+                                    onClick={() => setOrderType('market')}
+                                    className={cn(
+                                        "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
+                                        orderType === 'market' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                                    )}
+                                >
+                                    Market
+                                </button>
+                                <button
+                                    onClick={() => setOrderType('limit')}
+                                    className={cn(
+                                        "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
+                                        orderType === 'limit' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                                    )}
+                                >
+                                    Limit
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Inputs */}
+                        <div className="space-y-4">
+                            {/* Price Input (only for Limit) */}
+                            {orderType === 'limit' && (
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
-                                        <span>Amount</span>
-                                        <span
-                                            className="cursor-pointer hover:text-white transition-colors"
-                                            onClick={() => setAmountPercentage(1)}
-                                        >
-                                            Max: {currentBalance.toFixed(2)} {selectedTab === 'buy' ? 'USD' : 'Shares'}
-                                        </span>
+                                        <span>Limit Price</span>
+                                        <span>Market: {marketPrice.toFixed(2)}</span>
                                     </div>
                                     <div className="relative group">
                                         <input
                                             type="text"
-                                            value={amount}
-                                            onChange={(e) => handleAmountChange(e.target.value)}
+                                            value={price}
+                                            onChange={(e) => handlePriceChange(e.target.value)}
                                             className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
                                             placeholder="0.00"
                                         />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
-                                            {selectedTab === 'buy' ? 'USD' : 'Shares'}
-                                        </span>
-                                    </div>
-
-                                    {/* Quick Amount Buttons */}
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {[10, 50, 100, 500].map((amt) => (
-                                            <button
-                                                key={amt}
-                                                onClick={() => setAmount(amt.toString())}
-                                                className="py-2 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase"
-                                            >
-                                                ${amt}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Summary / Confirmation */}
-                            {amount && parseFloat(amount) > 0 && (
-                                <div className="p-4 bg-black/40 rounded-xl border border-white/5 space-y-2">
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-500">Avg. Price</span>
-                                        <span className="text-white font-bold">
-                                            {orderType === 'market' ? marketPrice.toFixed(4) : parseFloat(price || '0').toFixed(4)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-500">Estimated Payout</span>
-                                        <span className="text-emerald-400 font-bold">
-                                            {selectedTab === 'buy'
-                                                ? (parseFloat(amount) / (orderType === 'market' ? marketPrice : parseFloat(price || '1'))).toFixed(2)
-                                                : (parseFloat(amount) * (orderType === 'market' ? marketPrice : parseFloat(price || '0'))).toFixed(2)} USD
-                                        </span>
-                                    </div>
-                                    <div className="pt-2 border-t border-white/5 flex justify-between text-sm">
-                                        <span className="text-gray-300 font-bold uppercase tracking-tighter">Total Cost</span>
-                                        <span className="text-white font-black">{parseFloat(amount).toFixed(2)} {selectedTab === 'buy' ? 'USD' : 'Shares'}</span>
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">USD</span>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Trade Button */}
-                            <button
-                                onClick={() => tradeMutation.mutate()}
-                                disabled={tradeMutation.isPending || !amount || parseFloat(amount) <= 0}
-                                className={cn(
-                                    "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed",
-                                    selectedTab === 'buy'
-                                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
-                                        : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500 shadow-red-500/20"
-                                )}
-                            >
-                                {tradeMutation.isPending ? (
-                                    <div className="flex items-center justify-center gap-2">
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        <span>Executing...</span>
-                                    </div>
-                                ) : (
-                                    <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
-                                )}
-                            </button>
-                        </motion.div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center">
-                                <AlertCircle className="w-8 h-8 text-gray-600" />
-                            </div>
+                            {/* Amount Input */}
                             <div className="space-y-2">
-                                <h4 className="text-white font-bold">No Sub-market Selected</h4>
-                                <p className="text-sm text-gray-500">Please select an outcome from the list above to start trading.</p>
+                                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
+                                    <span>Amount</span>
+                                    <span
+                                        className="cursor-pointer hover:text-white transition-colors"
+                                        onClick={() => setAmountPercentage(1)}
+                                    >
+                                        Max: {currentBalance.toFixed(2)} {selectedTab === 'buy' ? 'USD' : 'Shares'}
+                                    </span>
+                                </div>
+                                <div className="relative group">
+                                    <input
+                                        type="text"
+                                        value={amount}
+                                        onChange={(e) => handleAmountChange(e.target.value)}
+                                        className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
+                                        placeholder="0.00"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
+                                        {selectedTab === 'buy' ? 'USD' : 'Shares'}
+                                    </span>
+                                </div>
+
+                                {/* Quick Amount Buttons */}
+                                <div className="grid grid-cols-4 gap-2">
+                                    {[10, 50, 100, 500].map((amt) => (
+                                        <button
+                                            key={amt}
+                                            onClick={() => setAmount(amt.toString())}
+                                            className="py-2 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase"
+                                        >
+                                            ${amt}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    )}
-                </AnimatePresence>
+
+                        {/* Summary / Confirmation */}
+                        {amount && parseFloat(amount) > 0 && (
+                            <div className="p-4 bg-black/40 rounded-xl border border-white/5 space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500">Avg. Price</span>
+                                    <span className="text-white font-bold">
+                                        {orderType === 'market' ? marketPrice.toFixed(4) : parseFloat(price || '0').toFixed(4)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500">Estimated Payout</span>
+                                    <span className="text-emerald-400 font-bold">
+                                        {selectedTab === 'buy'
+                                            ? (parseFloat(amount) / (orderType === 'market' ? marketPrice : parseFloat(price || '1'))).toFixed(2)
+                                            : (parseFloat(amount) * (orderType === 'market' ? marketPrice : parseFloat(price || '0'))).toFixed(2)} USD
+                                    </span>
+                                </div>
+                                <div className="pt-2 border-t border-white/5 flex justify-between text-sm">
+                                    <span className="text-gray-300 font-bold uppercase tracking-tighter">Total Cost</span>
+                                    <span className="text-white font-black">{parseFloat(amount).toFixed(2)} {selectedTab === 'buy' ? 'USD' : 'Shares'}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Trade Button */}
+                        <button
+                            onClick={() => tradeMutation.mutate()}
+                            disabled={tradeMutation.isPending || !amount || parseFloat(amount) <= 0}
+                            className={cn(
+                                "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                                selectedTab === 'buy'
+                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
+                                    : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500"
+                            )}
+                        >
+                            {tradeMutation.isPending ? (
+                                <div className="flex items-center justify-center gap-2">
+                                    <LoadingSpinner className="w-5 h-5 text-white" />
+                                    <span>Executing...</span>
+                                </div>
+                            ) : (
+                                <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
+                            )}
+                        </button>
+                        {/* Terms of Use Footer */}
+                        <p className="text-xs text-center text-gray-500 pb-2">
+                            By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center">
+                            <AlertCircle className="w-8 h-8 text-gray-600" />
+                        </div>
+                        <div className="space-y-2">
+                            <h4 className="text-white font-bold">No Sub-market Selected</h4>
+                            <p className="text-sm text-gray-500">Please select an outcome from the list above to start trading.</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

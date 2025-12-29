@@ -14,6 +14,7 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from '@/components/ui/pagination';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface MarketActivity {
     id: string;
@@ -103,7 +104,7 @@ export function ActivityList({ eventId }: ActivityListProps) {
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-40">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#bb86fc]"></div>
+                <LoadingSpinner className="h-8 w-8 text-[#bb86fc]" />
             </div>
         );
     }
@@ -134,7 +135,7 @@ export function ActivityList({ eventId }: ActivityListProps) {
                     const userAddress = trade.user.address || trade.user.id || 'unknown';
                     const displayName = trade.user.username || formatAddress(trade.user.address);
                     const avatarUrl = trade.user.avatarUrl || trade.user.image;
-                    
+
                     return (
                         <div key={trade.id} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors group">
                             <div className="flex items-center gap-2">
@@ -142,8 +143,8 @@ export function ActivityList({ eventId }: ActivityListProps) {
                                     <Link href={`/profile?address=${userAddress}`} className="relative cursor-pointer">
                                         <Avatar className="w-8 h-8 border border-white/10">
                                             {avatarUrl && (
-                                                <AvatarImage 
-                                                    src={avatarUrl} 
+                                                <AvatarImage
+                                                    src={avatarUrl}
                                                     alt={displayName}
                                                 />
                                             )}

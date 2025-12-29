@@ -15,6 +15,8 @@ import { ChartContainer, ChartConfig } from "@/components/ui/chart";
 import { MobileCTABanner } from "../components/MobileCTABanner";
 import { SignupModal } from "../components/auth/SignupModal";
 import { LoginModal } from "../components/auth/LoginModal";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const EVENTS_PER_PAGE = 20;
 
@@ -473,17 +475,47 @@ export default function Home() {
             </div>
 
             {/* Infinite scroll sentinel and loading indicator */}
-            <div ref={loadMoreRef} className={`w-full flex justify-center ${isFetchingNextPage || (isLoadingEvents && activeEvents.length === 0) ? 'py-6' : 'py-1'}`}>
+            <div ref={loadMoreRef} className={`w-full flex justify-center ${isFetchingNextPage || (isLoadingEvents && activeEvents.length === 0) ? 'py-12' : 'py-1'}`}>
               {isFetchingNextPage && (
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-gray-400 text-sm">Loading more markets...</span>
+                <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8">
+                  {Array.from({ length: 5 }).map((_, i) => ( // Show 5 skeletons to fill a row
+                    <div key={`loading-more-${i}`} className="bg-[#1a1d28] rounded-2xl border border-white/5 p-4 space-y-4 h-[260px] flex flex-col">
+                      <div className="flex justify-between items-start">
+                        <Skeleton className="h-12 w-12 rounded-full" />
+                        <Skeleton className="h-6 w-20 rounded-lg" />
+                      </div>
+                      <Skeleton className="h-6 w-3/4 rounded-lg" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-full rounded" />
+                        <Skeleton className="h-4 w-5/6 rounded" />
+                      </div>
+                      <div className="flex gap-2 mt-auto">
+                        <Skeleton className="h-10 flex-1 rounded-xl" />
+                        <Skeleton className="h-10 flex-1 rounded-xl" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               {isLoadingEvents && activeEvents.length === 0 && (
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-gray-400">Loading markets...</span>
+                <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="bg-[#1a1d28] rounded-2xl border border-white/5 p-4 space-y-4 h-[260px] flex flex-col">
+                      <div className="flex justify-between items-start">
+                        <Skeleton className="h-12 w-12 rounded-full" />
+                        <Skeleton className="h-6 w-20 rounded-lg" />
+                      </div>
+                      <Skeleton className="h-6 w-3/4 rounded-lg" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-full rounded" />
+                        <Skeleton className="h-4 w-5/6 rounded" />
+                      </div>
+                      <div className="flex gap-2 mt-auto">
+                        <Skeleton className="h-10 flex-1 rounded-xl" />
+                        <Skeleton className="h-10 flex-1 rounded-xl" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

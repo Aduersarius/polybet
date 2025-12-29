@@ -5,8 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { socket } from '@/lib/socket';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+
 import { calculateLMSROdds } from '@/lib/amm';
 import { toast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 import { useSession } from '@/lib/auth-client';
 import { Slider } from '@/components/ui/slider';
 import { useSettings } from '@/lib/settings-context';
@@ -399,246 +402,208 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const contentPadding = variant === 'modal' ? 'p-5 space-y-5' : 'p-4 space-y-4';
 
     return (
-        <div className={containerClass}>
-            {/* Header Tabs */}
-            <div className={`flex border-b border-white/10 ${variant === 'modal' ? 'px-2' : ''}`}>
+        <div className={cn(
+            "flex flex-col h-full bg-[#1a1d28] rounded-2xl border border-white/10 overflow-hidden",
+            variant === 'modal' && "bg-transparent border-none"
+        )}>
+            {/* Buy/Sell Tabs at Top */}
+            <div className="flex p-1.5 bg-black/40 border-b border-white/10 gap-1">
                 <button
                     onClick={() => setSelectedTab('buy')}
-                    className={`flex-1 py-3 text-sm font-medium transition-colors relative ${selectedTab === 'buy' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
-                        }`}
+                    className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 uppercase tracking-wider",
+                        selectedTab === 'buy' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    )}
                 >
                     Buy
-                    {selectedTab === 'buy' && (
-                        <motion.div
-                            layoutId="activeTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"
-                        />
-                    )}
                 </button>
                 <button
                     onClick={() => setSelectedTab('sell')}
-                    className={`flex-1 py-3 text-sm font-medium transition-colors relative ${selectedTab === 'sell' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
-                        }`}
+                    className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 uppercase tracking-wider",
+                        selectedTab === 'sell' ? "bg-red-600 text-white shadow-lg shadow-red-600/20" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    )}
                 >
                     Sell
-                    {selectedTab === 'sell' && (
-                        <motion.div
-                            layoutId="activeTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"
-                        />
-                    )}
                 </button>
             </div>
 
-            <div className={contentPadding}>
-                {/* Help Banner */}
-                {variant === 'default' && (
-                    <HelpBanner
-                        type="info"
-                        message={selectedTab === 'buy'
-                            ? "Buy YES if you think the event will happen, or NO if you think it won't. Your payout depends on the outcome and your entry price."
-                            : "Sell your shares to lock in profits or cut losses. You can only sell shares you currently own."
-                        }
-                        storageKey={`trading-${selectedTab}-help`}
-                    />
-                )}
-
+            <div className={cn("flex-1 p-3 space-y-3 overflow-y-auto no-scrollbar", variant === 'modal' && "p-0")}>
                 {/* Outcome Selector */}
-                <div className="grid grid-cols-2 gap-3 outcome-selector">
+                <div className="grid grid-cols-2 gap-3">
                     <button
                         onClick={() => setSelectedOption('YES')}
-                        className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'YES'
-                            ? ''
-                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                            }`}
-                        style={selectedOption === 'YES' ? {
-                            backgroundColor: `${yesColor}33`,
-                            borderColor: yesColor,
-                            color: yesColor
-                        } : undefined}
+                        className={cn(
+                            "py-2.5 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-0.5",
+                            selectedOption === 'YES'
+                                ? "bg-emerald-500/20 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                                : "bg-white/5 border-transparent hover:border-white/10"
+                        )}
                     >
-                        <span className="text-sm font-bold">Yes</span>
-                        <span className="text-xs opacity-80">{yesProbability}%</span>
+                        <div className="flex flex-col items-center">
+                            <span className={cn("text-sm font-bold", selectedOption === 'YES' && "text-emerald-400")}>YES</span>
+                            <span className="text-xs text-gray-400">{yesProbability}%</span>
+                        </div>
                     </button>
                     <button
                         onClick={() => setSelectedOption('NO')}
-                        className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedOption === 'NO'
-                            ? ''
-                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                            }`}
-                        style={selectedOption === 'NO' ? {
-                            backgroundColor: `${noColor}33`,
-                            borderColor: noColor,
-                            color: noColor
-                        } : undefined}
+                        className={cn(
+                            "py-2.5 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-0.5",
+                            selectedOption === 'NO'
+                                ? "bg-rose-500/20 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]"
+                                : "bg-white/5 border-transparent hover:border-white/10"
+                        )}
                     >
-                        <span className="text-sm font-bold">No</span>
-                        <span className="text-xs opacity-80">{noProbability}%</span>
+                        <div className="flex flex-col items-center">
+                            <span className={cn("text-sm font-bold", selectedOption === 'NO' && "text-rose-400")}>NO</span>
+                            <span className="text-xs text-gray-400">{noProbability}%</span>
+                        </div>
                     </button>
                 </div>
 
-                {/* Amount/Shares Input */}
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm text-gray-400">
-                        <span className="flex items-center gap-1.5">
-                            {selectedTab === 'buy' ? 'Amount' : 'Shares'}
-                            <InfoTooltip
-                                content={selectedTab === 'buy'
-                                    ? "Enter the dollar amount you want to spend on this trade. Minimum $0.10, maximum $10,000."
-                                    : "Enter the number of shares you want to sell from your position."
-                                }
-                                side="top"
-                            />
-                        </span>
-                        <span className="text-white font-medium">
-                            {selectedTab === 'buy'
-                                ? `$${currentAmount.toFixed(2)}`
-                                : <><span className="text-gray-400 font-normal">Max:</span> {availableShares.toFixed(2)} shares</>
-                            }
-                        </span>
+                {/* Order Type Toggle */}
+                <div className="flex items-center justify-between px-1">
+                    <div className="text-sm font-bold text-gray-400 uppercase tracking-tighter">Order Type</div>
+                    <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/5">
+                        <button
+                            onClick={() => setOrderType('market')}
+                            className={cn(
+                                "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
+                                orderType === 'market' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                            )}
+                        >
+                            Market
+                        </button>
+                        <button
+                            onClick={() => setOrderType('limit')}
+                            className={cn(
+                                "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
+                                orderType === 'limit' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                            )}
+                        >
+                            Limit
+                        </button>
                     </div>
-                    <div className="relative">
-                        {selectedTab === 'buy' && (
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                        )}
-                        <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            onFocus={() => setAmountInputFocused(true)}
-                            onBlur={() => setAmountInputFocused(false)}
-                            className={`amount-input w-full bg-white/5 border rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none transition-colors text-lg font-medium`}
-                            style={{
-                                borderColor: amountInputFocused ? focusColor : 'rgba(255, 255, 255, 0.1)'
-                            }}
-                            placeholder="0"
-                        />
-                    </div>
+                </div>
 
-                    {/* Payout Display */}
-                    {currentAmount > 0 && (
-                        <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-400">
-                                    {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
-                                </span>
-                                <span className="text-white font-bold">
-                                    {selectedTab === 'buy'
-                                        ? `${potentialPayout.toFixed(2)} shares`
-                                        : `$${potentialPayout.toFixed(2)}`
-                                    }
-                                </span>
-                            </div>
+                <div className="space-y-4">
+                    {/* Amount/Shares Input */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
+                            <span className="flex items-center gap-1.5">
+                                {selectedTab === 'buy' ? 'Amount' : 'Shares'}
+                            </span>
+                            <span className="text-white font-medium">
+                                {selectedTab === 'buy'
+                                    ? `$${currentAmount.toFixed(2)}`
+                                    : <><span className="text-gray-400 font-normal">Max:</span> {availableShares.toFixed(2)} shares</>
+                                }
+                            </span>
+                        </div>
+                        <div className="relative group">
+                            <input
+                                type="number"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                onFocus={() => setAmountInputFocused(true)}
+                                onBlur={() => setAmountInputFocused(false)}
+                                className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
+                                placeholder="0"
+                            />
                             {selectedTab === 'buy' && (
-                                <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
-                                    <span>If {selectedOption.toLowerCase()} wins:</span>
-                                    <span className="font-medium text-green-400">
-                                        ${(potentialPayout * (selectedOption === 'YES' ? yesOdds : noOdds)).toFixed(2)}
-                                    </span>
-                                </div>
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
                             )}
                         </div>
-                    )}
 
-                    {/* Balance Slider */}
-                    <div className="space-y-1">
-                        <div className="flex justify-between items-center text-xs text-gray-400">
-                            <span>Use balance</span>
-                            <span className="text-gray-300">
-                                {selectedTab === 'buy'
-                                    ? `$${stablecoinBalance.toFixed(2)} available`
-                                    : `${availableShares.toFixed(2)} shares available`}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Slider
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={[balancePct]}
-                                className="flex-1"
-                                onValueChange={(value: number[]) => {
-                                    const pct = Math.max(0, Math.min(100, value?.[0] ?? 0));
-                                    setBalancePct(pct);
-                                    const base = selectedTab === 'buy' ? stablecoinBalance : availableShares;
-                                    const nextAmount = base * (pct / 100);
-                                    setAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
-                                }}
-                            />
-                            <span className="w-10 text-right text-xs text-gray-300">
-                                {balancePct.toFixed(0)}%
-                            </span>
-                        </div>
-                    </div>
 
-                    {/* Order Type Selection */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-gray-400">
-                            <span>Order Type</span>
-                            <span className="text-white font-medium">{orderType === 'market' ? 'Market' : 'Limit'}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => setOrderType('market')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'market'
-                                    ? ''
-                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                    }`}
-                                style={orderType === 'market' ? {
-                                    backgroundColor: `${yesColor}33`,
-                                    borderColor: yesColor,
-                                    color: yesColor
-                                } : undefined}
-                            >
-                                Market
-                            </button>
-                            <button
-                                onClick={() => setOrderType('limit')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'limit'
-                                    ? ''
-                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                    }`}
-                                style={orderType === 'limit' ? {
-                                    backgroundColor: `${noColor}33`,
-                                    borderColor: noColor,
-                                    color: noColor
-                                } : undefined}
-                            >
-                                Limit
-                            </button>
-                        </div>
-                    </div>
 
-                    {/* Limit Price Input */}
-                    {orderType === 'limit' && (
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm text-gray-400">
-                                <span>Limit Price</span>
-                                <span className="text-white font-medium">${(parseFloat(price) * 100).toFixed(2)}</span>
+                        {/* Balance Slider */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between items-center text-xs text-gray-400">
+                                <span>Use balance</span>
+                                <span className="text-gray-300">
+                                    {selectedTab === 'buy'
+                                        ? `$${stablecoinBalance.toFixed(2)} available`
+                                        : `${availableShares.toFixed(2)} shares available`}
+                                </span>
                             </div>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                                <input
-                                    type="number"
-                                    value={price}
-                                    onChange={(e) => setPrice(e.target.value)}
-                                    onFocus={() => setPriceInputFocused(true)}
-                                    onBlur={() => setPriceInputFocused(false)}
-                                    className="w-full bg-white/5 border rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none transition-colors text-lg font-medium"
-                                    style={{
-                                        borderColor: priceInputFocused ? focusColor : 'rgba(255, 255, 255, 0.1)'
+                            <div className="flex items-center gap-3">
+                                <Slider
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    value={[balancePct]}
+                                    className="flex-1"
+                                    onValueChange={(value: number[]) => {
+                                        const pct = Math.max(0, Math.min(100, value?.[0] ?? 0));
+                                        setBalancePct(pct);
+                                        const base = selectedTab === 'buy' ? stablecoinBalance : availableShares;
+                                        const nextAmount = base * (pct / 100);
+                                        setAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
                                     }}
-                                    placeholder="0.50"
-                                    step="0.01"
-                                    min="0.01"
-                                    max="0.99"
                                 />
-                            </div>
-                            <div className="text-xs text-gray-500">
-                                Current market price: ${(selectedOption === 'YES' ? yesPrice : noPrice).toFixed(2)}
+                                <span className="w-10 text-right text-xs text-gray-300">
+                                    {balancePct.toFixed(0)}%
+                                </span>
                             </div>
                         </div>
-                    )}
+
+                        {/* Payout Display */}
+                        {currentAmount > 0 && (
+                            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-400">
+                                        {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
+                                    </span>
+                                    <span className="text-white font-bold">
+                                        {selectedTab === 'buy'
+                                            ? `${potentialPayout.toFixed(2)} shares`
+                                            : `$${potentialPayout.toFixed(2)}`
+                                        }
+                                    </span>
+                                </div>
+                                {selectedTab === 'buy' && (
+                                    <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                                        <span>If {selectedOption.toLowerCase()} wins:</span>
+                                        <span className="font-medium text-green-400">
+                                            ${(potentialPayout * (selectedOption === 'YES' ? yesOdds : noOdds)).toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Order Type Selection Removed (Moved Up) */}
+
+                        {/* Limit Price Input */}
+                        {orderType === 'limit' && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
+                                    <span>Limit Price</span>
+                                    <span className="text-white font-medium">${(parseFloat(price) * 100).toFixed(2)}</span>
+                                </div>
+                                <div className="relative group">
+                                    <input
+                                        type="number"
+                                        value={price}
+                                        onChange={(e) => setPrice(e.target.value)}
+                                        onFocus={() => setPriceInputFocused(true)}
+                                        onBlur={() => setPriceInputFocused(false)}
+                                        className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
+                                        placeholder="0.50"
+                                        step="0.01"
+                                        min="0.01"
+                                        max="0.99"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                                </div>
+                                <div className="text-xs text-gray-500 font-medium">
+                                    Market: ${(selectedOption === 'YES' ? yesPrice : noPrice).toFixed(2)}
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
 
                 </div>
 
@@ -651,16 +616,21 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         parseFloat(amount) <= 0 ||
                         (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
                     }
-                    className="w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
-                    style={{
-                        backgroundColor: selectedOption === 'YES' ? yesColor : noColor,
-                        boxShadow: `0 10px 15px -3px ${selectedOption === 'YES' ? yesColor : noColor}20, 0 4px 6px -2px ${selectedOption === 'YES' ? yesColor : noColor}10`
-                    }}
+                    className={cn(
+                        "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed",
+                        selectedTab === 'buy'
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
+                            : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500 shadow-red-500/20"
+                    )}
                 >
-                    {isLoading
-                        ? 'Processing...'
-                        : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${selectedOption} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
-                    }
+                    {isLoading ? (
+                        <div className="flex items-center justify-center gap-2">
+                            <LoadingSpinner className="w-5 h-5 text-white" />
+                            <span>Processing...</span>
+                        </div>
+                    ) : (
+                        <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
+                    )}
                 </button>
 
                 {/* Trade Success Feedback moved to toast notifications */}

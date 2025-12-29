@@ -28,7 +28,7 @@ import { useOddsRealtime } from '@/hooks/use-odds-realtime';
 
 export type OddsChartV2Props = {
   eventId: string;
-  eventType: 'BINARY' | 'MULTIPLE';
+  eventType: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
   outcomes: Array<{ id: string; name: string; probability: number }>;
   liveOutcomes?: Array<{ id: string; name: string; probability: number }>;
   currentYesPrice?: number;
@@ -75,7 +75,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   const [selectedOutcomeIds, setSelectedOutcomeIds] = useState<Set<string>>(new Set());
 
   const effectiveOutcomes = liveOutcomes || outcomes;
-  const isMultipleOutcomes = eventType === 'MULTIPLE' && Array.isArray(effectiveOutcomes) && effectiveOutcomes.length > 0;
+  const isMultipleOutcomes = (eventType === 'MULTIPLE' || eventType === 'GROUPED_BINARY') && Array.isArray(effectiveOutcomes) && effectiveOutcomes.length > 0;
   const hasMany = isMultipleOutcomes && effectiveOutcomes.length > 4;
 
   const coloredOutcomes = useMemo(() => (isMultipleOutcomes ? assignOutcomeColors(effectiveOutcomes) : []), [effectiveOutcomes, isMultipleOutcomes]);
