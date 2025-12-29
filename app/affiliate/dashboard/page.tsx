@@ -114,10 +114,11 @@ export default function AffiliateDashboardPage() {
   const totalTransitions = stats?.totalReferrals || 0;
   const totalRegistrations = stats?.totalReferrals || 0;
   const ratioOnRegistrations = stats?.conversionRate || 0;
-  const avgPlayerIncome = stats?.activeReferrals > 0 ? totalIncome / stats.activeReferrals : 0;
-  const firstDeposits = stats?.activeReferrals || 0;
+  const activeReferrals = stats?.activeReferrals || 0;
+  const avgPlayerIncome = activeReferrals > 0 ? totalIncome / activeReferrals : 0;
+  const firstDeposits = activeReferrals;
   const numberDeposits = stats?.totalDeposits || 0;
-  const ratioOnDeposits = stats?.activeReferrals > 0 ? (numberDeposits / stats.activeReferrals) * 100 : 0;
+  const ratioOnDeposits = activeReferrals > 0 ? (numberDeposits / activeReferrals) * 100 : 0;
   const amountDeposit = stats?.timeSeriesData?.reduce((sum, item) => sum + item.amountDeposits, 0) || 0;
   const costTransition = 0; // Not tracked yet
 
