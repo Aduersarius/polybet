@@ -571,7 +571,7 @@ export async function placeHybridOrder(
         const isDeadlock = errorMessage.toLowerCase().includes('deadlock');
 
         if (isDeadlock) {
-            console.error(`[DEADLOCK] Detected deadlock for user ${userId}, event ${eventId}, option ${option}, side ${side}, amount ${amount}`);
+            console.error('[DEADLOCK] Detected deadlock for user %s, event %s, option %s, side %s, amount %s', userId, eventId, option, side, amount);
             console.error('Deadlock error details:', errorMessage);
             console.error('Deadlock stack:', error instanceof Error ? error.stack : 'No stack');
         } else {

@@ -6,8 +6,66 @@
  */
 
 import { put, del, list } from '@vercel/blob';
+import * as dns from 'dns';
+import * as ipaddr from 'ipaddr.js';
 
 const BLOB_FOLDER = 'events';
+
+/**
+ * Validates that a URL is safe to fetch (SSRF protection)
+ * Blocks requests to private, loopback, and link-local IP ranges
+ * @param rawUrl - URL to validate
+ * @returns true if safe, false otherwise
+ */
+async function isSafeRemoteUrl(rawUrl: string): Promise<boolean> {
+    try {
+        // Parse URL
+        const url = new URL(rawUrl);
+
+        // Only allow http and https
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            console.warn(`[SSRF] Blocked non-HTTP(S) protocol: ${url.protocol}`);
+            return false;
+        }
+
+        // Resolve hostname to IP addresses
+        const addresses = await dns.promises.lookup(url.hostname, { all: true });
+
+        // Check each resolved IP address
+        for (const { address } of addresses) {
+            try {
+                const addr = ipaddr.parse(address);
+                const range = addr.range();
+
+                // Block dangerous IP ranges
+                const blockedRanges = [
+                    'loopback',      // 127.0.0.0/8, ::1
+                    'linkLocal',     // 169.254.0.0/16, fe80::/10
+                    'private',       // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7
+                    'uniqueLocal',   // fc00::/7
+                    'unspecified',   // 0.0.0.0, ::
+                    'reserved',      // Reserved ranges
+                    'multicast',     // Multicast addresses
+                    'broadcast',     // Broadcast addresses
+                ];
+
+                if (blockedRanges.includes(range)) {
+                    console.warn(`[SSRF] Blocked ${range} IP address: ${address} for ${url.hostname}`);
+                    return false;
+                }
+            } catch (parseError) {
+                console.error('[SSRF] Failed to parse IP address %s:', address, parseError);
+                return false;
+            }
+        }
+
+        // All IPs are in public ranges
+        return true;
+    } catch (error) {
+        console.error('[SSRF] URL validation failed:', error);
+        return false;
+    }
+}
 
 /**
  * Download an image from a URL and upload it to Vercel Blob
@@ -30,6 +88,13 @@ export async function uploadEventImageToBlob(
     // Skip invalid URLs
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
         console.log(`[Blob] Invalid image URL for ${eventId}: ${imageUrl}`);
+        return null;
+    }
+
+    // SSRF Protection: Validate URL is safe to fetch
+    const isSafe = await isSafeRemoteUrl(imageUrl);
+    if (!isSafe) {
+        console.error('[Blob] SSRF protection blocked URL for %s: %s', eventId, imageUrl);
         return null;
     }
 
@@ -81,7 +146,7 @@ export async function uploadEventImageToBlob(
         console.log(`[Blob] ✓ Uploaded event image: ${url}`);
         return url;
     } catch (error) {
-        console.error(`[Blob] Failed to upload image for event ${eventId}:`, error);
+        console.error('[Blob] Failed to upload image for event %s:', eventId, error);
         return null;
     }
 }
