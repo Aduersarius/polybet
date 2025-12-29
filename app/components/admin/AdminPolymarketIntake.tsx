@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Pagination } from './Pagination';
 
 type IntakeItem = {
   polymarketId: string;
@@ -53,6 +54,8 @@ export function AdminPolymarketIntake() {
     tokenId: '',
     notes: '',
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [forcedTypes, setForcedTypes] = useState<Record<string, 'MULTIPLE' | 'GROUPED_BINARY'>>({});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -62,6 +65,13 @@ export function AdminPolymarketIntake() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Pagination, Filtering, Sorting state
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unmapped' | 'approved' | 'rejected'>('all');
+  const [sortBy, setSortBy] = useState<'volume' | 'date' | 'title'>('volume');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     // Click outside to close dropdowns
@@ -79,7 +89,14 @@ export function AdminPolymarketIntake() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/polymarket/intake');
+      if (debouncedSearch) setItems([]); // Clear on search to show fresh state
+
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const url = `/api/polymarket/intake?${params.toString()}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to load intake data');
       const data = (await res.json()) as IntakeItem[];
       setItems(data);
@@ -92,7 +109,14 @@ export function AdminPolymarketIntake() {
 
   useEffect(() => {
     load();
-  }, []);
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // WebSocket live updates (best-effort; if it fails we fall back to manual refresh)
   const wsRef = useRef<WebSocket | null>(null);
@@ -290,10 +314,38 @@ export function AdminPolymarketIntake() {
     }
   };
 
-  const filtered = useMemo(() => items, [items]);
+  const filteredAndSorted = useMemo(() => {
+    let result = [...items];
 
-  // Items that haven't been processed yet
-  const selectableItems = useMemo(() => filtered.filter(i => i.status !== 'approved' && i.status !== 'rejected'), [filtered]);
+    // Status is now filtered server-side, but we keep this for sorting/consistency
+    // Sort
+    result.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'volume') {
+        comparison = (b.volume || 0) - (a.volume || 0);
+      } else if (sortBy === 'date') {
+        comparison = new Date(b.endDate || 0).getTime() - new Date(a.endDate || 0).getTime();
+      } else if (sortBy === 'title') {
+        comparison = (a.title || '').localeCompare(b.title || '');
+      }
+
+      return sortOrder === 'desc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [items, sortBy, sortOrder]);
+
+  const totalItems = filteredAndSorted.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredAndSorted.slice(start, start + itemsPerPage);
+  }, [filteredAndSorted, currentPage, itemsPerPage]);
+
+  const filtered = filteredAndSorted; // keeping for backward compat if needed
+
+  // Items that haven't been processed yet (for bulk selection)
+  const selectableItems = useMemo(() => filteredAndSorted.filter(i => i.status !== 'approved' && i.status !== 'rejected'), [filteredAndSorted]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -442,16 +494,80 @@ export function AdminPolymarketIntake() {
         <div>
           <h2 className="text-2xl font-semibold text-zinc-200">Polymarket Intake</h2>
           <p className="text-sm text-muted-foreground">
-            Gamma-backed view with richer context: title, image, rules, prices, volume, and history.
+            Gamma-backed view with richer context. Default shows top 400 by volume.
           </p>
         </div>
-        <button
-          onClick={load}
-          className="px-3 py-2 rounded-lg bg-white/5 text-zinc-200 hover:bg-white/10 border border-white/5"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search Polymarket..."
+              className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-2 pl-10 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-emerald-500/50 transition-colors text-sm"
+            />
+            <svg
+              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <button
+            onClick={load}
+            className="px-3 py-2 rounded-lg bg-white/5 text-zinc-200 hover:bg-white/10 border border-white/5"
+            disabled={loading}
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 py-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 no-scrollbar">
+          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mr-2">Status</span>
+          {(['all', 'unmapped', 'approved', 'rejected'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${statusFilter === s
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-zinc-200'
+                }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'all' && ` (${items.length})`}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Sort</span>
+            <select
+              value={sortBy}
+              onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+              className="bg-white/5 border border-white/5 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+            >
+              <option value="volume">Volume</option>
+              <option value="date">Date</option>
+              <option value="title">Title</option>
+            </select>
+          </div>
+          <button
+            onClick={() => { setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); setCurrentPage(1); }}
+            className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-zinc-400 hover:text-zinc-200 transition-colors"
+            title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {sortOrder === 'asc' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-1l4 4m0 0l4-4m-4 4V8" /></svg>
+            )}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -537,7 +653,7 @@ export function AdminPolymarketIntake() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5 bg-background">
-            {filtered.map((item, idx) => (
+            {paginatedItems.map((item, idx) => (
               <tr key={item.polymarketId || `poly-${idx}`} className={selectedIds.has(item.polymarketId) ? 'bg-emerald-500/5' : ''}>
                 <td
                   className="px-3 py-3 cursor-pointer"
@@ -735,16 +851,24 @@ export function AdminPolymarketIntake() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && !loading && (
+            {paginatedItems.length === 0 && !loading && (
               <tr>
                 <td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
-                  No markets available.
+                  No markets found matching your criteria.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+      />
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">

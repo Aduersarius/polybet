@@ -39,6 +39,7 @@ export function AdminUserList() {
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const [currentPage, setCurrentPage] = useState(1);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [sortField, setSortField] = useState('createdAt');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const itemsPerPage = 10;
@@ -108,11 +109,6 @@ export function AdminUserList() {
         },
     });
 
-    const handleDeleteUser = (user: AdminUser) => {
-        if (confirm(`Are you sure you want to delete user "${user.username || user.email || user.address}"?\n\nThis will soft-delete the user (mark as deleted). Their data will be preserved but they will be unable to log in.`)) {
-            deleteUserMutation.mutate(user.id);
-        }
-    };
 
     const handlePageChange = (page: number) => {
         setCurrentPage(page);
@@ -217,8 +213,8 @@ export function AdminUserList() {
                             <div
                                 key={user.id}
                                 className={`rounded-lg border transition-colors p-3 md:p-4 ${user.isDeleted
-                                        ? 'border-zinc-500/20 bg-zinc-500/[0.02] hover:bg-zinc-500/[0.04] opacity-60'
-                                        : 'border-white/5 bg-white/[0.04] hover:bg-white/[0.06]'
+                                    ? 'border-zinc-500/20 bg-zinc-500/[0.02] hover:bg-zinc-500/[0.04] opacity-60'
+                                    : 'border-white/5 bg-white/[0.04] hover:bg-white/[0.06]'
                                     }`}
                                 onClick={() => setSelectedUser(user === selectedUser ? null : user)}
                             >
@@ -329,8 +325,8 @@ export function AdminUserList() {
                                                     });
                                                 }}
                                                 className={`text-xs px-2 py-1 rounded-md border transition-colors ${user.isBanned
-                                                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
-                                                        : 'border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20'
+                                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
+                                                    : 'border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20'
                                                     }`}
                                             >
                                                 {user.isBanned ? 'Unban' : 'Ban'}
@@ -338,12 +334,21 @@ export function AdminUserList() {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleDeleteUser(user);
+                                                    if (pendingDeleteId === user.id) {
+                                                        deleteUserMutation.mutate(user.id);
+                                                        setPendingDeleteId(null);
+                                                    } else {
+                                                        setPendingDeleteId(user.id);
+                                                        setTimeout(() => setPendingDeleteId(prev => prev === user.id ? null : prev), 3000);
+                                                    }
                                                 }}
                                                 disabled={deleteUserMutation.isPending || user.isDeleted}
-                                                className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-zinc-100 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className={`text-xs px-2 py-1 rounded-md border transition-all duration-200 ${pendingDeleteId === user.id
+                                                    ? 'bg-red-600 text-white border-red-500 scale-105 shadow-lg shadow-red-600/20 font-bold'
+                                                    : 'border-white/15 bg-white/5 text-zinc-100 hover:bg-white/10'
+                                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                                             >
-                                                {user.isDeleted ? 'Deleted' : 'Delete'}
+                                                {user.isDeleted ? 'Deleted' : pendingDeleteId === user.id ? 'Confirm?' : 'Delete'}
                                             </button>
                                         </div>
                                     </div>
