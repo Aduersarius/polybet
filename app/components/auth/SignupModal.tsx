@@ -15,6 +15,9 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [promoCode, setPromoCode] = useState('');
+    const [promoCodeValid, setPromoCodeValid] = useState<boolean | null>(null);
+    const [promoCodeName, setPromoCodeName] = useState<string | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -67,6 +70,23 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             if (!response.ok) {
                 setError(result.message || result.error || 'Signup failed. Please try again.');
             } else {
+                // Success - link to affiliate if applicable (non-blocking)
+                try {
+                    await fetch('/api/affiliate/link-user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            promoCode: promoCode || undefined
+                        }),
+                    });
+                } catch (affiliateError) {
+                    // Don't fail signup if affiliate linking fails
+                    console.error('Affiliate linking error (non-blocking):', affiliateError);
+                }
+
                 // Success - show verification modal
                 setSignedUpEmail(email);
                 setShowVerificationModal(true);
@@ -74,6 +94,9 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 setEmail('');
                 setPassword('');
                 setConfirmPassword('');
+                setPromoCode('');
+                setPromoCodeValid(null);
+                setPromoCodeName(null);
             }
         } catch (err: any) {
             console.error('Signup error:', err);
@@ -160,6 +183,51 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                         required
                                         minLength={8}
                                     />
+                                </div>
+
+                                {/* Promo Code Input (Optional) */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                                        Promo Code (Optional)
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={promoCode}
+                                            onChange={async (e) => {
+                                                const value = e.target.value.toUpperCase();
+                                                setPromoCode(value);
+                                                
+                                                if (value.length >= 3) {
+                                                    // Validate promo code
+                                                    try {
+                                                        const res = await fetch(`/api/affiliate/validate-code?code=${encodeURIComponent(value)}&type=promo`);
+                                                        const data = await res.json();
+                                                        setPromoCodeValid(data.valid);
+                                                        setPromoCodeName(data.affiliateName || null);
+                                                    } catch {
+                                                        setPromoCodeValid(false);
+                                                        setPromoCodeName(null);
+                                                    }
+                                                } else {
+                                                    setPromoCodeValid(null);
+                                                    setPromoCodeName(null);
+                                                }
+                                            }}
+                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                            placeholder="Enter promo code"
+                                        />
+                                        {promoCodeValid === true && promoCodeName && (
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-xs">
+                                                ✓ {promoCodeName}
+                                            </div>
+                                        )}
+                                        {promoCodeValid === false && promoCode.length >= 3 && (
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 text-xs">
+                                                Invalid
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <button
