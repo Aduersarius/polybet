@@ -16,10 +16,11 @@ import {
     Headphones,
     ChevronLeft,
     ChevronRight,
+    UserCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake' | 'support';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake' | 'support' | 'affiliates';
 
 interface AdminShellProps {
     activeView?: AdminView;
@@ -37,6 +38,7 @@ const navItems: { id: AdminView; label: string; icon: any }[] = [
     { id: 'hedging', label: 'Hedging', icon: Shield },
     { id: 'polymarket-intake', label: 'Polymarket Intake', icon: Search },
     { id: 'withdraw', label: 'Withdrawals', icon: ShieldQuestion },
+    { id: 'affiliates', label: 'Affiliates', icon: UserCheck },
     { id: 'suggested', label: 'Suggested', icon: Lightbulb },
     { id: 'support', label: 'Support', icon: Headphones },
 ];
@@ -63,27 +65,27 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
     }, [sidebarOpen, mounted]);
 
     return (
-        <div className="min-h-screen bg-background text-zinc-200">
+        <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7]">
             <div className="flex">
                 <aside
                     className={cn(
-                        'fixed left-0 top-0 h-full bg-surface border-r border-white/5 px-4 py-6 flex flex-col gap-6 transition-all duration-300 z-30',
+                        'fixed left-0 top-0 h-full bg-[#111113] border-r border-white/5 px-4 py-6 flex flex-col gap-6 transition-all duration-300 z-30',
                         sidebarOpen ? 'w-64' : 'w-16'
                     )}
                 >
                     <div className="px-2 flex items-center justify-between">
                         {sidebarOpen && (
                             <div>
-                                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">PolyBet</div>
-                                <div className="text-xl font-semibold text-zinc-200 mt-1">Admin</div>
+                                <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PolyBet</div>
+                                <div className="text-xl font-semibold text-white mt-1">Admin</div>
                             </div>
                         )}
                         {!sidebarOpen && (
-                            <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">PB</div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PB</div>
                         )}
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-zinc-400 hover:text-zinc-200"
+                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-gray-400 hover:text-white"
                             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
                         >
                             {sidebarOpen ? (
@@ -105,8 +107,8 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                                         className={cn(
                                             'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors border border-transparent',
                                             isActive
-                                                ? 'bg-white/5 border-white/5 text-zinc-200 shadow-sm'
-                                                : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200',
+                                                ? 'bg-white/5 border-white/5 text-white shadow-sm'
+                                                : 'text-gray-300 hover:bg-white/5 hover:text-white',
                                             !sidebarOpen && 'justify-center'
                                         )}
                                         title={!sidebarOpen ? item.label : undefined}
@@ -128,12 +130,12 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                     )}
                     style={{ '--sidebar-width': sidebarOpen ? '256px' : '64px' } as any}
                 >
-                    <header className="sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-white/5">
+                    <header className="sticky top-0 z-20 bg-[#0b0b0f]/90 backdrop-blur border-b border-white/5">
                         <div className="px-4 md:px-8 py-4 flex flex-wrap gap-3 items-center justify-end">
                             {activeView === 'events' && onCreateEvent && (
                                 <button
                                     onClick={onCreateEvent}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-primary text-white px-3 py-2 text-sm font-semibold hover:bg-primary/90 transition-colors"
+                                    className="inline-flex items-center gap-2 rounded-lg bg-white text-black px-3 py-2 text-sm font-semibold hover:bg-gray-200 transition-colors"
                                 >
                                     <Plus className="h-4 w-4" />
                                     Create event

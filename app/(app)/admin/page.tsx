@@ -12,13 +12,14 @@ import { AdminSuggestedEvents } from '../../components/admin/AdminSuggestedEvent
 import { AdminHedging } from '../../components/admin/AdminHedging';
 import { AdminPolymarketIntake } from '../../components/admin/AdminPolymarketIntake';
 import { AdminSupportDashboard } from '../../components/admin/AdminSupportDashboard';
+import { AdminAffiliates } from '../../components/admin/AdminAffiliates';
 import { CreateEventModal } from '../../components/admin/CreateEventModal';
 import { useSession } from '@/lib/auth-client';
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket';
 import { AdminShell } from '../../components/admin/AdminShell';
 import type { Session } from '@/lib/session-types';
 
-type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake' | 'support';
+type AdminView = 'overview' | 'events' | 'users' | 'statistics' | 'finance' | 'withdraw' | 'suggested' | 'hedging' | 'polymarket-intake' | 'support' | 'affiliates';
 
 interface AdminEvent {
     id: string;
@@ -51,7 +52,7 @@ function AdminPageContent() {
 
     useEffect(() => {
         const viewParam = (searchParams.get('view') as AdminView | null) || null;
-        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging', 'polymarket-intake', 'support'];
+        const allowed: AdminView[] = ['overview', 'events', 'users', 'statistics', 'finance', 'withdraw', 'suggested', 'hedging', 'polymarket-intake', 'support', 'affiliates'];
         if (viewParam && allowed.includes(viewParam)) {
             setActiveView(viewParam);
         }
@@ -78,8 +79,8 @@ function AdminPageContent() {
     // Show loading state while checking session or before mount (prevents hydration mismatch)
     if (!isMounted || isPending) {
         return (
-            <div className="min-h-screen bg-background text-zinc-200 flex items-center justify-center">
-                <div className="text-muted-foreground">Loading...</div>
+            <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7] flex items-center justify-center">
+                <div className="text-gray-400">Loading...</div>
             </div>
         );
     }
@@ -117,6 +118,7 @@ function AdminPageContent() {
                     {activeView === 'hedging' && <AdminHedging />}
                     {activeView === 'polymarket-intake' && <AdminPolymarketIntake />}
                     {activeView === 'support' && <AdminSupportDashboard />}
+                    {activeView === 'affiliates' && <AdminAffiliates />}
                 </section>
             </div>
 
@@ -136,8 +138,8 @@ export default function AdminPage() {
     return (
         <Suspense
             fallback={
-                <div className="min-h-screen bg-background text-zinc-200 flex items-center justify-center">
-                    <div className="text-muted-foreground">Loading admin...</div>
+                <div className="min-h-screen bg-[#0b0b0f] text-[#e4e4e7] flex items-center justify-center">
+                    <div className="text-gray-400">Loading admin...</div>
                 </div>
             }
         >

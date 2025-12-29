@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { Resend } from 'resend';
+import jwt from 'jsonwebtoken';
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -96,8 +98,84 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // TODO: Send verification email
-    // For now, we'll skip email verification requirement in this implementation
+    // Send verification email if Resend is configured
+    const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+    
+    if (resend) {
+      try {
+        // Generate verification token
+        const verificationToken = jwt.sign(
+          { affiliateId: affiliate.id, email: affiliate.email },
+          process.env.AFFILIATE_JWT_SECRET || process.env.JWT_SECRET || 'super-secret-affiliate-key',
+          { expiresIn: '7d' }
+        );
+
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
+          ? `https://${process.env.VERCEL_URL}` 
+          : 'http://localhost:3000';
+        const verificationUrl = `${baseUrl}/affiliate/verify-email?token=${verificationToken}`;
+
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || 'PolyBet <noreply@polybet.ru>',
+          to: affiliate.email,
+          subject: 'Verify your affiliate account - PolyBet',
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Verify your affiliate account - PolyBet</title>
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td align="center" style="padding: 40px 20px;">
+                    <table role="presentation" style="max-width: 480px; width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #1a1a1a, #0a0a0a); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 40px;">
+                      <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                          <span style="font-size: 28px; font-weight: bold; color: #8b5cf6;">PolyBet</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <h2 style="margin: 0 0 16px; font-size: 24px; color: #ffffff; text-align: center;">
+                            Verify your affiliate account
+                          </h2>
+                          <p style="margin: 0 0 32px; font-size: 16px; color: #9ca3af; text-align: center; line-height: 1.5;">
+                            Thanks for joining our affiliate program! Click the button below to verify your email address.
+                          </p>
+                          <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                              <td align="center">
+                                <a href="${verificationUrl}" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                  Verify Email Address
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin: 32px 0 0; font-size: 14px; color: #6b7280; text-align: center;">
+                            Or copy and paste this link into your browser:<br/>
+                            <a href="${verificationUrl}" style="color: #8b5cf6; word-break: break-all;">${verificationUrl}</a>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+        });
+        console.log('[Affiliate Signup] Verification email sent to:', affiliate.email);
+      } catch (emailError) {
+        console.error('[Affiliate Signup] Failed to send verification email:', emailError);
+        // Don't fail signup if email fails - just log the error
+      }
+    } else {
+      console.log('[Affiliate Signup] Resend not configured - skipping email verification');
+    }
 
     return NextResponse.json({
       success: true,
@@ -108,9 +186,11 @@ export async function POST(req: NextRequest) {
         referralCode: affiliate.referralCode,
         emailVerified: affiliate.emailVerified,
       },
-      message: 'Affiliate account created successfully. Please check your email to verify your account.'
+      message: resend 
+        ? 'Affiliate account created successfully. Please check your email to verify your account.'
+        : 'Affiliate account created successfully. You can now login.'
     });
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid input', details: error.issues },
@@ -118,9 +198,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check if it's a Prisma error about missing table
+    if (error?.code === 'P2021' || error?.message?.includes('does not exist') || error?.message?.includes('relation') || error?.message?.includes('table')) {
+      console.error('[Affiliate Signup] Database schema error:', error);
+      return NextResponse.json(
+        { 
+          error: 'Database migration required',
+          message: 'The affiliate system requires a database migration. Please run: npx prisma migrate dev'
+        },
+        { status: 503 }
+      );
+    }
+
+    // Check if it's a unique constraint violation
+    if (error?.code === 'P2002') {
+      const field = error?.meta?.target?.[0] || 'field';
+      if (field === 'email') {
+        return NextResponse.json(
+          { error: 'Email already registered as an affiliate' },
+          { status: 400 }
+        );
+      }
+      if (field === 'referralCode') {
+        // Retry with a different code
+        console.warn('[Affiliate Signup] Referral code collision, this should be rare');
+        return NextResponse.json(
+          { error: 'Please try again' },
+          { status: 500 }
+        );
+      }
+    }
+
     console.error('[Affiliate Signup] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to create affiliate account' },
+      { 
+        error: 'Failed to create affiliate account',
+        message: error?.message || 'An unexpected error occurred'
+      },
       { status: 500 }
     );
   }
