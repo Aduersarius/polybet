@@ -2,14 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies for Prisma
-RUN apk add --no-cache openssl
+# Install dependencies for Prisma on Alpine (openssl, libc compatibility)
+RUN apk add --no-cache openssl libc6-compat
 
 # Copy worker package files (build context is project root)
 COPY workers/polymarket-realtime/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install ALL dependencies (including devDependencies for prisma CLI and tsc)
+RUN npm install --include=dev
 
 # Copy Prisma schema from project root
 COPY prisma/ ./prisma/
@@ -25,6 +25,9 @@ COPY workers/polymarket-realtime/lib/ ./lib/
 
 # Build TypeScript
 RUN npm run build
+
+# Prune devDependencies for smaller image
+RUN npm prune --production
 
 # Clear dummy env for runtime
 ENV DATABASE_URL=""

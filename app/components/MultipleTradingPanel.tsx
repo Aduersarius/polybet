@@ -73,12 +73,12 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
 
     const selectedOutcome = outcomes.find(o => o.id === selectedOutcomeId);
 
-    // Use live outcomes from props, fallback to static outcomes
-    const effectiveOutcomes = liveOutcomes || outcomes;
+    // Use live outcomes for constant real-time correctness
+    // Initialized from props, then updated via WebSocket hot ingestion
+    const [hotOutcomes, setHotOutcomes] = useState<Outcome[]>(liveOutcomes || outcomes);
+    const effectiveOutcomes = hotOutcomes;
 
     // Normalize outcomes to ensure they always have price and odds calculated from probability
-    // This ensures consistency between trading panel and odds graph
-    // Probability should be in decimal form (0-1), not percentage (0-100)
     const normalizedOutcomes = effectiveOutcomes.map((outcome) => {
         let probability = outcome.probability ?? 0;
         // Normalize probability: if > 1, assume it's a percentage and convert to decimal
@@ -105,13 +105,59 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
         }
     }, [outcomes, selectedOutcomeId]);
 
-    // Update price when outcome changes
+
+    // Listen for real-time odds updates via WebSocket
+    useEffect(() => {
+        const { socket } = require('@/lib/socket');
+        const handler = (update: any) => {
+            if (update.eventId !== eventId) return;
+
+            // If we have an outcomes array in the update, use it
+            if (update.outcomes) {
+                // Map local outcome objects to update their price/probability
+                setHotOutcomes(prev => prev.map(oc => {
+                    const match = update.outcomes.find((u: any) => u.id === oc.id);
+                    if (match) {
+                        const prob = match.probability ?? oc.probability;
+                        return {
+                            ...oc,
+                            probability: prob,
+                            price: prob, // Update price as well
+                            odds: prob > 0 ? 1 / prob : 1
+                        };
+                    }
+                    return oc;
+                }));
+            }
+        };
+
+        socket.on(`odds-update-${eventId}`, handler);
+        return () => {
+            socket.off(`odds-update-${eventId}`, handler);
+        };
+    }, [eventId]);
+
+    // Update hotOutcomes if props change
+    useEffect(() => {
+        setHotOutcomes(liveOutcomes || outcomes);
+    }, [liveOutcomes, outcomes]);
+
+
+    // Update price when outcome changes or hotOutcomes update
     useEffect(() => {
         const normalizedSelected = normalizedOutcomes.find(o => o.id === selectedOutcomeId);
         if (normalizedSelected && orderType === 'limit') {
-            setPrice(normalizedSelected.price.toFixed(2));
+            // Only update if current price is unset or was just initialized
+            if (!price || price === '0' || price === '0.00') {
+                setPrice(normalizedSelected.price.toFixed(2));
+            }
         }
-    }, [normalizedOutcomes, selectedOutcomeId, orderType]);
+    }, [normalizedOutcomes, selectedOutcomeId, orderType, price]);
+
+    // Reset price when outcome changes to force a re-seed from market
+    useEffect(() => {
+        setPrice('0');
+    }, [selectedOutcomeId]);
 
 
     // Use normalized outcomes for display
@@ -288,18 +334,18 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                 {/* Help Banner */}
                 <HelpBanner
                     type="tip"
-                    message={selectedTab === 'buy' 
-                        ? "This is a multiple-choice market. Choose the outcome you believe will happen and buy shares. If that outcome wins, each share is worth $1." 
+                    message={selectedTab === 'buy'
+                        ? "This is a multiple-choice market. Choose the outcome you believe will happen and buy shares. If that outcome wins, each share is worth $1."
                         : "Sell shares from your current position. You can only sell outcomes you own shares in."
                     }
                     storageKey={`multi-trading-${selectedTab}-help`}
                 />
-                
+
                 {/* Outcome Selector */}
                 <div className="space-y-2">
                     <div className="text-sm text-gray-400 flex items-center gap-1.5">
                         Select Outcome
-                        <InfoTooltip 
+                        <InfoTooltip
                             content="Choose which outcome you want to trade. Each outcome shows its current probability of occurring."
                             side="top"
                         />
@@ -344,9 +390,9 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                     <div className="flex justify-between text-sm text-gray-400">
                         <span className="flex items-center gap-1.5">
                             {selectedTab === 'buy' ? 'Amount' : 'Shares'}
-                            <InfoTooltip 
-                                content={selectedTab === 'buy' 
-                                    ? "Enter the dollar amount you want to spend. Minimum $0.10, maximum $10,000." 
+                            <InfoTooltip
+                                content={selectedTab === 'buy'
+                                    ? "Enter the dollar amount you want to spend. Minimum $0.10, maximum $10,000."
                                     : "Enter the number of shares you want to sell from your position."
                                 }
                                 side="top"

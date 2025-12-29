@@ -154,6 +154,7 @@ function dedupeOutcomeNames(raw: any[] = []) {
 }
 
 async function fetchOrderbookMid(tokenId: string): Promise<number | undefined> {
+  const MAX_ALLOWED_SPREAD = 0.30; // 30% max spread - wider spreads produce garbage mid-prices
   const url = `${POLYMARKET_CLOB_API_URL}/orderbook?token_id=${encodeURIComponent(tokenId)}`;
   try {
     const resp = await fetch(url, { cache: 'no-store' });
@@ -172,11 +173,22 @@ async function fetchOrderbookMid(tokenId: string): Promise<number | undefined> {
     const bestAsk = asks.length ? Number(asks[0]?.price ?? asks[0]?.[0]) : undefined;
     const hasBestBid = typeof bestBid === 'number' && Number.isFinite(bestBid);
     const hasBestAsk = typeof bestAsk === 'number' && Number.isFinite(bestAsk);
-    let mid: number | undefined;
-    if (hasBestBid && hasBestAsk) mid = ((bestBid as number) + (bestAsk as number)) / 2;
-    else if (hasBestAsk) mid = bestAsk as number;
-    else if (hasBestBid) mid = bestBid as number;
-    return Number.isFinite(mid) ? (mid as number) : undefined;
+
+    // VALIDATION: Require BOTH bid AND ask to exist (no one-sided orderbooks)
+    if (!hasBestBid || !hasBestAsk) {
+      console.warn('[Polymarket] orderbook one-sided, skipping mid calculation', { tokenId, hasBestBid, hasBestAsk });
+      return undefined;
+    }
+
+    // VALIDATION: Check spread is reasonable (wide spreads like 0.01/0.99 produce garbage 50% mid)
+    const spread = (bestAsk as number) - (bestBid as number);
+    if (spread > MAX_ALLOWED_SPREAD) {
+      console.warn(`[Polymarket] orderbook spread too wide (${(spread * 100).toFixed(1)}% > ${MAX_ALLOWED_SPREAD * 100}%), skipping`, { tokenId });
+      return undefined;
+    }
+
+    const mid = ((bestBid as number) + (bestAsk as number)) / 2;
+    return Number.isFinite(mid) ? mid : undefined;
   } catch (err) {
     console.warn('[Polymarket] orderbook mid fallback error', { tokenId, err });
     return undefined;
@@ -363,7 +375,7 @@ async function backfillOddsHistory(params: {
   fallbackProbability?: number;
   eventCreatedAt?: Date;
   polymarketStartDate?: string | Date; // Polymarket market creation date
-}) {
+}): Promise<number | undefined> {
   const {
     prisma,
     eventId,
@@ -570,8 +582,17 @@ async function backfillOddsHistory(params: {
       await prisma.$executeRawUnsafe(sql);
       console.log('[Polymarket] odds history backfill stored via raw insert', rows.length, 'rows for', tokenId, marketId, `(${totalDays.toFixed(1)} days)`);
     }
+
+    // Return the latest probability found in history to seed the current outcome price
+    if (rows.length > 0) {
+      const sorted = [...rows].sort((a, b) => b.timestampMs - a.timestampMs);
+      return sorted[0].probability;
+    }
+
+    return undefined;
   } catch (err) {
     console.error('[Polymarket] odds history backfill failed', { tokenId, marketId, err });
+    return undefined;
   }
 }
 
@@ -1105,7 +1126,8 @@ export async function POST(request: NextRequest) {
         eventData?.conditionId ||
         polymarketConditionId ||
         polymarketId;
-      await backfillOddsHistory({
+
+      const latestProb = await backfillOddsHistory({
         prisma,
         eventId: dbEvent.id,
         outcomeId,
@@ -1115,6 +1137,17 @@ export async function POST(request: NextRequest) {
         eventCreatedAt: dbEvent.createdAt,
         polymarketStartDate: eventData?.startDate || eventData?.createdAt, // Use Polymarket market creation date
       });
+
+      // CRITICAL: Update the outcome probability with the latest historical price
+      // This prevents the "50% spike" bug where fresh outcomes default to 0.5 
+      // and the realtime worker rejects valid 0.1 updates as spikes.
+      if (latestProb !== undefined) {
+        await prisma.outcome.update({
+          where: { id: outcomeId },
+          data: { probability: latestProb },
+        });
+        console.log(`[Polymarket] Updated outcome ${outcomeId} probability from backfill: ${latestProb}`);
+      }
     }
 
     // Trigger Polymarket WebSocket stream ingestion for fresh odds updates (fire-and-forget)

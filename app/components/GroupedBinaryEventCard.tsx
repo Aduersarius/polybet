@@ -442,68 +442,71 @@ export function GroupedBinaryEventCard({
                             </div>
                         </div>
 
-                        {/* 4. Body: Grouped Binary Outcomes List */}
-                        <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent -mx-2 px-2 space-y-1.5 max-h-[60px]">
-                            {outcomes.map((outcome, idx) => {
-                                const probability = outcome.probability ?? 0;
-                                const percentage = probability > 1 ? probability : Math.round(probability * 100);
+                        {/* Wrapper to push content to bottom */}
+                        <div className="flex-1 min-h-0 flex flex-col justify-end gap-2.5">
+                            {/* 4. Body: Grouped Binary Outcomes List */}
+                            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent -mx-2 px-2 space-y-1.5 max-h-[60px]">
+                                {outcomes.map((outcome, idx) => {
+                                    const probability = outcome.probability ?? 0;
+                                    const percentage = probability > 1 ? probability : Math.round(probability * 100);
 
-                                return (
-                                    <div key={outcome.id || idx} className="flex items-center gap-2">
-                                        {/* Outcome Name */}
-                                        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                            <span className="text-gray-300 text-xs font-medium truncate group-hover/card:text-white transition-colors">
-                                                {outcome.name}
-                                            </span>
-                                            <span className="text-gray-400 text-xs font-bold whitespace-nowrap">
-                                                {percentage}%
-                                            </span>
+                                    return (
+                                        <div key={outcome.id || idx} className="flex items-center gap-2">
+                                            {/* Outcome Name */}
+                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                <span className="text-gray-300 text-xs font-medium truncate group-hover/card:text-white transition-colors">
+                                                    {outcome.name}
+                                                </span>
+                                                <span className="text-gray-400 text-xs font-bold whitespace-nowrap">
+                                                    {percentage}%
+                                                </span>
+                                            </div>
+
+                                            {/* Buttons Container */}
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <motion.button
+                                                    whileHover="hover"
+                                                    initial="initial"
+                                                    onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'YES')}
+                                                    className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-emerald-500/30 group/btn"
+                                                    style={{ backgroundColor: greenHex }}
+                                                >
+                                                    <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">Yes</span>
+                                                    <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{percentage}%</span>
+                                                </motion.button>
+
+                                                <motion.button
+                                                    whileHover="hover"
+                                                    initial="initial"
+                                                    onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'NO')}
+                                                    className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-red-500/30 group/btn"
+                                                    style={{ backgroundColor: redHex }}
+                                                >
+                                                    <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">No</span>
+                                                    <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{100 - percentage}%</span>
+                                                </motion.button>
+                                            </div>
                                         </div>
+                                    );
+                                })}
+                            </div>
 
-                                        {/* Buttons Container */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <motion.button
-                                                whileHover="hover"
-                                                initial="initial"
-                                                onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'YES')}
-                                                className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-emerald-500/30 group/btn"
-                                                style={{ backgroundColor: greenHex }}
-                                            >
-                                                <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">Yes</span>
-                                                <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{percentage}%</span>
-                                            </motion.button>
-
-                                            <motion.button
-                                                whileHover="hover"
-                                                initial="initial"
-                                                onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'NO')}
-                                                className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-red-500/30 group/btn"
-                                                style={{ backgroundColor: redHex }}
-                                            >
-                                                <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">No</span>
-                                                <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{100 - percentage}%</span>
-                                            </motion.button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* 3. Stats Row */}
-                        <div className="flex items-center justify-between text-white/60 pt-0.5 mt-auto">
-                            <div className="flex items-center justify-between flex-1 pr-1">
-                                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                    </svg>
-                                    {volume}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                    </svg>
-                                    0
-                                </span>
+                            {/* 3. Stats Row */}
+                            <div className="flex items-center justify-between text-white/60 pt-0.5">
+                                <div className="flex items-center justify-between flex-1 pr-1">
+                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                        </svg>
+                                        {volume}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                        </svg>
+                                        0
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </motion.div>

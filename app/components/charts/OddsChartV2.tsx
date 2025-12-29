@@ -202,7 +202,7 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
     left: -40,
     bottom: 15
   }), [isMultipleOutcomes, hasMany]);
-  const yAxisPadding = useMemo(() => ({ top: 0, bottom: 0 }), []);
+  const yAxisPadding = useMemo(() => ({ top: 32, bottom: 32 }), []);
 
   return (
     <div
