@@ -217,58 +217,67 @@ export async function updateUserTelemetry(userId: string, request: Request) {
     try {
         const aggregates = await fetchMonetaryAggregates(userId);
 
-        await prisma.user.update({
-            where: { id: userId },
-            data: {
-                lastIp: ip || undefined,
-                lastCountry: country,
-                lastRegion: geo.region,
-                lastCity: geo.city,
-                lastTimezone: geo.timezone,
-                lastAsn: asn,
-                lastIsp: isp,
-                lastUserAgent: uaString,
-                lastDevice: device,
-                lastOs: os,
-                lastLocale: locale,
-                lastReferrer: referrer,
-                lastUtmSource: utm.utmSource,
-                lastUtmMedium: utm.utmMedium,
-                lastUtmCampaign: utm.utmCampaign,
-                lastUtmTerm: utm.utmTerm,
-                lastUtmContent: utm.utmContent,
-                lastDeviceMemory: clientHints.deviceMemory,
-                lastDpr: clientHints.dpr,
-                lastViewportWidth: clientHints.viewportWidth,
-                lastDownlink: clientHints.downlink,
-                lastRtt: clientHints.rtt,
-                lastEct: clientHints.ect,
-                lastVisitedAt: now,
-                currentBalance: aggregates.currentBalance,
-                totalDeposited: aggregates.totalDeposited,
-                totalWithdrawn: aggregates.totalWithdrawn,
-                telemetry: {
-                    set: {
-                        ip,
-                        country,
-                        region: geo.region,
-                        city: geo.city,
-                        timezone: geo.timezone,
-                        asn,
-                        isp,
-                        ua: uaString,
-                        device,
-                        os,
-                        locale,
-                        referrer,
-                        utm,
-                        clientHints,
-                        updatedAt: now.toISOString(),
-                    },
+        // Build update data object, excluding fields that might not exist yet
+        const updateData: any = {
+            lastIp: ip || undefined,
+            lastCountry: country,
+            lastRegion: geo.region,
+            lastCity: geo.city,
+            lastTimezone: geo.timezone,
+            lastAsn: asn,
+            lastIsp: isp,
+            lastUserAgent: uaString,
+            lastDevice: device,
+            lastOs: os,
+            lastLocale: locale,
+            lastReferrer: referrer,
+            lastUtmSource: utm.utmSource,
+            lastUtmMedium: utm.utmMedium,
+            lastUtmCampaign: utm.utmCampaign,
+            lastUtmTerm: utm.utmTerm,
+            lastUtmContent: utm.utmContent,
+            lastDeviceMemory: clientHints.deviceMemory,
+            lastDpr: clientHints.dpr,
+            lastViewportWidth: clientHints.viewportWidth,
+            lastDownlink: clientHints.downlink,
+            lastRtt: clientHints.rtt,
+            lastEct: clientHints.ect,
+            lastVisitedAt: now,
+            currentBalance: aggregates.currentBalance,
+            totalDeposited: aggregates.totalDeposited,
+            totalWithdrawn: aggregates.totalWithdrawn,
+            telemetry: {
+                set: {
+                    ip,
+                    country,
+                    region: geo.region,
+                    city: geo.city,
+                    timezone: geo.timezone,
+                    asn,
+                    isp,
+                    ua: uaString,
+                    device,
+                    os,
+                    locale,
+                    referrer,
+                    utm,
+                    clientHints,
+                    updatedAt: now.toISOString(),
                 },
             },
+        };
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
         });
-    } catch (error) {
+    } catch (error: any) {
+        // Handle Prisma errors for missing columns (P2022)
+        // This can happen if the database schema is out of sync with Prisma schema
+        if (error?.code === 'P2022' || error?.message?.includes('does not exist')) {
+            console.warn('[telemetry] User update failed - database schema may be out of sync:', error.message);
+            return; // Don't throw - telemetry updates are non-critical
+        }
         console.error('[telemetry] Failed to update user telemetry', error);
     }
 }
