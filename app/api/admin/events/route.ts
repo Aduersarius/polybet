@@ -18,25 +18,50 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search') || '';
         const skip = (page - 1) * limit;
 
-        const where = search
-            ? {
-                OR: [
-                    { title: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                    { description: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                    { categories: { has: search } },
-                    { status: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                    { type: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                    {
-                        creator: {
-                            OR: [
-                                { username: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                                { address: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                            ]
+        const baseWhere: Prisma.EventWhereInput = {
+            AND: [
+                {
+                    NOT: {
+                        categories: {
+                            hasSome: ['SPORTS', 'ESPORTS']
                         }
+                    }
+                },
+                // Also exclude lowercase versions to be safe, though usually they are uppercase
+                {
+                    NOT: {
+                        categories: {
+                            hasSome: ['sports', 'esports', 'Sports', 'Esports']
+                        }
+                    }
+                }
+            ]
+        };
+
+        const where: Prisma.EventWhereInput = search
+            ? {
+                AND: [
+                    baseWhere,
+                    {
+                        OR: [
+                            { title: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                            { description: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                            { categories: { has: search } },
+                            { status: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                            { type: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                            {
+                                creator: {
+                                    OR: [
+                                        { username: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                                        { address: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                                    ]
+                                }
+                            }
+                        ]
                     }
                 ]
             }
-            : {};
+            : baseWhere;
 
         const [events, total] = await Promise.all([
             prisma.event.findMany({

@@ -5,7 +5,7 @@ import type { OddsHistoryPoint } from '@/lib/chart/data';
 
 export function useOddsRealtime(opts: {
   eventId: string;
-  eventType: 'BINARY' | 'MULTIPLE';
+  eventType: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
   isMultipleOutcomes: boolean;
   setData: React.Dispatch<React.SetStateAction<OddsHistoryPoint[]>>;
   maxPoints?: number;
