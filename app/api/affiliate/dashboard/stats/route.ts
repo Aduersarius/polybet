@@ -8,6 +8,8 @@ export async function GET(req: NextRequest) {
     // Check if this is an admin request (admins can view any affiliate's stats)
     const isAdmin = await requireAdminAuth(req).catch(() => null);
     const affiliateIdParam = req.nextUrl.searchParams.get('affiliateId');
+    const timeframe = req.nextUrl.searchParams.get('timeframe') || 'all'; // all, month, week, today
+    const includeTimeSeries = req.nextUrl.searchParams.get('timeSeries') === 'true';
     
     let affiliate;
     let affiliateId: string;
@@ -27,9 +29,30 @@ export async function GET(req: NextRequest) {
       affiliateId = affiliate.id;
     }
 
+    // Calculate date range based on timeframe
+    const now = new Date();
+    let startDate: Date | null = null;
+    
+    if (timeframe === 'today') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (timeframe === 'week') {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 7);
+    } else if (timeframe === 'month') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 1);
+    }
+
     // Get all referrals for this affiliate
     const referrals = await prisma.referral.findMany({
-      where: { affiliateId },
+      where: {
+        affiliateId,
+        ...(startDate && {
+          signupDate: {
+            gte: startDate
+          }
+        })
+      },
       include: {
         user: {
           select: {
@@ -39,6 +62,9 @@ export async function GET(req: NextRequest) {
             email: true,
           }
         }
+      },
+      orderBy: {
+        signupDate: 'asc'
       }
     });
 
@@ -97,7 +123,6 @@ export async function GET(req: NextRequest) {
 
     // Calculate monthly stats (counts only)
     const monthlyStats: Record<string, { referrals: number; deposits: number }> = {};
-    const now = new Date();
     for (let i = 11; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthKey = date.toISOString().slice(0, 7);
@@ -112,6 +137,69 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Calculate time-series data for graph
+    let timeSeriesData: Array<{
+      date: string;
+      referrals: number;
+      registrations: number;
+      income: number;
+      firstDeposits: number;
+      amountDeposits: number;
+    }> = [];
+
+    if (includeTimeSeries) {
+      // Group by day for the selected timeframe
+      const daysData: Record<string, {
+        referrals: number;
+        registrations: number;
+        income: number;
+        firstDeposits: number;
+        amountDeposits: number;
+      }> = {};
+
+      const daysToShow = timeframe === 'today' ? 1 : timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : 365;
+      const seriesStartDate = new Date(now);
+      if (startDate) {
+        seriesStartDate.setTime(startDate.getTime());
+      }
+      seriesStartDate.setDate(seriesStartDate.getDate() - daysToShow);
+
+      // Initialize all days
+      for (let i = 0; i <= daysToShow; i++) {
+        const date = new Date(seriesStartDate);
+        date.setDate(date.getDate() + i);
+        const dateKey = date.toISOString().split('T')[0];
+        daysData[dateKey] = {
+          referrals: 0,
+          registrations: 0,
+          income: 0,
+          firstDeposits: 0,
+          amountDeposits: 0,
+        };
+      }
+
+      // Populate with actual data
+      referrals.forEach((ref: any) => {
+        const dateKey = ref.signupDate.toISOString().split('T')[0];
+        if (daysData[dateKey]) {
+          daysData[dateKey].referrals += 1;
+          daysData[dateKey].registrations += 1;
+          if (ref.firstDepositDate) {
+            daysData[dateKey].firstDeposits += 1;
+          }
+          daysData[dateKey].amountDeposits += ref.depositCount || 0;
+          if (isAdmin) {
+            daysData[dateKey].income += Number(ref.totalRevenue || 0);
+          }
+        }
+      });
+
+      timeSeriesData = Object.entries(daysData).map(([date, data]) => ({
+        date,
+        ...data
+      }));
+    }
+
     const response: any = {
       totalReferrals,
       activeReferrals,
@@ -121,7 +209,11 @@ export async function GET(req: NextRequest) {
         month,
         referrals: stats.referrals,
         deposits: stats.deposits
-      }))
+      })),
+      affiliateName: affiliate.name,
+      affiliateEmail: affiliate.email,
+      affiliateCode: affiliate.referralCode,
+      ...(includeTimeSeries && { timeSeriesData }),
     };
 
     // Add admin-only stats if admin
