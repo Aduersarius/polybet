@@ -115,7 +115,7 @@ async function main() {
                         });
                         createdCount++;
                     } catch (err) {
-                        console.error(`Failed to create outcome ${o.name}:`, err.message);
+                        console.error(`Failed to create outcome ${o.name}:`, err instanceof Error ? err.message : err);
                     }
                 } else if (existing.polymarketOutcomeId !== o.polymarketId) {
                     await prisma.outcome.update({
