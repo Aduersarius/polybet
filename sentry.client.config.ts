@@ -15,6 +15,17 @@ Sentry.init({
         }),
         // Browser profiling (captures JS execution time)
         Sentry.browserProfilingIntegration(),
+        // User feedback collection (manually triggered from Footer)
+        Sentry.feedbackIntegration({
+            colorScheme: "dark",
+            autoInject: false, // We'll trigger it manually from Footer
+            showBranding: false,
+            buttonLabel: "Feedback",
+            submitButtonLabel: "Send Feedback",
+            formTitle: "Send us feedback",
+            messagePlaceholder: "What's on your mind? Found a bug? Have a suggestion?",
+            successMessageText: "Thanks for your feedback!",
+        }),
     ],
 
     // Performance Monitoring
