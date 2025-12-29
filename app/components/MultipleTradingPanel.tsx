@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from '@/components/ui/use-toast';
 import { getUserFriendlyError } from '@/lib/error-messages';
-import { InfoTooltip } from '@/components/ui/InfoTooltip';
-import { HelpBanner } from '@/components/ui/HelpBanner';
+import { cn } from '@/lib/utils';
+import { useSession } from '@/lib/auth-client';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Outcome {
     id: string;
@@ -306,263 +307,266 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
         tradeMutation.mutate();
     };
 
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Scroll selected outcome into view
+    useEffect(() => {
+        if (selectedOutcomeId && scrollContainerRef.current) {
+            const index = currentOutcomes.findIndex(o => o.id === selectedOutcomeId);
+            if (index >= 0) {
+                const container = scrollContainerRef.current;
+                const item = container.children[index] as HTMLElement;
+                if (item) {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            }
+        }
+    }, [selectedOutcomeId, currentOutcomes]);
+
     return (
-        <div className="bg-[#1a1d28] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
-            {/* Header Tabs */}
-            <div className="flex border-b border-white/10">
+        <div className="flex flex-col h-full bg-[#1a1d28] rounded-2xl border border-white/10 overflow-hidden">
+            {/* Buy/Sell Tabs at Top */}
+            <div className="flex p-1.5 bg-black/40 border-b border-white/10 gap-1">
                 <button
                     onClick={() => setSelectedTab('buy')}
-                    className={`flex-1 py-3 text-sm font-medium transition-colors relative ${selectedTab === 'buy' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                    className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 uppercase tracking-wider",
+                        selectedTab === 'buy' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    )}
                 >
                     Buy
-                    {selectedTab === 'buy' && (
-                        <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
-                    )}
                 </button>
                 <button
                     onClick={() => setSelectedTab('sell')}
-                    className={`flex-1 py-3 text-sm font-medium transition-colors relative ${selectedTab === 'sell' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                    className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 uppercase tracking-wider",
+                        selectedTab === 'sell' ? "bg-red-600 text-white shadow-lg shadow-red-600/20" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    )}
                 >
                     Sell
-                    {selectedTab === 'sell' && (
-                        <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
-                    )}
                 </button>
             </div>
 
-            <div className="p-4 space-y-4">
-                {/* Help Banner */}
-                <HelpBanner
-                    type="tip"
-                    message={selectedTab === 'buy'
-                        ? "This is a multiple-choice market. Choose the outcome you believe will happen and buy shares. If that outcome wins, each share is worth $1."
-                        : "Sell shares from your current position. You can only sell outcomes you own shares in."
-                    }
-                    storageKey={`multi-trading-${selectedTab}-help`}
-                />
-
-                {/* Outcome Selector */}
-                <div className="space-y-2">
-                    <div className="text-sm text-gray-400 flex items-center gap-1.5">
-                        Select Outcome
-                        <InfoTooltip
-                            content="Choose which outcome you want to trade. Each outcome shows its current probability of occurring."
-                            side="top"
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                        {currentOutcomes.map((outcome) => {
-                            const outcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === outcome.id)?.amount || 0;
-                            return (
-                                <button
-                                    key={outcome.id}
-                                    onClick={() => setSelectedOutcomeId(outcome.id)}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${selectedOutcomeId === outcome.id
-                                        ? 'bg-[#bb86fc]/20 border-[#bb86fc] text-[#bb86fc]'
-                                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        {outcome.color && (
-                                            <div
-                                                className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: outcome.color }}
-                                            />
-                                        )}
-                                        <div className="flex flex-col items-start">
-                                            <span className="font-medium">{outcome.name}</span>
-                                            {selectedTab === 'sell' && (
-                                                <span className="text-xs opacity-60">
-                                                    {outcomeBalance.toFixed(2)} shares owned
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <span className="text-xs opacity-80">{Math.round(outcome.probability * 100)}%</span>
-                                </button>
-                            );
-                        })}
-                    </div>
+            {/* Horizontal Scrollable Outcome List */}
+            <div className="p-3 border-b border-white/10">
+                <div
+                    ref={scrollContainerRef}
+                    className="flex gap-2 overflow-x-auto pb-1 no-scrollbar"
+                >
+                    {currentOutcomes.map((outcome) => {
+                        const outcomeBalance = userBalances?.find((b: any) => b.tokenSymbol === outcome.id)?.amount || 0;
+                        return (
+                            <button
+                                key={outcome.id}
+                                onClick={() => setSelectedOutcomeId(outcome.id)}
+                                className={cn(
+                                    "flex-shrink-0 px-3 py-2 rounded-xl border transition-all duration-200 flex flex-col items-center gap-0.5 min-w-[120px]",
+                                    selectedOutcomeId === outcome.id
+                                        ? "bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                        : "bg-white/5 border-white/5 hover:border-white/20"
+                                )}
+                            >
+                                <span className={cn(
+                                    "text-xs font-medium truncate w-full text-center",
+                                    selectedOutcomeId === outcome.id ? "text-blue-400" : "text-gray-400"
+                                )}>
+                                    {outcome.name}
+                                </span>
+                                <span className="text-sm font-bold text-white">
+                                    {Math.round(outcome.probability * 100)}%
+                                </span>
+                                {selectedTab === 'sell' && outcomeBalance > 0 && (
+                                    <span className="text-[10px] text-gray-500">{outcomeBalance.toFixed(2)} owned</span>
+                                )}
+                            </button>
+                        )
+                    })}
                 </div>
+            </div>
 
-                {/* Amount/Shares Input */}
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm text-gray-400">
-                        <span className="flex items-center gap-1.5">
-                            {selectedTab === 'buy' ? 'Amount' : 'Shares'}
-                            <InfoTooltip
-                                content={selectedTab === 'buy'
-                                    ? "Enter the dollar amount you want to spend. Minimum $0.10, maximum $10,000."
-                                    : "Enter the number of shares you want to sell from your position."
-                                }
-                                side="top"
-                            />
-                        </span>
-                        <span className="text-white font-medium">
-                            {selectedTab === 'buy'
-                                ? `$${currentAmount.toFixed(2)}`
-                                : `${currentAmount.toFixed(2)} shares`
-                            }
-                        </span>
-                    </div>
-                    <div className="relative">
-                        {selectedTab === 'buy' && (
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                        )}
-                        <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className={`w-full bg-white/5 border border-white/10 rounded-lg py-3 ${selectedTab === 'buy' ? 'pl-8' : 'pl-4'} pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium`}
-                            placeholder="0"
-                        />
-                    </div>
+            {/* Trading Interface */}
+            <div className="flex-1 flex flex-col min-h-0">
+                <div className="p-3 space-y-3 overflow-y-auto no-scrollbar">
 
-                    {/* Payout Display */}
-                    {currentAmount > 0 && currentSelectedOutcome && (
-                        <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-400">
-                                    {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
-                                </span>
-                                <span className="text-white font-bold">
-                                    {selectedTab === 'buy'
-                                        ? `${potentialPayout.toFixed(2)} shares`
-                                        : `$${potentialPayout.toFixed(2)}`
-                                    }
-                                </span>
-                            </div>
-                            {selectedTab === 'buy' && (
-                                <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
-                                    <span>If {currentSelectedOutcome.name} wins:</span>
-                                    <span className="font-medium text-green-400">
-                                        ${(potentialPayout * currentSelectedOutcome.odds).toFixed(2)}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="flex gap-2">
-                        {selectedTab === 'buy' ? (
-                            // Buy presets: USD amounts
-                            ['+1', '+20', '+100', 'Max'].map((val) => (
-                                <button
-                                    key={val}
-                                    onClick={() => {
-                                        if (val === 'Max') {
-                                            setAmount('1000');
-                                        } else {
-                                            const increment = parseFloat(val.replace('+', ''));
-                                            setAmount((parseFloat(amount) || 0 + increment).toString());
-                                        }
-                                    }}
-                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
-                                >
-                                    {val}
-                                </button>
-                            ))
-                        ) : (
-                            // Sell presets: percentage of selected outcome's shares
-                            ['25%', '50%', 'ALL'].map((val) => (
-                                <button
-                                    key={val}
-                                    onClick={() => {
-                                        if (val === 'ALL') {
-                                            setAmount(selectedOutcomeBalance.toString());
-                                        } else {
-                                            const percentage = parseFloat(val.replace('%', '')) / 100;
-                                            setAmount((selectedOutcomeBalance * percentage).toString());
-                                        }
-                                    }}
-                                    className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
-                                    disabled={selectedOutcomeBalance === 0}
-                                >
-                                    {val}
-                                </button>
-                            ))
-                        )}
-                    </div>
-
-                    {/* Order Type Selection */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-gray-400">
-                            <span>Order Type</span>
-                            <span className="text-white font-medium">{orderType === 'market' ? 'Market' : 'Limit'}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
+                    {/* Order Type Toggle */}
+                    <div className="flex items-center justify-between px-1">
+                        <div className="text-sm font-bold text-gray-400 uppercase tracking-tighter">Order Type</div>
+                        <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/5">
                             <button
                                 onClick={() => setOrderType('market')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'market'
-                                    ? 'bg-[#03dac6]/20 border-[#03dac6] text-[#03dac6]'
-                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                    }`}
+                                className={cn(
+                                    "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
+                                    orderType === 'market' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                                )}
                             >
                                 Market
                             </button>
                             <button
                                 onClick={() => setOrderType('limit')}
-                                className={`py-2 px-3 text-sm font-medium rounded border transition-all ${orderType === 'limit'
-                                    ? 'bg-[#cf6679]/20 border-[#cf6679] text-[#cf6679]'
-                                    : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                    }`}
+                                className={cn(
+                                    "px-3 py-1 text-[10px] font-bold uppercase rounded transition-all",
+                                    orderType === 'limit' ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                                )}
                             >
                                 Limit
                             </button>
                         </div>
                     </div>
 
-                    {/* Limit Price Input */}
-                    {orderType === 'limit' && (
+                    <div className="space-y-4">
+                        {/* Amount/Shares Input */}
                         <div className="space-y-2">
-                            <div className="flex justify-between text-sm text-gray-400">
-                                <span>Limit Price</span>
-                                <span className="text-white font-medium">${(parseFloat(price) * 100).toFixed(2)}</span>
+                            <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
+                                <span className="flex items-center gap-1.5">
+                                    {selectedTab === 'buy' ? 'Amount' : 'Shares'}
+                                </span>
+                                <span className="text-white font-medium">
+                                    {selectedTab === 'buy'
+                                        ? `$${currentAmount.toFixed(2)}`
+                                        : `${currentAmount.toFixed(2)} shares`
+                                    }
+                                </span>
                             </div>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                            <div className="relative group">
                                 <input
                                     type="number"
-                                    value={price}
-                                    onChange={(e) => setPrice(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-8 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#bb86fc] transition-colors text-lg font-medium"
-                                    placeholder="0.50"
-                                    step="0.01"
-                                    min="0.01"
-                                    max="0.99"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
+                                    placeholder="0"
                                 />
+                                {selectedTab === 'buy' && (
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                                )}
                             </div>
-                            <div className="text-xs text-gray-500">
-                                Current market price: ${(currentSelectedOutcome?.price.toFixed(2) || '0.00')}
-                            </div>
-                        </div>
-                    )}
-                </div>
 
-                {/* Trade Button */}
-                <button
-                    onClick={handleTrade}
-                    disabled={
-                        isLoading ||
-                        !amount ||
-                        parseFloat(amount) <= 0 ||
-                        parseFloat(amount) > MAX_BET_AMOUNT ||
-                        !selectedOutcomeId ||
-                        (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
-                    }
-                    className="w-full py-3 rounded-lg font-bold text-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                        backgroundColor: '#4CAF50',
-                        boxShadow: '0 0 20px rgba(76, 175, 80, 0.2)'
-                    }}
-                >
-                    {isLoading
-                        ? 'Processing...'
-                        : parseFloat(amount) > MAX_BET_AMOUNT
-                            ? `Max bet: $${MAX_BET_AMOUNT.toLocaleString()}`
-                            : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} ${currentSelectedOutcome?.name || 'Outcome'} ${orderType === 'market' ? '(Market)' : '(Limit)'}`
-                    }
-                </button>
+                            {/* Payout Display */}
+                            {currentAmount > 0 && currentSelectedOutcome && (
+                                <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-400">
+                                            {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
+                                        </span>
+                                        <span className="text-white font-bold">
+                                            {selectedTab === 'buy'
+                                                ? `${potentialPayout.toFixed(2)} shares`
+                                                : `$${potentialPayout.toFixed(2)}`
+                                            }
+                                        </span>
+                                    </div>
+                                    {selectedTab === 'buy' && (
+                                        <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                                            <span>If {currentSelectedOutcome.name} wins:</span>
+                                            <span className="font-medium text-green-400">
+                                                ${(potentialPayout * currentSelectedOutcome.odds).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex gap-2">
+                                {selectedTab === 'buy' ? (
+                                    // Buy presets: USD amounts
+                                    ['+1', '+20', '+100', 'Max'].map((val) => (
+                                        <button
+                                            key={val}
+                                            onClick={() => {
+                                                if (val === 'Max') {
+                                                    setAmount('1000');
+                                                } else {
+                                                    const increment = parseFloat(val.replace('+', ''));
+                                                    setAmount((parseFloat(amount) || 0 + increment).toString());
+                                                }
+                                            }}
+                                            className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                        >
+                                            {val}
+                                        </button>
+                                    ))
+                                ) : (
+                                    // Sell presets: percentage of selected outcome's shares
+                                    ['25%', '50%', 'ALL'].map((val) => (
+                                        <button
+                                            key={val}
+                                            onClick={() => {
+                                                if (val === 'ALL') {
+                                                    setAmount(selectedOutcomeBalance.toString());
+                                                } else {
+                                                    const percentage = parseFloat(val.replace('%', '')) / 100;
+                                                    setAmount((selectedOutcomeBalance * percentage).toString());
+                                                }
+                                            }}
+                                            className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                            disabled={selectedOutcomeBalance === 0}
+                                        >
+                                            {val}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Order Type Selection Removed (Moved Up) */}
+
+                            {/* Limit Price Input */}
+                            {orderType === 'limit' && (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-tighter">
+                                        <span>Limit Price</span>
+                                        <span className="text-white font-medium">${(parseFloat(price) * 100).toFixed(2)}</span>
+                                    </div>
+                                    <div className="relative group">
+                                        <input
+                                            type="number"
+                                            value={price}
+                                            onChange={(e) => setPrice(e.target.value)}
+                                            className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
+                                            placeholder="0.50"
+                                            step="0.01"
+                                            min="0.01"
+                                            max="0.99"
+                                        />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        Current market price: ${(currentSelectedOutcome?.price.toFixed(2) || '0.00')}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Trade Button */}
+                        <button
+                            onClick={handleTrade}
+                            disabled={
+                                isLoading ||
+                                !amount ||
+                                parseFloat(amount) <= 0 ||
+                                parseFloat(amount) > MAX_BET_AMOUNT ||
+                                !selectedOutcomeId ||
+                                (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
+                            }
+                            className={cn(
+                                "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                                selectedTab === 'buy'
+                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
+                                    : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500"
+                            )}
+                        >
+                            {isLoading
+                                ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <LoadingSpinner className="w-5 h-5 text-white" />
+                                        <span>Processing...</span>
+                                    </div>
+                                )
+                                : parseFloat(amount) > MAX_BET_AMOUNT
+                                    ? `Max bet: $${MAX_BET_AMOUNT.toLocaleString()}`
+                                    : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} Tokens`
+                            }
+                        </button>
+                    </div>
+                </div>
 
                 {/* Trade Success Feedback */}
                 {lastTrade && (
@@ -602,7 +606,9 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                     </motion.div>
                 )}
 
-                <p className="text-xs text-center text-gray-500">
+
+
+                <p className="text-xs text-center text-gray-500 pb-2">
                     By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.
                 </p>
             </div>

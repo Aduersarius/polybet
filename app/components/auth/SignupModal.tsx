@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { validatePassword, getPasswordErrorMessage } from '@/lib/password-validation';
 import { EmailVerificationModal } from './EmailVerificationModal';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface SignupModalProps {
     isOpen: boolean;
@@ -197,7 +198,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                             onChange={async (e) => {
                                                 const value = e.target.value.toUpperCase();
                                                 setPromoCode(value);
-                                                
+
                                                 if (value.length >= 3) {
                                                     // Validate promo code
                                                     try {
@@ -235,7 +236,14 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                     disabled={loading}
                                     className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {loading ? 'Creating account...' : 'Create Account'}
+                                    {loading ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <LoadingSpinner className="w-4 h-4 text-white" />
+                                            <span>Creating account...</span>
+                                        </div>
+                                    ) : (
+                                        'Create Account'
+                                    )}
                                 </button>
                             </form>
 

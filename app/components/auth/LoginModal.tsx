@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { authClient, twoFactor } from '@/lib/auth-client';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface LoginModalProps {
     isOpen: boolean;
@@ -277,7 +278,14 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                                     disabled={loading}
                                     className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {loading ? 'Signing in...' : 'Sign In'}
+                                    {loading ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <LoadingSpinner className="w-4 h-4 text-white" />
+                                            <span>Signing in...</span>
+                                        </div>
+                                    ) : (
+                                        'Sign In'
+                                    )}
                                 </button>
                             </form>
 

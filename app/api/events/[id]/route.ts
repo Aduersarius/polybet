@@ -188,8 +188,11 @@ export async function GET(
                 const grownExternalVol = calculateDisplayVolume(externalVol, (event as any).createdAt);
                 const volume = activityVolume > 0 ? activityVolume : grownExternalVol;
 
-                // If outcomes > 2, enforce MULTIPLE to avoid stale binary type
-                const inferredType = (event as any).outcomes?.length > 2 ? 'MULTIPLE' : (event as any).type;
+                // If outcomes > 2, enforce MULTIPLE to avoid stale binary type, UNLESS it is explicitly GROUPED_BINARY
+                const originalType = (event as any).type;
+                const inferredType = originalType === 'GROUPED_BINARY'
+                    ? 'GROUPED_BINARY'
+                    : ((event as any).outcomes?.length > 2 ? 'MULTIPLE' : originalType);
 
                 let response: any = {
                     ...event,
