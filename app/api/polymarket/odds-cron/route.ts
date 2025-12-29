@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 const CLOB_API_BASE = 'https://clob.polymarket.com';
 const GAMMA_API_BASE = 'https://gamma-api.polymarket.com';
-const BUCKET_MS = 5 * 60 * 1000; // 5-minute buckets for odds history
+const BUCKET_MS = 30 * 60 * 1000; // 30-minute buckets for odds history - consistent with historical backfill
 
 function clamp01(n: number): number {
     if (!Number.isFinite(n)) return 0;

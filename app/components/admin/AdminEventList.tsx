@@ -37,6 +37,7 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const [currentPage, setCurrentPage] = useState(1);
+    const [pendingAction, setPendingAction] = useState<{ id: string, type: 'delete' | 'resolve-yes' | 'resolve-no' } | null>(null);
     const itemsPerPage = 10;
 
     // Reset to page 1 when search changes
@@ -223,52 +224,81 @@ export function AdminEventList({ onEditEvent }: AdminEventListProps) {
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (confirm('Resolve this event as YES?')) {
+                                                                const isPending = pendingAction?.id === event.id && pendingAction?.type === 'resolve-yes';
+                                                                if (isPending) {
                                                                     updateEventMutation.mutate({
                                                                         eventId: event.id,
                                                                         action: 'resolve',
                                                                         value: 'YES'
                                                                     });
+                                                                    setPendingAction(null);
+                                                                } else {
+                                                                    setPendingAction({ id: event.id, type: 'resolve-yes' });
+                                                                    setTimeout(() => setPendingAction(prev =>
+                                                                        (prev?.id === event.id && prev?.type === 'resolve-yes') ? null : prev
+                                                                    ), 3000);
                                                                 }
                                                             }}
-                                                            className="text-xs px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors"
+                                                            className={`text-xs px-2 py-1 rounded-md transition-all duration-200 border ${pendingAction?.id === event.id && pendingAction?.type === 'resolve-yes'
+                                                                ? 'bg-emerald-500 text-white border-emerald-400 scale-105 shadow-lg shadow-emerald-500/20'
+                                                                : 'bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20 border-emerald-500/30'
+                                                                }`}
                                                         >
-                                                            ✓ YES
+                                                            {pendingAction?.id === event.id && pendingAction?.type === 'resolve-yes' ? 'Confirm YES?' : '✓ YES'}
                                                         </button>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (confirm('Resolve this event as NO?')) {
+                                                                const isPending = pendingAction?.id === event.id && pendingAction?.type === 'resolve-no';
+                                                                if (isPending) {
                                                                     updateEventMutation.mutate({
                                                                         eventId: event.id,
                                                                         action: 'resolve',
                                                                         value: 'NO'
                                                                     });
+                                                                    setPendingAction(null);
+                                                                } else {
+                                                                    setPendingAction({ id: event.id, type: 'resolve-no' });
+                                                                    setTimeout(() => setPendingAction(prev =>
+                                                                        (prev?.id === event.id && prev?.type === 'resolve-no') ? null : prev
+                                                                    ), 3000);
                                                                 }
                                                             }}
-                                                            className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                                                            className={`text-xs px-2 py-1 rounded-md transition-all duration-200 border ${pendingAction?.id === event.id && pendingAction?.type === 'resolve-no'
+                                                                ? 'bg-red-500 text-white border-red-400 scale-105 shadow-lg shadow-red-500/20'
+                                                                : 'bg-red-500/10 text-red-100 hover:bg-red-500/20 border-red-500/30'
+                                                                }`}
                                                         >
-                                                            ✗ NO
+                                                            {pendingAction?.id === event.id && pendingAction?.type === 'resolve-no' ? 'Confirm NO?' : '✗ NO'}
                                                         </button>
                                                     </>
                                                 )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        if (confirm('Delete this event? This will unmap any Polymarket link.')) {
+                                                        const isPending = pendingAction?.id === event.id && pendingAction?.type === 'delete';
+                                                        if (isPending) {
                                                             updateEventMutation.mutate({
                                                                 eventId: event.id,
                                                                 action: 'delete',
                                                                 value: true
                                                             });
-                                                            // Refresh events and polymarket intake views
                                                             queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
                                                             queryClient.invalidateQueries({ queryKey: ['polymarket', 'intake'] });
+                                                            setPendingAction(null);
+                                                        } else {
+                                                            setPendingAction({ id: event.id, type: 'delete' });
+                                                            setTimeout(() => setPendingAction(prev =>
+                                                                (prev?.id === event.id && prev?.type === 'delete') ? null : prev
+                                                            ), 3000);
                                                         }
                                                     }}
-                                                    className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-100 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                                                    className={`text-xs px-2 py-1 rounded-md transition-all duration-200 border ${pendingAction?.id === event.id && pendingAction?.type === 'delete'
+                                                        ? 'bg-red-600 text-white border-red-500 scale-105 shadow-lg shadow-red-600/20 font-bold'
+                                                        : 'bg-red-500/10 text-red-100 hover:bg-red-500/20 border-red-500/30'
+                                                        }`}
                                                 >
-                                                    Delete
+                                                    {pendingAction?.id === event.id && pendingAction?.type === 'delete' ? 'Confirm Delete?' : 'Delete'}
                                                 </button>
                                             </div>
                                         </td>

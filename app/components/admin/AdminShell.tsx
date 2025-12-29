@@ -126,6 +126,7 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                         'flex-1 transition-all duration-300',
                         sidebarOpen ? 'pl-64' : 'pl-16'
                     )}
+                    style={{ '--sidebar-width': sidebarOpen ? '256px' : '64px' } as any}
                 >
                     <header className="sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-white/5">
                         <div className="px-4 md:px-8 py-4 flex flex-wrap gap-3 items-center justify-end">
