@@ -18,6 +18,7 @@ import { PeriodSelector } from './controls/PeriodSelector';
 import { OutcomeSelector } from './controls/OutcomeSelector';
 import { ChartTooltipBridge } from './tooltip/ChartTooltipBridge';
 import { OddsCursor } from './cursor/OddsCursor';
+import { MultipleOddsCursor } from './cursor/MultipleOddsCursor';
 
 import { assignOutcomeColors } from '@/lib/chart/colors';
 import { toBinaryChartData, toMultiChartData } from '@/lib/chart/data';
@@ -287,11 +288,21 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
                   />
                 }
                 cursor={
-                  <OddsCursor
-                    period={period}
-                    yDomain={yAxisDomain as any}
-                    resolveSeriesMeta={resolveSeriesMeta}
-                  />
+                  isMultipleOutcomes ? (
+                    <MultipleOddsCursor
+                      period={period}
+                      yDomain={yAxisDomain as any}
+                      resolveSeriesMeta={resolveSeriesMeta}
+                      padding={yAxisPadding}
+                    />
+                  ) : (
+                    <OddsCursor
+                      period={period}
+                      yDomain={yAxisDomain as any}
+                      resolveSeriesMeta={resolveSeriesMeta}
+                      padding={yAxisPadding}
+                    />
+                  )
                 }
                 isAnimationActive={false}
                 animationDuration={0}
