@@ -28,21 +28,17 @@ export function OddsCursor({
   offset,
   yAxisMap,
   yDomain,
+  padding = { top: 32, bottom: 32 },
 }: any & {
   period: OddsPeriod;
   resolveSeriesMeta: (dataKey: string) => { name: string; color: string };
   yDomain?: [number, number];
+  padding?: { top: number; bottom: number };
 }) {
-  if (!points || points.length === 0 || !payload || payload.length === 0) return null;
-
-  const x = points[0].x;
-  const timestamp = payload[0]?.payload?.timestamp;
-  if (!timestamp) return null;
+  if (!points || !payload || payload.length === 0) return null;
 
   const chartWidth = width || 800;
   const chartHeight = height || 300;
-  const tooltipWidth = 160;
-  const tooltipGap = 8;
 
   const plotLeft =
     (typeof offset?.left === 'number' ? offset.left : undefined) ??
@@ -56,159 +52,92 @@ export function OddsCursor({
   const plotHeight =
     (typeof offset?.height === 'number' ? offset.height : undefined) ??
     (typeof viewBox?.height === 'number' ? viewBox.height : chartHeight);
+
   const plotRight = plotLeft + plotWidth;
   const plotBottom = plotTop + plotHeight;
-  const domainMin = Array.isArray(yDomain) ? yDomain[0] : undefined;
-  const domainMax = Array.isArray(yDomain) ? yDomain[1] : undefined;
-  const domainRange =
-    typeof domainMin === 'number' && typeof domainMax === 'number' ? domainMax - domainMin : undefined;
 
-  // Edge-aware placement: prefer the right side, but flip when approaching the right border.
-  // Use a small safety pad because tooltip content is `nowrap` and borders/padding can visually overflow.
-  const tooltipOffsetRight = 12;
-  const edgePad = 8;
-  const wouldOverflowRight = x + tooltipOffsetRight + tooltipWidth + edgePad > plotRight;
-  const wouldOverflowLeft = x - tooltipGap - tooltipWidth - edgePad < plotLeft;
-  const canFitLeft = x - tooltipGap - tooltipWidth >= plotLeft;
-  const canFitRight = x + tooltipOffsetRight + tooltipWidth <= plotRight;
-  const tooltipSide: 'left' | 'right' =
-    wouldOverflowRight && canFitLeft ? 'left' :
-    wouldOverflowLeft && canFitRight ? 'right' :
-    canFitRight ? 'right' :
-    canFitLeft ? 'left' :
-    'right';
+  // X Position (Vertical Line)
+  // Use snapped X from points
+  const coordinate = points[0];
+  const x = coordinate?.x ?? 0;
 
-  const dateLabelWidth = 150;
-  const dateLabelX = clamp(
-    tooltipSide === 'left' ? x - dateLabelWidth : x - dateLabelWidth / 2,
-    plotLeft,
-    plotRight - dateLabelWidth,
-  );
+  // Y Calculation (Geometry based)
+  const domainMin = yDomain?.[0] ?? 0;
+  const domainMax = yDomain?.[1] ?? 100;
+  const domainRange = domainMax - domainMin || 1;
 
-  let tooltipX =
-    tooltipSide === 'left' ? x - tooltipWidth - tooltipGap : x + tooltipOffsetRight;
-  tooltipX = clamp(tooltipX, plotLeft, plotRight - tooltipWidth);
-
-  // Map `points` to dataKey -> y to get exact rendered y when possible
-  const pointYByKey = new Map<string, number>();
-  if (Array.isArray(points)) {
-    points.forEach((p: any) => {
-      const key =
-        (typeof p?.payload?.dataKey === 'string' ? p.payload.dataKey : undefined) ??
-        (typeof p?.dataKey === 'string' ? p.dataKey : undefined) ??
-        (typeof p?.key === 'string' ? p.key : undefined);
-      if (typeof key === 'string' && typeof p?.y === 'number') {
-        pointYByKey.set(key, p.y);
-      }
-    });
-  }
-
-  // If present, use the y-axis scale Recharts uses to render the chart.
-  const scaleFn: ((v: any) => any) | undefined = (() => {
-    if (!yAxisMap || typeof yAxisMap !== 'object') return undefined;
-    const axis: any = Object.values(yAxisMap)[0];
-    return typeof axis?.scale === 'function' ? axis.scale : undefined;
-  })();
-
-  // Some Recharts builds put the *same* `coordinate.y` on every payload item (cursor y, not series y).
-  // If so, we must ignore it to avoid mismatched labels.
-  const coordYs = payload
-    .map((p: any) => p?.coordinate?.y)
-    .filter((y: any) => typeof y === 'number') as number[];
-  const coordYIsPerSeries = (() => {
-    if (coordYs.length <= 1) return true;
-    const min = Math.min(...coordYs);
-    const max = Math.max(...coordYs);
-    return max - min > 0.5; // treat tiny variance as identical
-  })();
+  const innerHeight = Math.max(0, plotHeight - padding.top - padding.bottom);
+  const chartAreaTop = plotTop + padding.top;
 
   const items: CursorItem[] = payload.map((p: any) => {
     const dataKey = p?.dataKey as string;
     const value = p?.value ?? 0;
     const meta = resolveSeriesMeta(dataKey);
 
-    // Best-effort exact y:
-    // 1) Recharts tooltip payload coordinate (often exact per-series)
-    // 2) Recharts y-axis scale(value) (exact scale used to render)
-    // 3) points map by dataKey (active dots)
-    // 4) center of plot
-    const yFromCoord =
-      coordYIsPerSeries && typeof p?.coordinate?.y === 'number' ? p.coordinate.y : undefined;
+    const normalized = (value - domainMin) / domainRange;
+    const clampedNorm = Math.max(0, Math.min(1, normalized));
 
-    const scaled = scaleFn ? scaleFn(value) : undefined;
-    const yFromScale =
-      typeof scaled === 'number' && Number.isFinite(scaled)
-        ? // Some scales return values relative to the plot box (0..plotHeight). If so, add plotTop.
-          (scaled >= 0 && scaled <= plotHeight + 1 ? plotTop + scaled : scaled)
-        : undefined;
-
-    const yFromPoints =
-      pointYByKey.get(dataKey) ??
-      (dataKey?.startsWith('outcome_') ? pointYByKey.get(dataKey.replace('outcome_', '')) : undefined);
-
-    let yFromDomain: number | undefined;
-    if (
-      typeof domainMin === 'number' &&
-      typeof domainRange === 'number' &&
-      domainRange !== 0
-    ) {
-      const normalized = (value - domainMin) / domainRange;
-      const clamped = Math.max(0, Math.min(1, normalized));
-      yFromDomain = plotTop + (plotHeight - clamped * plotHeight);
-    }
-    const y =
-      (typeof yFromCoord === 'number' ? yFromCoord : undefined) ??
-      (typeof yFromScale === 'number' && Number.isFinite(yFromScale) ? yFromScale : undefined) ??
-      yFromPoints ??
-      yFromDomain ??
-      (plotTop + plotHeight / 2);
+    // Recharts Y-axis inverted
+    const y = chartAreaTop + innerHeight * (1 - clampedNorm);
 
     return {
-      pointY: clamp(y, plotTop, plotBottom),
-      y: clamp(y, plotTop, plotBottom),
+      pointY: y, // Legacy compat
+      y,
       value,
       color: meta.color,
       name: meta.name,
     };
   });
 
-  // Layout: minimal gap, minimal displacement collision avoidance
-  const boundsPad = 2;
-  let labelHeight = 24;
-  let labelGap = 0;
+  // Sort by Value Descending
+  items.sort((a, b) => b.value - a.value);
 
-  const minTop = plotTop + boundsPad;
-  const maxTop = plotBottom - boundsPad - labelHeight;
-
-  const minCenter = minTop + labelHeight / 2;
-  const maxCenter = maxTop + labelHeight / 2;
-
-  const centers = items
-    .slice()
-    .sort((a, b) => a.pointY - b.pointY)
-    .map((it) => clamp(it.pointY, minCenter, maxCenter));
-
+  // Layout Constraints
+  const labelHeight = 24;
+  const labelGap = 0;
   const minSep = labelHeight + labelGap;
+
+  const minCenter = plotTop + labelHeight / 2;
+  const maxCenter = plotBottom - labelHeight / 2 - 28; // Buffer
+
+  const centers = items.map((it) => clamp(it.y, minCenter, maxCenter));
+
+  // Constraint Propagation
   for (let i = 1; i < centers.length; i++) {
     if (centers[i] < centers[i - 1] + minSep) centers[i] = centers[i - 1] + minSep;
   }
-  const overflow = centers.length ? centers[centers.length - 1] - maxCenter : 0;
-  if (overflow > 0) for (let i = 0; i < centers.length; i++) centers[i] -= overflow;
+  if (centers.length > 0) {
+    const last = centers.length - 1;
+    if (centers[last] > maxCenter) centers[last] = maxCenter;
+  }
   for (let i = centers.length - 2; i >= 0; i--) {
     if (centers[i] > centers[i + 1] - minSep) centers[i] = centers[i + 1] - minSep;
   }
-  const underflow = centers.length ? minCenter - centers[0] : 0;
-  if (underflow > 0) for (let i = 0; i < centers.length; i++) centers[i] += underflow;
+  if (centers.length > 0 && centers[0] < minCenter) {
+    centers[0] = minCenter;
+  }
+  for (let i = 1; i < centers.length; i++) {
+    if (centers[i] < centers[i - 1] + minSep) centers[i] = centers[i - 1] + minSep;
+  }
 
-  const laidOut = items
-    .slice()
-    .sort((a, b) => a.pointY - b.pointY)
-    .map((it, idx) => ({ ...it, y: centers[idx] - labelHeight / 2 }));
+  const laidOut = items.map((it, idx) => ({ ...it, renderY: centers[idx] - labelHeight / 2 }));
 
+  // Render Props
+  const timestamp = payload[0]?.payload?.timestamp ?? points?.[0]?.payload?.timestamp;
   const formattedDate = formatCursorTimestamp(timestamp, period);
 
+  const dateLabelWidth = 150;
+  const dateLabelX = clamp(x - dateLabelWidth / 2, plotLeft, plotRight - dateLabelWidth);
+
+  const tooltipWidth = 200;
+  const tooltipGap = 12;
+  const showLeft = x > plotRight - 150;
+  let tooltipX = showLeft ? x - tooltipWidth - tooltipGap : x + tooltipGap;
+  tooltipX = clamp(tooltipX, plotLeft - 50, plotRight - tooltipWidth + 50);
+
   return (
-    <g>
+    <g className="pointer-events-none">
+      {/* Future Shading */}
       <rect
         x={x}
         y={plotTop}
@@ -218,6 +147,7 @@ export function OddsCursor({
         style={{ pointerEvents: 'none' }}
       />
 
+      {/* Dashed Line */}
       <line
         x1={x}
         y1={plotTop}
@@ -228,22 +158,23 @@ export function OddsCursor({
         strokeDasharray="4 4"
       />
 
-      <foreignObject x={dateLabelX} y={50} width={150} height={26}>
+      {/* Date Label - Top (Y=10) */}
+      <foreignObject x={dateLabelX} y={10} width={dateLabelWidth} height={26}>
         <div className="flex justify-center">
-          <div className="bg-[#1a1d28]/90 border border-white/20 rounded px-2 py-0.5 text-[11px] font-medium text-gray-300 backdrop-blur-sm shadow-xl whitespace-nowrap">
+          <div className="text-[12px] font-medium text-[#94a3b8] whitespace-nowrap">
             {formattedDate}
           </div>
         </div>
       </foreignObject>
 
+      {/* Items */}
       {laidOut.map((item, idx) => (
-        <foreignObject key={idx} x={tooltipX} y={item.y} width={tooltipWidth} height={labelHeight}>
+        <foreignObject key={idx} x={tooltipX} y={item.renderY} width={tooltipWidth} height={labelHeight}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: tooltipSide === 'left' ? 'flex-end' : 'flex-start',
-              gap: '4px',
+              justifyContent: showLeft ? 'flex-end' : 'flex-start',
               width: '100%',
               height: '100%',
             }}
@@ -253,8 +184,8 @@ export function OddsCursor({
                 background: 'rgba(26, 29, 40, 0.95)',
                 border: `1px solid ${item.color}50`,
                 borderRadius: '4px',
-                padding: labelHeight <= 18 ? '1px 6px' : '2px 6px',
-                fontSize: labelHeight <= 18 ? '9px' : '10px',
+                padding: '2px 6px',
+                fontSize: '10px',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
@@ -262,7 +193,6 @@ export function OddsCursor({
                 backdropFilter: 'blur(4px)',
                 whiteSpace: 'nowrap',
                 maxWidth: '100%',
-                overflow: 'hidden',
               }}
             >
               <div
@@ -280,16 +210,14 @@ export function OddsCursor({
                   fontWeight: 500,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  maxWidth: '90px',
-                  display: 'inline-block',
-                  verticalAlign: 'bottom',
+                  maxWidth: '120px',
                 }}
                 title={item.name}
               >
                 {item.name}
               </span>
               <span style={{ color: item.color, fontWeight: 700 }}>
-                {Number(item.value).toFixed(0)}%
+                {parseFloat(item.value.toFixed(2))}%
               </span>
             </div>
           </div>
