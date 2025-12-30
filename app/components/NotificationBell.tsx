@@ -121,47 +121,59 @@ export function NotificationBell() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         transition={{ duration: 0.1 }}
-                        className="absolute right-0 mt-2 w-80 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50"
+                        className="absolute right-0 mt-2 w-80 bg-[var(--surface-elevated)] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
                     >
-                        <div className="p-3 border-b border-white/10 flex justify-between items-center">
+                        {/* Header */}
+                        <div className="p-3.5 bg-gradient-to-r from-[var(--primary)]/10 to-[var(--accent)]/10 border-b border-white/5 flex justify-between items-center">
                             <h3 className="text-sm font-bold text-white">Notifications</h3>
                             {unreadCount > 0 && (
-                                <span className="text-xs text-[#bb86fc]">{unreadCount} new</span>
+                                <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
+                                    {unreadCount} new
+                                </span>
                             )}
                         </div>
 
                         <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                             {notifications.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500 text-sm">
-                                    No notifications yet
+                                <div className="p-8 text-center">
+                                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gray-800/50 flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                        </svg>
+                                    </div>
+                                    <p className="text-gray-400 text-sm">No notifications yet</p>
                                 </div>
                             ) : (
                                 notifications.map((notification) => (
                                     <div
                                         key={notification.id}
                                         onClick={() => handleNotificationClick(notification)}
-                                        className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors ${!notification.isRead ? 'bg-[#bb86fc]/5' : ''}`}
+                                        className={`p-3.5 border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors ${!notification.isRead ? 'bg-[var(--accent)]/5' : ''
+                                            }`}
                                     >
                                         <div className="flex gap-3">
-                                            <div className="mt-1">
+                                            <div className="mt-1.5">
                                                 {notification.type === 'REPLY' && (
-                                                    <div className="w-2 h-2 rounded-full bg-[#03dac6]" />
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--secondary)]" />
                                                 )}
                                                 {notification.type === 'MENTION' && (
-                                                    <div className="w-2 h-2 rounded-full bg-[#bb86fc]" />
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
                                                 )}
                                                 {notification.type === 'BET_RESULT' && (
-                                                    <div className="w-2 h-2 rounded-full bg-[#cf6679]" />
+                                                    <div className="w-2 h-2 rounded-full bg-amber-500" />
                                                 )}
                                                 {notification.type === 'SUPPORT_REPLY' && (
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--primary)]" />
+                                                )}
+                                                {notification.type === 'FAVORITE_UPDATE' && (
+                                                    <div className="w-2 h-2 rounded-full bg-rose-500" />
                                                 )}
                                             </div>
-                                            <div>
+                                            <div className="flex-1 min-w-0">
                                                 <p className={`text-sm ${!notification.isRead ? 'text-white font-medium' : 'text-gray-400'}`}>
                                                     {notification.message}
                                                 </p>
-                                                <span className="text-[10px] text-gray-600 block mt-1">
+                                                <span className="text-[10px] text-gray-500 block mt-1">
                                                     {new Date(notification.createdAt).toLocaleDateString()}
                                                 </span>
                                             </div>

@@ -10,13 +10,19 @@ import { redis } from '@/lib/redis';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { validateString, validateNumber, validateUUID } from '@/lib/validation';
+import { checkRateLimit } from '@/lib/rate-limiter';
+import { trackTrade, trackApiLatency, trackError } from '@/lib/sentry-metrics';
+
+// MVP Safety Limits
+const MAX_TRADE_AMOUNT = 1000; // $1000 max per trade for MVP
+const RATE_LIMIT_TRADES = 20;  // 20 trades per minute
+const RATE_LIMIT_WINDOW = 60000; // 1 minute window
 
 export async function POST(request: Request) {
     const startTime = Date.now();
 
     try {
         assertSameOrigin(request);
-        const body = await request.json();
 
         // Get authenticated user first
         let sessionUserId: string;
@@ -30,6 +36,20 @@ export async function POST(request: Request) {
             return createClientErrorResponse('Unauthorized', 401);
         }
 
+        // Rate limiting for trading (after auth, before processing)
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+            request.headers.get('x-real-ip') || 'unknown';
+        const rateLimit = await checkRateLimit(sessionUserId, ip, RATE_LIMIT_TRADES, RATE_LIMIT_WINDOW);
+        if (!rateLimit.allowed) {
+            const status = rateLimit.reason === 'UNAVAILABLE' ? 503 : 429;
+            const message = rateLimit.reason === 'UNAVAILABLE'
+                ? 'Trading temporarily unavailable, please try again later'
+                : 'Too many trades. Please wait a moment before placing another order.';
+            return createClientErrorResponse(message, status);
+        }
+
+        const body = await request.json();
+
         // Validate all inputs
         const eventIdResult = validateUUID(body.eventId, true);
         if (!eventIdResult.valid) {
@@ -41,7 +61,7 @@ export async function POST(request: Request) {
             return createClientErrorResponse(`side: ${sideResult.error || 'must be "buy" or "sell"'}`, 400);
         }
 
-        const amountResult = validateNumber(body.amount, { required: true, min: 0.01, max: 1000000 });
+        const amountResult = validateNumber(body.amount, { required: true, min: 0.01, max: MAX_TRADE_AMOUNT });
         if (!amountResult.valid) {
             return createClientErrorResponse(`amount: ${amountResult.error}`, 400);
         }
@@ -107,11 +127,7 @@ export async function POST(request: Request) {
             return createClientErrorResponse('Either option or outcomeId is required', 400);
         }
 
-        // Risk management: maximum bet amount
-        const MAX_BET_AMOUNT = 10000;
-        if (amount > MAX_BET_AMOUNT) {
-            return NextResponse.json({ error: `Maximum bet amount is $${MAX_BET_AMOUNT.toLocaleString()}` }, { status: 400 });
-        }
+        // Note: Max amount already validated above with MAX_TRADE_AMOUNT constant
 
         // Execute hybrid order
         const result = await placeHybridOrder(
@@ -129,6 +145,15 @@ export async function POST(request: Request) {
 
         const totalTime = Date.now() - startTime;
         console.log(`✅ Hybrid order executed in ${totalTime}ms: ${side} ${amount} ${targetOption} @ ${result.averagePrice}`);
+
+        // Track trade metrics in Sentry
+        trackTrade(
+            side as 'buy' | 'sell',
+            targetOption.toLowerCase() === 'yes' ? 'yes' : 'no',
+            amount,
+            'multiple' // hybrid trading handles multiple outcomes
+        );
+        trackApiLatency('/api/hybrid-trading', totalTime, 200);
 
         // Create a notification for the user (fire-and-forget)
         try {
@@ -231,6 +256,10 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
+        const totalTime = Date.now() - startTime;
+        trackError('trading', error instanceof Error ? error.message : 'unknown');
+        trackApiLatency('/api/hybrid-trading', totalTime, 500);
+
         if (error instanceof Error && error.message === 'BALANCE_SCHEMA_MISMATCH') {
             return createClientErrorResponse('Trading temporarily unavailable. Please try again later.', 503);
         }

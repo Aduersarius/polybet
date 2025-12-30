@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCryptoService } from '@/lib/crypto-service';
 import { auth } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { trackError, trackApiLatency } from '@/lib/sentry-metrics';
 
 export async function GET(req: NextRequest) {
+    const startTime = Date.now();
     try {
         const session = await auth.api.getSession({
             headers: req.headers
@@ -28,6 +30,7 @@ export async function GET(req: NextRequest) {
         try {
             const service = getCryptoService();
             const address = await service.getDepositAddress(userId, 'USDC');
+            trackApiLatency('/api/crypto/deposit', Date.now() - startTime, 200);
             return NextResponse.json({ address, currency: 'USDC', network: 'Polygon' });
         } catch (serviceError: any) {
             const isConfigError = serviceError?.message?.includes('CRYPTO_MASTER_MNEMONIC');
@@ -46,6 +49,9 @@ export async function GET(req: NextRequest) {
             throw serviceError;
         }
     } catch (error: any) {
+        trackError('payment', error?.message || 'deposit_address_error');
+        trackApiLatency('/api/crypto/deposit', Date.now() - startTime, 500);
+
         if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
             return NextResponse.json({ error: 'Crypto service not configured' }, { status: 503 });
         }
