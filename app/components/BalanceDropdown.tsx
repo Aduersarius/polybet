@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Wallet, History, Briefcase } from 'lucide-react';
+import { ChevronDown, Wallet, History, Briefcase, TrendingUp } from 'lucide-react';
 
 interface BalanceDropdownProps {
     balance: number;
@@ -18,7 +18,7 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
             >
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-white">${displayBalance.toFixed(2)}</span>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </div>
             </button>
 
@@ -31,21 +31,30 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                     />
 
                     {/* Dropdown Menu */}
-                    <div className="absolute right-0 mt-1 w-56 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl z-50">
-                        <div className="p-3 border-b border-white/10">
+                    <div className="absolute right-0 mt-1 w-64 bg-[var(--surface-elevated)] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                        {/* Balance Header */}
+                        <div className="p-4 bg-gradient-to-r from-[var(--primary)]/10 to-[var(--accent)]/10 border-b border-white/5">
                             <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-400">Balance</span>
-                                <span className="text-lg font-bold text-white">${displayBalance.toFixed(2)}</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 rounded-lg bg-[var(--primary)]/20">
+                                        <TrendingUp className="w-4 h-4 text-[var(--primary)]" />
+                                    </div>
+                                    <span className="text-sm text-gray-400">Balance</span>
+                                </div>
+                                <span className="text-xl font-bold text-white">${displayBalance.toFixed(2)}</span>
                             </div>
                         </div>
 
+                        {/* Menu Items */}
                         <div className="py-1">
                             <Link
                                 href="/profile"
                                 onClick={() => setIsOpen(false)}
                                 className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                             >
-                                <Briefcase className="w-4 h-4 text-gray-200" />
+                                <div className="p-1.5 rounded-lg bg-[var(--accent)]/10">
+                                    <Briefcase className="w-4 h-4 text-[var(--accent)]" />
+                                </div>
                                 <div>
                                     <div className="font-medium">Portfolio</div>
                                     <div className="text-xs text-gray-500">Open positions & PnL</div>
@@ -57,7 +66,9 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                                 onClick={() => setIsOpen(false)}
                                 className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                             >
-                                <Wallet className="w-4 h-4 text-green-400" />
+                                <div className="p-1.5 rounded-lg bg-[var(--secondary)]/10">
+                                    <Wallet className="w-4 h-4 text-[var(--secondary)]" />
+                                </div>
                                 <div>
                                     <div className="font-medium">Withdraw</div>
                                     <div className="text-xs text-gray-500">Request crypto withdrawal</div>
@@ -69,7 +80,9 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
                                 onClick={() => setIsOpen(false)}
                                 className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                             >
-                                <History className="w-4 h-4 text-blue-400" />
+                                <div className="p-1.5 rounded-lg bg-[var(--primary)]/10">
+                                    <History className="w-4 h-4 text-[var(--primary)]" />
+                                </div>
                                 <div>
                                     <div className="font-medium">Transaction History</div>
                                     <div className="text-xs text-gray-500">View deposits & withdrawals</div>
@@ -82,3 +95,4 @@ export function BalanceDropdown({ balance }: BalanceDropdownProps) {
         </div>
     );
 }
+

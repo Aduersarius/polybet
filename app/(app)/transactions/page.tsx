@@ -74,10 +74,10 @@ export default function TransactionsPage() {
   const getStatusIcon = (status: string) => {
     switch (status.toUpperCase()) {
       case 'COMPLETED':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
+        return <CheckCircle className="w-4 h-4 text-emerald-400" />;
       case 'PENDING':
       case 'APPROVED':
-        return <Clock className="w-4 h-4 text-yellow-400" />;
+        return <Clock className="w-4 h-4 text-amber-400" />;
       case 'FAILED':
       case 'REJECTED':
         return <XCircle className="w-4 h-4 text-red-400" />;
@@ -86,18 +86,21 @@ export default function TransactionsPage() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toUpperCase()) {
+  const getStatusBadge = (status: string) => {
+    const statusUpper = status.toUpperCase();
+    const baseClasses = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium";
+
+    switch (statusUpper) {
       case 'COMPLETED':
-        return 'text-green-400';
+        return `${baseClasses} bg-emerald-500/15 text-emerald-400 border border-emerald-500/20`;
       case 'PENDING':
       case 'APPROVED':
-        return 'text-yellow-400';
+        return `${baseClasses} bg-amber-500/15 text-amber-400 border border-amber-500/20`;
       case 'FAILED':
       case 'REJECTED':
-        return 'text-red-400';
+        return `${baseClasses} bg-red-500/15 text-red-400 border border-red-500/20`;
       default:
-        return 'text-gray-400';
+        return `${baseClasses} bg-gray-500/15 text-gray-400 border border-gray-500/20`;
     }
   };
 
@@ -112,25 +115,31 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
+    <div className="min-h-screen bg-[var(--background)] text-white font-sans flex flex-col">
       <Navbar />
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="flex-1 max-w-4xl mx-auto px-4 pt-24 pb-8 w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#1e1e1e] rounded-2xl border border-transparent p-8 hover:border-blue-500/50 transition-all duration-300"
+          className="material-card p-6 md:p-8"
         >
-          <div className="flex items-center gap-3 mb-6">
-            <History className="w-8 h-8 text-blue-400" />
-            <h1 className="text-2xl font-bold text-white">Transaction History</h1>
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-2.5 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20">
+              <History className="w-6 h-6 text-[var(--primary)]" />
+            </div>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-white">Transaction History</h1>
+              <p className="text-sm text-gray-400">View your deposits and withdrawals</p>
+            </div>
           </div>
 
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 p-4 mb-6 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400"
+              className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400"
             >
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
@@ -138,67 +147,75 @@ export default function TransactionsPage() {
           )}
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-2 border-[var(--primary)]/30 border-t-[var(--primary)] rounded-full animate-spin" />
               <span className="ml-3 text-gray-400">Loading transactions...</span>
             </div>
           ) : transactions.length === 0 ? (
-            <div className="text-center py-12">
-              <History className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">No transactions found</p>
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-800/50 flex items-center justify-center">
+                <History className="w-8 h-8 text-gray-500" />
+              </div>
+              <p className="text-gray-400 text-lg">No transactions found</p>
+              <p className="text-gray-500 text-sm mt-1">Your deposits and withdrawals will appear here</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Type</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Amount</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Token</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Date</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
+                  <tr className="border-b border-white/5">
+                    <th className="text-left py-3 px-3 text-xs font-medium text-gray-400 uppercase tracking-wider w-[140px]">Type</th>
+                    <th className="text-left py-3 px-3 text-xs font-medium text-gray-400 uppercase tracking-wider w-[120px]">Amount</th>
+                    <th className="text-left py-3 px-3 text-xs font-medium text-gray-400 uppercase tracking-wider w-[80px]">Token</th>
+                    <th className="text-left py-3 px-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                    <th className="text-left py-3 px-3 text-xs font-medium text-gray-400 uppercase tracking-wider w-[130px]">Status</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {transactions.map((transaction) => (
+                <tbody className="divide-y divide-white/5">
+                  {transactions.map((transaction, idx) => (
                     <motion.tr
                       key={transaction.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="border-b border-gray-800/50 hover:bg-[#2a2a2a]/50 transition-colors"
+                      transition={{ delay: idx * 0.03 }}
+                      className="group hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="py-4 px-4">
+                      <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
-                          {transaction.type === 'Deposit' ? (
-                            <ArrowDownCircle className="w-4 h-4 text-green-400" />
-                          ) : (
-                            <ArrowUpCircle className="w-4 h-4 text-red-400" />
-                          )}
-                          <span className="text-sm font-medium">{transaction.type}</span>
+                          <div className={`p-1.5 rounded-lg ${transaction.type === 'Deposit'
+                            ? 'bg-emerald-500/10 border border-emerald-500/20'
+                            : 'bg-orange-500/10 border border-orange-500/20'
+                            }`}>
+                            {transaction.type === 'Deposit' ? (
+                              <ArrowDownCircle className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <ArrowUpCircle className="w-4 h-4 text-orange-400" />
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-white">{transaction.type}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm font-mono">
-                          {transaction.amount.toFixed(4)}
+                      <td className="py-3 px-3">
+                        <span className={`text-sm font-mono font-medium ${transaction.type === 'Deposit' ? 'text-emerald-400' : 'text-orange-400'
+                          }`}>
+                          {transaction.type === 'Deposit' ? '+' : '-'}{transaction.amount.toFixed(4)}
                         </span>
                       </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm font-medium text-gray-300">
+                      <td className="py-3 px-3">
+                        <span className="text-sm font-medium text-gray-300 bg-white/5 px-2 py-0.5 rounded">
                           {transaction.currency}
                         </span>
                       </td>
-                      <td className="py-4 px-4">
+                      <td className="py-3 px-3">
                         <span className="text-sm text-gray-400">
                           {formatDate(transaction.createdAt)}
                         </span>
                       </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
+                      <td className="py-3 px-3">
+                        <span className={getStatusBadge(transaction.status)}>
                           {getStatusIcon(transaction.status)}
-                          <span className={`text-sm font-medium ${getStatusColor(transaction.status)}`}>
-                            {transaction.status}
-                          </span>
-                        </div>
+                          {transaction.status}
+                        </span>
                       </td>
                     </motion.tr>
                   ))}

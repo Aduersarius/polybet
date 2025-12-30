@@ -2,7 +2,20 @@ import { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { prisma } from './prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET || process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production for affiliate authentication');
+    }
+    console.warn('[affiliate-auth] ⚠️ No JWT secret found - using insecure default for development only');
+    return 'dev-only-insecure-secret-do-not-use-in-production';
+  }
+  if (secret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long');
+  }
+  return secret;
+})();
 
 export interface AffiliateTokenPayload {
   affiliateId: string;
@@ -23,8 +36,8 @@ export async function getAffiliateFromRequest(request: NextRequest): Promise<{
 } | null> {
   try {
     const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '') || 
-                  request.cookies.get('affiliate_token')?.value;
+    const token = authHeader?.replace('Bearer ', '') ||
+      request.cookies.get('affiliate_token')?.value;
 
     if (!token) {
       return null;
@@ -63,7 +76,7 @@ export async function getAffiliateFromRequest(request: NextRequest): Promise<{
  */
 export async function requireAffiliateAuth(request: NextRequest) {
   const affiliate = await getAffiliateFromRequest(request);
-  
+
   if (!affiliate) {
     throw new Response(JSON.stringify({ error: 'Authentication required' }), {
       status: 401,

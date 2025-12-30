@@ -11,6 +11,12 @@ import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { validateString, validateNumber, validateEventId, validateUUID } from '@/lib/validation';
 import { trackTrade, trackApiLatency, trackError, startTimer } from '@/lib/sentry-metrics';
+import { checkRateLimit } from '@/lib/rate-limiter';
+
+// MVP Safety Limits
+const MAX_BET_AMOUNT = 1000; // $1000 max per bet for MVP
+const RATE_LIMIT_BETS = 20;  // 20 bets per minute
+const RATE_LIMIT_WINDOW = 60000; // 1 minute window
 
 export async function POST(request: Request) {
     const startTime = Date.now();
@@ -18,6 +24,19 @@ export async function POST(request: Request) {
     // Authentication check
     assertSameOrigin(request);
     const user = await requireAuth(request);
+
+    // Rate limiting for trading
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip') || 'unknown';
+    const rateLimit = await checkRateLimit(user.id, ip, RATE_LIMIT_BETS, RATE_LIMIT_WINDOW);
+    if (!rateLimit.allowed) {
+        const status = rateLimit.reason === 'UNAVAILABLE' ? 503 : 429;
+        const message = rateLimit.reason === 'UNAVAILABLE'
+            ? 'Trading temporarily unavailable, please try again later'
+            : 'Too many trades. Please wait a moment before placing another bet.';
+        trackError('trading', 'rate_limit_exceeded');
+        return createClientErrorResponse(message, status);
+    }
 
     try {
         const body = await request.json();
@@ -39,7 +58,7 @@ export async function POST(request: Request) {
         const amountResult = validateNumber(body.amount, {
             required: true,
             min: 0.01,
-            max: 1000000
+            max: MAX_BET_AMOUNT
         });
         if (!amountResult.valid) {
             return createClientErrorResponse(`amount: ${amountResult.error}`, 400);

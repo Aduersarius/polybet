@@ -1,0 +1,39 @@
+# Robots.txt for PolyBet
+# https://polybet.ru
+
+User-agent: *
+
+# Allow all public pages
+Allow: /
+Allow: /landing
+Allow: /faq
+Allow: /legal/*
+Allow: /event/*
+
+# Disallow admin and internal routes
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/*
+Disallow: /affiliate/dashboard
+Disallow: /affiliate/dashboard/*
+Disallow: /dashboard
+Disallow: /dashboard/*
+Disallow: /settings
+Disallow: /settings/*
+Disallow: /profile
+Disallow: /profile/*
+Disallow: /transactions
+Disallow: /withdraw
+Disallow: /sentry-example-page
+
+# Disallow auth pages from indexing
+Disallow: /login
+Disallow: /signup
+Disallow: /reset-password
+Disallow: /verify-email
+
+# Sitemap location (add when you create one)
+# Sitemap: https://polybet.ru/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1

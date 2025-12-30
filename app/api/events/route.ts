@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { calculateDisplayVolume } from '@/lib/volume-scaler';
+import { getOrSet } from '@/lib/cache';
+import { redis } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +21,25 @@ export async function GET(request: Request) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const source = searchParams.get('source'); // optional source filter (e.g., POLYMARKET)
     const searchQuery = searchParams.get('search')?.trim();
+
+    // Generate cache key from query params (skip caching for user-specific/search queries)
+    const isCacheable = category !== 'FAVORITES' && !searchQuery;
+    const cacheKey = isCacheable
+        ? `events:${category || 'ALL'}:${timeHorizon}:${sortBy}:${limit}:${offset}:${source || ''}`
+        : null;
+
+    // Check cache first (20 second TTL)
+    if (cacheKey && redis && (redis as any).status === 'ready') {
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) {
+                console.log(`✅ Events cache HIT: ${cacheKey}`);
+                return NextResponse.json(JSON.parse(cached));
+            }
+        } catch (e) {
+            // Cache miss or error, continue to DB
+        }
+    }
 
     // ... (rest of the code remains the same until where clause construction)
 
@@ -492,6 +513,15 @@ export async function GET(request: Request) {
                 hasMore,
             },
         };
+
+        // Cache the result for 5 minutes (skip for non-cacheable requests)
+        if (cacheKey && redis && (redis as any).status === 'ready') {
+            try {
+                await redis.setex(cacheKey, 300, JSON.stringify(result));
+            } catch (e) {
+                // Cache write failed, non-critical
+            }
+        }
 
         return NextResponse.json(result);
     } catch (error) {

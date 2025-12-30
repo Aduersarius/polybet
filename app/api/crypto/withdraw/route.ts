@@ -6,10 +6,12 @@ import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
+import { trackTransaction, trackError, trackApiLatency } from '@/lib/sentry-metrics';
 
 const ALLOWED_TOKENS = ['USDC'];
 
 export async function POST(req: NextRequest) {
+    const startTime = Date.now();
     try {
         assertSameOrigin(req);
         const session = await auth.api.getSession({
@@ -157,8 +159,15 @@ export async function POST(req: NextRequest) {
             console.error('Failed to load Telegram notification service:', error);
         });
 
+        // Track withdrawal request in Sentry metrics
+        trackTransaction('withdrawal', 'pending', amountNumber);
+        trackApiLatency('/api/crypto/withdraw', Date.now() - startTime, 200);
+
         return NextResponse.json({ success: true });
     } catch (error: any) {
+        trackError('payment', error?.message || 'withdrawal_error');
+        trackApiLatency('/api/crypto/withdraw', Date.now() - startTime, 500);
+
         if (error?.message?.includes('CRYPTO_MASTER_MNEMONIC')) {
             return createClientErrorResponse('Crypto service not configured', 503);
         }

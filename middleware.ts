@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { setAffiliateCookie } from './lib/affiliate-cookies';
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const { pathname, origin } = request.nextUrl;
-    
+
     // Affiliate tracking: Check for ?ref= parameter in URL (do this early for all requests)
     const refCode = request.nextUrl.searchParams.get('ref');
     const utmParams = {
@@ -14,13 +14,13 @@ export async function proxy(request: NextRequest) {
         utmTerm: request.nextUrl.searchParams.get('utm_term'),
         utmContent: request.nextUrl.searchParams.get('utm_content'),
     };
-    
+
     // Helper function to add affiliate cookies to a response
     const addAffiliateCookies = (resp: NextResponse) => {
         if (refCode) {
             const cookieValue = setAffiliateCookie(refCode);
             resp.headers.set('Set-Cookie', cookieValue);
-            
+
             if (Object.values(utmParams).some(v => v)) {
                 const utmCookie = `affiliate_utm=${encodeURIComponent(JSON.stringify(utmParams))}; expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()}; path=/; SameSite=Lax; Secure`;
                 resp.headers.append('Set-Cookie', utmCookie);
@@ -59,7 +59,7 @@ export async function proxy(request: NextRequest) {
             });
             session = await response.json();
         } catch (e) {
-            console.error('proxy session check failed', e);
+            console.error('middleware session check failed', e);
         }
 
         if (!session) {
@@ -81,9 +81,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
-        '/((?!_next/static|_next/image|favicon.ico|api/auth|api/telegram).*)',
+        // Match all paths except static files and auth/telegram APIs
+        '/((?!_next/static|_next/image|favicon.ico|api/auth|api/telegram|api/health).*)',
     ],
 };
-
-
-
