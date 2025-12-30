@@ -479,7 +479,7 @@ export default function Home() {
               {isFetchingNextPage && (
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8">
                   {Array.from({ length: 5 }).map((_, i) => ( // Show 5 skeletons to fill a row
-                    <div key={`loading-more-${i}`} className="bg-[#1a1d28] rounded-2xl border border-white/5 p-4 space-y-4 h-[260px] flex flex-col">
+                    <div key={`loading-more-${i}`} className="bg-[#1a1d28] rounded-2xl border border-white/5 p-4 space-y-4 h-[220px] flex flex-col">
                       <div className="flex justify-between items-start">
                         <Skeleton className="h-12 w-12 rounded-full" />
                         <Skeleton className="h-6 w-20 rounded-lg" />
@@ -500,7 +500,7 @@ export default function Home() {
               {isLoadingEvents && activeEvents.length === 0 && (
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
                   {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="bg-[#1a1d28] rounded-2xl border border-white/5 p-4 space-y-4 h-[260px] flex flex-col">
+                    <div key={i} className="bg-[#1a1d28] rounded-2xl border border-white/5 p-4 space-y-4 h-[220px] flex flex-col">
                       <div className="flex justify-between items-start">
                         <Skeleton className="h-12 w-12 rounded-full" />
                         <Skeleton className="h-6 w-20 rounded-lg" />
