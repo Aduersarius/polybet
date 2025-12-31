@@ -127,13 +127,17 @@ export function OddsCursor({
   const formattedDate = formatCursorTimestamp(timestamp, period);
 
   const dateLabelWidth = 150;
-  const dateLabelX = clamp(x - dateLabelWidth / 2, plotLeft, plotRight - dateLabelWidth);
 
   const tooltipWidth = 200;
   const tooltipGap = 12;
-  const showLeft = x > plotRight - 150;
+  const showLeft = x > plotRight - 250;
   let tooltipX = showLeft ? x - tooltipWidth - tooltipGap : x + tooltipGap;
   tooltipX = clamp(tooltipX, plotLeft - 50, plotRight - tooltipWidth + 50);
+
+  // Date label position - stays close to the cursor line
+  const dateLabelGap = 8;
+  let dateLabelX = showLeft ? x - dateLabelWidth - dateLabelGap : x + dateLabelGap;
+  dateLabelX = clamp(dateLabelX, plotLeft, plotRight - dateLabelWidth);
 
   return (
     <g className="pointer-events-none">
@@ -158,9 +162,9 @@ export function OddsCursor({
         strokeDasharray="4 4"
       />
 
-      {/* Date Label - Top (Y=10) */}
-      <foreignObject x={dateLabelX} y={10} width={dateLabelWidth} height={26}>
-        <div className="flex justify-center">
+      {/* Date Label - Same side as tooltips, close to cursor line */}
+      <foreignObject x={dateLabelX} y={plotTop + 8} width={dateLabelWidth} height={26}>
+        <div className={`flex ${showLeft ? 'justify-end' : 'justify-start'}`}>
           <div className="text-[12px] font-medium text-[#94a3b8] whitespace-nowrap">
             {formattedDate}
           </div>

@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateUUID } from '@/lib/validation';
+import { validateString, validateUUID, validateEventId } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -135,15 +135,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const userId = user.id;
 
         const { id } = await params;
-        
-        // Validate event ID
-        const eventIdResult = validateUUID(id, true);
+
+        // Validate event ID (supports both UUID and Polymarket numeric IDs)
+        const eventIdResult = validateEventId(id, true);
         if (!eventIdResult.valid) {
             return createClientErrorResponse(`Invalid event ID: ${eventIdResult.error}`, 400);
         }
 
         const body = await req.json();
-        
+
         // Validate message text
         const textResult = validateString(body.text, {
             required: true,

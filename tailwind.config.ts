@@ -15,6 +15,7 @@ const config: Config = {
                 // Use centralized color system
                 background: tailwindColors.background,
                 surface: tailwindColors.surface,
+                surfaceElevated: tailwindColors.surfaceElevated,
                 primary: tailwindColors.primary,
                 secondary: tailwindColors.secondary,
                 accent: tailwindColors.accent,
