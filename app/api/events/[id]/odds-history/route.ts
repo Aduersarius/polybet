@@ -85,6 +85,9 @@ async function loadPolymarketHistory(eventId: string, period: string) {
   let significantOutcomes = allDeduplicatedOutcomes.filter(o => o.probability >= 0.01);
   if (significantOutcomes.length < 4) {
     significantOutcomes = allDeduplicatedOutcomes.slice(0, 4);
+  } else if (significantOutcomes.length > 12) {
+    // Cap to top 12 outcomes for performance and chart readability
+    significantOutcomes = significantOutcomes.slice(0, 12);
   }
 
   const significantCanonicalIds = new Set(significantOutcomes.map(o => o.id));

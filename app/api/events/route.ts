@@ -28,18 +28,7 @@ export async function GET(request: Request) {
         ? `events:${category || 'ALL'}:${timeHorizon}:${sortBy}:${limit}:${offset}:${source || ''}`
         : null;
 
-    // Check cache first (20 second TTL)
-    if (cacheKey && redis && (redis as any).status === 'ready') {
-        try {
-            const cached = await redis.get(cacheKey);
-            if (cached) {
-                console.log(`✅ Events cache HIT: ${cacheKey}`);
-                return NextResponse.json(JSON.parse(cached));
-            }
-        } catch (e) {
-            // Cache miss or error, continue to DB
-        }
-    }
+
 
     // ... (rest of the code remains the same until where clause construction)
 

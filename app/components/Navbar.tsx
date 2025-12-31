@@ -18,6 +18,7 @@ import { useCustomTour } from '@/contexts/CustomTourContext';
 import { CreateEventModal } from './admin/CreateEventModal';
 import { CategoryBar } from './CategoryBar';
 import { useSupportChat } from '@/contexts/SupportChatContext';
+import { useBalance } from '@/hooks/use-balance';
 
 
 interface NavbarProps {
@@ -54,8 +55,10 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [showSuggestModal, setShowSuggestModal] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const { startTour } = useCustomTour();
-    const [balance, setBalance] = useState<number>(0);
-    const [isMounted, setIsMounted] = useState(false); // Prevent hydration mismatch
+    const [isMounted, setIsMounted] = useState(false);
+    const { data: balanceData, refetch: refetchBalance } = useBalance();
+    const balance = balanceData ?? 0;
+
     const categories: Category[] = [
         { id: 'ALL', label: 'All' },
         { id: 'TRENDING', label: 'Trending' },
@@ -75,20 +78,9 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     ];
     const { data: session } = useSession();
 
-    // Only render session-dependent UI after mounting on client
     useEffect(() => {
         setIsMounted(true);
     }, []);
-
-    // Fetch balance when user logs in
-    useEffect(() => {
-        if ((session as any)?.user) {
-            fetch('/api/balance')
-                .then(res => res.json())
-                .then(data => setBalance(data.balance))
-                .catch(err => console.error('Failed to fetch balance:', err));
-        }
-    }, [session]);
 
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -349,10 +341,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 isOpen={showDepositModal}
                 onClose={() => setShowDepositModal(false)}
                 onBalanceUpdate={() => {
-                    // Refresh balance
-                    fetch('/api/balance')
-                        .then(res => res.json())
-                        .then(data => setBalance(data.balance));
+                    refetchBalance();
                 }}
             />
             <CreateEventModal

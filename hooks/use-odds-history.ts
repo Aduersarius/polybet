@@ -15,6 +15,7 @@ const ALL_PERIODS: OddsPeriod[] = ['1d', '1w', '1m', '3m', 'all'];
  */
 export function useOddsHistory(eventId: string, period: OddsPeriod) {
   const queryClient = useQueryClient();
+
   const prefetchedRef = useRef<string | null>(null);
 
   const query = useQuery<OddsHistoryPoint[]>({
@@ -35,27 +36,40 @@ export function useOddsHistory(eventId: string, period: OddsPeriod) {
     },
   });
 
-  // Prefetch all other periods once per eventId for instant switching
+  /**
+   * BACKGROUND PREFETCHING:
+   * triggered after the "all" range (primary load) is successful.
+   * This ensures the main chart is snappy, then quietly prepares other tabs.
+   */
   useEffect(() => {
-    if (!eventId || prefetchedRef.current === eventId) return;
-    prefetchedRef.current = eventId;
+    if (!eventId || period !== 'all' || !query.isSuccess || prefetchedRef.current === eventId) return;
 
-    ALL_PERIODS.forEach((p) => {
-      queryClient.prefetchQuery({
-        queryKey: ['odds-history', eventId, p],
-        staleTime: 30_000,
-        queryFn: async () => {
-          const res = await fetch(`/api/events/${eventId}/odds-history?period=${p}`, {
-            headers: { 'x-cache-prefetch': '1' },
-            cache: 'no-store',
-          });
-          if (!res.ok) throw new Error(`odds-history ${res.status}`);
-          const json = await res.json();
-          return Array.isArray(json?.data) ? (json.data as OddsHistoryPoint[]) : [];
-        },
+    // Wait 2s after main load to start background work
+    const timer = setTimeout(() => {
+      prefetchedRef.current = eventId;
+
+      const otherPeriods = ALL_PERIODS.filter(p => p !== 'all');
+
+      otherPeriods.forEach((p) => {
+        queryClient.prefetchQuery({
+          queryKey: ['odds-history', eventId, p],
+          staleTime: 30_000,
+          queryFn: async () => {
+            const res = await fetch(`/api/events/${eventId}/odds-history?period=${p}`, {
+              headers: { 'x-cache-prefetch': '1' },
+              cache: 'no-store',
+            });
+            if (!res.ok) throw new Error(`odds-history ${res.status}`);
+            const json = await res.json();
+            return Array.isArray(json?.data) ? (json.data as OddsHistoryPoint[]) : [];
+          },
+        });
       });
-    });
-  }, [eventId, queryClient]);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [eventId, period, query.isSuccess, queryClient]);
+
 
   const setData = useMemo(
     () =>

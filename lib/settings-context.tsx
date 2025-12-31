@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useSession } from '@/lib/auth-client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface UserSettings {
     trading: {
@@ -62,46 +63,53 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+    const queryClient = useQueryClient();
     const { data: session } = useSession();
     const user = (session as any)?.user;
-    const [settings, setSettings] = useState<UserSettings>(defaultSettings);
-    const [isLoading, setIsLoading] = useState(true);
 
-    // Fetch settings when user is available
-    useEffect(() => {
-        if (user) {
-            fetch('/api/user/settings')
-                .then(res => res.json())
-                .then(data => {
-                    setSettings({
-                        trading: { ...defaultSettings.trading, ...data?.trading },
-                        notifications: { ...defaultSettings.notifications, ...data?.notifications },
-                        display: { ...defaultSettings.display, ...data?.display },
-                        privacy: { ...defaultSettings.privacy, ...data?.privacy },
-                    });
-                    setIsLoading(false);
-                })
-                .catch(() => {
-                    setIsLoading(false);
-                });
-        } else {
-            setIsLoading(false);
-        }
-    }, [user]);
+    const { data: remoteSettings, isLoading } = useQuery({
+        queryKey: ['user-settings', user?.id],
+        queryFn: async () => {
+            const res = await fetch('/api/user/settings');
+            if (!res.ok) throw new Error('Failed to fetch settings');
+            return res.json();
+        },
+        enabled: !!user,
+        staleTime: 60000, // 1 minute
+    });
+
+    const settings = useMemo(() => {
+        if (!remoteSettings) return defaultSettings;
+        return {
+            trading: { ...defaultSettings.trading, ...remoteSettings?.trading },
+            notifications: { ...defaultSettings.notifications, ...remoteSettings?.notifications },
+            display: { ...defaultSettings.display, ...remoteSettings?.display },
+            privacy: { ...defaultSettings.privacy, ...remoteSettings?.privacy },
+        };
+    }, [remoteSettings]);
 
     const updateSettings = async (updates: Partial<UserSettings>) => {
         const newSettings = {
             ...settings,
             ...updates,
         };
-        setSettings(newSettings);
+
+        // Optimistic update
+        queryClient.setQueryData(['user-settings', user?.id], newSettings);
 
         if (user) {
-            await fetch('/api/user/settings', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newSettings),
-            });
+            try {
+                const res = await fetch('/api/user/settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newSettings),
+                });
+                if (!res.ok) throw new Error('Failed to save');
+            } catch (err) {
+                // Rollback on error
+                queryClient.invalidateQueries({ queryKey: ['user-settings', user?.id] });
+                throw err;
+            }
         }
     };
 
