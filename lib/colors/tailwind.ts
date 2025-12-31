@@ -10,28 +10,53 @@ export const tailwindColors = {
   // Background colors
   background: colorTokens.background,
   surface: colorTokens.surface,
-  
+  surfaceElevated: colorTokens.surfaceElevated,
+
   // Primary scale
-  primary: colorTokens.primary,
-  
+  primary: {
+    ...colorTokens.primary,
+    DEFAULT: colorTokens.primary[500],
+  },
+
   // Secondary scale
-  secondary: colorTokens.secondary,
-  
+  secondary: {
+    ...colorTokens.secondary,
+    DEFAULT: colorTokens.secondary[500],
+  },
+
   // Accent scale
-  accent: colorTokens.accent,
-  
+  accent: {
+    ...colorTokens.accent,
+    DEFAULT: colorTokens.accent[500],
+  },
+
   // Semantic colors
-  error: colorTokens.error,
-  warning: colorTokens.warning,
-  success: colorTokens.success,
-  
+  error: {
+    ...colorTokens.error,
+    DEFAULT: colorTokens.error[500],
+  },
+  warning: {
+    ...colorTokens.warning,
+    DEFAULT: colorTokens.warning[500],
+  },
+  success: {
+    ...colorTokens.success,
+    DEFAULT: colorTokens.success[500],
+  },
+
   // Neutral scales
-  gray: colorTokens.gray,
-  zinc: colorTokens.zinc,
-  
+  gray: {
+    ...colorTokens.gray,
+    DEFAULT: colorTokens.gray[800],
+  },
+  zinc: {
+    ...colorTokens.zinc,
+    DEFAULT: colorTokens.zinc[800],
+  },
+
   // Text colors
   text: colorTokens.text,
-  
+
   // Chart colors
   chart: colorTokens.chart,
 } as const;

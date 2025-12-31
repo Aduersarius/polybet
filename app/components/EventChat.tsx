@@ -1,8 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { ActivityList } from './ActivityList';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,7 +30,7 @@ interface Message {
         address?: string;
         username: string | null;
         avatarUrl: string | null;
-        image: string | null; // Include image field from Better Auth as fallback
+        image: string | null;
         bets?: {
             option: string;
             amount: number;
@@ -49,7 +48,6 @@ export function EventChat({ eventId }: EventChatProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [inputText, setInputText] = useState('');
     const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
-    const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat');
 
     // Mock user for dev - in real app use auth context
     const user = { id: 'dev-user', username: 'Dev User' };
@@ -89,14 +87,14 @@ export function EventChat({ eventId }: EventChatProps) {
     // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
     useEffect(() => {
         if (!data || isLoading) return;
-        
+
         const scrollArea = scrollContainerRef.current?.closest('[data-radix-scroll-area-root]');
         const viewport = scrollArea?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
-        
+
         if (viewport) {
             // Check if user is near bottom (within 100px)
             const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
-            
+
             if (isNearBottom) {
                 // Scroll to bottom
                 setTimeout(() => {
@@ -200,216 +198,195 @@ export function EventChat({ eventId }: EventChatProps) {
     };
 
     return (
-        <div className="material-card p-4 flex flex-col h-full min-h-[600px]">
-            {/* Tabs Header */}
-            <div className="flex items-center gap-6 mb-4 border-b border-white/10 pb-2">
-                <button
-                    onClick={() => setActiveTab('chat')}
-                    className={`text-sm font-medium pb-2 relative transition-colors ${activeTab === 'chat' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
-                >
+        <div className="flex flex-col">
+            {/* Header - Comments count */}
+            <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-medium text-zinc-300">
                     Comments ({rootMessages.length})
-                    {activeTab === 'chat' && (
-                        <span className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-[#bb86fc] rounded-t-full" />
-                    )}
-                </button>
-                <button
-                    onClick={() => setActiveTab('activity')}
-                    className={`text-sm font-medium pb-2 relative transition-colors ${activeTab === 'activity' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
-                >
-                    Activity
-                    {activeTab === 'activity' && (
-                        <span className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-[#03dac6] rounded-t-full" />
-                    )}
-                </button>
+                </span>
             </div>
 
-            {activeTab === 'chat' ? (
-                <>
-                    {/* Input Area */}
-                    <div className="relative mb-6">
-                        {replyTo && (
-                            <div className="flex items-center justify-between bg-[#2c2c2c] px-3 py-1.5 rounded-t-lg border-b border-white/5 text-xs text-gray-400">
-                                <span>Replying to <span className="text-[#bb86fc]">@{replyTo.username}</span></span>
-                                <button onClick={() => setReplyTo(null)} className="hover:text-white">&times;</button>
-                            </div>
-                        )}
-                        <div className={`flex gap-2 bg-[#1e1e1e] p-2 rounded-lg border border-white/10 ${replyTo ? 'rounded-t-none' : ''}`}>
-                            <input
-                                type="text"
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder={replyTo ? "Write a reply..." : "Type a message..."}
-                                className="flex-1 bg-transparent text-sm focus:outline-none text-white placeholder-gray-600 px-2"
-                                disabled={sendMessageMutation.isPending}
-                            />
-                            <Button
-                                onClick={handleSend}
-                                isDisabled={!inputText.trim() || sendMessageMutation.isPending}
-                                className="bg-[#bb86fc] text-black hover:bg-[#a66ef1] h-8 px-4"
-                                size="sm"
-                            >
-                                {sendMessageMutation.isPending ? '...' : 'Send'}
-                            </Button>
-                        </div>
+            {/* Input Area */}
+            <div className="relative mb-4">
+                {replyTo && (
+                    <div className="flex items-center justify-between bg-zinc-700/50 px-3 py-1.5 rounded-t-lg border-b border-white/5 text-xs text-zinc-400">
+                        <span>Replying to <span className="text-accent-400">@{replyTo.username}</span></span>
+                        <button onClick={() => setReplyTo(null)} className="hover:text-white">&times;</button>
                     </div>
+                )}
+                <div className={`flex gap-2 bg-zinc-900/80 p-2 rounded-lg border border-zinc-700/50 ${replyTo ? 'rounded-t-none' : ''}`}>
+                    <input
+                        type="text"
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={replyTo ? "Write a reply..." : "Type a message..."}
+                        className="flex-1 bg-transparent text-sm focus:outline-none text-white placeholder-zinc-500 px-2"
+                        disabled={sendMessageMutation.isPending}
+                    />
+                    <Button
+                        onClick={handleSend}
+                        isDisabled={!inputText.trim() || sendMessageMutation.isPending}
+                        className="bg-accent-500 text-white hover:bg-accent-600 h-8 px-4 text-sm font-medium"
+                        size="sm"
+                    >
+                        {sendMessageMutation.isPending ? '...' : 'Send'}
+                    </Button>
+                </div>
+            </div>
 
-                    <ScrollArea className="flex-1 pr-4">
-                        <div ref={scrollContainerRef} className="flex flex-col">
-                            {isLoading ? (
-                                <div className="flex justify-center items-center h-40">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#bb86fc]"></div>
-                                </div>
-                            ) : rootMessages.length === 0 ? (
-                                <div className="text-center text-gray-500 py-10 text-sm">No messages yet. Be the first to say hi!</div>
-                            ) : (
-                                <>
-                                    {/* No "Load Older" pagination for now; show latest messages only */}
-                                    <Discussion type="multiple" className="space-y-6">
-                                        {rootMessages.map((msg) => {
-                                            const replies = messageMap.get(msg.id) || [];
-                                            const isMe = msg.userId === user?.id;
-                                            const displayName = formatDisplayName(msg.user, msg.userId);
-                                            const avatarFallback = getAvatarFallback(msg.user, msg.userId);
-                                            const likeCount = msg.reactions?.LIKE?.length || 0;
-                                            const dislikeCount = msg.reactions?.DISLIKE?.length || 0;
+            {/* Messages Area - compact height */}
+            <ScrollArea className="max-h-[280px] pr-2">
+                <div ref={scrollContainerRef} className="flex flex-col">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-24">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent-500"></div>
+                        </div>
+                    ) : rootMessages.length === 0 ? (
+                        <div className="text-center text-zinc-500 py-8 text-sm">No messages yet. Be the first to say hi!</div>
+                    ) : (
+                        <>
+                            <Discussion type="multiple" className="space-y-4">
+                                {rootMessages.map((msg) => {
+                                    const replies = messageMap.get(msg.id) || [];
+                                    const isMe = msg.userId === user?.id;
+                                    const displayName = formatDisplayName(msg.user, msg.userId);
+                                    const avatarFallback = getAvatarFallback(msg.user, msg.userId);
+                                    const likeCount = msg.reactions?.LIKE?.length || 0;
+                                    const dislikeCount = msg.reactions?.DISLIKE?.length || 0;
 
-                                            const profileAddress = msg.user.address || msg.userId;
+                                    const profileAddress = msg.user.address || msg.userId;
 
-                                            // Use the most recent bet for this event if available
-                                            const latestBet = msg.user.bets && msg.user.bets.length > 0
-                                                ? msg.user.bets[0]
-                                                : null;
+                                    // Use the most recent bet for this event if available
+                                    const latestBet = msg.user.bets && msg.user.bets.length > 0
+                                        ? msg.user.bets[0]
+                                        : null;
 
-                                            return (
-                                                <DiscussionItem key={msg.id} value={msg.id}>
-                                                    <DiscussionContent className="gap-3 items-start">
+                                    return (
+                                        <DiscussionItem key={msg.id} value={msg.id}>
+                                            <DiscussionContent className="gap-3 items-start">
+                                                <UserHoverCard address={profileAddress}>
+                                                    <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
+                                                        <Avatar className="w-7 h-7 border border-zinc-700">
+                                                            {getAvatarUrl(msg.user) && (
+                                                                <AvatarImage src={getAvatarUrl(msg.user)!} alt={displayName} />
+                                                            )}
+                                                            <AvatarFallback className="bg-gradient-to-br from-primary-500 to-accent-600 text-white font-bold text-xs">{avatarFallback}</AvatarFallback>
+                                                        </Avatar>
+                                                    </Link>
+                                                </UserHoverCard>
+
+                                                <div className="flex flex-col gap-1 w-full min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <UserHoverCard address={profileAddress}>
                                                             <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
-                                                                <Avatar className="w-8 h-8 border border-white/10">
-                                                                    {getAvatarUrl(msg.user) && (
-                                                                        <AvatarImage src={getAvatarUrl(msg.user)!} alt={displayName} />
-                                                                    )}
-                                                                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">{avatarFallback}</AvatarFallback>
-                                                                </Avatar>
+                                                                <DiscussionTitle className={`hover:underline text-sm font-semibold ${isMe ? 'text-accent-400' : 'text-zinc-100'}`}>
+                                                                    {displayName}
+                                                                </DiscussionTitle>
                                                             </Link>
                                                         </UserHoverCard>
+                                                        <span className="text-[10px] text-zinc-500">{formatTime(msg.createdAt)}</span>
 
-                                                        <div className="flex flex-col gap-1 w-full min-w-0">
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <UserHoverCard address={profileAddress}>
-                                                                    <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
-                                                                        <DiscussionTitle className={`hover:underline text-sm font-semibold ${isMe ? 'text-[#bb86fc]' : 'text-white'}`}>
-                                                                            {displayName}
-                                                                        </DiscussionTitle>
-                                                                    </Link>
-                                                                </UserHoverCard>
-                                                                <span className="text-[10px] text-gray-500">{formatTime(msg.createdAt)}</span>
+                                                        {latestBet && (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${latestBet.option === 'YES'
+                                                                    ? 'bg-secondary-500/10 text-secondary-400 border-secondary-500/40'
+                                                                    : 'bg-error-500/10 text-error-400 border-error-500/40'
+                                                                    }`}
+                                                            >
+                                                                <span>{latestBet.option}</span>
+                                                                <span>${latestBet.amount.toFixed(2)}</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
 
-                                                                {latestBet && (
-                                                                    <span
-                                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${latestBet.option === 'YES'
-                                                                            ? 'bg-[#03dac6]/10 text-[#03dac6] border-[#03dac6]/40'
-                                                                            : 'bg-[#cf6679]/10 text-[#cf6679] border-[#cf6679]/40'
-                                                                        }`}
-                                                                    >
-                                                                        <span>{latestBet.option}</span>
-                                                                        <span>${latestBet.amount.toFixed(2)}</span>
-                                                                    </span>
-                                                                )}
+                                                    <DiscussionBody className="text-sm text-zinc-300">
+                                                        {msg.text}
+                                                    </DiscussionBody>
+
+                                                    <div className="flex items-center pt-1 text-xs text-zinc-500">
+                                                        <button
+                                                            onClick={() => setReplyTo({ id: msg.id, username: displayName })}
+                                                            className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 group"
+                                                        >
+                                                            <ArrowUturnLeftIcon className="w-3 h-3 group-hover:text-accent-400" />
+                                                            Reply
+                                                        </button>
+
+                                                        <div className="flex items-center gap-3 ml-4">
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
+                                                                    className="inline-flex items-center justify-center h-5 w-5 rounded-md border border-transparent hover:border-zinc-700 bg-transparent text-zinc-500 hover:text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                                    disabled={reactMutation.isPending}
+                                                                >
+                                                                    <ThumbsUp className="h-3 w-3" />
+                                                                </button>
+                                                                {likeCount > 0 && <span className="text-[10px]">{likeCount}</span>}
                                                             </div>
 
-                                                            <DiscussionBody className="text-sm text-gray-300">
-                                                                {msg.text}
-                                                            </DiscussionBody>
-
-                                                            <div className="flex items-center pt-1 text-xs text-gray-500">
+                                                            <div className="flex items-center gap-1">
                                                                 <button
-                                                                    onClick={() => setReplyTo({ id: msg.id, username: displayName })}
-                                                                    className="text-xs text-gray-500 hover:text-white flex items-center gap-1 group"
+                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
+                                                                    className="inline-flex items-center justify-center h-5 w-5 rounded-md border border-transparent hover:border-zinc-700 bg-transparent text-zinc-500 hover:text-error-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                                    disabled={reactMutation.isPending}
                                                                 >
-                                                                    <ArrowUturnLeftIcon className="w-3 h-3 group-hover:text-[#bb86fc]" />
-                                                                    Reply
+                                                                    <ThumbsDown className="h-3 w-3" />
                                                                 </button>
-
-                                                                <div className="flex items-center gap-3 ml-6">
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button
-                                                                            onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
-                                                                            className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-transparent hover:border-white/10 bg-transparent text-gray-500 hover:text-[#03dac6] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                                            disabled={reactMutation.isPending}
-                                                                        >
-                                                                            <ThumbsUp className="h-3.5 w-3.5" />
-                                                                        </button>
-                                                                        {likeCount > 0 && <span className="text-[11px]">{likeCount}</span>}
-                                                                    </div>
-
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button
-                                                                            onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
-                                                                            className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-transparent hover:border-white/10 bg-transparent text-gray-500 hover:text-[#cf6679] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                                            disabled={reactMutation.isPending}
-                                                                        >
-                                                                            <ThumbsDown className="h-3.5 w-3.5" />
-                                                                        </button>
-                                                                        {dislikeCount > 0 && <span className="text-[11px]">{dislikeCount}</span>}
-                                                                    </div>
-                                                                </div>
-
-                                                                {replies.length > 0 && (
-                                                                    <div className="ml-4">
-                                                                        <DiscussionExpand />
-                                                                    </div>
-                                                                )}
+                                                                {dislikeCount > 0 && <span className="text-[10px]">{dislikeCount}</span>}
                                                             </div>
                                                         </div>
-                                                    </DiscussionContent>
 
-                                                    {replies.length > 0 && (
-                                                        <DiscussionReplies>
-                                                            <div className="space-y-4 py-2 pl-4 border-l border-white/10 ml-3">
-                                                                {replies.map(reply => {
-                                                                    const replyDisplayName = formatDisplayName(reply.user, reply.userId);
-                                                                    const replyAvatarFallback = getAvatarFallback(reply.user, reply.userId);
-                                                                    return (
-                                                                        <div key={reply.id} className="flex gap-3">
-                                                                            <UserHoverCard address={reply.user.address || reply.userId}>
-                                                                                <div className="cursor-pointer shrink-0">
-                                                                                    <Avatar className="w-6 h-6 border border-white/10">
-                                                                                        {getAvatarUrl(reply.user) && (
-                                                                                            <AvatarImage src={getAvatarUrl(reply.user)!} alt={replyDisplayName} />
-                                                                                        )}
-                                                                                        <AvatarFallback className="bg-gray-700 text-white font-bold text-[10px]">{replyAvatarFallback}</AvatarFallback>
-                                                                                    </Avatar>
-                                                                                </div>
-                                                                            </UserHoverCard>
-                                                                            <div>
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <UserHoverCard address={reply.user.address || reply.userId}>
-                                                                                        <span className="text-xs font-bold text-gray-300 cursor-pointer hover:underline">{replyDisplayName}</span>
-                                                                                    </UserHoverCard>
-                                                                                    <span className="text-[10px] text-gray-600">{formatTime(reply.createdAt)}</span>
-                                                                                </div>
-                                                                                <p className="text-sm text-gray-400 mt-0.5">{reply.text}</p>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
+                                                        {replies.length > 0 && (
+                                                            <div className="ml-3">
+                                                                <DiscussionExpand />
                                                             </div>
-                                                        </DiscussionReplies>
-                                                    )}
-                                                </DiscussionItem>
-                                            );
-                                        })}
-                                    </Discussion>
-                                </>
-                            )}
-                        </div>
-                    </ScrollArea>
-                </>
-            ) : (
-                <ActivityList eventId={eventId} />
-            )}
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </DiscussionContent>
+
+                                            {replies.length > 0 && (
+                                                <DiscussionReplies>
+                                                    <div className="space-y-3 py-2 pl-3 border-l border-zinc-700/50 ml-3">
+                                                        {replies.map(reply => {
+                                                            const replyDisplayName = formatDisplayName(reply.user, reply.userId);
+                                                            const replyAvatarFallback = getAvatarFallback(reply.user, reply.userId);
+                                                            return (
+                                                                <div key={reply.id} className="flex gap-2">
+                                                                    <UserHoverCard address={reply.user.address || reply.userId}>
+                                                                        <div className="cursor-pointer shrink-0">
+                                                                            <Avatar className="w-5 h-5 border border-zinc-700">
+                                                                                {getAvatarUrl(reply.user) && (
+                                                                                    <AvatarImage src={getAvatarUrl(reply.user)!} alt={replyDisplayName} />
+                                                                                )}
+                                                                                <AvatarFallback className="bg-zinc-700 text-white font-bold text-[9px]">{replyAvatarFallback}</AvatarFallback>
+                                                                            </Avatar>
+                                                                        </div>
+                                                                    </UserHoverCard>
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <UserHoverCard address={reply.user.address || reply.userId}>
+                                                                                <span className="text-xs font-bold text-zinc-300 cursor-pointer hover:underline">{replyDisplayName}</span>
+                                                                            </UserHoverCard>
+                                                                            <span className="text-[10px] text-zinc-600">{formatTime(reply.createdAt)}</span>
+                                                                        </div>
+                                                                        <p className="text-sm text-zinc-400 mt-0.5">{reply.text}</p>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </DiscussionReplies>
+                                            )}
+                                        </DiscussionItem>
+                                    );
+                                })}
+                            </Discussion>
+                        </>
+                    )}
+                </div>
+            </ScrollArea>
         </div>
     );
 }

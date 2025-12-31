@@ -421,9 +421,9 @@ export default function EventPage() {
 
 
                                         {/* Comments Section */}
-                                        <div className="bg-zinc-800 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                                        <div className="bg-[#1a1d28] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
                                             <button
-                                                className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white"
+                                                className="w-full flex items-center justify-between px-4 py-3 text-sm text-zinc-300 hover:text-white"
                                                 onClick={() => toggleSection('chat')}
                                             >
                                                 <span className="font-semibold">Discussion</span>
@@ -437,7 +437,7 @@ export default function EventPage() {
                                                 </svg>
                                             </button>
                                             {!collapsedSections.chat && (
-                                                <div className="p-4">
+                                                <div className="px-4 pb-4">
                                                     <EventChat eventId={eventId.toString()} />
                                                 </div>
                                             )}

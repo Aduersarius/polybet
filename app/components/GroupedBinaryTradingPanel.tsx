@@ -130,7 +130,7 @@ export function GroupedBinaryTradingPanel({
     const { data: balanceData } = useQuery({
         queryKey: ['user-balances'],
         queryFn: async () => {
-            const res = await fetch('/api/user/balances');
+            const res = await fetch('/api/balance');
             if (!res.ok) return [];
             const json = await res.json();
             return json.balances || [];

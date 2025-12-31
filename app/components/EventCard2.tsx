@@ -187,9 +187,10 @@ const HoveredTextDisplay = React.forwardRef<HTMLDivElement, {
   segmentCenter: number;
   containerRef: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
-}>(({ segmentCenter, containerRef, children }, ref) => {
+  textClassName?: string;
+}>(({ segmentCenter, containerRef, children, textClassName = 'text-xs' }, ref) => {
   const [leftPosition, setLeftPosition] = useState<string>(`${segmentCenter}%`);
-  const textRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
     const calculatePosition = () => {
@@ -264,18 +265,14 @@ const HoveredTextDisplay = React.forwardRef<HTMLDivElement, {
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, x: '-50%' }}
-      animate={{ opacity: 1, x: '-50%' }}
+      initial={{ opacity: 0, left: leftPosition }}
+      animate={{ opacity: 1, left: leftPosition }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="absolute -top-6 pointer-events-none z-20"
-      style={{
-        left: leftPosition,
-        width: 'max-content'
-      }}
+      className="absolute -top-6 -translate-x-1/2 pointer-events-none z-20"
     >
-      <div ref={textRef} className="text-xs font-bold text-gray-400 whitespace-nowrap">
+      <span ref={textRef} className={`font-bold text-gray-400 whitespace-nowrap ${textClassName}`}>
         {children}
-      </div>
+      </span>
     </motion.div>
   );
 });
@@ -1752,6 +1749,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                             ref={hoveredTextRef}
                             segmentCenter={segmentCenter}
                             containerRef={sliderContainerRef}
+                            textClassName="text-sm"
                           >
                             {hoveredSegmentId} {hoveredSegmentId === 'YES' ? yesDisplay : noDisplay}%
                           </HoveredTextDisplay>

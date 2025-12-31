@@ -1,7 +1,7 @@
 import React from 'react';
-import { CurveType } from 'recharts';
 import { format } from 'date-fns';
 import { formatCursorTimestamp } from '@/lib/chart/format';
+import type { OddsPeriod } from '@/app/components/charts/axis/TimelineTick';
 
 interface MultipleOddsCursorProps {
     payload?: any[];
@@ -14,7 +14,7 @@ interface MultipleOddsCursorProps {
     right?: number;
     yDomain?: [number, number];
     padding?: { top: number; bottom: number };
-    period?: string;
+    period?: OddsPeriod;
     resolveSeriesMeta?: (dataKey: string) => { name: string; color: string };
     coordinate?: { x: number; y: number };
 }
@@ -133,17 +133,21 @@ export function MultipleOddsCursor({
 
     // Render
     const timestamp = payload[0]?.payload?.timestamp ?? points?.[0]?.payload?.timestamp;
-    const formattedDate = formatCursorTimestamp(timestamp, period);
+    const formattedDate = formatCursorTimestamp(timestamp, period ?? 'all');
     const dateLabelWidth = 150;
-    const dateLabelX = clamp(x - dateLabelWidth / 2, plotLeft, plotRight - dateLabelWidth);
 
     // Tooltip Box Position
     const tooltipWidth = 200; // Constrained max width, but content is dynamic inside
     const tooltipGap = 12;
-    const showLeft = x > plotRight - 150;
+    const showLeft = x > plotRight - 250;
 
     let tooltipX = showLeft ? x - tooltipWidth - tooltipGap : x + tooltipGap;
     tooltipX = clamp(tooltipX, plotLeft - 50, plotRight - tooltipWidth + 50);
+
+    // Date label position - stays close to the cursor line
+    const dateLabelGap = 8;
+    let dateLabelX = showLeft ? x - dateLabelWidth - dateLabelGap : x + dateLabelGap;
+    dateLabelX = clamp(dateLabelX, plotLeft, plotRight - dateLabelWidth);
 
     return (
         <g className="pointer-events-none">
@@ -160,9 +164,9 @@ export function MultipleOddsCursor({
             {/* Dashed Line */}
             <line x1={x} y1={plotTop} x2={x} y2={plotBottom} stroke="rgba(255,255,255,0.3)" strokeWidth={1} strokeDasharray="4 4" />
 
-            {/* Date Label */}
-            <foreignObject x={dateLabelX} y={50} width={dateLabelWidth} height={26}>
-                <div className="flex justify-center">
+            {/* Date Label - Same side as tooltips, close to cursor line */}
+            <foreignObject x={dateLabelX} y={plotTop + 8} width={dateLabelWidth} height={26}>
+                <div className={`flex ${showLeft ? 'justify-end' : 'justify-start'}`}>
                     <div className="text-[12px] font-medium text-[#94a3b8] whitespace-nowrap">
                         {formattedDate}
                     </div>

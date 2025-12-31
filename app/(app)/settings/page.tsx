@@ -76,11 +76,12 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
         <button
             type="button"
             onClick={() => !disabled && onChange(!checked)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-white/10'
-                } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${checked ? 'bg-primary' : 'bg-white/10'
+                } ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:shadow-[0_0_10px_rgba(59,130,246,0.3)]'}`}
+            style={{ backgroundColor: checked ? 'var(--primary)' : undefined }}
         >
             <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${checked ? 'translate-x-6' : 'translate-x-1'
                     }`}
             />
         </button>
@@ -162,7 +163,7 @@ function SettingsPageContent() {
     const searchParams = useSearchParams();
     useEffect(() => {
         if (!hasChecked2FA || !user) return;
-        
+
         const setup2fa = searchParams.get('setup2fa');
         if (setup2fa === 'true' && !is2FAEnabled) {
             // Switch to account category and open 2FA password prompt
@@ -282,14 +283,14 @@ function SettingsPageContent() {
                                     value={settings.trading.refreshInterval.toString()}
                                     onValueChange={(v) => updateSetting('trading', 'refreshInterval', parseInt(v))}
                                 >
-                                    <SelectTrigger className="w-[140px] bg-[#1a1b26] border-white/10 text-white">
+                                    <SelectTrigger className="w-[140px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-[#1a1b26] border-white/10">
-                                        <SelectItem value="1" className="text-white hover:bg-white/10 focus:bg-white/10">1 second</SelectItem>
-                                        <SelectItem value="5" className="text-white hover:bg-white/10 focus:bg-white/10">5 seconds</SelectItem>
-                                        <SelectItem value="10" className="text-white hover:bg-white/10 focus:bg-white/10">10 seconds</SelectItem>
-                                        <SelectItem value="30" className="text-white hover:bg-white/10 focus:bg-white/10">30 seconds</SelectItem>
+                                    <SelectContent className="bg-[#1a1d28] border-white/10 shadow-2xl opacity-100">
+                                        <SelectItem value="1" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">1 second</SelectItem>
+                                        <SelectItem value="5" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">5 seconds</SelectItem>
+                                        <SelectItem value="10" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">10 seconds</SelectItem>
+                                        <SelectItem value="30" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">30 seconds</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </SettingRow>
@@ -338,13 +339,13 @@ function SettingsPageContent() {
                                 value={settings.display.currency}
                                 onValueChange={(v) => updateSetting('display', 'currency', v)}
                             >
-                                <SelectTrigger className="w-[140px] bg-[#1a1b26] border-white/10 text-white">
+                                <SelectTrigger className="w-[140px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent className="bg-[#1a1b26] border-white/10">
-                                    <SelectItem value="USD" className="text-white hover:bg-white/10 focus:bg-white/10">USD ($)</SelectItem>
-                                    <SelectItem value="RUB" className="text-white hover:bg-white/10 focus:bg-white/10">RUB (₽)</SelectItem>
-                                    <SelectItem value="EUR" className="text-white hover:bg-white/10 focus:bg-white/10">EUR (€)</SelectItem>
+                                <SelectContent className="bg-[#1a1d28] border-white/10 shadow-2xl opacity-100">
+                                    <SelectItem value="USD" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">USD ($)</SelectItem>
+                                    <SelectItem value="RUB" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">RUB (₽)</SelectItem>
+                                    <SelectItem value="EUR" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">EUR (€)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </SettingRow>
@@ -354,13 +355,13 @@ function SettingsPageContent() {
                                 value={settings.display.oddsFormat}
                                 onValueChange={(v) => updateSetting('display', 'oddsFormat', v)}
                             >
-                                <SelectTrigger className="w-[160px] bg-[#1a1b26] border-white/10 text-white">
+                                <SelectTrigger className="w-[160px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent className="bg-[#1a1b26] border-white/10">
-                                    <SelectItem value="probability" className="text-white hover:bg-white/10 focus:bg-white/10">Probability (%)</SelectItem>
-                                    <SelectItem value="decimal" className="text-white hover:bg-white/10 focus:bg-white/10">Decimal (2.50)</SelectItem>
-                                    <SelectItem value="fractional" className="text-white hover:bg-white/10 focus:bg-white/10">Fractional (3/2)</SelectItem>
+                                <SelectContent className="bg-[#1a1d28] border-white/10 shadow-2xl opacity-100">
+                                    <SelectItem value="probability" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">Probability (%)</SelectItem>
+                                    <SelectItem value="decimal" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">Decimal (2.50)</SelectItem>
+                                    <SelectItem value="fractional" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">Fractional (3/2)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </SettingRow>
@@ -370,15 +371,15 @@ function SettingsPageContent() {
                                 value={settings.display.timezone}
                                 onValueChange={(v) => updateSetting('display', 'timezone', v)}
                             >
-                                <SelectTrigger className="w-[180px] bg-[#1a1b26] border-white/10 text-white">
+                                <SelectTrigger className="w-[180px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent className="bg-[#1a1b26] border-white/10">
-                                    <SelectItem value="auto" className="text-white hover:bg-white/10 focus:bg-white/10">Auto-detect</SelectItem>
-                                    <SelectItem value="UTC" className="text-white hover:bg-white/10 focus:bg-white/10">UTC</SelectItem>
-                                    <SelectItem value="Europe/Moscow" className="text-white hover:bg-white/10 focus:bg-white/10">Moscow (MSK)</SelectItem>
-                                    <SelectItem value="America/New_York" className="text-white hover:bg-white/10 focus:bg-white/10">New York (EST)</SelectItem>
-                                    <SelectItem value="Europe/London" className="text-white hover:bg-white/10 focus:bg-white/10">London (GMT)</SelectItem>
+                                <SelectContent className="bg-[#1a1d28] border-white/10 shadow-2xl opacity-100">
+                                    <SelectItem value="auto" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">Auto-detect</SelectItem>
+                                    <SelectItem value="UTC" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">UTC</SelectItem>
+                                    <SelectItem value="Europe/Moscow" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">Moscow (MSK)</SelectItem>
+                                    <SelectItem value="America/New_York" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">New York (EST)</SelectItem>
+                                    <SelectItem value="Europe/London" className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer">London (GMT)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </SettingRow>
@@ -578,7 +579,7 @@ function SettingsPageContent() {
         <div className="min-h-screen text-white relative z-10 flex flex-col">
             <Navbar />
 
-            <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-1" style={{ paddingTop: 'calc(var(--navbar-height) + 1rem)' }}>
+            <main className="max-w-5xl mx-auto px-4 pb-8 pt-2 w-full flex-1" style={{ paddingTop: 'var(--navbar-height)' }}>
                 {/* Header */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -599,7 +600,7 @@ function SettingsPageContent() {
                         animate={{ opacity: 1, x: 0 }}
                         className="lg:w-64 flex-shrink-0"
                     >
-                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 p-2 sticky top-24">
+                        <div className="bg-surface rounded-xl border border-white/10 p-2 sticky top-24 shadow-lg backdrop-blur-md">
                             <nav className="space-y-1">
                                 {categories.map((category) => {
                                     const Icon = category.icon;
@@ -627,11 +628,11 @@ function SettingsPageContent() {
                             <button
                                 onClick={handleSave}
                                 disabled={isSaving}
-                                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${saveStatus === 'saved'
-                                    ? 'bg-green-600 text-white'
+                                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-300 ${saveStatus === 'saved'
+                                    ? 'bg-success text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)]'
                                     : saveStatus === 'error'
-                                        ? 'bg-red-600 text-white'
-                                        : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white'
+                                        ? 'bg-error text-white shadow-[0_4px_12px_rgba(239,68,68,0.3)]'
+                                        : 'bg-primary hover:opacity-90 text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]'
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                                 {isSaving ? (
@@ -654,7 +655,7 @@ function SettingsPageContent() {
                             {/* Sign Out Button */}
                             <button
                                 onClick={handleSignOut}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 mt-2 rounded-lg text-red-400 hover:bg-red-600/10 transition-colors"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 mt-2 rounded-lg text-error hover:bg-error/10 transition-colors font-medium"
                             >
                                 <LogOut className="w-4 h-4" />
                                 Sign Out
@@ -669,7 +670,7 @@ function SettingsPageContent() {
                         transition={{ delay: 0.1 }}
                         className="flex-1"
                     >
-                        <div className="bg-[#1e1e1e] rounded-xl border border-white/10 overflow-hidden">
+                        <div className="bg-surface rounded-xl border border-white/10 overflow-hidden shadow-xl backdrop-blur-sm">
                             {/* Content Header */}
                             <div className="p-6 border-b border-white/5">
                                 <div className="flex items-center gap-3">
@@ -734,7 +735,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4"
+                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Change Email</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -745,7 +746,7 @@ function SettingsPageContent() {
                                 value={newEmail}
                                 onChange={(e) => setNewEmail(e.target.value)}
                                 placeholder="New email address"
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 mb-4"
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all mb-4"
                             />
                             <div className="flex gap-3">
                                 <button
@@ -765,7 +766,7 @@ function SettingsPageContent() {
                                             toast({ title: 'Failed to change email', variant: 'destructive' });
                                         }
                                     }}
-                                    className="flex-1 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-500"
+                                    className="flex-1 py-3 rounded-lg bg-primary text-white font-medium hover:opacity-90 transition-all shadow-md shadow-primary/20"
                                 >
                                     Send Verification
                                 </button>
@@ -793,7 +794,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4"
+                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Confirm Your Password</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -804,7 +805,7 @@ function SettingsPageContent() {
                                 value={twoFAPassword}
                                 onChange={(e) => setTwoFAPassword(e.target.value)}
                                 placeholder="Enter your password"
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 mb-4"
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all mb-4"
                             />
                             <div className="flex gap-3">
                                 <button
@@ -855,7 +856,7 @@ function SettingsPageContent() {
                                         }
                                     }}
                                     disabled={!twoFAPassword}
-                                    className="flex-1 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-500 disabled:opacity-50"
+                                    className="flex-1 py-3 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50 transition-all shadow-md shadow-accent/20"
                                 >
                                     Continue
                                 </button>
@@ -880,7 +881,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4"
+                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Set Up Two-Factor Authentication</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -907,7 +908,7 @@ function SettingsPageContent() {
                                 value={totpCode}
                                 onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 placeholder="000000"
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-center text-2xl tracking-widest placeholder-gray-500 focus:outline-none focus:border-purple-500 mb-4"
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white text-center text-2xl tracking-widest placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all mb-4"
                                 maxLength={6}
                             />
                             <div className="flex gap-3">
@@ -939,7 +940,7 @@ function SettingsPageContent() {
                                         }
                                     }}
                                     disabled={totpCode.length !== 6}
-                                    className="flex-1 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-500 disabled:opacity-50"
+                                    className="flex-1 py-3 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50 transition-all shadow-md shadow-accent/20"
                                 >
                                     Enable 2FA
                                 </button>
@@ -967,7 +968,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4"
+                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Disable Two-Factor Authentication</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -1003,7 +1004,7 @@ function SettingsPageContent() {
                                         }
                                     }}
                                     disabled={!twoFAPassword}
-                                    className="flex-1 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-500 disabled:opacity-50"
+                                    className="flex-1 py-3 rounded-lg bg-error text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 shadow-md shadow-error/20"
                                 >
                                     Disable 2FA
                                 </button>
@@ -1028,11 +1029,11 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-[#1e1e1e] border border-red-500/30 rounded-xl p-6 max-w-md w-full mx-4"
+                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 rounded-lg bg-red-600/20">
-                                    <AlertTriangle className="w-6 h-6 text-red-400" />
+                                <div className="p-2 rounded-lg bg-error/20">
+                                    <AlertTriangle className="w-6 h-6 text-error" />
                                 </div>
                                 <h3 className="text-xl font-bold text-white">Delete Account</h3>
                             </div>
@@ -1072,7 +1073,7 @@ function SettingsPageContent() {
                                         }
                                     }}
                                     disabled={deleteConfirmText !== 'DELETE'}
-                                    className="flex-1 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 py-3 rounded-lg bg-error text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-error/20"
                                 >
                                     Delete Forever
                                 </button>
@@ -1092,7 +1093,7 @@ export default function SettingsPage() {
         <Suspense fallback={
             <div className="min-h-screen text-white relative z-10 flex flex-col">
                 <Navbar />
-                <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-1 flex items-center justify-center" style={{ paddingTop: 'calc(var(--navbar-height) + 1rem)' }}>
+                <main className="max-w-5xl mx-auto px-4 pb-8 pt-2 w-full flex-1 flex items-center justify-center" style={{ paddingTop: 'var(--navbar-height)' }}>
                     <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
                 </main>
             </div>

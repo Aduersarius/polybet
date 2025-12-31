@@ -185,7 +185,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
 
                                     {/* User Profile Dropdown */}
                                     < div className="relative group" >
-                                        <button className="flex items-center gap-2 focus:outline-none">
+                                        <button className="flex items-center gap-1.5 focus:outline-none">
                                             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black font-bold text-sm overflow-hidden border border-white/20 hover:bg-gray-100 transition-all">
                                                 {(session as any).user?.image ? (
                                                     <img src={(session as any).user.image} alt="User" className="w-full h-full object-cover" />
@@ -193,6 +193,14 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                     (session as any).user?.name?.charAt(0).toUpperCase() || (session as any).user?.email?.charAt(0).toUpperCase()
                                                 )}
                                             </div>
+                                            <svg
+                                                className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white transition-colors"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
                                         </button>
 
                                         {/* Dropdown Menu */}
