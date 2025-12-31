@@ -20,7 +20,7 @@ function validateRedisUrl(url: string): { valid: boolean; error?: string } {
             url.match(/redis[s]?:\/\/:[^@]+@/) || // :password@ format (both redis:// and rediss://)
             url.match(/redis[s]?:\/\/[^:]+:[^@]+@/) // username:password@ format (both redis:// and rediss://)
         );
-        
+
         // For production, require password
         if (process.env.NODE_ENV === 'production' && !hasPassword) {
             return { valid: false, error: 'REDIS_URL must include password in production. Format: redis://:password@host:port or redis://username:password@host:port' };
@@ -85,6 +85,7 @@ function ensureSecureRedisConfig() {
 
 const NO_OP_METHODS = new Set([
     'get',
+    'getBuffer',
     'set',
     'setex',
     'del',

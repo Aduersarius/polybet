@@ -33,7 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { UserSettings } from '@/lib/settings-context';
+import { UserSettings, useSettings } from '@/lib/settings-context';
 import { toast } from '@/components/ui/use-toast';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -108,6 +108,7 @@ function SettingsPageContent() {
     const router = useRouter();
     const user = (session as any)?.user;
 
+    const { settings: globalSettings, isLoading: isSettingsLoading, updateSettings: saveSettings } = useSettings();
     const [settings, setSettings] = useState<UserSettings>(defaultSettings);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -128,6 +129,14 @@ function SettingsPageContent() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [resendCooldown, setResendCooldown] = useState(0);
+
+    // Initial sync from global settings to local draft
+    useEffect(() => {
+        if (!isSettingsLoading && globalSettings) {
+            setSettings(globalSettings);
+            setIsLoading(false);
+        }
+    }, [isSettingsLoading, globalSettings]);
 
     // Resend cooldown timer
     useEffect(() => {
@@ -177,27 +186,6 @@ function SettingsPageContent() {
         }
     }, [searchParams, user, is2FAEnabled, hasChecked2FA, router]);
 
-    // Fetch settings on mount
-    useEffect(() => {
-        if (user) {
-            fetch('/api/user/settings')
-                .then(res => res.json())
-                .then(data => {
-                    // Deep merge with defaults to ensure all properties exist
-                    setSettings({
-                        trading: { ...defaultSettings.trading, ...data?.trading },
-                        notifications: { ...defaultSettings.notifications, ...data?.notifications },
-                        display: { ...defaultSettings.display, ...data?.display },
-                        privacy: { ...defaultSettings.privacy, ...data?.privacy },
-                    });
-                    setIsLoading(false);
-                })
-                .catch(() => {
-                    setIsLoading(false);
-                });
-        }
-    }, [user]);
-
     // Redirect if not logged in
     useEffect(() => {
         if (!isPending && !session) {
@@ -210,14 +198,7 @@ function SettingsPageContent() {
         setSaveStatus('idle');
 
         try {
-            const res = await fetch('/api/user/settings', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings),
-            });
-
-            if (!res.ok) throw new Error('Failed to save');
-
+            await saveSettings(settings);
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 3000);
         } catch {
@@ -229,10 +210,9 @@ function SettingsPageContent() {
 
     const handleSignOut = async () => {
         await signOut();
-        // signOut() already handles navigation, no need for router.push
     };
 
-    const updateSetting = <T extends keyof UserSettings>(
+    const updateDraftSetting = <T extends keyof UserSettings>(
         category: T,
         key: keyof UserSettings[T],
         value: any
@@ -249,7 +229,7 @@ function SettingsPageContent() {
     if (isPending || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
             </div>
         );
     }
@@ -266,14 +246,14 @@ function SettingsPageContent() {
                         <SettingRow label="Confirm Orders" description="Show confirmation dialog before placing bets">
                             <Toggle
                                 checked={settings.trading.confirmOrders}
-                                onChange={(v) => updateSetting('trading', 'confirmOrders', v)}
+                                onChange={(v) => updateDraftSetting('trading', 'confirmOrders', v)}
                             />
                         </SettingRow>
 
                         <SettingRow label="Auto-Refresh Odds" description="Automatically update odds in real-time">
                             <Toggle
                                 checked={settings.trading.autoRefreshOdds}
-                                onChange={(v) => updateSetting('trading', 'autoRefreshOdds', v)}
+                                onChange={(v) => updateDraftSetting('trading', 'autoRefreshOdds', v)}
                             />
                         </SettingRow>
 
@@ -281,7 +261,7 @@ function SettingsPageContent() {
                             <SettingRow label="Refresh Interval" description="How often to refresh odds">
                                 <Select
                                     value={settings.trading.refreshInterval.toString()}
-                                    onValueChange={(v) => updateSetting('trading', 'refreshInterval', parseInt(v))}
+                                    onValueChange={(v) => updateDraftSetting('trading', 'refreshInterval', parseInt(v))}
                                 >
                                     <SelectTrigger className="w-[140px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                         <SelectValue />
@@ -304,28 +284,28 @@ function SettingsPageContent() {
                         <SettingRow label="Price Alerts" description="Get notified when odds change significantly">
                             <Toggle
                                 checked={settings.notifications.priceAlerts}
-                                onChange={(v) => updateSetting('notifications', 'priceAlerts', v)}
+                                onChange={(v) => updateDraftSetting('notifications', 'priceAlerts', v)}
                             />
                         </SettingRow>
 
                         <SettingRow label="Position Updates" description="Updates about your active positions">
                             <Toggle
                                 checked={settings.notifications.positionUpdates}
-                                onChange={(v) => updateSetting('notifications', 'positionUpdates', v)}
+                                onChange={(v) => updateDraftSetting('notifications', 'positionUpdates', v)}
                             />
                         </SettingRow>
 
                         <SettingRow label="Event Resolution" description="Get notified when events are resolved">
                             <Toggle
                                 checked={settings.notifications.eventResolution}
-                                onChange={(v) => updateSetting('notifications', 'eventResolution', v)}
+                                onChange={(v) => updateDraftSetting('notifications', 'eventResolution', v)}
                             />
                         </SettingRow>
 
                         <SettingRow label="Email Notifications" description="Receive updates via email">
                             <Toggle
                                 checked={settings.notifications.emailNotifications}
-                                onChange={(v) => updateSetting('notifications', 'emailNotifications', v)}
+                                onChange={(v) => updateDraftSetting('notifications', 'emailNotifications', v)}
                             />
                         </SettingRow>
                     </div>
@@ -337,7 +317,7 @@ function SettingsPageContent() {
                         <SettingRow label="Currency" description="Display currency for amounts">
                             <Select
                                 value={settings.display.currency}
-                                onValueChange={(v) => updateSetting('display', 'currency', v)}
+                                onValueChange={(v) => updateDraftSetting('display', 'currency', v)}
                             >
                                 <SelectTrigger className="w-[140px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                     <SelectValue />
@@ -353,7 +333,7 @@ function SettingsPageContent() {
                         <SettingRow label="Odds Format" description="How probabilities are displayed">
                             <Select
                                 value={settings.display.oddsFormat}
-                                onValueChange={(v) => updateSetting('display', 'oddsFormat', v)}
+                                onValueChange={(v) => updateDraftSetting('display', 'oddsFormat', v)}
                             >
                                 <SelectTrigger className="w-[160px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                     <SelectValue />
@@ -369,7 +349,7 @@ function SettingsPageContent() {
                         <SettingRow label="Timezone" description="For event times and schedules">
                             <Select
                                 value={settings.display.timezone}
-                                onValueChange={(v) => updateSetting('display', 'timezone', v)}
+                                onValueChange={(v) => updateDraftSetting('display', 'timezone', v)}
                             >
                                 <SelectTrigger className="w-[180px] bg-background border-white/10 text-white hover:bg-white/5 transition-colors">
                                     <SelectValue />
@@ -392,14 +372,14 @@ function SettingsPageContent() {
                         <SettingRow label="Public Profile" description="Allow others to view your profile">
                             <Toggle
                                 checked={settings.privacy.publicProfile}
-                                onChange={(v) => updateSetting('privacy', 'publicProfile', v)}
+                                onChange={(v) => updateDraftSetting('privacy', 'publicProfile', v)}
                             />
                         </SettingRow>
 
                         <SettingRow label="Show Betting Activity" description="Display your bets on your public profile">
                             <Toggle
                                 checked={settings.privacy.showActivity}
-                                onChange={(v) => updateSetting('privacy', 'showActivity', v)}
+                                onChange={(v) => updateDraftSetting('privacy', 'showActivity', v)}
                                 disabled={!settings.privacy.publicProfile}
                             />
                         </SettingRow>
@@ -798,14 +778,14 @@ function SettingsPageContent() {
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Confirm Your Password</h3>
                             <p className="text-gray-400 text-sm mb-4">
-                                Enter your password to set up two-factor authentication.
+                                Please enter your password to set up two-factor authentication.
                             </p>
                             <input
                                 type="password"
                                 value={twoFAPassword}
                                 onChange={(e) => setTwoFAPassword(e.target.value)}
-                                placeholder="Enter your password"
-                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all mb-4"
+                                placeholder="Your password"
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all mb-4"
                             />
                             <div className="flex gap-3">
                                 <button
@@ -820,45 +800,21 @@ function SettingsPageContent() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            // First enable 2FA which generates the secret
-                                            const enableResult = await twoFactor.enable(twoFAPassword);
-                                            console.log('Enable 2FA result:', enableResult);
-
-                                            if (enableResult?.error) {
-                                                toast({ title: enableResult.error.message || 'Failed to enable 2FA', variant: 'destructive' });
+                                            const res = await (twoFactor as any).getTotpUri(twoFAPassword);
+                                            if (res.error) {
+                                                toast({ title: res.error.message || 'Invalid password', variant: 'destructive' });
                                                 return;
                                             }
-
-                                            // Check if totpURI is in the enable response
-                                            if (enableResult?.data?.totpURI) {
-                                                setTotpUri(enableResult.data.totpURI);
-                                                setShow2FAPasswordPrompt(false);
-                                                setTwoFAPassword('');
-                                                setShow2FASetup(true);
-                                                return;
-                                            }
-
-                                            // If not, try to get it separately
-                                            const uriResult = await twoFactor.getTotpUri(twoFAPassword);
-                                            console.log('Get TOTP URI result:', uriResult);
-
-                                            if (uriResult?.data?.totpURI) {
-                                                setTotpUri(uriResult.data.totpURI);
-                                                setShow2FAPasswordPrompt(false);
-                                                setTwoFAPassword('');
-                                                setShow2FASetup(true);
-                                            } else {
-                                                toast({ title: 'Failed to generate 2FA setup. Check your password.', variant: 'destructive' });
-                                            }
-                                        } catch (err) {
-                                            console.error('2FA setup error:', err);
-                                            toast({ title: 'Invalid password or 2FA setup failed', variant: 'destructive' });
+                                            setTotpUri(res.totpUri);
+                                            setShow2FAPasswordPrompt(false);
+                                            setShow2FASetup(true);
+                                        } catch {
+                                            toast({ title: 'Failed to verify password', variant: 'destructive' });
                                         }
                                     }}
-                                    disabled={!twoFAPassword}
-                                    className="flex-1 py-3 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50 transition-all shadow-md shadow-accent/20"
+                                    className="flex-1 py-3 rounded-lg bg-primary text-white font-medium hover:opacity-90 transition-all shadow-md shadow-primary/20"
                                 >
-                                    Continue
+                                    Confirm
                                 </button>
                             </div>
                         </motion.div>
@@ -883,40 +839,24 @@ function SettingsPageContent() {
                             onClick={(e) => e.stopPropagation()}
                             className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
-                            <h3 className="text-xl font-bold text-white mb-4">Set Up Two-Factor Authentication</h3>
-                            <p className="text-gray-400 text-sm mb-4">
-                                Scan this QR code with your authenticator app (e.g., Google Authenticator, Authy).
-                            </p>
-
-                            {/* QR Code */}
-                            <div className="bg-white p-4 rounded-lg mb-4 flex items-center justify-center">
-                                <div className="text-center">
-                                    {totpUri ? (
-                                        <QRCodeSVG value={totpUri} size={160} level="M" />
-                                    ) : (
-                                        <div className="w-40 h-40 bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
-                                            Loading...
-                                        </div>
-                                    )}
-                                    <p className="text-xs text-gray-600 mt-2">Scan with authenticator app</p>
-                                </div>
+                            <h3 className="text-xl font-bold text-white mb-4">Set up 2FA</h3>
+                            <div className="flex justify-center mb-6 p-4 bg-white rounded-lg">
+                                <QRCodeSVG value={totpUri} size={200} />
                             </div>
-
-                            <p className="text-gray-400 text-sm mb-2">Enter the 6-digit code from your app:</p>
+                            <p className="text-gray-400 text-sm mb-4">
+                                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code below.
+                            </p>
                             <input
                                 type="text"
                                 value={totpCode}
-                                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                placeholder="000000"
-                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white text-center text-2xl tracking-widest placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all mb-4"
+                                onChange={(e) => setTotpCode(e.target.value)}
+                                placeholder="6-digit code"
                                 maxLength={6}
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white text-center text-xl tracking-[0.5em] font-mono placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all mb-4"
                             />
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => {
-                                        setShow2FASetup(false);
-                                        setTotpCode('');
-                                    }}
+                                    onClick={() => setShow2FASetup(false)}
                                     className="flex-1 py-3 rounded-lg border border-white/10 text-gray-400 font-medium hover:bg-white/5"
                                 >
                                     Cancel
@@ -924,25 +864,22 @@ function SettingsPageContent() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const result = await twoFactor.verifyTotp(totpCode);
-
-                                            if (result?.error) {
-                                                toast({ title: result.error.message || 'Invalid code', variant: 'destructive' });
+                                            const res = await (twoFactor as any).verifyTotp(totpCode);
+                                            if (res.error) {
+                                                toast({ title: res.error.message || 'Invalid code', variant: 'destructive' });
                                                 return;
                                             }
-
-                                            toast({ title: '2FA enabled successfully!', variant: 'success' });
                                             setIs2FAEnabled(true);
                                             setShow2FASetup(false);
                                             setTotpCode('');
+                                            toast({ title: '2FA enabled successfully!', variant: 'success' });
                                         } catch {
-                                            toast({ title: 'Invalid code', variant: 'destructive' });
+                                            toast({ title: 'Failed to verify code', variant: 'destructive' });
                                         }
                                     }}
-                                    disabled={totpCode.length !== 6}
-                                    className="flex-1 py-3 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50 transition-all shadow-md shadow-accent/20"
+                                    className="flex-1 py-3 rounded-lg bg-primary text-white font-medium hover:opacity-90 transition-all shadow-md shadow-primary/20"
                                 >
-                                    Enable 2FA
+                                    Verify & Enable
                                 </button>
                             </div>
                         </motion.div>
@@ -970,16 +907,16 @@ function SettingsPageContent() {
                             onClick={(e) => e.stopPropagation()}
                             className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
-                            <h3 className="text-xl font-bold text-white mb-4">Disable Two-Factor Authentication</h3>
+                            <h3 className="text-xl font-bold text-white mb-4">Disable 2FA</h3>
                             <p className="text-gray-400 text-sm mb-4">
-                                Enter your password to disable 2FA. This will make your account less secure.
+                                Please enter your password to disable two-factor authentication.
                             </p>
                             <input
                                 type="password"
                                 value={twoFAPassword}
                                 onChange={(e) => setTwoFAPassword(e.target.value)}
-                                placeholder="Enter your password"
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 mb-4"
+                                placeholder="Your password"
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all mb-4"
                             />
                             <div className="flex gap-3">
                                 <button
@@ -994,19 +931,22 @@ function SettingsPageContent() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            await twoFactor.disable(twoFAPassword);
-                                            toast({ title: '2FA disabled', variant: 'success' });
+                                            const res = await (twoFactor as any).disable(twoFAPassword);
+                                            if (res.error) {
+                                                toast({ title: res.error.message || 'Invalid password', variant: 'destructive' });
+                                                return;
+                                            }
                                             setIs2FAEnabled(false);
                                             setShowDisable2FAPrompt(false);
                                             setTwoFAPassword('');
+                                            toast({ title: '2FA disabled successfully', variant: 'success' });
                                         } catch {
-                                            toast({ title: 'Invalid password', variant: 'destructive' });
+                                            toast({ title: 'Failed to disable 2FA', variant: 'destructive' });
                                         }
                                     }}
-                                    disabled={!twoFAPassword}
-                                    className="flex-1 py-3 rounded-lg bg-error text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 shadow-md shadow-error/20"
+                                    className="flex-1 py-3 rounded-lg bg-red-600 text-white font-medium hover:opacity-90 transition-all shadow-md shadow-red-600/20"
                                 >
-                                    Disable 2FA
+                                    Disable
                                 </button>
                             </div>
                         </motion.div>
@@ -1014,7 +954,7 @@ function SettingsPageContent() {
                 )}
             </AnimatePresence>
 
-            {/* Delete Account Confirmation Modal */}
+            {/* Delete Account Modal */}
             <AnimatePresence>
                 {showDeleteConfirm && (
                     <motion.div
@@ -1022,7 +962,10 @@ function SettingsPageContent() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
-                        onClick={() => setShowDeleteConfirm(false)}
+                        onClick={() => {
+                            setShowDeleteConfirm(false);
+                            setDeleteConfirmText('');
+                        }}
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
@@ -1031,24 +974,22 @@ function SettingsPageContent() {
                             onClick={(e) => e.stopPropagation()}
                             className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 rounded-lg bg-error/20">
-                                    <AlertTriangle className="w-6 h-6 text-error" />
-                                </div>
-                                <h3 className="text-xl font-bold text-white">Delete Account</h3>
+                            <div className="flex items-center gap-3 text-red-500 mb-4">
+                                <AlertTriangle className="w-6 h-6" />
+                                <h3 className="text-xl font-bold">Delete Account</h3>
                             </div>
-                            <p className="text-gray-400 text-sm mb-4">
-                                This action cannot be undone. All your data, including bets, balances, and history will be permanently deleted.
+                            <p className="text-gray-300 text-sm mb-4">
+                                This action is permanent and cannot be undone. All your bets, history, and balance will be lost.
                             </p>
-                            <p className="text-gray-400 text-sm mb-2">
-                                Type <span className="text-red-400 font-mono">DELETE</span> to confirm:
+                            <p className="text-gray-400 text-xs mb-4">
+                                Please type <span className="text-white font-bold select-none">DELETE MY ACCOUNT</span> to confirm.
                             </p>
                             <input
                                 type="text"
                                 value={deleteConfirmText}
                                 onChange={(e) => setDeleteConfirmText(e.target.value)}
-                                placeholder="DELETE"
-                                className="w-full bg-white/5 border border-red-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 mb-4"
+                                placeholder="Type the phrase above"
+                                className="w-full bg-background border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition-all mb-4"
                             />
                             <div className="flex gap-3">
                                 <button
@@ -1061,19 +1002,21 @@ function SettingsPageContent() {
                                     Cancel
                                 </button>
                                 <button
+                                    disabled={deleteConfirmText !== 'DELETE MY ACCOUNT'}
                                     onClick={async () => {
                                         try {
-                                            // Soft delete - mark account as banned/deleted
-                                            await fetch('/api/user/delete', { method: 'POST' });
-                                            toast({ title: 'Account deleted', variant: 'success' });
-                                            await signOut();
-                                            router.push('/');
+                                            const res = await fetch('/api/user/delete', { method: 'DELETE' });
+                                            if (res.ok) {
+                                                await signOut();
+                                                router.push('/');
+                                            } else {
+                                                toast({ title: 'Failed to delete account', variant: 'destructive' });
+                                            }
                                         } catch {
                                             toast({ title: 'Failed to delete account', variant: 'destructive' });
                                         }
                                     }}
-                                    disabled={deleteConfirmText !== 'DELETE'}
-                                    className="flex-1 py-3 rounded-lg bg-error text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-error/20"
+                                    className="flex-1 py-3 rounded-lg bg-red-600 text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-600/20"
                                 >
                                     Delete Forever
                                 </button>
@@ -1091,11 +1034,8 @@ function SettingsPageContent() {
 export default function SettingsPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen text-white relative z-10 flex flex-col">
-                <Navbar />
-                <main className="max-w-5xl mx-auto px-4 pb-8 pt-2 w-full flex-1 flex items-center justify-center" style={{ paddingTop: 'var(--navbar-height)' }}>
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
-                </main>
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
             </div>
         }>
             <SettingsPageContent />
