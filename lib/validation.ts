@@ -360,4 +360,164 @@ export function sanitizeHtml(html: string): string {
         .replace(/javascript:/gi, '');
 }
 
+/**
+ * Validates a URL with safe protocols (http/https only)
+ * Prevents javascript: and data: protocol XSS attacks
+ */
+export function validateSafeUrl(value: unknown, required: boolean = false): ValidationResult {
+    if (value === null || value === undefined || value === '') {
+        if (required) {
+            return { valid: false, error: 'URL is required' };
+        }
+        return { valid: true, sanitized: null };
+    }
+
+    if (typeof value !== 'string') {
+        return { valid: false, error: 'URL must be a string' };
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+        if (required) {
+            return { valid: false, error: 'URL is required' };
+        }
+        return { valid: true, sanitized: null };
+    }
+
+    try {
+        const parsed = new URL(trimmed);
+
+        // Only allow http and https protocols
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return { valid: false, error: 'URL must use http or https protocol' };
+        }
+
+        // Block localhost and internal IPs for security (SSRF prevention)
+        const hostname = parsed.hostname.toLowerCase();
+        if (
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname.startsWith('192.168.') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('172.16.') ||
+            hostname.endsWith('.local')
+        ) {
+            return { valid: false, error: 'URL cannot point to internal addresses' };
+        }
+
+        return { valid: true, sanitized: trimmed };
+    } catch {
+        return { valid: false, error: 'Invalid URL format' };
+    }
+}
+
+/**
+ * Validates a social media handle (Twitter, Telegram, Discord)
+ * Only allows alphanumeric characters and underscores
+ */
+export function validateSocialHandle(
+    value: unknown,
+    options: { required?: boolean; maxLength?: number; platform?: 'twitter' | 'telegram' | 'discord' } = {}
+): ValidationResult {
+    const { required = false, maxLength = 50, platform } = options;
+
+    if (value === null || value === undefined || value === '') {
+        if (required) {
+            return { valid: false, error: 'Handle is required' };
+        }
+        return { valid: true, sanitized: null };
+    }
+
+    if (typeof value !== 'string') {
+        return { valid: false, error: 'Handle must be a string' };
+    }
+
+    // Remove @ prefix if present
+    let handle = value.trim().replace(/^@/, '');
+
+    if (!handle) {
+        if (required) {
+            return { valid: false, error: 'Handle is required' };
+        }
+        return { valid: true, sanitized: null };
+    }
+
+    // Platform-specific patterns
+    const patterns: Record<string, RegExp> = {
+        twitter: /^[a-zA-Z0-9_]{1,15}$/,
+        telegram: /^[a-zA-Z0-9_]{5,32}$/,
+        discord: /^.{2,32}#[0-9]{4}$|^[a-zA-Z0-9_.]{2,32}$/, // username#0000 or new format
+    };
+
+    // Generic pattern if no platform specified
+    const pattern = platform ? patterns[platform] : /^[a-zA-Z0-9_]{1,50}$/;
+
+    if (handle.length > maxLength) {
+        return { valid: false, error: `Handle must be at most ${maxLength} characters` };
+    }
+
+    if (!pattern.test(handle)) {
+        return { valid: false, error: 'Handle contains invalid characters' };
+    }
+
+    return { valid: true, sanitized: handle };
+}
+
+/**
+ * Sanitizes text input to prevent XSS
+ * Encodes HTML special characters
+ */
+export function sanitizeText(text: string): string {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/\//g, '&#x2F;');
+}
+
+/**
+ * Validates and sanitizes user description/bio text
+ */
+export function validateDescription(value: unknown, required: boolean = false): ValidationResult {
+    const result = validateString(value, {
+        required,
+        maxLength: 500,
+        trim: true,
+    });
+
+    if (!result.valid) return result;
+
+    // Sanitize the content
+    if (result.sanitized) {
+        result.sanitized = sanitizeText(result.sanitized);
+    }
+
+    return result;
+}
+
+/**
+ * Validates username with strict pattern
+ */
+export function validateUsername(value: unknown, required: boolean = false): ValidationResult {
+    const result = validateString(value, {
+        required,
+        minLength: required ? 1 : 0,
+        maxLength: 50,
+        pattern: /^[a-zA-Z0-9_\s-]*$/,
+        trim: true,
+    });
+
+    if (!result.valid) {
+        // Provide clearer error message for pattern failure
+        if (result.error === 'Field format is invalid') {
+            return { valid: false, error: 'Username can only contain letters, numbers, underscores, and hyphens' };
+        }
+        return result;
+    }
+
+    return result;
+}
 

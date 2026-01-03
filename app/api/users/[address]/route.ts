@@ -86,31 +86,84 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { username, description, avatarUrl, twitter, discord, telegram, website } = body;
 
-        console.log('Updating user:', { address, username, description, avatarUrl, twitter, discord, telegram, website });
+        // Import validation functions
+        const {
+            validateUsername,
+            validateDescription,
+            validateSafeUrl,
+            validateSocialHandle
+        } = await import('@/lib/validation');
+
+        // Validate username
+        const usernameResult = validateUsername(body.username);
+        if (!usernameResult.valid) {
+            return NextResponse.json({ error: `username: ${usernameResult.error}` }, { status: 400 });
+        }
+
+        // Validate description (sanitized)
+        const descriptionResult = validateDescription(body.description);
+        if (!descriptionResult.valid) {
+            return NextResponse.json({ error: `description: ${descriptionResult.error}` }, { status: 400 });
+        }
+
+        // Validate avatar URL (must be http/https)
+        const avatarResult = validateSafeUrl(body.avatarUrl);
+        if (!avatarResult.valid) {
+            return NextResponse.json({ error: `avatarUrl: ${avatarResult.error}` }, { status: 400 });
+        }
+
+        // Validate website URL (CRITICAL: prevents javascript: XSS)
+        const websiteResult = validateSafeUrl(body.website);
+        if (!websiteResult.valid) {
+            return NextResponse.json({ error: `website: ${websiteResult.error}` }, { status: 400 });
+        }
+
+        // Validate social handles
+        const twitterResult = validateSocialHandle(body.twitter, { platform: 'twitter' });
+        if (!twitterResult.valid) {
+            return NextResponse.json({ error: `twitter: ${twitterResult.error}` }, { status: 400 });
+        }
+
+        const discordResult = validateSocialHandle(body.discord, { platform: 'discord' });
+        if (!discordResult.valid) {
+            return NextResponse.json({ error: `discord: ${discordResult.error}` }, { status: 400 });
+        }
+
+        const telegramResult = validateSocialHandle(body.telegram, { platform: 'telegram' });
+        if (!telegramResult.valid) {
+            return NextResponse.json({ error: `telegram: ${telegramResult.error}` }, { status: 400 });
+        }
+
+        console.log('Updating user (validated):', {
+            address,
+            username: usernameResult.sanitized,
+            hasDescription: !!descriptionResult.sanitized,
+            hasAvatar: !!avatarResult.sanitized,
+            hasWebsite: !!websiteResult.sanitized,
+        });
 
         const updatedUser = await prisma.user.upsert({
             where: { address },
             update: {
-                username,
-                description,
-                avatarUrl,
-                twitter,
-                discord,
-                telegram,
-                website,
+                username: usernameResult.sanitized || undefined,
+                description: descriptionResult.sanitized || undefined,
+                avatarUrl: avatarResult.sanitized || undefined,
+                twitter: twitterResult.sanitized || undefined,
+                discord: discordResult.sanitized || undefined,
+                telegram: telegramResult.sanitized || undefined,
+                website: websiteResult.sanitized || undefined,
             },
             create: {
                 address,
                 email: `${address}@placeholder.com`, // Required for BetterAuth
-                username,
-                description,
-                avatarUrl,
-                twitter,
-                discord,
-                telegram,
-                website,
+                username: usernameResult.sanitized || undefined,
+                description: descriptionResult.sanitized || undefined,
+                avatarUrl: avatarResult.sanitized || undefined,
+                twitter: twitterResult.sanitized || undefined,
+                discord: discordResult.sanitized || undefined,
+                telegram: telegramResult.sanitized || undefined,
+                website: websiteResult.sanitized || undefined,
             },
         });
 
@@ -123,3 +176,4 @@ export async function PUT(
         );
     }
 }
+

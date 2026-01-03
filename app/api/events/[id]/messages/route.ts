@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateUUID, validateEventId } from '@/lib/validation';
+import { validateString, validateUUID, validateEventId, sanitizeText } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -165,7 +165,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             parentId = parentIdResult.sanitized;
         }
 
-        const text = textResult.sanitized!;
+        // Sanitize text to prevent XSS (consistent with support ticket messages)
+        const text = sanitizeText(textResult.sanitized!);
         const eventId = eventIdResult.sanitized!;
 
         // Helper for query timeout protection

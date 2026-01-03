@@ -81,6 +81,35 @@ const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
           },
+          // Content Security Policy - XSS protection
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              // Scripts: self + Vercel analytics + Sentry
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-scripts.com https://*.sentry.io",
+              // Styles: self + inline (required for styled-components/emotion) + Google Fonts
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              // Images: self + https + data URIs + blobs (for file uploads)
+              "img-src 'self' https: data: blob:",
+              // Fonts: self + Google Fonts
+              "font-src 'self' https://fonts.gstatic.com data:",
+              // Connect: self + https APIs + WebSockets + Sentry
+              "connect-src 'self' https: wss: https://*.sentry.io",
+              // Media: self + https
+              "media-src 'self' https: blob:",
+              // Object: none (blocks plugins like Flash)
+              "object-src 'none'",
+              // Frame ancestors: none (same as X-Frame-Options DENY)
+              "frame-ancestors 'none'",
+              // Base URI: self only
+              "base-uri 'self'",
+              // Form action: self only
+              "form-action 'self'",
+              // Upgrade insecure requests in production
+              ...(process.env.NODE_ENV === 'production' ? ["upgrade-insecure-requests"] : []),
+            ].join('; '),
+          },
           // HSTS - only in production
           ...(process.env.NODE_ENV === 'production'
             ? [
