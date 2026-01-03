@@ -566,21 +566,24 @@ async function backfillOddsHistory(params: {
       }
     } else {
       // Fallback for environments where Prisma client is stale but table exists
-      const values = rows
-        .map(
-          (r: any) =>
-            `('${r.eventId}','${r.outcomeId}','${r.polymarketTokenId || ''}','${new Date(r.timestampMs).toISOString()}',${r.price},${r.probability},'${r.source}','${new Date().toISOString()}')`
-        )
-        .join(',');
-
-      const sql = `
-        INSERT INTO "OddsHistory" ("eventId","outcomeId","polymarketTokenId","timestamp","price","probability","source","createdAt")
-        VALUES ${values}
-        ON CONFLICT ("eventId","outcomeId","timestamp") DO NOTHING;
-      `;
-
-      await prisma.$executeRawUnsafe(sql);
-      console.log('[Polymarket] odds history backfill stored via raw insert', rows.length, 'rows for', tokenId, marketId, `(${totalDays.toFixed(1)} days)`);
+      // SECURITY FIX: Use parameterized queries instead of string concatenation
+      let insertedCount = 0;
+      for (const r of rows) {
+        try {
+          await prisma.$executeRaw`
+            INSERT INTO "OddsHistory" ("eventId", "outcomeId", "polymarketTokenId", "timestamp", "price", "probability", "source", "createdAt")
+            VALUES (${r.eventId}, ${r.outcomeId}, ${r.polymarketTokenId || null}, ${new Date(r.timestampMs)}, ${r.price}, ${r.probability}, ${r.source}, ${new Date()})
+            ON CONFLICT ("eventId", "outcomeId", "timestamp") DO NOTHING
+          `;
+          insertedCount++;
+        } catch (insertErr) {
+          // Skip duplicates silently (ON CONFLICT should handle most, but race conditions may occur)
+          if (!(insertErr instanceof Error && insertErr.message.includes('duplicate'))) {
+            console.warn('[Polymarket] odds history row insert failed:', insertErr);
+          }
+        }
+      }
+      console.log('[Polymarket] odds history backfill stored via parameterized insert', insertedCount, 'rows for', tokenId, marketId, `(${totalDays.toFixed(1)} days)`);
     }
 
     // Return the latest probability found in history to seed the current outcome price

@@ -3,22 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node start-hybrid-platform.js",
-    "build": "next build && node scripts/fix-client-reference-manifest.js && node scripts/copy-geoip-data.js",
+    "dev": "node scripts/start-hybrid-platform.js",
+    "build": "next build && node scripts/maintenance/fix-client-reference-manifest.js && node scripts/maintenance/copy-geoip-data.js",
     "vercel-build": "npm run build",
     "start": "next start",
     "lint": "next lint",
     "analyze": "ANALYZE=true next build",
     "postinstall": "prisma generate",
-    "seed": "tsx prisma/seed.ts",
-    "stress": "npx tsx stress-test.ts",
-    "orderbook-activity": "npx tsx scripts/generate-orderbook-activity.ts",
-    "simulate-bets": "npx tsx scripts/simulate-bets.ts",
-    "simulate-batch": "npx tsx scripts/simulate-batch.ts",
-    "simulate-app": "npx tsx scripts/simulate-app.ts",
-    "test-polymarket-candles": "npx tsx test-polymarket-5min-candles.ts",
-    "test-candles-quick": "npx tsx quick-candle-test.ts",
-    "get-test-tokens": "npx tsx scripts/get-test-token-ids.ts"
+    "seed": "tsx scripts/db/seed.ts",
+    "stress": "npx tsx scripts/test/stress-test.ts",
+    "orderbook-activity": "npx tsx scripts/test/generate-orderbook-activity.ts",
+    "simulate-bets": "npx tsx scripts/test/simulate-bets.ts",
+    "simulate-batch": "npx tsx scripts/test/simulate-batch.ts",
+    "simulate-app": "npx tsx scripts/test/simulate-app.ts",
+    "test-polymarket-candles": "npx tsx scripts/test/test-polymarket-5min-candles.ts",
+    "test-candles-quick": "npx tsx scripts/test/quick-candle-test.ts",
+    "get-test-tokens": "npx tsx scripts/maintenance/get-test-token-ids.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -109,6 +109,6 @@
     "why-is-node-running": "^2.2.0"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx scripts/db/seed.ts"
   }
 }
