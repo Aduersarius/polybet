@@ -1,6 +1,6 @@
 /**
  * Telegram Account Linking API
- * Verify link code and connect Telegram account to Polybet user
+ * Verify link code and connect Telegram account to Pariflow user
  */
 
 import { NextRequest, NextResponse } from 'next/server';

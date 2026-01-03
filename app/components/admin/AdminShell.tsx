@@ -76,12 +76,12 @@ export function AdminShell({ activeView, onChangeView, onCreateEvent, children }
                     <div className="px-2 flex items-center justify-between">
                         {sidebarOpen && (
                             <div>
-                                <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PolyBet</div>
+                                <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">Pariflow</div>
                                 <div className="text-xl font-semibold text-white mt-1">Admin</div>
                             </div>
                         )}
                         {!sidebarOpen && (
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PB</div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PF</div>
                         )}
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}

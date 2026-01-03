@@ -71,12 +71,12 @@ export function AffiliateShell({ children, affiliateInfo }: AffiliateShellProps)
           <div className="px-2 flex items-center justify-between">
             {sidebarOpen && (
               <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PolyBet</div>
+                <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">Pariflow</div>
                 <div className="text-xl font-semibold text-white mt-1">Partners</div>
               </div>
             )}
             {!sidebarOpen && (
-              <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PB</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[#9ca3af]">PF</div>
             )}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -94,9 +94,9 @@ export function AffiliateShell({ children, affiliateInfo }: AffiliateShellProps)
           <nav className="flex flex-col gap-1 flex-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || 
+              const isActive = pathname === item.href ||
                 (item.href !== '/affiliate/dashboard' && pathname.startsWith(item.href));
-              
+
               return (
                 <Link
                   key={item.id}

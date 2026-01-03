@@ -20,10 +20,10 @@ export async function GET(request: Request) {
     const league = searchParams.get('league');
     const abbreviations = searchParams.get('abbreviations')?.split(',');
     const names = searchParams.get('name')?.split(',');
-    
+
     // Build cache key
     const cacheKey = `${league || 'all'}-${abbreviations?.join(',') || ''}-${names?.join(',') || ''}`;
-    
+
     // Check cache
     const cached = teamCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) {
@@ -34,25 +34,25 @@ export async function GET(request: Request) {
         },
       });
     }
-    
+
     // Build Polymarket API URL
     const params = new URLSearchParams();
     if (league) params.set('league', league);
     if (abbreviations) params.set('abbreviation', abbreviations.join(','));
     if (names) params.set('name', names.join(','));
     params.set('limit', '100');
-    
+
     const url = `https://gamma-api.polymarket.com/teams?${params.toString()}`;
-    
+
     // Fetch from Polymarket
     const response = await fetch(url, {
       cache: 'no-store',
       headers: {
-        'User-Agent': 'polybet/1.0',
+        'User-Agent': 'pariflow/1.0',
         'Accept': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       console.error(`[Teams API] Polymarket request failed: ${response.status}`);
       return NextResponse.json(
@@ -60,22 +60,22 @@ export async function GET(request: Request) {
         { status: response.status }
       );
     }
-    
+
     const teams = await response.json();
-    
+
     // Cache the result
     teamCache.set(cacheKey, {
       data: teams,
       expires: Date.now() + CACHE_TTL,
     });
-    
+
     // Clean up expired cache entries
     for (const [key, value] of teamCache.entries()) {
       if (value.expires < Date.now()) {
         teamCache.delete(key);
       }
     }
-    
+
     return NextResponse.json(teams, {
       headers: {
         'X-Cache': 'MISS',

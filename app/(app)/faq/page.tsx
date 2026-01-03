@@ -16,7 +16,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-lg text-white/60 max-w-2xl mx-auto">
-            Find answers to common questions about how Polybet works, trading strategies, deposits, withdrawals, and more.
+            Find answers to common questions about how Pariflow works, trading strategies, deposits, withdrawals, and more.
           </p>
         </div>
 

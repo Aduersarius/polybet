@@ -11,7 +11,7 @@ const UPDATE_INTERVAL_MS = 200; // How often to trigger updates
 
 // URLs
 const WS_URL = process.env.WS_URL || (IS_LOCAL ? "http://localhost:3001" : "http://188.137.178.118:3001"); // Replace with your VPS IP
-const API_URL = process.env.API_URL || (IS_LOCAL ? "http://localhost:3000" : "https://polybet.vercel.app");
+const API_URL = process.env.API_URL || (IS_LOCAL ? "http://localhost:3000" : "https://pariflow.vercel.app");
 
 // Metrics
 let messagesReceived = 0;

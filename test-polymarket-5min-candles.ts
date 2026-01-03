@@ -45,7 +45,7 @@ async function test5MinCandles(tokenId: string, daysAgo: number): Promise<{
     const response = await fetch(url, {
       cache: 'no-store',
       headers: {
-        'User-Agent': 'polybet-test/1.0',
+        'User-Agent': 'pariflow-test/1.0',
         'Accept': 'application/json'
       }
     });

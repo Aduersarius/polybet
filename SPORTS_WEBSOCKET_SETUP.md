@@ -10,7 +10,7 @@ We've implemented a high-performance WebSocket system for sports odds updates wi
 ┌─────────────────────────────────────────────────────┐
 │  Next.js Frontend (Vercel)                          │
 │  ↓ WebSocket connection                             │
-│  VPS WebSocket Server (wss://ws.polybet.ru:3001)   │
+│  VPS WebSocket Server (wss://ws.pariflow.ru:3001)   │
 │  ↓ Redis pub/sub                                    │
 │  Next.js API (Sports Publisher)                     │
 │  ↓ Database queries                                 │
@@ -21,7 +21,7 @@ We've implemented a high-performance WebSocket system for sports odds updates wi
 ## 🔧 Components
 
 ### 1. VPS WebSocket Server (`vps/server.js`)
-- **Location**: Running on your VPS at `wss://ws.polybet.ru:3001`
+- **Location**: Running on your VPS at `wss://ws.pariflow.ru:3001`
 - **Purpose**: Broadcasts real-time updates to all connected clients
 - **Redis Channels**: 
   - `sports-odds` - Sports odds updates (NEW)
@@ -38,7 +38,7 @@ We've implemented a high-performance WebSocket system for sports odds updates wi
   - `GET /api/sports/ws-publisher` - Check status
 
 ### 3. Frontend WebSocket Client (`app/(app)/sports/page.tsx`)
-- **Connection**: Automatically connects to `wss://ws.polybet.ru:3001`
+- **Connection**: Automatically connects to `wss://ws.pariflow.ru:3001`
 - **Features**:
   - Real-time odds updates (<500ms)
   - Connection status indicator
@@ -53,7 +53,7 @@ Your VPS server should already be running with the updated `vps/server.js`. If y
 
 ```bash
 # SSH into your VPS
-ssh user@ws.polybet.ru
+ssh user@ws.pariflow.ru
 
 # Navigate to the server directory
 cd /path/to/vps
@@ -178,7 +178,7 @@ curl -X POST http://localhost:3000/api/sports/ws-publisher
 ### WebSocket Not Connecting
 1. Check VPS server is running
 2. Check firewall allows port 3001
-3. Check `lib/socket.ts` has correct URL: `https://ws.polybet.ru`
+3. Check `lib/socket.ts` has correct URL: `https://ws.pariflow.ru`
 
 ### No Odds Updates
 1. Check publisher is running (see above)

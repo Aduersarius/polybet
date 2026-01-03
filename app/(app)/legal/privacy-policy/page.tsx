@@ -19,8 +19,8 @@ export default function PrivacyPolicyPage() {
 
                     <div className="space-y-6 text-gray-200 leading-relaxed bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
                         <p>
-                            This Privacy Policy explains how PolyBet collects, uses, and protects personal data when you
-                            use our prediction and trading platform. By using PolyBet, you consent to these practices.
+                            This Privacy Policy explains how Pariflow collects, uses, and protects personal data when you
+                            use our prediction and trading platform. By using Pariflow, you consent to these practices.
                         </p>
 
                         <section className="space-y-2">
@@ -81,7 +81,7 @@ export default function PrivacyPolicyPage() {
                             <h2 className="text-xl font-semibold text-white">Contact</h2>
                             <p className="text-gray-300">
                                 Privacy questions? Reach us at{' '}
-                                <a href="mailto:contact@polybet.com" className="text-blue-400 hover:text-blue-300">contact@polybet.com</a>.
+                                <a href="mailto:contact@pariflow.com" className="text-blue-400 hover:text-blue-300">contact@pariflow.com</a>.
                             </p>
                         </section>
 

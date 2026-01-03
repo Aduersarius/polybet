@@ -113,7 +113,7 @@ async function fetchPolymarketSports(limit = 500): Promise<PolymarketSportsEvent
       const response = await fetch(url, {
         cache: 'no-store',
         headers: {
-          'User-Agent': 'polybet/1.0',
+          'User-Agent': 'pariflow/1.0',
           'Accept': 'application/json',
         },
       });

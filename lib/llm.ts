@@ -14,7 +14,7 @@ import { trackExternalApi } from './sentry-metrics';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'xiaomi/mimo-v2-flash:free';
-const DEFAULT_REFERER = 'https://polybet.com';
+const DEFAULT_REFERER = 'https://pariflow.com';
 
 export interface LLMMessage {
     role: 'system' | 'user' | 'assistant';

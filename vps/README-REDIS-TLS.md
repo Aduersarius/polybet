@@ -20,7 +20,7 @@ apt-get install -y stunnel4
 mkdir -p /etc/stunnel
 
 # Get Redis password from .env
-REDIS_PASSWORD=$(grep REDIS_PASSWORD ~/polybet/.env | cut -d '=' -f2)
+REDIS_PASSWORD=$(grep REDIS_PASSWORD ~/pariflow/.env | cut -d '=' -f2)
 
 # Create PSK file (stunnel uses password as PSK)
 echo "$REDIS_PASSWORD" > /etc/stunnel/psk.txt
@@ -72,7 +72,7 @@ The `docker-compose.yml` has been updated to include a `redis-tls` service.
 ### Step 2: Start the TLS Proxy
 
 ```bash
-cd ~/polybet/vps
+cd ~/pariflow/vps
 docker-compose up -d redis-tls
 ```
 
@@ -103,7 +103,7 @@ This is more complex but provides the most secure setup.
 
 ### Authentication Failed
 
-- Verify Redis password: `docker exec polybet-redis redis-cli -a "Baltim0r" ping`
+- Verify Redis password: `docker exec pariflow-redis redis-cli -a "Baltim0r" ping`
 - Check stunnel PSK matches Redis password
 
 ### TLS Handshake Failed

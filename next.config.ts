@@ -119,7 +119,7 @@ const configWithAnalyzer = withBundleAnalyzer(nextConfig);
 
 // Export with Sentry wrapper (single wrap, not double)
 export default withSentryConfig(configWithAnalyzer, {
-  org: "polybet",
+  org: "pariflow",
   project: "sentry-green-window",
 
   // Only print logs for uploading source maps in CI

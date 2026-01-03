@@ -53,7 +53,7 @@ export function Footer() {
                         </button>
                     </div>
                     <div className="text-[10px] text-gray-500 text-center">
-                        © 2025 PolyBet. All rights reserved.
+                        © 2025 Pariflow. All rights reserved.
                     </div>
                 </div>
             </div>

@@ -19,13 +19,13 @@ interface TourModalProps {
 const tourSlides = [
   {
     icon: <TrendingUp className="w-12 h-12" />,
-    title: 'Welcome to Polybet',
+    title: 'Welcome to Pariflow',
     description: 'Trade on real-world events and profit from your predictions. Join thousands of traders in the prediction market revolution.',
     preview: (
       <div className="relative">
         {/* Decorative background gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-xl blur-xl"></div>
-        
+
         {/* Event cards grid */}
         <div className="relative grid grid-cols-2 gap-3">
           {/* Card 1 */}
@@ -303,11 +303,10 @@ export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
                     setDirection(index > currentSlide ? 'forward' : 'backward');
                     setCurrentSlide(index);
                   }}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    index === currentSlide
+                  className={`h-1.5 rounded-full transition-all duration-300 ${index === currentSlide
                       ? 'w-8 bg-blue-500'
                       : 'w-1.5 bg-gray-700 hover:bg-gray-600'
-                  }`}
+                    }`}
                   aria-label={`Go to step ${index + 1}`}
                 />
               ))}

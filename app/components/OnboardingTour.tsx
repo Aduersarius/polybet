@@ -75,7 +75,7 @@ export function OnboardingTour({ isOpen, onClose }: OnboardingTourProps) {
                                                 </svg>
                                             </div>
                                         </div>
-                                        <h2 className="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-tight">Welcome to Polybet!</h2>
+                                        <h2 className="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-tight">Welcome to Pariflow!</h2>
                                         <p className="text-[11px] sm:text-sm text-blue-100/90 max-w-md leading-snug">
                                             Learn how to trade on prediction markets in 6 simple steps.
                                         </p>

@@ -13,7 +13,7 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
   return (
     <div className="relative inline-block">
       {/* Outer glow container with enhanced styling */}
-      <div 
+      <div
         className="relative rounded-3xl overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, rgba(16, 24, 39, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
@@ -24,11 +24,11 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
       >
         {/* Inner glow effect */}
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-purple-500/5 pointer-events-none" />
-        
+
         {/* QR Code with dark theme - no white background */}
         <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f172a]/95 to-[#1e293b]/95 backdrop-blur-sm p-4 border border-white/10">
-          <QRCodeSVG 
-            value={value} 
+          <QRCodeSVG
+            value={value}
             size={size - 64} // Account for padding
             level="H" // High error correction for logo
             bgColor="transparent"
@@ -38,7 +38,7 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
               height: '100%',
             }}
           />
-          
+
           {/* Decorative corner accents with glow */}
           <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-emerald-400/50 rounded-tl-lg shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
           <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-emerald-400/50 rounded-tr-lg shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
@@ -47,18 +47,18 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
         </div>
 
         {/* Diamond logo in center with premium styling - lower z-index to not cover dropdowns */}
-        <div 
+        <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1]"
-          style={{ 
-            width: logoSize + 16, 
+          style={{
+            width: logoSize + 16,
             height: logoSize + 16,
           }}
         >
           {/* Logo glow */}
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-purple-400/20 blur-xl" />
-          
+
           {/* Logo container with dark theme */}
-          <div 
+          <div
             className="relative w-full h-full rounded-2xl overflow-hidden"
             style={{
               background: 'linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
@@ -69,7 +69,7 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
           >
             <Image
               src="/diamond_logo_nobg.png"
-              alt="PolyBet"
+              alt="Pariflow"
               width={logoSize}
               height={logoSize}
               className="w-full h-full object-contain drop-shadow-sm"
@@ -83,7 +83,7 @@ export function BrandedQRCode({ value, size = 280, logoSize = 70 }: BrandedQRCod
       </div>
 
       {/* Outer decorative ring */}
-      <div 
+      <div
         className="absolute -inset-1 rounded-3xl pointer-events-none"
         style={{
           background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(139, 92, 246, 0.1))',

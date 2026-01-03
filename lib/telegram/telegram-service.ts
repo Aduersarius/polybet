@@ -26,9 +26,9 @@ export class TelegramService {
   async processUpdate(update: TelegramUpdate): Promise<void> {
     try {
       console.log('[Telegram] Processing update:', JSON.stringify(update, null, 2));
-      
+
       const message = update.message;
-      
+
       if (!message || !message.from || message.from.is_bot) {
         console.log('[Telegram] Ignoring bot message or invalid update');
         return; // Ignore bot messages and invalid updates
@@ -91,20 +91,20 @@ export class TelegramService {
    */
   private async handleStartCommand(chatId: string, message: TelegramMessage): Promise<void> {
     const firstName = message.from?.first_name || 'there';
-    
+
     const text = `
-👋 *Welcome to PolyBet Support, ${firstName}!*
+👋 *Welcome to Pariflow Support, ${firstName}!*
 
 I'm your support assistant. You can:
 
 • Send me a message to create a support ticket
 • Get help from our support team
-• Link your Telegram account to your PolyBet account
+• Link your Telegram account to your Pariflow account
 
 *Commands:*
 /help - Show all available commands
 /ticket - View your open tickets
-/link - Link your Telegram to PolyBet account
+/link - Link your Telegram to Pariflow account
 
 *Need help?*
 Just send me a message describing your issue, and I'll create a support ticket for you!
@@ -118,14 +118,14 @@ Just send me a message describing your issue, and I'll create a support ticket f
    */
   private async handleHelpCommand(chatId: string): Promise<void> {
     const text = `
-🆘 *PolyBet Support Bot Help*
+🆘 *Pariflow Support Bot Help*
 
 *Available Commands:*
 
 /start - Start interacting with the bot
 /help - Show this help message
 /ticket - View your open support tickets
-/link - Link your Telegram to your PolyBet account
+/link - Link your Telegram to your Pariflow account
 
 *How to get support:*
 
@@ -136,7 +136,7 @@ Just send me a message describing your issue, and I'll create a support ticket f
 
 *Account Linking:*
 
-Link your Telegram account to your PolyBet account for:
+Link your Telegram account to your Pariflow account for:
 • Faster support
 • Access to your ticket history
 • Personalized assistance
@@ -193,7 +193,7 @@ Visit: ${this.websiteUrl}/support
 
       // Format tickets
       let text = '🎫 *Your Open Tickets:*\n\n';
-      
+
       for (const ticket of tickets.data) {
         const statusEmoji = ticket.status === 'open' ? '🟢' : '🟡';
         text += `${statusEmoji} *${ticket.ticketNumber}*\n`;
@@ -221,16 +221,16 @@ Visit: ${this.websiteUrl}/support
   ): Promise<void> {
     try {
       console.log(`[Telegram] Handling /link command for telegramId: ${telegramId}, chatId: ${chatId}`);
-      
+
       // Check if already linked
       const isLinked = await telegramLinkingService.isLinked(telegramId);
       console.log(`[Telegram] Is linked: ${isLinked}`);
-      
+
       if (isLinked) {
         console.log(`[Telegram] User already linked, sending confirmation`);
         await this.sendMessage(
           chatId,
-          '✅ Your Telegram account is already linked to your PolyBet account!'
+          '✅ Your Telegram account is already linked to your Pariflow account!'
         );
         return;
       }
@@ -258,7 +258,7 @@ Your 6-digit verification code:
 
 ⏱ This code expires in 10 minutes.
 
-Note: You must be logged into your PolyBet account on the website.
+Note: You must be logged into your Pariflow account on the website.
 `;
 
       console.log(`[Telegram] Sending link code message to chatId: ${chatId}`);
@@ -296,14 +296,14 @@ Note: You must be logged into your PolyBet account on the website.
         message.from?.username
       );
 
-      // Determine the Polybet user ID (linked or temporary)
-      const polybetUserId = telegramUser.userId;
+      // Determine the Pariflow user ID (linked or temporary)
+      const pariflowUserId = telegramUser.userId;
 
-      if (!polybetUserId) {
+      if (!pariflowUserId) {
         // For unlinked users, suggest linking
         await this.sendMessage(
           chatId,
-          '⚠️ You are not linked to a PolyBet account. Support tickets created here will be temporary.\n\nUse /link to connect your account for full access.'
+          '⚠️ You are not linked to a Pariflow account. Support tickets created here will be temporary.\n\nUse /link to connect your account for full access.'
         );
         // For now, don't create tickets for unlinked users
         // You can modify this behavior if you want to allow anonymous tickets
@@ -313,7 +313,7 @@ Note: You must be logged into your PolyBet account on the website.
       // Check if user has an open ticket from Telegram
       const existingTicket = await prisma.supportTicket.findFirst({
         where: {
-          userId: polybetUserId,
+          userId: pariflowUserId,
           source: 'telegram',
           status: {
             in: ['open', 'pending'],
@@ -328,7 +328,7 @@ Note: You must be logged into your PolyBet account on the website.
         // Add message to existing ticket
         await ticketService.addMessage({
           ticketId: existingTicket.id,
-          userId: polybetUserId,
+          userId: pariflowUserId,
           content: text,
           source: 'telegram',
           telegramMessageId: message.message_id,
@@ -341,7 +341,7 @@ Note: You must be logged into your PolyBet account on the website.
       } else {
         // Create new ticket
         const ticket = await ticketService.createTicket({
-          userId: polybetUserId,
+          userId: pariflowUserId,
           subject: text.substring(0, 100), // First 100 chars as subject
           category: 'general',
           priority: 'medium',
@@ -428,7 +428,7 @@ Note: You must be logged into your PolyBet account on the website.
       });
 
       const data = await response.json();
-      
+
       if (!response.ok || !data.ok) {
         console.error('Failed to set webhook:', data);
         return false;

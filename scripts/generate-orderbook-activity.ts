@@ -53,7 +53,7 @@ async function getFakeUserId(): Promise<string> {
             data: {
                 address: `0x${Math.random().toString(16).substring(2, 42)}`,
                 username: `${FAKE_USER_PREFIX}${Date.now()}`,
-                email: `fake-${Date.now()}@polybet.local`,
+                email: `fake-${Date.now()}@pariflow.local`,
             }
         });
     }
@@ -75,7 +75,7 @@ async function getCurrentMarketPrice(eventId: string, option: string, eventType:
     if (eventType === 'MULTIPLE') {
         const outcome = (event as any).outcomes.find((o: any) => o.id === option);
         if (!outcome) return 0.5;
-        const sumExp = (event as any).outcomes.reduce((acc: number, o: any) => 
+        const sumExp = (event as any).outcomes.reduce((acc: number, o: any) =>
             acc + Math.exp((o.liquidity || 0) / b), 0);
         return Math.exp((outcome.liquidity || 0) / b) / sumExp;
     } else {
@@ -142,7 +142,7 @@ function generateFakeOrders(
 // Clean up old fake orders
 async function cleanupOldFakeOrders(userId: string) {
     const cutoffTime = new Date(Date.now() - CLEANUP_AGE_MS);
-    
+
     const result = await prisma.order.updateMany({
         where: {
             userId,
@@ -219,7 +219,7 @@ async function generateOrderbookActivity() {
                             totalOrdersCreated++;
                         } catch (error: any) {
                             // Ignore duplicate or constraint errors
-                            if (!error.message?.includes('Unique constraint') && 
+                            if (!error.message?.includes('Unique constraint') &&
                                 !error.message?.includes('Foreign key constraint')) {
                                 console.error(`Error creating order:`, error.message);
                             }
@@ -257,7 +257,7 @@ async function generateOrderbookActivity() {
                             totalOrdersCreated++;
                         } catch (error: any) {
                             // Ignore duplicate or constraint errors
-                            if (!error.message?.includes('Unique constraint') && 
+                            if (!error.message?.includes('Unique constraint') &&
                                 !error.message?.includes('Foreign key constraint')) {
                                 console.error(`Error creating order:`, error.message);
                             }
@@ -276,7 +276,7 @@ async function generateOrderbookActivity() {
 // Run every 15 seconds (4 times per minute)
 async function startOrderbookActivityGenerator(continuous: boolean = true) {
     console.log('Starting orderbook activity generator...');
-    
+
     if (continuous) {
         const intervalSeconds = UPDATE_INTERVAL_MS / 1000;
         const timesPerMinute = 60 / intervalSeconds;
@@ -285,7 +285,7 @@ async function startOrderbookActivityGenerator(continuous: boolean = true) {
     } else {
         console.log('Running once...');
     }
-    
+
     // Run immediately
     await generateOrderbookActivity();
 

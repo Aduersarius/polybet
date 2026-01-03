@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
     return {
-        name: 'PolyBet',
-        short_name: 'PolyBet',
-        description: 'Trade what you believe on PolyBet.',
+        name: 'Pariflow',
+        short_name: 'Pariflow',
+        description: 'Trade what you believe on Pariflow.',
         start_url: '/',
         scope: '/',
         id: '/',

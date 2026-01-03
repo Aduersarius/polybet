@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This report provides a comprehensive analysis of the deposits and withdrawals system in the PolyBet platform. The system handles cryptocurrency transactions using Polygon network with USDC as the primary token. The analysis covers API endpoints, frontend components, database models, and business logic, identifying several bugs, security vulnerabilities, performance issues, and areas for improvement.
+This report provides a comprehensive analysis of the deposits and withdrawals system in the Pariflow platform. The system handles cryptocurrency transactions using Polygon network with USDC as the primary token. The analysis covers API endpoints, frontend components, database models, and business logic, identifying several bugs, security vulnerabilities, performance issues, and areas for improvement.
 
 ## System Architecture Overview
 

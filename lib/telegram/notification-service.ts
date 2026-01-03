@@ -80,7 +80,7 @@ export class TelegramNotificationService {
 
       // Only send if ticket was created via Telegram or user has Telegram linked
       const telegramUser = ticket.user.telegramLink;
-      
+
       if (!telegramUser || !telegramUser.isVerified) {
         console.log('User does not have verified Telegram account');
         return false;
@@ -303,7 +303,7 @@ You can reply to this chat to add more details to your ticket.
       });
 
       // Get admin panel URL
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://polybet.ru';
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pariflow.com';
       const adminPanelUrl = `${baseUrl}/admin/withdrawals`;
 
       // Format message

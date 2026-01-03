@@ -5,7 +5,7 @@ A containerized WebSocket worker that connects to Polymarket's real-time data AP
 ## Prerequisites
 
 - Docker and Docker Compose
-- Access to the main `polybet` database
+- Access to the main `pariflow` database
 - Redis instance for pub/sub
 
 ## Quick Start

@@ -12,7 +12,7 @@ test('hasPermission allows admin and scoped permissions', async (t) => {
 });
 
 test('assertSameOrigin rejects untrusted origins in production', async (t) => {
-    const req = new Request('https://polybet.ru/api/user/favorites', {
+    const req = new Request('https://pariflow.com/api/user/favorites', {
         headers: {
             origin: 'https://attacker.com',
         },

@@ -14,7 +14,7 @@ async function testCandleAvailability(tokenId: string, daysAgo: number): Promise
   try {
     const response = await fetch(url, {
       cache: 'no-store',
-      headers: { 'User-Agent': 'polybet-test/1.0' }
+      headers: { 'User-Agent': 'pariflow-test/1.0' }
     });
 
     if (!response.ok) return false;

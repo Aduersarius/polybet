@@ -1,4 +1,4 @@
-# PolyBet Load Testing Guide
+# Pariflow Load Testing Guide
 
 ## Quick Start
 
@@ -9,12 +9,12 @@ npx tsx load-test.ts
 
 ### Test Vercel Production
 ```bash
-API_URL=https://polybet.vercel.app npx tsx load-test.ts
+API_URL=https://pariflow.vercel.app npx tsx load-test.ts
 ```
 
 ### Custom Configuration
 ```bash
-API_URL=https://polybet.vercel.app \
+API_URL=https://pariflow.vercel.app \
 CONCURRENT=100 \
 DURATION=120 \
 RAMP_UP=20 \

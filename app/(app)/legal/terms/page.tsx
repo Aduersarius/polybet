@@ -19,7 +19,7 @@ export default function TermsPage() {
 
                     <div className="space-y-6 text-gray-200 leading-relaxed bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
                         <p>
-                            These Terms govern your access to and use of PolyBet. By creating an account or using the
+                            These Terms govern your access to and use of Pariflow. By creating an account or using the
                             platform, you agree to these Terms. If you do not agree, do not use the service.
                         </p>
 
@@ -69,7 +69,7 @@ export default function TermsPage() {
                         <section className="space-y-2">
                             <h2 className="text-xl font-semibold text-white">Limitation of liability</h2>
                             <p className="text-gray-300">
-                                To the fullest extent permitted by law, PolyBet is not liable for indirect, incidental,
+                                To the fullest extent permitted by law, Pariflow is not liable for indirect, incidental,
                                 or consequential losses, or for losses arising from market volatility, downtime, or third-party
                                 providers. In any case, liability is limited to amounts you paid to use the service in the
                                 12 months before the claim.
@@ -88,7 +88,7 @@ export default function TermsPage() {
                             <h2 className="text-xl font-semibold text-white">Contact</h2>
                             <p className="text-gray-300">
                                 Questions about these Terms? Email{' '}
-                                <a href="mailto:contact@polybet.com" className="text-blue-400 hover:text-blue-300">contact@polybet.com</a>.
+                                <a href="mailto:contact@pariflow.com" className="text-blue-400 hover:text-blue-300">contact@pariflow.com</a>.
                             </p>
                         </section>
 

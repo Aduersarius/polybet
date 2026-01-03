@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the architecture for enhanced market data APIs with historical data support for institutional liquidity providers on the PolyBet platform. The system provides real-time and historical market data optimized for algorithmic trading systems.
+This document outlines the architecture for enhanced market data APIs with historical data support for institutional liquidity providers on the Pariflow platform. The system provides real-time and historical market data optimized for algorithmic trading systems.
 
 **Important Notes:**
 - This design does NOT modify existing orderbook or AMM trading logic
@@ -463,4 +463,4 @@ interface LiquidityProviderIntegration {
 
 ---
 
-This architecture provides a comprehensive, scalable solution for institutional market data access while maintaining compatibility with the existing PolyBet trading platform.
+This architecture provides a comprehensive, scalable solution for institutional market data access while maintaining compatibility with the existing Pariflow trading platform.

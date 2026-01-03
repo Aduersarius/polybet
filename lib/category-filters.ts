@@ -1,4 +1,4 @@
-// Category filtering logic for PolyBet markets
+// Category filtering logic for Pariflow markets
 
 export interface CategoryDefinition {
   name: string;

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     console.log('🔧 Fixing Dota 2 event date...');
-    
+
     // Step 1: Delete stale event
     const deleted = await prisma.event.deleteMany({
       where: {
@@ -25,37 +25,37 @@ export async function GET() {
         ]
       }
     });
-    
+
     console.log(`✅ Deleted ${deleted.count} stale event(s)`);
-    
+
     // Step 2: Fetch fresh from Polymarket
     const response = await fetch('https://gamma-api.polymarket.com/events?tag_slug=dota-2&closed=false&active=true&limit=50');
     const events = await response.json();
-    
-    const falconsEvent = events.find((e: any) => 
-      e.title?.toLowerCase().includes('falcons') && 
+
+    const falconsEvent = events.find((e: any) =>
+      e.title?.toLowerCase().includes('falcons') &&
       e.title?.toLowerCase().includes('xtreme')
     );
-    
+
     if (!falconsEvent) {
       return NextResponse.json({
         success: false,
         error: 'Event not found on Polymarket',
       }, { status: 404 });
     }
-    
+
     console.log('📥 Found event:', {
       id: falconsEvent.id,
       slug: falconsEvent.slug,
       title: falconsEvent.title,
     });
-    
+
     // Step 3: Extract correct date from slug
     const slugDateMatch = falconsEvent.slug.match(/(\d{4}-\d{2}-\d{2})/);
     const correctDate = slugDateMatch ? slugDateMatch[1] : falconsEvent.startDate;
-    
+
     console.log(`✨ Correct date from slug: ${correctDate}`);
-    
+
     // Step 4: Parse odds
     let yesOdds = 0.5, noOdds = 0.5;
     if (falconsEvent.markets?.[0]?.outcomePrices) {
@@ -63,19 +63,19 @@ export async function GET() {
       yesOdds = parseFloat(prices[0]);
       noOdds = parseFloat(prices[1]);
     }
-    
+
     // Step 5: Get system user
-    const systemUser = await prisma.user.findFirst({ 
-      where: { email: 'system@polybet.com' } 
+    const systemUser = await prisma.user.findFirst({
+      where: { email: 'system@pariflow.com' }
     });
-    
+
     if (!systemUser) {
       return NextResponse.json({
         success: false,
         error: 'System user not found',
       }, { status: 500 });
     }
-    
+
     // Step 6: Create event with CORRECT date
     const newEvent = await prisma.event.create({
       data: {
@@ -88,8 +88,8 @@ export async function GET() {
         source: 'POLYMARKET',
         polymarketId: falconsEvent.id,
         startTime: new Date(correctDate + 'T00:00:00Z'), // CORRECT DATE: Dec 19
-        resolutionDate: falconsEvent.endDate 
-          ? new Date(falconsEvent.endDate) 
+        resolutionDate: falconsEvent.endDate
+          ? new Date(falconsEvent.endDate)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         createdById: systemUser.id,
         yesOdds,
@@ -105,14 +105,14 @@ export async function GET() {
         teamB: 'Xtreme Gaming',
       }
     });
-    
+
     console.log('✅ Created event with correct date:', {
       id: newEvent.id,
       title: newEvent.title,
       startTime: newEvent.startTime,
       live: newEvent.live,
     });
-    
+
     return NextResponse.json({
       success: true,
       message: 'Event fixed successfully! Refresh /sports page to see changes.',
@@ -126,7 +126,7 @@ export async function GET() {
       },
       deleted: deleted.count,
     });
-    
+
   } catch (error) {
     console.error('❌ Error:', error);
     return NextResponse.json({

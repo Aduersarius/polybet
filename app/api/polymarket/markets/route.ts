@@ -470,7 +470,7 @@ async function fetchEvents(params: Record<string, string>) {
     const upstream = await fetch(`https://gamma-api.polymarket.com/events?${search.toString()}`, {
         cache: 'no-store',
         headers: {
-            'User-Agent': 'polybet/1.0',
+            'User-Agent': 'pariflow/1.0',
             'Accept': 'application/json'
         }
     });
