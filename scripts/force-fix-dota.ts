@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 
 async function forceFix() {
   console.log('🔧 Force fixing Dota 2 event date...\n');
-  
+
   try {
     // Delete ALL Dota 2 Falcons vs Xtreme events
     const deleted = await prisma.event.deleteMany({
@@ -20,18 +20,18 @@ async function forceFix() {
         ]
       }
     });
-    
+
     console.log(`✅ Deleted ${deleted.count} stale event(s)`);
-    
+
     // Now fetch fresh from Polymarket and create with correct date
     const response = await fetch('https://gamma-api.polymarket.com/events?tag_slug=dota-2&closed=false&active=true&limit=50');
     const events = await response.json();
-    
-    const falconsEvent = events.find((e: any) => 
-      e.title?.toLowerCase().includes('falcons') && 
+
+    const falconsEvent = events.find((e: any) =>
+      e.title?.toLowerCase().includes('falcons') &&
       e.title?.toLowerCase().includes('xtreme')
     );
-    
+
     if (falconsEvent) {
       console.log('\n📥 Found event on Polymarket:', {
         id: falconsEvent.id,
@@ -39,13 +39,13 @@ async function forceFix() {
         title: falconsEvent.title,
         startDate: falconsEvent.startDate,
       });
-      
+
       // Extract date from slug
       const slugDateMatch = falconsEvent.slug.match(/(\d{4}-\d{2}-\d{2})/);
       const correctDate = slugDateMatch ? slugDateMatch[1] : falconsEvent.startDate;
-      
+
       console.log(`\n✨ Correct date from slug: ${correctDate}`);
-      
+
       // Parse odds
       let yesOdds = 0.5, noOdds = 0.5;
       if (falconsEvent.markets?.[0]?.outcomePrices) {
@@ -53,14 +53,14 @@ async function forceFix() {
         yesOdds = parseFloat(prices[0]);
         noOdds = parseFloat(prices[1]);
       }
-      
+
       // Get system user
-      const systemUser = await prisma.user.findFirst({ where: { email: 'system@polybet.com' } });
+      const systemUser = await prisma.user.findFirst({ where: { email: 'system@pariflow.com' } });
       if (!systemUser) {
         console.error('❌ System user not found');
         return;
       }
-      
+
       // Create new event with correct date
       const newEvent = await prisma.event.create({
         data: {
@@ -88,7 +88,7 @@ async function forceFix() {
           teamB: 'Xtreme Gaming',
         }
       });
-      
+
       console.log('\n✅ Created new event:', {
         id: newEvent.id,
         title: newEvent.title,
@@ -96,12 +96,12 @@ async function forceFix() {
         live: newEvent.live,
         eventType: newEvent.eventType,
       });
-      
+
       console.log('\n🎉 Done! The event now shows the correct date (Dec 19)');
     } else {
       console.log('❌ Event not found on Polymarket');
     }
-    
+
     await prisma.$disconnect();
   } catch (error) {
     console.error('❌ Error:', error);

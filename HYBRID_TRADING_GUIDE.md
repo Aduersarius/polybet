@@ -2,7 +2,7 @@
 
 ## Overview
 
-The PolyBet platform now features a sophisticated hybrid trading system that combines the benefits of Automated Market Making (AMM) with traditional order book functionality. This system provides both market makers (AMM bot) and traders (limit orders) with optimal trading experiences.
+The Pariflow platform now features a sophisticated hybrid trading system that combines the benefits of Automated Market Making (AMM) with traditional order book functionality. This system provides both market makers (AMM bot) and traders (limit orders) with optimal trading experiences.
 
 ## Key Features
 

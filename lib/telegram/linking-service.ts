@@ -1,6 +1,6 @@
 /**
  * Telegram Account Linking Service
- * Handles linking Telegram accounts to Polybet user accounts
+ * Handles linking Telegram accounts to Pariflow user accounts
  */
 
 import { prisma } from '@/lib/prisma';
@@ -13,7 +13,7 @@ export class TelegramLinkingService {
   async generateLinkCode(telegramId: string, chatId: string, telegramUsername?: string | null): Promise<string> {
     try {
       console.log(`[Linking] Generating link code for telegramId: ${telegramId}, chatId: ${chatId}`);
-      
+
       // Generate 6-digit code
       const code = randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -68,7 +68,7 @@ export class TelegramLinkingService {
   /**
    * Verify link code and link accounts
    */
-  async verifyLinkCode(code: string, polybetUserId: string): Promise<{ success: boolean; error?: string }> {
+  async verifyLinkCode(code: string, pariflowUserId: string): Promise<{ success: boolean; error?: string }> {
     // Find TelegramUser with this code
     const telegramUser = await prisma.telegramUser.findFirst({
       where: {
@@ -84,14 +84,14 @@ export class TelegramLinkingService {
     }
 
     // Check if this Telegram account is already linked to another user
-    if (telegramUser.userId && telegramUser.userId !== polybetUserId) {
+    if (telegramUser.userId && telegramUser.userId !== pariflowUserId) {
       return { success: false, error: 'This Telegram account is already linked to another user' };
     }
 
     // Check if this user already has a different Telegram account linked
     const existingLink = await prisma.telegramUser.findFirst({
       where: {
-        userId: polybetUserId,
+        userId: pariflowUserId,
         isVerified: true,
         telegramId: {
           not: telegramUser.telegramId,
@@ -107,7 +107,7 @@ export class TelegramLinkingService {
     await prisma.telegramUser.update({
       where: { id: telegramUser.id },
       data: {
-        userId: polybetUserId,
+        userId: pariflowUserId,
         isVerified: true,
         linkCode: null,
         linkCodeExpiry: null,
@@ -118,12 +118,12 @@ export class TelegramLinkingService {
   }
 
   /**
-   * Unlink Telegram account from Polybet user
+   * Unlink Telegram account from Pariflow user
    */
-  async unlinkAccount(polybetUserId: string): Promise<boolean> {
+  async unlinkAccount(pariflowUserId: string): Promise<boolean> {
     const result = await prisma.telegramUser.updateMany({
       where: {
-        userId: polybetUserId,
+        userId: pariflowUserId,
         isVerified: true,
       },
       data: {
@@ -136,19 +136,19 @@ export class TelegramLinkingService {
   }
 
   /**
-   * Get linked Telegram account for a Polybet user
+   * Get linked Telegram account for a Pariflow user
    */
-  async getLinkedAccount(polybetUserId: string) {
+  async getLinkedAccount(pariflowUserId: string) {
     return await prisma.telegramUser.findFirst({
       where: {
-        userId: polybetUserId,
+        userId: pariflowUserId,
         isVerified: true,
       },
     });
   }
 
   /**
-   * Check if a Telegram user is linked to any Polybet account
+   * Check if a Telegram user is linked to any Pariflow account
    */
   async isLinked(telegramId: string): Promise<boolean> {
     const telegramUser = await prisma.telegramUser.findUnique({

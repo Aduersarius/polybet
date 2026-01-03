@@ -58,7 +58,7 @@ type PolymarketMapping = {
 };
 
 const HEADERS = {
-  'User-Agent': 'polybet/1.0',
+  'User-Agent': 'pariflow/1.0',
   Accept: 'application/json',
 };
 

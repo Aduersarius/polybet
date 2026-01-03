@@ -15,29 +15,29 @@ interface TourContextType {
 
 const TourContext = createContext<TourContextType | null>(null);
 
-const TOUR_STORAGE_KEY = 'polybet-tour-completed';
-const TOUR_STEP_KEY = 'polybet-tour-step';
-const FIRST_VISIT_KEY = 'polybet-first-visit';
+const TOUR_STORAGE_KEY = 'pariflow-tour-completed';
+const TOUR_STEP_KEY = 'pariflow-tour-step';
+const FIRST_VISIT_KEY = 'pariflow-first-visit';
 
 // Memoized Joyride component to prevent unnecessary re-renders
-const MemoizedJoyride = memo(({ 
-  steps, 
-  run, 
-  stepIndex, 
-  callback 
-}: { 
-  steps: Step[], 
-  run: boolean, 
-  stepIndex: number, 
-  callback: (data: CallBackProps) => void 
+const MemoizedJoyride = memo(({
+  steps,
+  run,
+  stepIndex,
+  callback
+}: {
+  steps: Step[],
+  run: boolean,
+  stepIndex: number,
+  callback: (data: CallBackProps) => void
 }) => {
   console.log('🎨 Joyride rendering with stepIndex:', stepIndex, 'run:', run);
-  
+
   if (!run) {
     console.log('❌ Joyride not running, skipping render');
     return null;
   }
-  
+
   return (
     <Joyride
       steps={steps}
@@ -123,9 +123,9 @@ const allSteps: (Step & { page?: string; requiresAuth?: boolean })[] = [
     target: 'body',
     content: (
       <div className="space-y-3">
-        <h3 className="text-xl font-bold text-white">👋 Welcome to Polybet!</h3>
+        <h3 className="text-xl font-bold text-white">👋 Welcome to Pariflow!</h3>
         <p className="text-sm text-white/80">
-          Let's take a quick interactive tour to show you how prediction markets work. 
+          Let's take a quick interactive tour to show you how prediction markets work.
           This will only take a minute!
         </p>
         <p className="text-xs text-white/60">
@@ -144,7 +144,7 @@ const allSteps: (Step & { page?: string; requiresAuth?: boolean })[] = [
       <div className="space-y-2">
         <h4 className="font-semibold text-white">📊 Prediction Markets</h4>
         <p className="text-sm text-white/80">
-          These are events you can trade on. Each shows the current odds (market confidence) 
+          These are events you can trade on. Each shows the current odds (market confidence)
           and trading volume. Click any event to see more details!
         </p>
       </div>
@@ -160,7 +160,7 @@ const allSteps: (Step & { page?: string; requiresAuth?: boolean })[] = [
       <div className="space-y-2">
         <h4 className="font-semibold text-white">🏷️ Browse Categories</h4>
         <p className="text-sm text-white/80">
-          Filter events by category: Sports, Politics, Crypto, and more. 
+          Filter events by category: Sports, Politics, Crypto, and more.
           Find markets that interest you!
         </p>
       </div>
@@ -189,7 +189,7 @@ const allSteps: (Step & { page?: string; requiresAuth?: boolean })[] = [
       <div className="space-y-2">
         <h4 className="font-semibold text-white">❤️ Save Favorites</h4>
         <p className="text-sm text-white/80">
-          Click the heart icon on any event card to save markets you want to track. 
+          Click the heart icon on any event card to save markets you want to track.
           Access them quickly from the Favorites tab!
         </p>
       </div>
@@ -318,10 +318,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  
+
   // Keep track of previous runTour value to detect unexpected changes
   const prevRunTourRef = useRef(runTour);
-  
+
   useEffect(() => {
     if (prevRunTourRef.current !== runTour) {
       console.log('🔄 runTour changed:', prevRunTourRef.current, '->', runTour, '| Step:', stepIndex);
@@ -334,7 +334,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
   // Initialize on mount
   useEffect(() => {
     setMounted(true);
-    
+
     if (typeof window !== 'undefined') {
       const tourCompleted = localStorage.getItem(TOUR_STORAGE_KEY);
       const savedStep = localStorage.getItem(TOUR_STEP_KEY);
@@ -343,18 +343,18 @@ export function TourProvider({ children }: { children: ReactNode }) {
       // If first visit and tour not completed, start tour after delay
       if (isFirstVisit && !tourCompleted) {
         localStorage.setItem(FIRST_VISIT_KEY, 'true');
-        
+
         // Start tour after page content loads
         const startTourWhenReady = () => {
           const startTime = Date.now();
-          
+
           // Wait for at least one event card to be rendered
           const checkInterval = setInterval(() => {
             const hasEventCards = document.querySelector('.grid > a[href^="/event/"]');
             const hasContent = hasEventCards || document.querySelectorAll('[href^="/event/"]').length > 0;
-            
+
             const elapsed = Date.now() - startTime;
-            
+
             if (hasContent) {
               console.log('✅ Content ready, starting tour after', elapsed, 'ms');
               clearInterval(checkInterval);
@@ -368,7 +368,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
             }
           }, 500);
         };
-        
+
         // Delay initial check
         setTimeout(startTourWhenReady, 3000);
       } else if (savedStep && !tourCompleted) {
@@ -444,12 +444,12 @@ export function TourProvider({ children }: { children: ReactNode }) {
     for (let i = startIndex; i < allSteps.length; i++) {
       const step = allSteps[i];
       const target = step.target as string;
-      
+
       if (target === 'body') {
         console.log('✅ Found body target at step', i);
         return i;
       }
-      
+
       const element = document.querySelector(target);
       if (element) {
         console.log('✅ Found target', target, 'at step', i);
@@ -468,7 +468,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOUR_STORAGE_KEY);
     localStorage.removeItem(TOUR_STEP_KEY);
     setStepIndex(0);
-    
+
     // Small delay to ensure DOM is ready
     setTimeout(() => {
       console.log('▶️ Tour running: true, step: 0');

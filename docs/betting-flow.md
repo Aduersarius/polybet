@@ -1,6 +1,6 @@
 # Bet Placement Flow
 
-This document explains the complete betting flow in PolyBet.
+This document explains the complete betting flow in Pariflow.
 
 ## Architecture
 

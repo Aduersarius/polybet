@@ -67,7 +67,7 @@ export default function RiskWarningPage() {
                             <h2 className="text-xl font-semibold text-white">Support</h2>
                             <p className="text-gray-300">
                                 For questions about platform risk, reach us at{' '}
-                                <a href="mailto:contact@polybet.com" className="text-blue-400 hover:text-blue-300">contact@polybet.com</a>.
+                                <a href="mailto:contact@pariflow.com" className="text-blue-400 hover:text-blue-300">contact@pariflow.com</a>.
                             </p>
                         </section>
 

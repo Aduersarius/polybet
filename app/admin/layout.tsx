@@ -9,7 +9,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'PolyBet Admin',
+  title: 'Pariflow Admin',
   description: 'Admin Dashboard',
 }
 

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   try {
     const affiliate = await requireAffiliateAuth(req);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    
+
     // Generate materials with affiliate code embedded
     const materials: PromoMaterial[] = [
       // Square badges (for reels/TikTok)
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         format: 'square',
         dimensions: '1080x1080',
         url: `${baseUrl}/api/affiliate/promo-materials/badge-square-1?ref=${affiliate.referralCode}`,
-        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/badge-square-1?ref=${affiliate.referralCode}" alt="PolyBet" />`,
+        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/badge-square-1?ref=${affiliate.referralCode}" alt="Pariflow" />`,
       },
       {
         id: 'badge-square-2',
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         format: 'square',
         dimensions: '1080x1080',
         url: `${baseUrl}/api/affiliate/promo-materials/badge-square-2?ref=${affiliate.referralCode}`,
-        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/badge-square-2?ref=${affiliate.referralCode}" alt="PolyBet" />`,
+        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/badge-square-2?ref=${affiliate.referralCode}" alt="Pariflow" />`,
       },
       // Vertical banners (for stories)
       {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         format: 'vertical',
         dimensions: '1080x1920',
         url: `${baseUrl}/api/affiliate/promo-materials/banner-vertical-1?ref=${affiliate.referralCode}`,
-        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/banner-vertical-1?ref=${affiliate.referralCode}" alt="PolyBet" />`,
+        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/banner-vertical-1?ref=${affiliate.referralCode}" alt="Pariflow" />`,
       },
       {
         id: 'banner-vertical-2',
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         format: 'vertical',
         dimensions: '1080x1920',
         url: `${baseUrl}/api/affiliate/promo-materials/banner-vertical-2?ref=${affiliate.referralCode}`,
-        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/banner-vertical-2?ref=${affiliate.referralCode}" alt="PolyBet" />`,
+        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/banner-vertical-2?ref=${affiliate.referralCode}" alt="Pariflow" />`,
       },
       // Horizontal banners
       {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
         format: 'horizontal',
         dimensions: '1920x1080',
         url: `${baseUrl}/api/affiliate/promo-materials/banner-horizontal-1?ref=${affiliate.referralCode}`,
-        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/banner-horizontal-1?ref=${affiliate.referralCode}" alt="PolyBet" />`,
+        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/banner-horizontal-1?ref=${affiliate.referralCode}" alt="Pariflow" />`,
       },
       // Logos
       {
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
         format: 'square',
         dimensions: '512x512',
         url: `${baseUrl}/api/affiliate/promo-materials/logo-square?ref=${affiliate.referralCode}`,
-        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/logo-square?ref=${affiliate.referralCode}" alt="PolyBet" />`,
+        embedCode: `<img src="${baseUrl}/api/affiliate/promo-materials/logo-square?ref=${affiliate.referralCode}" alt="Pariflow" />`,
       },
     ];
 

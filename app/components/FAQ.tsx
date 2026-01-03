@@ -14,8 +14,8 @@ const faqData: FAQItem[] = [
   // Getting Started
   {
     category: 'Getting Started',
-    question: 'What is Polybet?',
-    answer: 'Polybet is a prediction market platform where you can trade on the outcomes of real-world events. Buy shares in YES or NO outcomes, and if you\'re right, each share pays $1 when the event resolves.',
+    question: 'What is Pariflow?',
+    answer: 'Pariflow is a prediction market platform where you can trade on the outcomes of real-world events. Buy shares in YES or NO outcomes, and if you\'re right, each share pays $1 when the event resolves.',
   },
   {
     category: 'Getting Started',
@@ -105,7 +105,7 @@ const faqData: FAQItem[] = [
   },
   {
     category: 'Deposits & Withdrawals',
-    question: 'What blockchain does Polybet use?',
+    question: 'What blockchain does Pariflow use?',
     answer: 'We use Polygon (MATIC) network for all deposits and withdrawals. Transactions are fast and have very low fees compared to Ethereum mainnet.',
   },
 
@@ -188,8 +188,8 @@ export function FAQ({ initialCategory }: FAQProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'All');
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  const filteredFAQs = selectedCategory === 'All' 
-    ? faqData 
+  const filteredFAQs = selectedCategory === 'All'
+    ? faqData
     : faqData.filter(item => item.category === selectedCategory);
 
   const toggleItem = (index: number) => {
@@ -202,11 +202,10 @@ export function FAQ({ initialCategory }: FAQProps) {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setSelectedCategory('All')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            selectedCategory === 'All'
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === 'All'
               ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
               : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border border-white/10'
-          }`}
+            }`}
         >
           All
         </button>
@@ -214,11 +213,10 @@ export function FAQ({ initialCategory }: FAQProps) {
           <button
             key={category}
             onClick={() => setSelectedCategory(category)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              selectedCategory === category
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === category
                 ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
                 : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border border-white/10'
-            }`}
+              }`}
           >
             {category}
           </button>
@@ -252,7 +250,7 @@ export function FAQ({ initialCategory }: FAQProps) {
                 )}
               </div>
             </button>
-            
+
             <AnimatePresence>
               {openIndex === index && (
                 <motion.div

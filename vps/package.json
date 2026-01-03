@@ -1,7 +1,7 @@
 {
-    "name": "polybet-vps-server",
+    "name": "pariflow-vps-server",
     "version": "1.0.0",
-    "description": "WebSocket Server for PolyBet",
+    "description": "WebSocket Server for Pariflow",
     "main": "server.js",
     "scripts": {
         "start": "node server.js"

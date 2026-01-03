@@ -111,7 +111,7 @@ export async function uploadEventImageToBlob(
         const response = await fetch(imageUrl, {
             signal: AbortSignal.timeout(15000), // 15s timeout
             headers: {
-                'User-Agent': 'PolyBet/1.0',
+                'User-Agent': 'Pariflow/1.0',
                 'Accept': 'image/*',
             },
         });

@@ -5,7 +5,7 @@ let logger: any = null;
 export function getLogger() {
     if (!logger) {
         logger = initLogger({
-            projectName: 'polybet',
+            projectName: 'pariflow',
             projectId: process.env.BRAINTRUST_PROJECT_ID,
             apiKey: process.env.BRAINTRUST_API_KEY,
         });

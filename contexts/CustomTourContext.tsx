@@ -13,7 +13,7 @@ interface CustomTourContextType {
 
 const CustomTourContext = createContext<CustomTourContextType | null>(null);
 
-const TOUR_STORAGE_KEY = 'polybet-tour-completed';
+const TOUR_STORAGE_KEY = 'pariflow-tour-completed';
 
 export function CustomTourProvider({ children }: { children: ReactNode }) {
   const [isActive, setIsActive] = useState(false);

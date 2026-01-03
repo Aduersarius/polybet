@@ -38,7 +38,7 @@ export async function register() {
 
     // Initialize OpenTelemetry/Uptrace for distributed tracing
     const uptraceEnabled = configureUptrace();
-    const serviceName = process.env.UPTRACE_SERVICE_NAME || 'polybet';
+    const serviceName = process.env.UPTRACE_SERVICE_NAME || 'pariflow';
     const deploymentEnv = process.env.VERCEL_ENV || process.env.NODE_ENV;
     const region = process.env.VERCEL_REGION;
     const attributes: Record<string, string> = {};

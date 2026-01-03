@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains the differences between the four key database tables in the PolyBet system and their usage patterns throughout the codebase.
+This document explains the differences between the four key database tables in the Pariflow system and their usage patterns throughout the codebase.
 
 ## 1. Table Definitions from Prisma Schema
 

@@ -9,8 +9,8 @@ async function main() {
         update: {},
         create: {
             address: '0x0000000000000000000000000000000000000000',
-            email: 'admin@polybet.com',
-            username: 'PolyBet Admin',
+            email: 'admin@pariflow.com',
+            username: 'Pariflow Admin',
         },
     });
 

@@ -401,9 +401,9 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
         <div className="pointer-events-auto flex gap-1 rounded-lg bg-[#1a1d28]/80 backdrop-blur-sm p-2">
           <div className="flex items-center gap-1 opacity-40 hover:opacity-100 transition-opacity select-none">
-            <img src="/diamond_logo_nobg.png" alt="PolyBet" className="h-6 w-6 object-contain" />
+            <img src="/diamond_logo_nobg.png" alt="Pariflow" className="h-6 w-6 object-contain" />
             <span className="text-xs font-bold tracking-wider bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              POLYBET
+              PARIFLOW
             </span>
           </div>
         </div>

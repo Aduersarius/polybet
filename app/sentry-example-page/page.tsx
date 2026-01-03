@@ -53,7 +53,7 @@ export default function Page() {
           <a
             target="_blank"
             rel="noopener"
-            href="https://polybet.sentry.io/issues/?project=4510590537629696"
+            href="https://pariflow.sentry.io/issues/?project=4510590537629696"
           >
             Issues Page
           </a>

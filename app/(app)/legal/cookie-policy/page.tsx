@@ -19,7 +19,7 @@ export default function CookiePolicyPage() {
 
                     <div className="space-y-6 text-gray-200 leading-relaxed bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
                         <p>
-                            PolyBet uses cookies and similar technologies to run the platform, keep you signed in,
+                            Pariflow uses cookies and similar technologies to run the platform, keep you signed in,
                             protect your account, and improve performance. This notice explains what we use and how
                             you can manage your choices.
                         </p>
@@ -63,7 +63,7 @@ export default function CookiePolicyPage() {
                             <h2 className="text-xl font-semibold text-white">Contact</h2>
                             <p className="text-gray-300">
                                 Questions about cookies? Reach us at{' '}
-                                <a href="mailto:contact@polybet.com" className="text-blue-400 hover:text-blue-300">contact@polybet.com</a>.
+                                <a href="mailto:contact@pariflow.com" className="text-blue-400 hover:text-blue-300">contact@pariflow.com</a>.
                             </p>
                         </section>
 

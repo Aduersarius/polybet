@@ -1,6 +1,6 @@
 # Telegram Bot Setup Guide
 
-This guide will help you set up the Telegram support bot for your PolyBet application.
+This guide will help you set up the Telegram support bot for your Pariflow application.
 
 ## Prerequisites
 
@@ -13,8 +13,8 @@ This guide will help you set up the Telegram support bot for your PolyBet applic
 1. Open Telegram and search for **@BotFather**
 2. Start a conversation and send `/newbot`
 3. Follow the prompts:
-   - Choose a display name (e.g., "PolyBet Support")
-   - Choose a username (must end with "bot", e.g., "polybet_support_bot")
+   - Choose a display name (e.g., "Pariflow Support")
+   - Choose a username (must end with "bot", e.g., "pariflow_support_bot")
 4. **Save the bot token** that BotFather provides (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
 
 ## Step 2: Configure Bot Commands
@@ -29,7 +29,7 @@ Still in BotFather, set up bot commands:
 start - Start interacting with support
 help - Show available commands
 ticket - View your open tickets
-link - Link your Telegram to PolyBet account
+link - Link your Telegram to Pariflow account
 ```
 
 ## Step 3: Configure Environment Variables

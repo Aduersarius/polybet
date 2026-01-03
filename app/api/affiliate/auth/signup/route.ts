@@ -39,17 +39,17 @@ async function isReferralCodeUnique(code: string): Promise<boolean> {
 async function generateUniqueReferralCode(name: string): Promise<string> {
   let code = generateReferralCode(name);
   let attempts = 0;
-  
+
   while (!(await isReferralCodeUnique(code)) && attempts < 10) {
     code = generateReferralCode(name + Math.random().toString());
     attempts++;
   }
-  
+
   if (attempts >= 10) {
     // Fallback: use timestamp-based code
     code = `AFF${Date.now().toString().slice(-6)}`;
   }
-  
+
   return code;
 }
 
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     // Send verification email if Resend is configured
     const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-    
+
     if (resend) {
       try {
         // Generate verification token
@@ -110,22 +110,22 @@ export async function POST(req: NextRequest) {
           { expiresIn: '7d' }
         );
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-          ? `https://${process.env.VERCEL_URL}` 
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
           : 'http://localhost:3000';
         const verificationUrl = `${baseUrl}/affiliate/verify-email?token=${verificationToken}`;
 
         await resend.emails.send({
-          from: process.env.RESEND_FROM_EMAIL || 'PolyBet <noreply@polybet.ru>',
+          from: process.env.RESEND_FROM_EMAIL || 'Pariflow <noreply@pariflow.com>',
           to: affiliate.email,
-          subject: 'Verify your affiliate account - PolyBet',
+          subject: 'Verify your affiliate account - Pariflow',
           html: `
             <!DOCTYPE html>
             <html>
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Verify your affiliate account - PolyBet</title>
+              <title>Verify your affiliate account - Pariflow</title>
             </head>
             <body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
                     <table role="presentation" style="max-width: 480px; width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #1a1a1a, #0a0a0a); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 40px;">
                       <tr>
                         <td align="center" style="padding-bottom: 24px;">
-                          <span style="font-size: 28px; font-weight: bold; color: #8b5cf6;">PolyBet</span>
+                          <span style="font-size: 28px; font-weight: bold; color: #8b5cf6;">Pariflow</span>
                         </td>
                       </tr>
                       <tr>
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
         referralCode: affiliate.referralCode,
         emailVerified: affiliate.emailVerified,
       },
-      message: resend 
+      message: resend
         ? 'Affiliate account created successfully. Please check your email to verify your account.'
         : 'Affiliate account created successfully. You can now login.'
     });
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     if (error?.code === 'P2021' || error?.message?.includes('does not exist') || error?.message?.includes('relation') || error?.message?.includes('table')) {
       console.error('[Affiliate Signup] Database schema error:', error);
       return NextResponse.json(
-        { 
+        {
           error: 'Database migration required',
           message: 'The affiliate system requires a database migration. Please run: npx prisma migrate dev'
         },
@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
 
     console.error('[Affiliate Signup] Error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to create affiliate account',
         message: error?.message || 'An unexpected error occurred'
       },

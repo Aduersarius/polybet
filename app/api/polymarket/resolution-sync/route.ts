@@ -155,7 +155,7 @@ async function fetchResolvedMarkets(): Promise<PolymarketEvent[]> {
             {
                 cache: 'no-store',
                 headers: {
-                    'User-Agent': 'polybet-resolution-sync/1.0',
+                    'User-Agent': 'pariflow-resolution-sync/1.0',
                     'Accept': 'application/json',
                 },
             }
@@ -275,7 +275,7 @@ export async function POST(request: Request) {
                         {
                             cache: 'no-store',
                             headers: {
-                                'User-Agent': 'polybet-resolution-sync/1.0',
+                                'User-Agent': 'pariflow-resolution-sync/1.0',
                                 'Accept': 'application/json',
                             },
                         }
