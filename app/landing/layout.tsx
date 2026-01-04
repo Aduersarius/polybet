@@ -11,7 +11,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-    title: "Pariflow | Decentralized Betting",
+    title: "Pariflow | Real-Life Market Forecasting",
     description: "Bet on anything, pay with crypto.",
     icons: {
         icon: '/favicon.ico',
