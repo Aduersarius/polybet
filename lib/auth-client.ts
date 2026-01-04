@@ -85,7 +85,79 @@ export const twoFactor = {
         return await (authClient as any).twoFactor.disable({ password });
     },
     getTotpUri: async (password: string) => {
-        return await (authClient as any).twoFactor.getTotpUri({ password });
+        try {
+            // Better Auth's twoFactor.getTotpUri might return the data directly or in a specific format
+            // Let's try calling it and see what we get
+            const result = await (authClient as any).twoFactor.getTotpUri({ password });
+            
+            // Log everything for debugging
+            console.log('[2FA] getTotpUri result type:', typeof result);
+            console.log('[2FA] getTotpUri result:', result);
+            console.log('[2FA] getTotpUri result keys:', result ? Object.keys(result) : 'null/undefined');
+            console.log('[2FA] getTotpUri result stringified:', JSON.stringify(result, null, 2));
+            
+            // Better Auth client methods might return the data directly or in { data, error } format
+            // Check for error first
+            if (result?.error) {
+                console.error('[2FA] getTotpUri error in response:', result.error);
+                return result;
+            }
+            
+            // Try to extract URI from various possible response formats
+            // Better Auth returns: { totpURI: string } (note: capital URI)
+            let uri = null;
+            
+            if (typeof result === 'string' && result.startsWith('otpauth://')) {
+                // Direct URI string
+                uri = result;
+            } else if (result?.totpURI && typeof result.totpURI === 'string') {
+                // Better Auth uses totpURI (capital URI)
+                uri = result.totpURI;
+            } else if (result?.data?.totpURI && typeof result.data.totpURI === 'string') {
+                uri = result.data.totpURI;
+            } else if (result?.uri && typeof result.uri === 'string') {
+                uri = result.uri;
+            } else if (result?.data?.uri && typeof result.data.uri === 'string') {
+                uri = result.data.uri;
+            } else if (result?.totpUri && typeof result.totpUri === 'string') {
+                uri = result.totpUri;
+            } else if (result?.data?.totpUri && typeof result.data.totpUri === 'string') {
+                uri = result.data.totpUri;
+            }
+            
+            if (uri && typeof uri === 'string' && uri.startsWith('otpauth://')) {
+                console.log('[2FA] Successfully extracted URI:', uri.substring(0, 50) + '...');
+                return { data: { uri }, error: null };
+            }
+            
+            // If we get here, something is wrong
+            console.error('[2FA] No valid URI found in response. Full result:', result);
+            console.error('[2FA] Result type:', typeof result);
+            console.error('[2FA] Result is array?', Array.isArray(result));
+            
+            // Check if it's a network/API error
+            if (!result || (typeof result === 'object' && Object.keys(result).length === 0)) {
+                return {
+                    error: {
+                        message: 'Server returned empty response. Please check your password and try again.'
+                    }
+                };
+            }
+            
+            return {
+                error: {
+                    message: 'Failed to get TOTP URI from server response. Please check console for details.'
+                }
+            };
+        } catch (error: any) {
+            console.error('[2FA] getTotpUri exception:', error);
+            console.error('[2FA] Error stack:', error?.stack);
+            return {
+                error: {
+                    message: error?.message || 'Failed to get TOTP URI'
+                }
+            };
+        }
     },
     verifyTotp: async (code: string, trustDevice?: boolean) => {
         try {

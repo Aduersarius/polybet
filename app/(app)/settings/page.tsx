@@ -800,16 +800,35 @@ function SettingsPageContent() {
                                 <button
                                     onClick={async () => {
                                         try {
+                                            console.log('[2FA] Calling getTotpUri with password...');
                                             const res = await (twoFactor as any).getTotpUri(twoFAPassword);
-                                            if (res.error) {
+                                            console.log('[2FA] getTotpUri response:', res);
+                                            
+                                            if (res?.error) {
                                                 toast({ title: res.error.message || 'Invalid password', variant: 'destructive' });
                                                 return;
                                             }
-                                            setTotpUri(res.totpUri);
+                                            
+                                            // Extract URI from the response
+                                            // Our wrapper now returns { data: { uri }, error: null }
+                                            const uri = res?.data?.uri || 
+                                                       res?.data?.totpUri || 
+                                                       res?.uri || 
+                                                       res?.totpUri;
+                                            
+                                            if (!uri || typeof uri !== 'string') {
+                                                console.error('[2FA] Invalid TOTP URI response. Full response:', JSON.stringify(res, null, 2));
+                                                toast({ title: 'Failed to get QR code. Please check console for details.', variant: 'destructive' });
+                                                return;
+                                            }
+                                            
+                                            console.log('[2FA] TOTP URI extracted:', uri.substring(0, 50) + '...');
+                                            setTotpUri(uri);
                                             setShow2FAPasswordPrompt(false);
                                             setShow2FASetup(true);
-                                        } catch {
-                                            toast({ title: 'Failed to verify password', variant: 'destructive' });
+                                        } catch (error: any) {
+                                            console.error('[2FA] getTotpUri exception:', error);
+                                            toast({ title: error?.message || 'Failed to verify password', variant: 'destructive' });
                                         }
                                     }}
                                     className="flex-1 py-3 rounded-lg bg-primary text-white font-medium hover:opacity-90 transition-all shadow-md shadow-primary/20"
@@ -840,9 +859,15 @@ function SettingsPageContent() {
                             className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Set up 2FA</h3>
-                            <div className="flex justify-center mb-6 p-4 bg-white rounded-lg">
-                                <QRCodeSVG value={totpUri} size={200} />
-                            </div>
+                            {totpUri ? (
+                                <div className="flex justify-center mb-6 p-4 bg-white rounded-lg">
+                                    <QRCodeSVG value={totpUri} size={200} />
+                                </div>
+                            ) : (
+                                <div className="flex justify-center mb-6 p-4 bg-white/10 rounded-lg">
+                                    <div className="text-gray-400 text-sm">Loading QR code...</div>
+                                </div>
+                            )}
                             <p className="text-gray-400 text-sm mb-4">
                                 Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code below.
                             </p>
