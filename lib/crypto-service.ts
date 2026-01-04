@@ -178,7 +178,7 @@ export class CryptoService {
         }
     }
 
-    private async sweepAndCredit(addr: DepositAddressLite, tokenBalance: bigint) {
+    public async sweepAndCredit(addr: DepositAddressLite, tokenBalance: bigint, options: { sweepOnly?: boolean; depositId?: string } = {}) {
         if (!MASTER_WALLET_ADDRESS) {
             console.error('MASTER_WALLET_ADDRESS not set');
             return;
@@ -249,93 +249,109 @@ export class CryptoService {
             let dbTransactionSuccess = false;
             try {
                 await prisma.$transaction(async (txPrisma: Prisma.TransactionClient) => {
-                    // Create Deposit Record
-                    await txPrisma.deposit.create({
-                        data: {
-                            userId: addr.userId,
-                            amount: usdAmount,
-                            currency: 'USDC',
-                            txHash: tx.hash,
-                            status: 'COMPLETED',
-                            fromAddress: addr.address,
-                            toAddress: MASTER_WALLET_ADDRESS,
-                        },
-                    });
-
-                    // Update User Balance with row-level locking
-                    // Some databases might not have the "locked" column (older schema).
-                    const lockedColResult = await txPrisma.$queryRaw<Array<{ exists: boolean }>>`
-                        SELECT EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_schema = 'public' AND table_name = 'Balance' AND column_name = 'locked'
-                        ) AS "exists"
-                    `;
-                    const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
-
-                    const balances = hasLockedColumn
-                        ? await txPrisma.$queryRaw<Array<{ id: string, amount: any, locked: any }>>`
-                            SELECT "id", "amount", "locked" FROM "Balance"
-                            WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
-                            FOR UPDATE
-                        `
-                        : await txPrisma.$queryRaw<Array<{ id: string, amount: any }>>`
-                            SELECT "id", "amount" FROM "Balance"
-                            WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
-                            FOR UPDATE
-                        `;
-
-                    let balanceId: string;
-                    let before = 0;
-                    if (balances.length > 0) {
-                        balanceId = balances[0].id;
-                        before = Number((balances[0] as any).amount);
-
-                        if (hasLockedColumn) {
-                            await txPrisma.balance.update({
-                                where: { id: balanceId },
-                                data: { amount: { increment: usdAmount } }
-                            });
-                        } else {
-                            await txPrisma.$executeRaw`
-                                UPDATE "Balance"
-                                SET "amount" = "amount" + ${usdAmount}, "updatedAt" = NOW()
-                                WHERE "id" = ${balanceId}
-                            `;
-                        }
+                    if (options.sweepOnly && options.depositId) {
+                        // SWEEP ONLY MODE (Webhook already credited user)
+                        // Just update the status of the existing deposit
+                        await txPrisma.deposit.update({
+                            where: { id: options.depositId },
+                            data: {
+                                status: 'COMPLETED',
+                                toAddress: MASTER_WALLET_ADDRESS, // Update destination now that we swept
+                                updatedAt: new Date()
+                            }
+                        });
+                        this.log(`[DEPOSIT] Sweep-only mode: Updated deposit ${options.depositId} to COMPLETED`);
                     } else {
-                        before = 0;
-                        if (hasLockedColumn) {
-                            const created = await txPrisma.balance.create({
-                                data: {
-                                    userId: addr.userId,
-                                    tokenSymbol: 'TUSD',
-                                    amount: usdAmount,
-                                    locked: 0
-                                }
-                            });
-                            balanceId = created.id;
-                        } else {
-                            balanceId = randomUUID();
-                            await txPrisma.$executeRaw`
-                                INSERT INTO "Balance" ("id", "userId", "tokenSymbol", "eventId", "outcomeId", "amount", "updatedAt")
-                                VALUES (${balanceId}, ${addr.userId}, 'TUSD', NULL, NULL, ${usdAmount}, NOW())
+                        // LEGACY / POLLING MODE
+                        // Create record and credit user
+                        // Create Deposit Record
+                        await txPrisma.deposit.create({
+                            data: {
+                                userId: addr.userId,
+                                amount: usdAmount,
+                                currency: 'USDC',
+                                txHash: tx.hash,
+                                status: 'COMPLETED',
+                                fromAddress: addr.address,
+                                toAddress: MASTER_WALLET_ADDRESS,
+                            },
+                        });
+
+                        // Update User Balance with row-level locking
+                        // Some databases might not have the "locked" column (older schema).
+                        const lockedColResult = await txPrisma.$queryRaw<Array<{ exists: boolean }>>`
+                            SELECT EXISTS (
+                                SELECT 1 FROM information_schema.columns
+                                WHERE table_schema = 'public' AND table_name = 'Balance' AND column_name = 'locked'
+                            ) AS "exists"
+                        `;
+                        const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
+
+                        const balances = hasLockedColumn
+                            ? await txPrisma.$queryRaw<Array<{ id: string, amount: any, locked: any }>>`
+                                SELECT "id", "amount", "locked" FROM "Balance"
+                                WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
+                                FOR UPDATE
+                            `
+                            : await txPrisma.$queryRaw<Array<{ id: string, amount: any }>>`
+                                SELECT "id", "amount" FROM "Balance"
+                                WHERE "userId" = ${addr.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
+                                FOR UPDATE
                             `;
+
+                        let balanceId: string;
+                        let before = 0;
+                        if (balances.length > 0) {
+                            balanceId = balances[0].id;
+                            before = Number((balances[0] as any).amount);
+
+                            if (hasLockedColumn) {
+                                await txPrisma.balance.update({
+                                    where: { id: balanceId },
+                                    data: { amount: { increment: usdAmount } }
+                                });
+                            } else {
+                                await txPrisma.$executeRaw`
+                                    UPDATE "Balance"
+                                    SET "amount" = "amount" + ${usdAmount}, "updatedAt" = NOW()
+                                    WHERE "id" = ${balanceId}
+                                `;
+                            }
+                        } else {
+                            before = 0;
+                            if (hasLockedColumn) {
+                                const created = await txPrisma.balance.create({
+                                    data: {
+                                        userId: addr.userId,
+                                        tokenSymbol: 'TUSD',
+                                        amount: usdAmount,
+                                        locked: 0
+                                    }
+                                });
+                                balanceId = created.id;
+                            } else {
+                                balanceId = randomUUID();
+                                await txPrisma.$executeRaw`
+                                    INSERT INTO "Balance" ("id", "userId", "tokenSymbol", "eventId", "outcomeId", "amount", "updatedAt")
+                                    VALUES (${balanceId}, ${addr.userId}, 'TUSD', NULL, NULL, ${usdAmount}, NOW())
+                                `;
+                            }
                         }
+
+                        const after = before + usdAmount;
+
+                        await this.recordLedger(txPrisma, {
+                            userId: addr.userId,
+                            direction: 'CREDIT',
+                            amount: usdAmount,
+                            currency: 'TUSD',
+                            balanceBefore: before,
+                            balanceAfter: after,
+                            referenceType: 'DEPOSIT',
+                            referenceId: tx.hash,
+                            metadata: { fromAddress: addr.address }
+                        });
                     }
-
-                    const after = before + usdAmount;
-
-                    await this.recordLedger(txPrisma, {
-                        userId: addr.userId,
-                        direction: 'CREDIT',
-                        amount: usdAmount,
-                        currency: 'TUSD',
-                        balanceBefore: before,
-                        balanceAfter: after,
-                        referenceType: 'DEPOSIT',
-                        referenceId: tx.hash,
-                        metadata: { fromAddress: addr.address }
-                    });
                 });
                 dbTransactionSuccess = true;
                 this.log(`[DEPOSIT] Successfully credited user ${addr.userId} with $${usdAmount}`);

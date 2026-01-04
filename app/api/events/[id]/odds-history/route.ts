@@ -101,15 +101,68 @@ async function loadPolymarketHistory(eventId: string, period: string) {
     }
   }
 
-  // 2. Fetch history only for significant outcomes
-  const rows = await prisma.oddsHistory.findMany({
-    where: {
-      eventId,
-      timestamp: { gte: fromDate },
-      outcomeId: { in: idsToFetch }
-    },
-    orderBy: { timestamp: 'asc' },
-  });
+  // 2. Fetch history for significant outcomes
+  // For longer periods (>1 week), use the hourly aggregated materialized view
+  // This reduces data volume by ~28x and improves query performance significantly
+  const MAX_ROWS = 50000;
+  const useHourlyView = duration > 7 * 24 * 60 * 60 * 1000; // More than 1 week
+
+  let rows: Array<{
+    id?: string;
+    outcomeId: string;
+    timestamp: Date;
+    probability: number;
+  }>;
+
+  if (useHourlyView && idsToFetch.length > 0) {
+    // Trigger background refresh if the materialized view is stale
+    // This is fire-and-forget, doesn't block the current request
+    const { triggerBackgroundRefresh } = await import('@/lib/odds-history-refresh');
+    triggerBackgroundRefresh();
+
+    // Use the pre-aggregated hourly materialized view for long periods
+    const hourlyRows = await prisma.$queryRaw<Array<{
+      eventId: string;
+      outcomeId: string;
+      bucketTime: Date;
+      avgProbability: number;
+    }>>`
+      SELECT 
+        "eventId",
+        "outcomeId",
+        "bucketTime",
+        "avgProbability"
+      FROM "OddsHistoryHourly"
+      WHERE "eventId" = ${eventId}
+        AND "bucketTime" >= ${fromDate}
+        AND "outcomeId" = ANY(${idsToFetch}::text[])
+      ORDER BY "bucketTime" ASC
+      LIMIT ${MAX_ROWS}
+    `;
+
+    rows = hourlyRows.map((r: { outcomeId: string; bucketTime: Date; avgProbability: number }) => ({
+      outcomeId: r.outcomeId,
+      timestamp: r.bucketTime,
+      probability: r.avgProbability,
+    }));
+  } else {
+    // For shorter periods, fetch full resolution data
+    rows = await prisma.oddsHistory.findMany({
+      where: {
+        eventId,
+        timestamp: { gte: fromDate },
+        outcomeId: { in: idsToFetch }
+      },
+      orderBy: { timestamp: 'asc' },
+      take: MAX_ROWS,
+      select: {
+        id: true,
+        outcomeId: true,
+        timestamp: true,
+        probability: true,
+      }
+    });
+  }
 
   const outcomeNames = new Map<string, string>();
   for (const o of allDeduplicatedOutcomes) {

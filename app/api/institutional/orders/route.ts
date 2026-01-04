@@ -121,9 +121,9 @@ export async function GET(request: NextRequest) {
     // Calculate execution summary for each order
     const ordersWithSummary = orders.map(order => {
       const executions = order.executions;
-      const totalExecuted = executions.reduce((sum, exec) => sum + exec.amount, 0);
+      const totalExecuted = executions.reduce((sum, exec) => sum + Number(exec.amount), 0);
       const avgExecutionPrice = executions.length > 0
-        ? executions.reduce((sum, exec) => sum + (exec.amount * exec.price), 0) / totalExecuted
+        ? executions.reduce((sum, exec) => sum + (Number(exec.amount) * Number(exec.price)), 0) / totalExecuted
         : 0;
 
       return {
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
         executionCount: order._count.executions,
         totalExecuted,
         avgExecutionPrice,
-        remainingAmount: order.amount - order.amountFilled,
+        remainingAmount: Number(order.amount) - Number(order.amountFilled),
         lastExecution: executions[0]?.executedAt || null,
       };
     });

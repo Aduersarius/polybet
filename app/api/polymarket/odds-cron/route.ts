@@ -367,6 +367,13 @@ export async function POST(request: Request) {
                 });
                 historyRows = result.count;
                 console.log(`[Odds Cron] Stored ${historyRows} odds history rows`);
+
+                // Trigger background refresh of the hourly materialized view
+                // This is fire-and-forget, runs after response is sent
+                if (historyRows > 0) {
+                    const { triggerBackgroundRefresh } = await import('@/lib/odds-history-refresh');
+                    triggerBackgroundRefresh();
+                }
             } catch (historyError) {
                 console.warn('[Odds Cron] Failed to store odds history:', historyError);
             }
