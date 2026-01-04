@@ -34,6 +34,17 @@ export const trustedOrigins = (() => {
         origins.add(baseUrl);
     }
 
+    // Trust Vercel deployments
+    if (process.env.VERCEL_URL) {
+        origins.add(`https://${process.env.VERCEL_URL}`);
+    }
+    if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+        origins.add(`https://${process.env.NEXT_PUBLIC_VERCEL_URL}`);
+    }
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+        origins.add(process.env.NEXT_PUBLIC_APP_URL);
+    }
+
     return Array.from(origins);
 })();
 
