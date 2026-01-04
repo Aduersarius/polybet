@@ -35,14 +35,21 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
 
         try {
             // First, check if user has 2FA enabled
-            const check2FARes = await fetch('/api/auth/check-2fa', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
-            });
-            const { has2FA } = await check2FARes.json();
+            let has2FA = false;
+            try {
+                const check2FARes = await fetch('/api/auth/check-2fa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+                const data = await check2FARes.json();
+                has2FA = data.has2FA || false;
+            } catch (err) {
+                console.error('[LoginModal] Error checking 2FA:', err);
+                // Continue anyway - will try sign-in and see what happens
+            }
 
-            // Attempt sign-in
+            // Attempt sign-in first (Better Auth will indicate if 2FA is required)
             const response = await fetch('/api/auth/sign-in/email', {
                 method: 'POST',
                 headers: {
@@ -63,24 +70,25 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
 
             console.log('[LoginModal] Sign-in response:', { status: response.status, result, has2FA });
 
-            // If password is wrong, show error
-            if (!response.ok && !result.twoFactorRedirect) {
-                setError(result.message || result.error?.message || result.error || 'Login failed. Please check your credentials.');
-                setLoading(false);
-                return;
-            }
-
-            // If user has 2FA enabled OR API indicates 2FA required, show TOTP input
-            if (has2FA || result.twoFactorRedirect === true || result.code === 'TWO_FACTOR_REQUIRED') {
+            // Better Auth returns twoFactorRedirect: true if 2FA is required
+            if (result.twoFactorRedirect === true || result.data?.twoFactorRedirect === true || result.code === 'TWO_FACTOR_REQUIRED' || result.error?.code === 'TWO_FACTOR_REQUIRED') {
                 console.log('[LoginModal] 2FA required, showing TOTP input');
                 setRequires2FA(true);
                 setLoading(false);
                 return;
             }
 
+            // If password is wrong or request failed, show error
+            if (!response.ok) {
+                setError(result.message || result.error?.message || result.error || 'Login failed. Please check your credentials.');
+                setLoading(false);
+                return;
+            }
+
             // Success without 2FA - close modal and refresh
+            console.log('[LoginModal] Login successful (no 2FA), redirecting...');
             onClose();
-            window.location.reload();
+            window.location.href = '/';
         } catch (err: any) {
             console.error('Login error:', err);
             setError(err.message || 'An error occurred');
@@ -90,27 +98,33 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     };
 
     const handleTotpVerify = async (e: React.FormEvent) => {
-        // ... existing totp logic ... (unchanged)
         e.preventDefault();
         setError('');
         setLoading(true);
 
         try {
+            console.log('[LoginModal] Verifying TOTP code:', totpCode);
+            
+            // Better Auth's 2FA flow: After sign-in with email/password (which we already did),
+            // verify the TOTP code separately using twoFactor.verifyTotp
             const result = await twoFactor.verifyTotp(totpCode, trustDevice);
-
+            
+            console.log('[LoginModal] TOTP verification result:', result);
+            
             if (result?.error) {
                 setError(result.error.message || 'Invalid code');
                 setLoading(false);
                 return;
             }
-
-            // Success - close modal and refresh
+            
+            // Success - close modal and redirect
+            console.log('[LoginModal] 2FA verified successfully, redirecting...');
+            setLoading(false);
             onClose();
-            window.location.reload();
+            window.location.href = '/';
         } catch (err: any) {
-            console.error('TOTP verify error:', err);
-            setError('Invalid verification code');
-        } finally {
+            console.error('[LoginModal] TOTP verify error:', err);
+            setError(err?.message || 'Invalid verification code');
             setLoading(false);
         }
     };
