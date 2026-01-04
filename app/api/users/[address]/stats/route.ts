@@ -72,7 +72,7 @@ export async function GET(
         // Calculate volume (total amount spent on bets/trades)
         const totalVolume = allActivities.reduce((sum, activity) => {
             // Volume = amount * price (or just amount if price is null)
-            return sum + (activity.amount * (activity.price || 1));
+            return sum + (Number(activity.amount) * (activity.price ? Number(activity.price) : 1));
         }, 0);
 
         // Calculate bet count
@@ -88,19 +88,19 @@ export async function GET(
                 if (activity.option === activity.event.result) {
                     // Won bet - simplified payout calculation
                     // In reality, this should use the actual payout from the AMM
-                    totalProfit += activity.amount * 0.95; // Approximate payout
+                    totalProfit += Number(activity.amount) * 0.95; // Approximate payout
                 } else {
                     // Lost bet
-                    totalProfit -= activity.amount;
+                    totalProfit -= Number(activity.amount);
                 }
             } else if (activity.event.type === 'MULTIPLE' && activity.outcomeId) {
                 // Multiple outcome event - check if outcome matches result
                 if (activity.outcomeId === activity.event.result) {
                     // Won bet
-                    totalProfit += activity.amount * 0.95; // Approximate payout
+                    totalProfit += Number(activity.amount) * 0.95; // Approximate payout
                 } else {
                     // Lost bet
-                    totalProfit -= activity.amount;
+                    totalProfit -= Number(activity.amount);
                 }
             }
         }

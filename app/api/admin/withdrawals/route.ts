@@ -4,6 +4,7 @@ import { getCryptoService } from '@/lib/crypto-service';
 import { prisma } from '@/lib/prisma';
 import { requireAdminAuth, verifyUserTotp } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { checkAdminRateLimit } from '@/lib/rate-limiter';
 
 // Status transition validation
 function validateWithdrawalStatusTransition(currentStatus: string, newStatus: string) {
@@ -23,7 +24,15 @@ function validateWithdrawalStatusTransition(currentStatus: string, newStatus: st
 export async function GET(req: NextRequest) {
     try {
         // Admin authentication check
-        await requireAdminAuth(req);
+        const admin = await requireAdminAuth(req);
+
+        // Rate limit admin operations
+        const rateLimit = await checkAdminRateLimit(admin.id, 'withdrawals-list');
+        if (!rateLimit.allowed) {
+            return NextResponse.json({
+                error: 'Rate limit exceeded. Please wait before making more requests.'
+            }, { status: 429 });
+        }
 
         const withdrawals = await prisma.withdrawal.findMany({
             where: { status: 'PENDING' },
@@ -44,6 +53,14 @@ export async function POST(req: NextRequest) {
         // Admin authentication check
         const admin = await requireAdminAuth(req);
         const adminId = admin.id;
+
+        // Rate limit admin withdrawal actions (stricter: 10 per minute for approval/rejection)
+        const rateLimit = await checkAdminRateLimit(adminId, 'withdrawals-action');
+        if (!rateLimit.allowed) {
+            return NextResponse.json({
+                error: 'Admin rate limit exceeded. Please wait before processing more withdrawals.'
+            }, { status: 429 });
+        }
 
         const body = await req.json();
         const { withdrawalId, action, totpCode } = body;
@@ -171,42 +188,42 @@ export async function POST(req: NextRequest) {
                     ) AS "exists"
                 `;
                 if (ledgerTableResult?.[0]?.exists) {
-                // Ensure ledger schema exists
-                const [lockedColResult, ledgerTableResult] = await Promise.all([
-                    tx.$queryRaw<Array<{ exists: boolean }>>`
+                    // Ensure ledger schema exists
+                    const [lockedColResult, ledgerTableResult] = await Promise.all([
+                        tx.$queryRaw<Array<{ exists: boolean }>>`
                         SELECT EXISTS (
                             SELECT 1 FROM information_schema.columns
                             WHERE table_schema = 'public' AND table_name = 'Balance' AND column_name = 'locked'
                         ) AS "exists"
                     `,
-                    tx.$queryRaw<Array<{ exists: boolean }>>`
+                        tx.$queryRaw<Array<{ exists: boolean }>>`
                         SELECT EXISTS (
                             SELECT 1 FROM information_schema.tables
                             WHERE table_schema = 'public' AND table_name = 'LedgerEntry'
                         ) AS "exists"
                     `
-                ]);
+                    ]);
 
-                const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
-                const hasLedgerTable = Boolean(ledgerTableResult?.[0]?.exists);
+                    const hasLockedColumn = Boolean(lockedColResult?.[0]?.exists);
+                    const hasLedgerTable = Boolean(ledgerTableResult?.[0]?.exists);
 
-                if (!hasLockedColumn || !hasLedgerTable) {
-                    throw new Error('Ledger schema missing: ensure Balance.locked and LedgerEntry table exist (run latest migrations).');
-                }
-
-                await tx.ledgerEntry.create({
-                    data: {
-                        userId: withdrawal.userId,
-                        direction: 'CREDIT',
-                        amount: withdrawal.amount,
-                        currency: 'TUSD',
-                        balanceBefore: availableBefore,
-                        balanceAfter: availableBefore + Number(withdrawal.amount),
-                        referenceType: 'WITHDRAWAL_REJECT',
-                        referenceId: withdrawalId,
-                        metadata: { adminId }
+                    if (!hasLockedColumn || !hasLedgerTable) {
+                        throw new Error('Ledger schema missing: ensure Balance.locked and LedgerEntry table exist (run latest migrations).');
                     }
-                });
+
+                    await tx.ledgerEntry.create({
+                        data: {
+                            userId: withdrawal.userId,
+                            direction: 'CREDIT',
+                            amount: withdrawal.amount,
+                            currency: 'TUSD',
+                            balanceBefore: availableBefore,
+                            balanceAfter: availableBefore + Number(withdrawal.amount),
+                            referenceType: 'WITHDRAWAL_REJECT',
+                            referenceId: withdrawalId,
+                            metadata: { adminId }
+                        }
+                    });
                 } else {
                     console.warn('[ADMIN WITHDRAWAL] LedgerEntry table missing; skipping ledger write');
                 }

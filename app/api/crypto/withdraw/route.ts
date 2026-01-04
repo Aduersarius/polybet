@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { getCryptoService } from '@/lib/crypto-service';
 import { auth, verifyUserTotp } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/prisma';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
@@ -46,6 +45,29 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid Ethereum address format' }, { status: 400 });
         }
 
+        // Enhanced address validation: verify EIP-55 checksum to catch typos
+        let checksummedAddress: string;
+        try {
+            checksummedAddress = ethers.getAddress(address);
+        } catch {
+            return NextResponse.json({
+                error: 'Invalid address checksum. Please double-check the address for typos.'
+            }, { status: 400 });
+        }
+
+        // Blocklist check for dangerous addresses
+        const BLOCKED_ADDRESSES = new Set([
+            '0x0000000000000000000000000000000000000000', // Null address
+            '0x000000000000000000000000000000000000dEaD', // Common burn address
+            '0xdEaD000000000000000000000000000000000000', // Another burn address
+        ]);
+
+        if (BLOCKED_ADDRESSES.has(checksummedAddress)) {
+            return NextResponse.json({
+                error: 'This address is not allowed for withdrawals. Please use a valid wallet address.'
+            }, { status: 400 });
+        }
+
         const user = session.user;
         const userId = user.id;
 
@@ -54,12 +76,15 @@ export async function POST(req: NextRequest) {
         }
 
         const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
-        const rateLimit = await checkRateLimit(userId, ip);
+
+        // Use stricter withdrawal-specific rate limiting (5 per hour per user)
+        const { checkWithdrawalRateLimit } = await import('@/lib/rate-limiter');
+        const rateLimit = await checkWithdrawalRateLimit(userId, ip);
         if (!rateLimit.allowed) {
             const status = rateLimit.reason === 'UNAVAILABLE' ? 503 : 429;
             const message = rateLimit.reason === 'UNAVAILABLE'
                 ? 'Rate limiting unavailable; please retry later'
-                : 'Rate limit exceeded';
+                : `Withdrawal rate limit exceeded. You can make ${rateLimit.remaining ?? 0} more requests. Try again in ${Math.ceil((rateLimit.resetInSeconds ?? 3600) / 60)} minutes.`;
             return NextResponse.json({ error: message }, { status });
         }
 

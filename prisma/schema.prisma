@@ -261,8 +261,8 @@ model MarketActivity {
   outcomeId        String? // For multiple outcomes
   option           String? // For binary events
   side             String? // For trades
-  amount           Float
-  price            Float?
+  amount           Decimal
+  price            Decimal?
   isAmmInteraction Boolean
   orderId          String? // Related order
   createdAt        DateTime @default(now())
@@ -282,7 +282,7 @@ model Transaction {
   id        String   @id @default(cuid())
   hash      String   @unique
   type      String
-  amount    Float
+  amount    Decimal
   status    String
   userId    String
   createdAt DateTime @default(now())
@@ -338,18 +338,18 @@ model Order {
   outcomeId      String? // Reference to specific outcome (for multiple outcomes)
   option         String? // Legacy field for binary events: 'YES' or 'NO'
   side           String // 'buy' or 'sell'
-  price          Float // Price per token (0.01 to 0.99)
-  amount         Float // Total amount to spend
-  amountFilled   Float    @default(0.0) // Amount that has been filled
+  price          Decimal // Price per token (0.01 to 0.99)
+  amount         Decimal // Total amount to spend
+  amountFilled   Decimal  @default(0.0) // Amount that has been filled
   status         String   @default("open") // 'open', 'partially_filled', 'filled', 'cancelled'
   orderType      String   @default("limit") // 'market', 'limit', 'iceberg', 'twap', 'stop'
   // Advanced order fields
-  visibleAmount  Float? // For iceberg orders: visible portion
-  totalAmount    Float? // For iceberg orders: total amount
+  visibleAmount  Decimal? // For iceberg orders: visible portion
+  totalAmount    Decimal? // For iceberg orders: total amount
   timeWindow     Int? // For TWAP: time window in minutes
   totalDuration  Int? // For TWAP: total duration in minutes
   executedSlices Int      @default(0) // For TWAP: number of executed slices
-  stopPrice      Float? // For stop orders: trigger price
+  stopPrice      Decimal? // For stop orders: trigger price
   stopType       String? // For stop orders: 'stop_loss', 'stop_limit'
   batchId        String? // Reference to batch operation
   createdAt      DateTime @default(now())
@@ -393,8 +393,8 @@ model BatchOrder {
 model OrderExecution {
   id         String   @id @default(cuid())
   orderId    String
-  amount     Float // Amount filled in this execution
-  price      Float // Execution price
+  amount     Decimal // Amount filled in this execution
+  price      Decimal // Execution price
   executedAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
@@ -561,9 +561,9 @@ model InstitutionalAccount {
   userId          String    @unique
   name            String
   type            String // e.g., "LIQUIDITY_PROVIDER", "MARKET_MAKER"
-  maxOrderSize    Float     @default(10000.0)
-  maxDailyVolume  Float     @default(100000.0)
-  dailyVolume     Float     @default(0.0) // Current day's volume
+  maxOrderSize    Decimal   @default(10000.0)
+  maxDailyVolume  Decimal   @default(100000.0)
+  dailyVolume     Decimal   @default(0.0) // Current day's volume
   dailyVolumeDate DateTime? // Date when dailyVolume was last reset
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
@@ -599,17 +599,17 @@ model HedgePosition {
   polymarketOrderId  String?
   polymarketMarketId String
   side               String // 'buy' or 'sell' on Polymarket
-  amount             Float // Number of shares/contracts
-  userPrice          Float // Price user got on our platform
-  hedgePrice         Float // Price we got on Polymarket
-  spreadCaptured     Float // Our profit: abs(userPrice - hedgePrice)
+  amount             Decimal // Number of shares/contracts
+  userPrice          Decimal // Price user got on our platform
+  hedgePrice         Decimal // Price we got on Polymarket
+  spreadCaptured     Decimal // Our profit: abs(userPrice - hedgePrice)
   status             String // 'pending', 'hedged', 'partial', 'failed', 'closed'
   failureReason      String? // If hedge failed, why?
   hedgedAt           DateTime?
   closedAt           DateTime?
-  polymarketFees     Float     @default(0.0)
-  gasCost            Float     @default(0.0)
-  netProfit          Float     @default(0.0) // spreadCaptured - fees - gas
+  polymarketFees     Decimal   @default(0.0)
+  gasCost            Decimal   @default(0.0)
+  netProfit          Decimal   @default(0.0) // spreadCaptured - fees - gas
   retryCount         Int       @default(0)
   metadata           Json? // Additional data (slippage, liquidity snapshot, etc.)
   createdAt          DateTime  @default(now())
@@ -655,9 +655,9 @@ model PolyOrder {
   polymarketMarketId  String
   polymarketOutcomeId String?
   side                String // buy | sell
-  price               Float
-  amount              Float
-  amountFilled        Float     @default(0.0)
+  price               Decimal
+  amount              Decimal
+  amountFilled        Decimal   @default(0.0)
   status              String    @default("pending") // pending | placed | filled | partial | cancelled | failed
   error               String?
   placedAt            DateTime?
@@ -680,8 +680,8 @@ model PolyPosition {
   outcomeId           String?
   polymarketMarketId  String
   polymarketOutcomeId String?
-  netExposure         Float     @default(0.0) // User-side exposure
-  hedgedExposure      Float     @default(0.0) // How much we've hedged on Polymarket
+  netExposure         Decimal   @default(0.0) // User-side exposure
+  hedgedExposure      Decimal   @default(0.0) // How much we've hedged on Polymarket
   lastHedgeAt         DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -705,11 +705,11 @@ model PolySyncCursor {
 model RiskSnapshot {
   id                  String   @id @default(cuid())
   timestamp           DateTime @default(now())
-  totalUnhedgedValue  Float // Total USD value of unhedged positions
-  totalHedgedValue    Float // Total USD value of hedged positions
-  netExposure         Float // Net directional exposure
-  totalSpreadCaptured Float // Cumulative profit from spreads
-  hedgeSuccessRate    Float // % of successful hedges
+  totalUnhedgedValue  Decimal // Total USD value of unhedged positions
+  totalHedgedValue    Decimal // Total USD value of hedged positions
+  netExposure         Decimal // Net directional exposure
+  totalSpreadCaptured Decimal // Cumulative profit from spreads
+  hedgeSuccessRate    Decimal // % of successful hedges
   averageHedgeTime    Int? // Average time to hedge in milliseconds
   openPositionsCount  Int // Number of open unhedged positions
   failedHedgesCount   Int // Number of failed hedges in period
