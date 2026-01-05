@@ -17,24 +17,9 @@ export default function manifest(): MetadataRoute.Manifest {
         theme_color: '#0a0a0a',
         icons: [
             {
-                src: '/logo-option5-advanced-10cuts.svg',
-                type: 'image/svg+xml',
-                sizes: '512x512',
-            },
-            {
-                src: '/logo.png',
+                src: '/diamond_logo_nobg.png',
                 type: 'image/png',
-                sizes: '512x512',
-            },
-            {
-                src: '/logo.png',
-                type: 'image/png',
-                sizes: '192x192',
-            },
-            {
-                src: '/favicon.ico',
-                type: 'image/x-icon',
-                sizes: '48x48 32x32 16x16',
+                sizes: 'any',
             },
         ],
     };
