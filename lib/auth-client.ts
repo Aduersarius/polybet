@@ -146,14 +146,22 @@ export const twoFactor = {
                 return { error: { message: 'TOTP code must be exactly 6 digits' } };
             }
 
+            console.log('[2FA] Calling Better Auth verifyTotp...');
             const result = await (authClient as any).twoFactor.verifyTotp({
                 code: sanitizedCode,
                 trustDevice: trustDevice ?? false
             });
+            console.log('[2FA] verifyTotp raw result:', JSON.stringify(result));
+
+            // Better Auth sometimes returns { data: null } on failure without explicit error
+            if (!result?.data && !result?.error) {
+                console.error('[2FA] Unexpected empty response from verifyTotp');
+                return { error: { message: 'Verification failed. Please try again.' } };
+            }
 
             return result;
         } catch (error: any) {
-            console.error('[2FA] verifyTotp error:', error);
+            console.error('[2FA] verifyTotp exception:', error);
             return {
                 error: {
                     message: error?.message || 'Failed to verify TOTP code. Please try again.'

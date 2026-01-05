@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { email } from '@/lib/auth-client';
 
 interface EmailVerificationModalProps {
@@ -14,6 +14,21 @@ export function EmailVerificationModal({ isOpen, onClose, userEmail }: EmailVeri
     const [resendSuccess, setResendSuccess] = useState(false);
     const [cooldown, setCooldown] = useState(0);
 
+    // Handle Enter key to close modal
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                onClose();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     const handleResend = async () => {
@@ -24,13 +39,13 @@ export function EmailVerificationModal({ isOpen, onClose, userEmail }: EmailVeri
 
         try {
             const { error } = await email.sendVerificationEmail();
-            
+
             if (error) {
                 console.error('Failed to resend verification email:', error);
             } else {
                 setResendSuccess(true);
                 setCooldown(60); // 60 second cooldown
-                
+
                 // Countdown timer
                 const interval = setInterval(() => {
                     setCooldown((prev) => {
@@ -97,7 +112,7 @@ export function EmailVerificationModal({ isOpen, onClose, userEmail }: EmailVeri
                                     Email Verification Required
                                 </p>
                                 <p className="text-yellow-300/80 text-xs leading-relaxed">
-                                    You must verify your email before you can deposit funds or place trades. 
+                                    You must verify your email before you can deposit funds or place trades.
                                     Please check your inbox and click the verification link.
                                 </p>
                             </div>

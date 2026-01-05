@@ -230,6 +230,20 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         };
     }, [eventId]);
 
+    // Handle Enter key to confirm trade in dialog
+    useEffect(() => {
+        if (!showConfirmDialog) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                executeTrade();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [showConfirmDialog]);
 
 
     // Prices are probabilities (0-1), convert to percentages

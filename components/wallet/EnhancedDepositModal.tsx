@@ -130,6 +130,30 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
         setTimeout(() => setCopied(false), 2000);
     };
 
+    // Handle Enter key for navigation
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                // If showing success state, close modal
+                if (depositStatus === 'confirmed') {
+                    setDepositStatus('idle');
+                    onClose();
+                    return;
+                }
+                // If no method selected, select crypto (the only active option)
+                if (!selectedMethod) {
+                    handleMethodSelect('crypto');
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, depositStatus, selectedMethod, onClose]);
+
     useEffect(() => {
         if (isOpen) {
             fetchBalance();

@@ -25,7 +25,7 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
   }, []);
 
   // Create QR code config
-  const createQRConfig = useCallback((qrSize: number, imageSize: number = 0.2) => ({
+  const createQRConfig = useCallback((qrSize: number, imageSize: number = 0.08) => ({
     width: qrSize,
     height: qrSize,
     type: 'svg' as const,
@@ -72,6 +72,21 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
     };
   }, [QRCodeStyling, value, size, createQRConfig]);
 
+  // Calculate fullscreen QR size
+  const [fullscreenSize, setFullscreenSize] = useState(320);
+
+  useEffect(() => {
+    const updateSize = () => {
+      // Use 80% of the smaller viewport dimension, capped at 600px
+      const size = Math.min(window.innerWidth, window.innerHeight) * 0.8;
+      setFullscreenSize(Math.min(Math.floor(size), 600));
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
   // Render expanded QR code when modal opens
   useEffect(() => {
     if (!QRCodeStyling || !isExpanded || !value) return;
@@ -80,13 +95,13 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
     const timer = setTimeout(() => {
       if (expandedQrRef.current) {
         expandedQrRef.current.innerHTML = '';
-        const expandedQr = new QRCodeStyling(createQRConfig(320, 0.28));
+        const expandedQr = new QRCodeStyling(createQRConfig(fullscreenSize, 0.08));
         expandedQr.append(expandedQrRef.current);
       }
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [QRCodeStyling, value, isExpanded, createQRConfig]);
+  }, [QRCodeStyling, value, isExpanded, createQRConfig, fullscreenSize]);
 
   return (
     <>
@@ -98,16 +113,7 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
         {/* Outer container */}
         <div
           className="relative rounded-xl overflow-hidden transition-all duration-300"
-          style={{
-            background: 'linear-gradient(135deg, rgba(10, 15, 25, 0.98) 0%, rgba(18, 25, 38, 0.98) 100%)',
-            padding: '12px',
-            boxShadow: '0 0 30px rgba(16, 185, 129, 0.12), 0 0 60px rgba(139, 92, 246, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-          }}
         >
-          {/* Inner glow */}
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-purple-500/5 pointer-events-none" />
-
           {/* QR Code container */}
           <div
             ref={mainQrRef}
@@ -115,16 +121,9 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
             style={{
               width: size,
               height: size,
-              background: 'linear-gradient(135deg, rgba(8, 12, 20, 0.95) 0%, rgba(12, 18, 28, 0.95) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.04)',
+              background: 'linear-gradient(135deg, rgba(8, 12, 20, 0.5) 0%, rgba(12, 18, 28, 0.5) 100%)',
             }}
           />
-
-          {/* Corner accents */}
-          <div className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-emerald-400/50 rounded-tl-md" />
-          <div className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2 border-emerald-400/50 rounded-tr-md" />
-          <div className="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2 border-purple-400/50 rounded-bl-md" />
-          <div className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2 border-purple-400/50 rounded-br-md" />
 
           {/* Scan animation on hover */}
           {expandable && (
@@ -136,70 +135,52 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
 
         {/* Click hint */}
         {expandable && (
-          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-white/25 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-white/0 group-hover:text-white/25 transition-all whitespace-nowrap pointer-events-none">
             Click to expand
           </div>
         )}
       </div>
 
-      {/* Expanded Modal */}
+      {/* Full Screen Expanded Modal */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-md"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95"
             onClick={() => setIsExpanded(false)}
           >
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.85, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative"
+            {/* Close button - top right */}
+            <button
+              onClick={() => setIsExpanded(false)}
+              className="absolute top-6 right-6 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
             >
-              {/* Close button */}
-              <button
-                onClick={() => setIsExpanded(false)}
-                className="absolute -top-12 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
-              >
-                <X className="w-5 h-5 text-white/70" />
-              </button>
+              <X className="w-6 h-6 text-white/70" />
+            </button>
 
-              {/* Expanded QR container */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="flex flex-col items-center"
+            >
+              {/* QR Code - fills screen */}
               <div
-                className="relative rounded-xl overflow-hidden"
+                ref={expandedQrRef}
+                className="relative rounded-2xl overflow-hidden flex items-center justify-center"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(10, 15, 25, 0.98) 0%, rgba(18, 25, 38, 0.98) 100%)',
-                  padding: '16px',
-                  boxShadow: '0 0 60px rgba(16, 185, 129, 0.2), 0 0 100px rgba(139, 92, 246, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  width: fullscreenSize,
+                  height: fullscreenSize,
+                  background: 'linear-gradient(135deg, rgba(8, 12, 20, 0.8) 0%, rgba(12, 18, 28, 0.8) 100%)',
                 }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+              />
 
-                <div
-                  ref={expandedQrRef}
-                  className="relative rounded-lg overflow-hidden flex items-center justify-center"
-                  style={{
-                    width: 320,
-                    height: 320,
-                    background: 'linear-gradient(135deg, rgba(8, 12, 20, 0.95) 0%, rgba(12, 18, 28, 0.95) 100%)',
-                    border: '1px solid rgba(255, 255, 255, 0.04)',
-                  }}
-                />
-
-                <div className="absolute top-2.5 left-2.5 w-5 h-5 border-l-2 border-t-2 border-emerald-400/50 rounded-tl-md" />
-                <div className="absolute top-2.5 right-2.5 w-5 h-5 border-r-2 border-t-2 border-emerald-400/50 rounded-tr-md" />
-                <div className="absolute bottom-2.5 left-2.5 w-5 h-5 border-l-2 border-b-2 border-purple-400/50 rounded-bl-md" />
-                <div className="absolute bottom-2.5 right-2.5 w-5 h-5 border-r-2 border-b-2 border-purple-400/50 rounded-br-md" />
-              </div>
-
-              <p className="text-center mt-4 text-xs text-white/40">
-                Scan with your wallet app
+              <p className="text-center mt-6 text-sm text-white/50">
+                Tap anywhere to close
               </p>
             </motion.div>
           </motion.div>

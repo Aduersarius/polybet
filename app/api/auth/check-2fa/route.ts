@@ -1,7 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
+import { auth } from '@/lib/auth';
 
+// GET /api/auth/check-2fa - Check if current authenticated user has 2FA enabled
+export async function GET(request: NextRequest) {
+    try {
+        const session = await auth.api.getSession({
+            headers: request.headers,
+        });
+
+        if (!session?.user?.id) {
+            return NextResponse.json({ enabled: false, error: 'Not authenticated' }, { status: 401 });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { twoFactorEnabled: true }
+        });
+
+        return NextResponse.json({ enabled: user?.twoFactorEnabled ?? false });
+    } catch (error) {
+        console.error('[check-2fa GET] Error:', error);
+        return NextResponse.json({ enabled: false, error: 'Internal error' }, { status: 500 });
+    }
+}
 // POST /api/auth/check-2fa - Check if user has 2FA enabled (before login)
 export async function POST(request: NextRequest) {
     try {
