@@ -1709,6 +1709,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                             { id: 'NO', probability: noDisplay, position: yesDisplay + (noDisplay / 2), show: noDisplay > 15 }
                           ];
 
+
                           return segments.map(seg => {
                             if (!shouldShow || !seg.show) return null;
 
