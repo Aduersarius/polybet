@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/select";
 import { UserSettings, useSettings } from '@/lib/settings-context';
 import { toast } from '@/components/ui/use-toast';
-import { QRCodeSVG } from 'qrcode.react';
+import { BrandedQRCode } from '@/components/ui/BrandedQRCode';
 
 const defaultSettings: UserSettings = {
     trading: {
@@ -868,8 +868,8 @@ function SettingsPageContent() {
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Set up 2FA</h3>
                             {totpUri ? (
-                                <div className="flex justify-center mb-6 p-4 bg-white rounded-lg">
-                                    <QRCodeSVG value={totpUri} size={200} />
+                                <div className="flex justify-center py-2 mb-4">
+                                    <BrandedQRCode value={totpUri} size={380} />
                                 </div>
                             ) : (
                                 <div className="flex justify-center mb-6 p-4 bg-white/10 rounded-lg">
@@ -897,16 +897,36 @@ function SettingsPageContent() {
                                 <button
                                     onClick={async () => {
                                         try {
+                                            console.log('[2FA Setup] Calling verifyTotp...');
                                             const res = await (twoFactor as any).verifyTotp(totpCode);
-                                            if (res.error) {
+                                            console.log('[2FA Setup] verifyTotp result:', res);
+
+                                            if (res?.error) {
                                                 toast({ title: res.error.message || 'Invalid code', variant: 'destructive' });
                                                 return;
                                             }
+
+                                            // Verify the setup actually persisted by checking the API
+                                            const checkRes = await fetch('/api/auth/check-2fa');
+                                            const checkData = await checkRes.json();
+                                            console.log('[2FA Setup] check-2fa result:', checkData);
+
+                                            if (!checkData.enabled) {
+                                                console.error('[2FA Setup] Setup appeared to succeed but DB shows disabled');
+                                                toast({
+                                                    title: '2FA setup failed',
+                                                    description: 'Please try again. If this persists, contact support.',
+                                                    variant: 'destructive'
+                                                });
+                                                return;
+                                            }
+
                                             setIs2FAEnabled(true);
                                             setShow2FASetup(false);
                                             setTotpCode('');
                                             toast({ title: '2FA enabled successfully!', variant: 'success' });
-                                        } catch {
+                                        } catch (err) {
+                                            console.error('[2FA Setup] Exception:', err);
                                             toast({ title: 'Failed to verify code', variant: 'destructive' });
                                         }
                                     }}

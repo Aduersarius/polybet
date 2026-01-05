@@ -211,6 +211,26 @@ export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
     }
   }, [isOpen]);
 
+  // Handle Enter key to proceed to next slide
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (currentSlide < tourSlides.length - 1) {
+          setDirection('forward');
+          setCurrentSlide(currentSlide + 1);
+        } else {
+          onComplete();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, currentSlide, onComplete]);
+
   const handleNext = () => {
     if (currentSlide < tourSlides.length - 1) {
       setDirection('forward');
@@ -304,8 +324,8 @@ export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
                     setCurrentSlide(index);
                   }}
                   className={`h-1.5 rounded-full transition-all duration-300 ${index === currentSlide
-                      ? 'w-8 bg-blue-500'
-                      : 'w-1.5 bg-gray-700 hover:bg-gray-600'
+                    ? 'w-8 bg-blue-500'
+                    : 'w-1.5 bg-gray-700 hover:bg-gray-600'
                     }`}
                   aria-label={`Go to step ${index + 1}`}
                 />

@@ -398,7 +398,13 @@ export async function verifyUserTotp(userId: string, code: string, _request?: Re
             })
         ]);
 
-        if (!user?.twoFactorEnabled || !twoFactorRecord?.secret) {
+        if (!user?.twoFactorEnabled) {
+            logger.warn(`[2FA] User ${userId} does not have 2FA enabled`);
+            return false;
+        }
+
+        if (!twoFactorRecord?.secret) {
+            logger.error(`[2FA] CRITICAL: User ${userId} has twoFactorEnabled=true but no TwoFactor record! Data integrity issue.`);
             return false;
         }
 
@@ -431,9 +437,11 @@ export async function verifyUserTotp(userId: string, code: string, _request?: Re
             }
         }
 
-        // Now verify the TOTP code with the decrypted secret
-        const { verifyTotpCode } = await import('./totp');
-        return verifyTotpCode(sanitizedCode, decryptedSecret);
+        // Now verify the TOTP code using Better Auth's own verification
+        // This ensures we use the exact same algorithm as what generated the QR code
+        const { createOTP } = await import('@better-auth/utils/otp');
+        const isValid = await createOTP(decryptedSecret).verify(sanitizedCode, { window: 1 });
+        return isValid;
     } catch (error) {
         logger.error('[2FA] Error verifying TOTP:', error);
         return false;
