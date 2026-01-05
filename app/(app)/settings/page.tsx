@@ -1,5 +1,6 @@
 'use client';
 
+// Dynamic title - set via useEffect since this is a client component
 import { useState, useEffect, Suspense } from 'react';
 import { useSession, signOut, twoFactor, email, authClient } from '@/lib/auth-client';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -137,6 +138,11 @@ function SettingsPageContent() {
             setIsLoading(false);
         }
     }, [isSettingsLoading, globalSettings]);
+
+    // Set page title
+    useEffect(() => {
+        document.title = 'Settings | Pariflow';
+    }, []);
 
     // Resend cooldown timer
     useEffect(() => {
@@ -800,35 +806,37 @@ function SettingsPageContent() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            console.log('[2FA] Calling getTotpUri with password...');
-                                            const res = await (twoFactor as any).getTotpUri(twoFAPassword);
-                                            console.log('[2FA] getTotpUri response:', res);
-                                            
+                                            console.log('[2FA] Calling enable with password...');
+                                            // Use enable() to set up 2FA - it returns totpURI directly
+                                            const res = await (twoFactor as any).enable(twoFAPassword);
+                                            console.log('[2FA] enable response:', res);
+
                                             if (res?.error) {
                                                 toast({ title: res.error.message || 'Invalid password', variant: 'destructive' });
                                                 return;
                                             }
-                                            
+
                                             // Extract URI from the response
-                                            // Our wrapper now returns { data: { uri }, error: null }
-                                            const uri = res?.data?.uri || 
-                                                       res?.data?.totpUri || 
-                                                       res?.uri || 
-                                                       res?.totpUri;
-                                            
+                                            // Better Auth enable() returns { data: { totpURI, backupCodes } }
+                                            const uri = res?.data?.totpURI ||
+                                                res?.data?.totpUri ||
+                                                res?.totpURI ||
+                                                res?.totpUri;
+
                                             if (!uri || typeof uri !== 'string') {
                                                 console.error('[2FA] Invalid TOTP URI response. Full response:', JSON.stringify(res, null, 2));
                                                 toast({ title: 'Failed to get QR code. Please check console for details.', variant: 'destructive' });
                                                 return;
                                             }
-                                            
+
                                             console.log('[2FA] TOTP URI extracted:', uri.substring(0, 50) + '...');
                                             setTotpUri(uri);
+                                            setTwoFAPassword(''); // Clear password after use
                                             setShow2FAPasswordPrompt(false);
                                             setShow2FASetup(true);
                                         } catch (error: any) {
-                                            console.error('[2FA] getTotpUri exception:', error);
-                                            toast({ title: error?.message || 'Failed to verify password', variant: 'destructive' });
+                                            console.error('[2FA] enable exception:', error);
+                                            toast({ title: error?.message || 'Failed to set up 2FA', variant: 'destructive' });
                                         }
                                     }}
                                     className="flex-1 py-3 rounded-lg bg-primary text-white font-medium hover:opacity-90 transition-all shadow-md shadow-primary/20"

@@ -48,6 +48,7 @@ function AdminPageContent() {
     // Ensure client-side only rendering to prevent hydration mismatch
     useEffect(() => {
         setIsMounted(true);
+        document.title = 'Admin Panel | Pariflow';
     }, []);
 
     useEffect(() => {

@@ -121,7 +121,12 @@ export default function EventPage() {
     useEffect(() => {
         if (event) {
             setLiveEvent(event);
+            // Set dynamic page title
+            document.title = `${event.title} | Pariflow`;
         }
+        return () => {
+            document.title = 'Pariflow | Real-Life Market Forecasting';
+        };
     }, [event]);
 
     // Collapse larger sections by default on mobile, expand on desktop

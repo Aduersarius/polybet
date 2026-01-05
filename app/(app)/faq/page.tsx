@@ -1,9 +1,14 @@
 'use client';
 
+import { useEffect } from 'react';
 import { FAQ } from '@/app/components/FAQ';
 import { HelpCircle } from 'lucide-react';
 
 export default function FAQPage() {
+  useEffect(() => {
+    document.title = 'FAQ | Pariflow';
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f1419] to-[#1a1f2e] py-12 px-4">
       <div className="max-w-4xl mx-auto">

@@ -145,6 +145,17 @@ export async function POST(req: NextRequest) {
                         }
                     }
                 });
+
+                // Create Notification
+                await tx.notification.create({
+                    data: {
+                        userId: depositAddress.userId,
+                        type: 'DEPOSIT_SUCCESS',
+                        message: `Deposit of ${usdcAmount} USDC successfully processed.`,
+                        resourceId: deposit.id,
+                        isRead: false
+                    }
+                });
             });
 
             processedCount++;

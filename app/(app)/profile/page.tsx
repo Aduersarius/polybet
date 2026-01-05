@@ -122,6 +122,12 @@ function ProfileContent() {
         enabled: !isOwnProfile && !!addressParam
     });
 
+    // Set page title
+    useEffect(() => {
+        const name = isOwnProfile ? 'My Profile' : (publicProfile?.username || 'User Profile');
+        document.title = `${name} | Pariflow`;
+    }, [isOwnProfile, publicProfile]);
+
     // Fetch betting history (Only for own profile)
     const { data: bets } = useQuery<BetHistory[]>({
         queryKey: ['user-bets', user?.id],
@@ -488,13 +494,13 @@ function ProfileContent() {
 
                                                         {/* Shares */}
                                                         <div className="col-span-2 text-right">
-                                                            <div className="text-white font-mono text-xs">{pos.shares.toFixed(2)}</div>
+                                                            <div className="text-white font-mono text-xs">{(Number(pos.shares) || 0).toFixed(2)}</div>
                                                         </div>
 
                                                         {/* Prices (Avg / Cur) */}
                                                         <div className="col-span-2 text-right font-mono text-xs">
-                                                            <div className="text-gray-400">{pos.avgPrice.toFixed(2)}</div>
-                                                            <div className="text-white font-semibold">{pos.currentPrice.toFixed(2)}</div>
+                                                            <div className="text-gray-400">{(Number(pos.avgPrice) || 0).toFixed(2)}</div>
+                                                            <div className="text-white font-semibold">{(Number(pos.currentPrice) || 0).toFixed(2)}</div>
                                                         </div>
 
                                                         {/* PnL */}
@@ -572,7 +578,7 @@ function ProfileContent() {
 
                                                         {/* Stake */}
                                                         <div className="col-span-2 text-right">
-                                                            <div className="text-white font-mono text-xs">${bet.amount.toFixed(2)}</div>
+                                                            <div className="text-white font-mono text-xs">${Number(bet.amount).toFixed(2)}</div>
                                                         </div>
 
                                                         {/* Status */}
@@ -583,7 +589,7 @@ function ProfileContent() {
                                                                     PENDING
                                                                 </div>
                                                             ) : bet.status === 'WON' ? (
-                                                                <div className="text-green-400 text-[10px] font-bold tracking-wider">WON (+${(bet.payout! - bet.amount).toFixed(2)})</div>
+                                                                <div className="text-green-400 text-[10px] font-bold tracking-wider">WON (+${(Number(bet.payout!) - Number(bet.amount)).toFixed(2)})</div>
                                                             ) : (
                                                                 <div className="text-gray-500 text-[10px] font-bold tracking-wider">LOST</div>
                                                             )}

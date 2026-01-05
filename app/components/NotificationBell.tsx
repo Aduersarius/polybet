@@ -13,7 +13,7 @@ const { useSession } = authClient;
 
 interface Notification {
     id: string;
-    type: 'REPLY' | 'MENTION' | 'BET_RESULT' | 'FAVORITE_UPDATE' | 'SUPPORT_REPLY';
+    type: 'REPLY' | 'MENTION' | 'BET_RESULT' | 'FAVORITE_UPDATE' | 'SUPPORT_REPLY' | 'DEPOSIT_SUCCESS';
     message: string;
     resourceId: string | null;
     isRead: boolean;
@@ -167,6 +167,9 @@ export function NotificationBell() {
                                                 )}
                                                 {notification.type === 'FAVORITE_UPDATE' && (
                                                     <div className="w-2 h-2 rounded-full bg-rose-500" />
+                                                )}
+                                                {notification.type === 'DEPOSIT_SUCCESS' && (
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
                                                 )}
                                             </div>
                                             <div className="flex-1 min-w-0">
