@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Headphones, MessageSquareText } from 'lucide-react';
 import { CreateTicketModal } from '@/app/components/support/CreateTicketModal';
 import { TicketList } from '@/app/components/support/TicketList';
@@ -14,6 +14,11 @@ export default function SupportPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Set page title
+  useEffect(() => {
+    document.title = 'Support | Pariflow';
+  }, []);
 
   // Redirect to login if not authenticated
   if (!isPending && !session) {
@@ -126,8 +131,8 @@ export default function SupportPage() {
             </button>
           </div>
 
-          <TicketList 
-            onTicketClick={handleTicketClick} 
+          <TicketList
+            onTicketClick={handleTicketClick}
             refreshTrigger={refreshTrigger}
           />
         </div>

@@ -22,6 +22,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
+    document.title = 'Transaction History | Pariflow';
   }, []);
 
   const fetchTransactions = async () => {

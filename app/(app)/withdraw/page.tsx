@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, AlertCircle, Wallet as WalletIcon, Check, X, Shield, Mail, TrendingUp, DollarSign } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Wallet as WalletIcon, Check, X, Shield, Mail, TrendingUp, DollarSign, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { getUserFriendlyError } from '@/lib/error-messages';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { Navbar } from '@/app/components/Navbar';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 
 export default function WithdrawPage() {
@@ -27,9 +27,14 @@ export default function WithdrawPage() {
         hasPlacedBet: false,
         hasBalance: false
     });
+    // TOTP verification state
+    const [showTotpModal, setShowTotpModal] = useState(false);
+    const [totpCode, setTotpCode] = useState('');
+    const [pendingAmount, setPendingAmount] = useState(0);
 
     useEffect(() => {
         checkEligibility();
+        document.title = 'Withdraw | Pariflow';
     }, []);
 
     const checkEligibility = async () => {
@@ -38,12 +43,13 @@ export default function WithdrawPage() {
             const res = await fetch('/api/crypto/can-withdraw');
             const data = await res.json();
             setCanWithdraw(data.canWithdraw);
-            setBalance(data.balance || 0);
+            // Ensure balance is always a number (API may return Decimal or string)
+            setBalance(Number(data.balance) || 0);
             setReason(data.reason || '');
             setLimits({
-                maxSingle: data.maxSingle || 0,
-                maxDaily: data.maxDaily || 0,
-                usedToday: data.usedToday || 0,
+                maxSingle: Number(data.maxSingle) || 0,
+                maxDaily: Number(data.maxDaily) || 0,
+                usedToday: Number(data.usedToday) || 0,
             });
             setRequirements(data.requirements || {
                 twoFactorEnabled: false,
@@ -76,12 +82,12 @@ export default function WithdrawPage() {
         }
 
         // Check minimum withdrawal
-        if (numAmount < 10) {
-            setError('Minimum withdrawal is $10');
+        if (numAmount < 1) {
+            setError('Minimum withdrawal is $1');
             toast({
                 variant: 'warning',
                 title: '📊 Amount Too Small',
-                description: 'Minimum withdrawal amount is $10. Please increase your amount.',
+                description: 'Minimum withdrawal amount is $1. Please increase your amount.',
             });
             return;
         }
@@ -131,17 +137,40 @@ export default function WithdrawPage() {
             return;
         }
 
+        // All validations passed - show TOTP modal
+        setPendingAmount(numAmount);
+        setTotpCode('');
+        setShowTotpModal(true);
+    };
+
+    const handleWithdrawWithTotp = async () => {
+        if (!totpCode || totpCode.length !== 6) {
+            toast({
+                variant: 'warning',
+                title: '🔐 Invalid Code',
+                description: 'Please enter a valid 6-digit authenticator code.',
+            });
+            return;
+        }
+
         setLoading(true);
         try {
             const res = await fetch('/api/crypto/withdraw', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: numAmount, address }),
+                body: JSON.stringify({
+                    amount: pendingAmount,
+                    address,
+                    token: 'USDC',
+                    totpCode: totpCode.trim()
+                }),
             });
 
             if (res.ok) {
                 setAmount('');
                 setAddress('');
+                setShowTotpModal(false);
+                setTotpCode('');
                 toast({
                     variant: 'success',
                     title: '✅ Withdrawal Submitted',
@@ -152,12 +181,25 @@ export default function WithdrawPage() {
                 const data = await res.json();
                 const errorMsg = data.error || 'Failed to submit withdrawal';
                 setError(errorMsg);
-                const { title, description, variant } = getUserFriendlyError(new Error(errorMsg));
-                toast({ variant, title, description });
+
+                // Keep modal open for TOTP errors so user can retry
+                if (errorMsg.toLowerCase().includes('totp') || errorMsg.toLowerCase().includes('code')) {
+                    setTotpCode('');
+                    toast({
+                        variant: 'destructive',
+                        title: '🔐 Invalid Code',
+                        description: 'The authenticator code is incorrect. Please try again.',
+                    });
+                } else {
+                    setShowTotpModal(false);
+                    const { title, description, variant } = getUserFriendlyError(new Error(errorMsg));
+                    toast({ variant, title, description });
+                }
             }
         } catch (err) {
             const errorMsg = 'Network error. Please try again.';
             setError(errorMsg);
+            setShowTotpModal(false);
             toast({
                 variant: 'destructive',
                 title: '🌐 Connection Error',
@@ -256,22 +298,20 @@ export default function WithdrawPage() {
                         {/* Requirements Checklist - Inline Style */}
                         <div className="bg-zinc-800/50 rounded-xl border border-white/10 p-5">
                             <h4 className="text-sm font-semibold text-zinc-300 mb-4 uppercase tracking-wide">Requirements</h4>
-                            
+
                             <div className="space-y-3">
                                 {requirementItems.map((item) => {
                                     const isMet = requirements[item.key as keyof typeof requirements];
                                     const Icon = item.icon;
-                                    
+
                                     return (
                                         <div
                                             key={item.key}
-                                            className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                                                isMet ? 'bg-green-500/5' : 'bg-red-500/5'
-                                            }`}
+                                            className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${isMet ? 'bg-green-500/5' : 'bg-red-500/5'
+                                                }`}
                                         >
-                                            <div className={`mt-0.5 flex-shrink-0 ${
-                                                isMet ? 'text-green-400' : 'text-red-400'
-                                            }`}>
+                                            <div className={`mt-0.5 flex-shrink-0 ${isMet ? 'text-green-400' : 'text-red-400'
+                                                }`}>
                                                 {isMet ? (
                                                     <Check className="w-4 h-4" />
                                                 ) : (
@@ -325,7 +365,7 @@ export default function WithdrawPage() {
                                     <div>
                                         <label className="flex items-center gap-1.5 text-sm text-zinc-400 mb-2">
                                             Amount (USD)
-                                            <InfoTooltip 
+                                            <InfoTooltip
                                                 content="Minimum withdrawal: $10. Enter the amount you want to withdraw from your balance."
                                                 side="top"
                                             />
@@ -357,7 +397,7 @@ export default function WithdrawPage() {
                                     <div>
                                         <label className="flex items-center gap-1.5 text-sm text-zinc-400 mb-2">
                                             Destination Address (Polygon)
-                                            <InfoTooltip 
+                                            <InfoTooltip
                                                 content="Enter your Polygon wallet address (starts with 0x). Funds will be sent as USDC on Polygon network. Make sure this address can receive USDC tokens."
                                                 side="top"
                                             />
@@ -418,7 +458,7 @@ export default function WithdrawPage() {
                                         </div>
                                         <div className="pt-2">
                                             <div className="w-full h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-                                                <div 
+                                                <div
                                                     className="h-full bg-emerald-500 transition-all duration-500"
                                                     style={{ width: `${Math.min(100, ((limits.maxDaily - limits.usedToday) / limits.maxDaily * 100))}%` }}
                                                 />
@@ -444,6 +484,100 @@ export default function WithdrawPage() {
                     </div>
                 )}
             </main>
+
+            {/* TOTP Verification Modal */}
+            <AnimatePresence>
+                {showTotpModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                        onClick={() => {
+                            if (!loading) {
+                                setShowTotpModal(false);
+                                setTotpCode('');
+                            }
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-zinc-900 border border-white/10 rounded-xl p-6 max-w-md w-full shadow-2xl"
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 rounded-lg bg-blue-500/20">
+                                    <Shield className="w-5 h-5 text-blue-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">Confirm Withdrawal</h3>
+                                    <p className="text-sm text-zinc-400">Enter your 2FA code to proceed</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-zinc-800/50 rounded-lg p-4 mb-5 border border-white/5">
+                                <div className="flex justify-between items-center text-sm mb-2">
+                                    <span className="text-zinc-400">Amount</span>
+                                    <span className="text-white font-semibold">${pendingAmount.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-zinc-400">To Address</span>
+                                    <span className="text-white font-mono text-xs truncate max-w-[180px]">{address}</span>
+                                </div>
+                            </div>
+
+                            <div className="mb-5">
+                                <label className="block text-sm text-zinc-400 mb-2">Authenticator Code</label>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    value={totpCode}
+                                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="000000"
+                                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-center text-2xl tracking-[0.5em] font-mono placeholder-zinc-600 focus:outline-none focus:border-blue-500 focus:bg-white/10 transition-colors"
+                                    autoFocus
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowTotpModal(false);
+                                        setTotpCode('');
+                                    }}
+                                    disabled={loading}
+                                    className="flex-1 py-3 rounded-lg border border-white/10 text-zinc-400 font-medium hover:bg-white/5 transition-colors disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleWithdrawWithTotp}
+                                    disabled={loading || totpCode.length !== 6}
+                                    className="flex-1 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <WalletIcon className="w-4 h-4" />
+                                            Confirm
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

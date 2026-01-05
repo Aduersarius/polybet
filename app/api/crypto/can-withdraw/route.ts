@@ -112,13 +112,10 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
             canWithdraw: true,
-            balance: balance.amount,
-            limits: {
-                single: maxSingle,
-                daily: maxDaily,
-                usedToday,
-                remainingToday: Math.max(0, maxDaily - usedToday)
-            },
+            balance: Number(balance.amount),
+            maxSingle,
+            maxDaily,
+            usedToday,
             requirements: {
                 twoFactorEnabled: true,
                 emailVerified: true,

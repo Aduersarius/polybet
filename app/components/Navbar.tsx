@@ -132,7 +132,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                             <div className="relative">
                                 <img src="/diamond_logo_nobg.png" alt="Pariflow Logo" className="relative h-10 w-auto object-contain transition-all duration-300 group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
                             </div>
-                            <span className="text-lg font-black tracking-tight transition-all duration-300 uppercase text-white group-hover:[text-shadow:0_0_12px_rgba(255,255,255,0.4)]" style={{ letterSpacing: '0.05em', fontWeight: 800 }}>
+                            <span className="text-base font-black tracking-tight transition-all duration-300 uppercase text-white group-hover:[text-shadow:0_0_12px_rgba(255,255,255,0.4)]" style={{ letterSpacing: '0.05em', fontWeight: 800 }}>
                                 Pariflow
                             </span>
                         </Link>

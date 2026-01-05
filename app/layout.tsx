@@ -19,7 +19,10 @@ export const metadata: Metadata = {
     title: "Pariflow | Real-Life Market Forecasting",
     description: "Bet on anything, pay with crypto.",
     icons: {
-        icon: '/favicon.ico',
+        icon: [
+            { url: '/diamond_logo_nobg.png', type: 'image/png' },
+        ],
+        apple: '/diamond_logo_nobg.png',
     },
 };
 

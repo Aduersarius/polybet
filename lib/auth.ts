@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { twoFactor } from "better-auth/plugins";
+import { symmetricDecrypt } from "better-auth/crypto";
 import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
 import { logger } from "./logger";
@@ -375,95 +376,64 @@ export async function requireAdminAuth(request: Request) {
 }
 
 // Helper function to verify TOTP code for a specific user
-// NOTE: Better Auth encrypts 2FA secrets internally. This function uses Better Auth's API
-// to verify TOTP codes, which properly handles encrypted secrets.
-// 
-// IMPORTANT: The request parameter is required for proper verification. It provides the
-// session context needed for Better Auth's verify-totp endpoint.
-export async function verifyUserTotp(userId: string, code: string, request?: Request): Promise<boolean> {
+// NOTE: Better Auth encrypts 2FA secrets internally. This function decrypts the secret
+// using Better Auth's encryption key and then verifies the TOTP code locally.
+export async function verifyUserTotp(userId: string, code: string, _request?: Request): Promise<boolean> {
     try {
-        // Verify user has 2FA enabled
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { twoFactorEnabled: true }
-        });
-
-        if (!user?.twoFactorEnabled) {
+        // Sanitize the code
+        const sanitizedCode = (code || '').replace(/\s+/g, '').trim();
+        if (!sanitizedCode || sanitizedCode.length !== 6 || !/^\d{6}$/.test(sanitizedCode)) {
             return false;
         }
 
-        // If request is provided, use Better Auth's API endpoint (preferred method)
-        if (request) {
+        // Verify user has 2FA enabled and has a TwoFactor record
+        const [user, twoFactorRecord] = await Promise.all([
+            prisma.user.findUnique({
+                where: { id: userId },
+                select: { twoFactorEnabled: true }
+            }),
+            prisma.twoFactor.findUnique({
+                where: { userId },
+                select: { secret: true }
+            })
+        ]);
+
+        if (!user?.twoFactorEnabled || !twoFactorRecord?.secret) {
+            return false;
+        }
+
+        const storedSecret = twoFactorRecord.secret;
+
+        // Check if secret looks like base32 (unencrypted legacy format)
+        const isBase32 = /^[A-Z2-7]+=*$/.test(storedSecret.replace(/\s+/g, ''));
+
+        let decryptedSecret: string;
+
+        if (isBase32) {
+            // Secret is already in base32 format (unencrypted)
+            decryptedSecret = storedSecret;
+        } else {
+            // Secret is encrypted by Better Auth - decrypt it
+            const authSecret = process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+            if (!authSecret) {
+                logger.error('[2FA] No auth secret found for decryption');
+                return false;
+            }
+
             try {
-                // Get the session from the request
-                const session = await auth.api.getSession({
-                    headers: request.headers,
+                decryptedSecret = await symmetricDecrypt({
+                    key: authSecret,
+                    data: storedSecret
                 });
-
-                if (!session?.session) {
-                    logger.error('[2FA] No session found in request');
-                    return false;
-                }
-
-                // Verify the session belongs to the user
-                if (session.user.id !== userId) {
-                    logger.error('[2FA] Session user ID does not match requested user ID');
-                    return false;
-                }
-
-                // Use Better Auth's internal API to verify TOTP
-                // Better Auth's verify-totp endpoint requires a session, which we have
-                const baseUrl = process.env.BETTER_AUTH_URL ||
-                    (process.env.NODE_ENV === 'production' ? 'https://pariflow.com' : 'http://localhost:3000');
-
-                // Make internal request to Better Auth's verify-totp endpoint
-                const verifyResponse = await fetch(`${baseUrl}/api/auth/two-factor/verify-totp`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // Forward the session cookie from the original request
-                        'Cookie': request.headers.get('Cookie') || '',
-                    },
-                    body: JSON.stringify({ code, trustDevice: false }),
-                });
-
-                if (!verifyResponse.ok) {
-                    const errorData = await verifyResponse.json().catch(() => ({}));
-                    logger.error('[2FA] Better Auth verification failed:', errorData);
-                    return false;
-                }
-
-                const result = await verifyResponse.json();
-                return result.verified === true;
-            } catch (error) {
-                logger.error('[2FA] Error using Better Auth API:', error);
-                // Fall through to fallback method
+            } catch (decryptError) {
+                logger.error('[2FA] Failed to decrypt TOTP secret:', decryptError);
+                return false;
             }
         }
 
-        // Fallback: Try direct TOTP verification (only works for unencrypted secrets)
-        // This is a legacy fallback and will fail for Better Auth encrypted secrets
-        const twoFactorRecord = await prisma.twoFactor.findUnique({
-            where: { userId },
-            select: { secret: true }
-        });
-
-        if (!twoFactorRecord?.secret) {
-            return false;
-        }
-
+        // Now verify the TOTP code with the decrypted secret
         const { verifyTotpCode } = await import('./totp');
-
-        // Check if secret looks like base32 (Better Auth's encrypted format is different)
-        const isBase32 = /^[A-Z2-7]+=*$/.test(twoFactorRecord.secret.replace(/\s+/g, ''));
-
-        if (!isBase32) {
-            // Secret is encrypted by Better Auth - cannot verify without Better Auth API
-            logger.error('[2FA] Secret is encrypted by Better Auth - cannot verify without request context. Please provide Request parameter.');
-            return false;
-        }
-
-        return verifyTotpCode(code, twoFactorRecord.secret);
+        return verifyTotpCode(sanitizedCode, decryptedSecret);
     } catch (error) {
         logger.error('[2FA] Error verifying TOTP:', error);
         return false;
