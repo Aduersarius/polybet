@@ -1730,7 +1730,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                                 }}
                                 className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
                               >
-                                <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
+                                <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
                                   <AnimatedPercentage
                                     value={seg.probability}
                                     delay={(index * 0.05) + 0.3}
@@ -1755,7 +1755,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                               ref={hoveredTextRef}
                               segmentCenter={segmentCenter}
                               containerRef={sliderContainerRef}
-                              textClassName="text-sm"
+                            /* textClassName="text-xs" - using default */
                             >
                               {hoveredSegmentId} {hoveredSegmentId === 'YES' ? yesDisplay : noDisplay}%
                             </HoveredTextDisplay>
