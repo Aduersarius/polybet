@@ -16,9 +16,9 @@ class TradingWebSocketServer {
 
     constructor(config: WSServerConfig = {}) {
         const port = config.port || 3001;
-        
+
         // Use provided corsOrigin or fall back to trustedOrigins from auth config
-        const allowedOrigins = config.corsOrigin 
+        const allowedOrigins = config.corsOrigin
             ? (Array.isArray(config.corsOrigin) ? config.corsOrigin : [config.corsOrigin])
             : trustedOrigins;
 
@@ -41,7 +41,7 @@ class TradingWebSocketServer {
                         callback(null, true);
                         return;
                     }
-                    
+
                     if (allowedOrigins.includes(origin)) {
                         callback(null, true);
                     } else {
@@ -66,7 +66,7 @@ class TradingWebSocketServer {
             try {
                 // Extract cookies from handshake
                 const cookies = socket.handshake.headers.cookie;
-                
+
                 if (!cookies) {
                     // Allow connection but mark as unauthenticated
                     // Public events (odds, chat) don't require auth
@@ -135,13 +135,13 @@ class TradingWebSocketServer {
                     socket.emit('error', { message: 'User ID required' });
                     return;
                 }
-                
+
                 // Verify authentication for user-specific data
                 if (!socket.data.authenticated) {
                     socket.emit('error', { message: 'Authentication required for portfolio access' });
                     return;
                 }
-                
+
                 socket.join(`portfolio-${userId}`);
                 console.log(`💼 Client ${socket.id} subscribed to portfolio ${userId}`);
             });
@@ -149,6 +149,19 @@ class TradingWebSocketServer {
             socket.on('unsubscribe-portfolio', (userId: string) => {
                 socket.leave(`portfolio-${userId}`);
                 console.log(`💼 Client ${socket.id} unsubscribed from portfolio ${userId}`);
+            });
+
+            // Handle transaction updates (requires authentication)
+            socket.on('subscribe-transactions', async (userId: string) => {
+                if (!userId) return;
+                socket.join(`transactions-${userId}`);
+                console.log(`💸 Client ${socket.id} subscribed to transactions ${userId}`);
+            });
+
+            socket.on('unsubscribe-transactions', (userId: string) => {
+                if (!userId) return;
+                socket.leave(`transactions-${userId}`);
+                console.log(`💸 Client ${socket.id} unsubscribed from transactions ${userId}`);
             });
 
             socket.on('disconnect', () => {
@@ -163,12 +176,17 @@ class TradingWebSocketServer {
     private setupDatabaseListeners() {
         // Subscribe to Redis channels for real-time updates
         if (redis) {
-            redis.subscribe('hybrid-trades', (err, count) => {
-                if (err) {
-                    console.error('❌ Failed to subscribe to Redis channel:', err);
-                    return;
-                }
-                console.log(`📡 Subscribed to ${count} Redis channel(s)`);
+            // Subscribe to multiple channels
+            const channels = ['hybrid-trades', 'user-updates'];
+
+            channels.forEach(channel => {
+                redis.subscribe(channel, (err, count) => {
+                    if (err) {
+                        console.error(`❌ Failed to subscribe to Redis channel ${channel}:`, err);
+                        return;
+                    }
+                    console.log(`📡 Subscribed to Redis channel: ${channel}`);
+                });
             });
 
             // Handle incoming Redis messages
@@ -197,6 +215,13 @@ class TradingWebSocketServer {
                             } catch (err) {
                                 console.error(`❌ Failed to fetch orderbook for ${data.eventId}/${data.option}:`, err);
                             }
+                        }
+                    } else if (channel === 'user-updates') {
+                        // Handle user-specific updates (transactions, notifications)
+                        if (data.type === 'transaction') {
+                            this.broadcastTransactionUpdate(data.userId, data.payload);
+                        } else if (data.type === 'notification') {
+                            this.broadcastNotification(data.payload);
                         }
                     }
                 } catch (error) {
@@ -249,6 +274,17 @@ class TradingWebSocketServer {
             timestamp: Date.now()
         });
         console.log(`💼 Broadcasted portfolio update to room ${room}`);
+    }
+
+    // Broadcast transaction updates
+    public broadcastTransactionUpdate(userId: string, transactionData: any) {
+        const room = `transactions-${userId}`;
+        this.io.to(room).emit('transaction-update', {
+            userId,
+            ...transactionData,
+            timestamp: Date.now()
+        });
+        console.log(`💸 Broadcasted transaction update to room ${room}`);
     }
 
     // Broadcast system-wide notifications

@@ -320,6 +320,32 @@ export const auth = betterAuth({
         cookiePrefix: isProduction ? '__Secure-' : '',
     },
     debug: !isProduction,
+    events: {
+        session: {
+            created: async ({ user }) => {
+                // If user doesn't have an image, generate a random gradient one
+                // Uses Boring Avatars (gradient type) for a premium, modern look
+                if (!user.image) {
+                    const seed = user.email || user.id;
+                    const colors = ["264653", "2a9d8f", "e9c46a", "f4a261", "e76f51"].join(',');
+                    const avatarUrl = `https://source.boringavatars.com/gradient/120/${encodeURIComponent(seed)}?colors=${colors}`;
+
+                    try {
+                        await prisma.user.update({
+                            where: { id: user.id },
+                            data: {
+                                image: avatarUrl,
+                                avatarUrl: avatarUrl
+                            }
+                        });
+                        logger.info(`[AUTH] Generated gradient avatar for user: ${seed}`);
+                    } catch (error) {
+                        logger.error(`[AUTH] Failed to auto-generate avatar:`, error);
+                    }
+                }
+            }
+        }
+    }
 });
 
 // Utility function to get session from request headers

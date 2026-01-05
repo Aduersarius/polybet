@@ -175,20 +175,47 @@ export async function POST(req: NextRequest) {
         const service = getCryptoService();
         const withdrawalId = await service.requestWithdrawal(userId, amountNumber, address, token, idempotencyKey);
 
-        // Notify admins via Telegram (non-blocking)
-        import('@/lib/telegram/notification-service').then(({ telegramNotificationService }) => {
-            telegramNotificationService.notifyWithdrawalRequest(withdrawalId).catch((error) => {
-                console.error('Failed to send withdrawal notification:', error);
+        // Auto-approve small withdrawals (< $10)
+        let isAutoApproved = false;
+        if (amountNumber < 10) {
+            isAutoApproved = true;
+            // Fire and forget approval + notification in correct order
+            (async () => {
+                try {
+                    // Update to APPROVED happens immediately inside approveWithdrawal update
+                    await service.approveWithdrawal(withdrawalId, 'SYSTEM');
+                } catch (error) {
+                    console.error(`[AUTO-APPROVE] Failed for withdrawal ${withdrawalId}:`, error);
+                } finally {
+                    // Notify admins via Telegram (non-blocking)
+                    try {
+                        const { telegramNotificationService } = await import('@/lib/telegram/notification-service');
+                        await telegramNotificationService.notifyWithdrawalRequest(withdrawalId);
+                    } catch (notificationError) {
+                        console.error('Failed to send withdrawal notification:', notificationError);
+                    }
+                }
+            })();
+        } else {
+            // Standard notification for manual approval
+            import('@/lib/telegram/notification-service').then(({ telegramNotificationService }) => {
+                telegramNotificationService.notifyWithdrawalRequest(withdrawalId).catch((error) => {
+                    console.error('Failed to send withdrawal notification:', error);
+                });
+            }).catch((error) => {
+                console.error('Failed to load Telegram notification service:', error);
             });
-        }).catch((error) => {
-            console.error('Failed to load Telegram notification service:', error);
-        });
+        }
 
         // Track withdrawal request in Sentry metrics
-        trackTransaction('withdrawal', 'pending', amountNumber);
+        trackTransaction('withdrawal', isAutoApproved ? 'auto_approved' : 'pending', amountNumber);
         trackApiLatency('/api/crypto/withdraw', Date.now() - startTime, 200);
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({
+            success: true,
+            withdrawalId,
+            status: isAutoApproved ? 'APPROVED' : 'PENDING'
+        });
     } catch (error: any) {
         trackError('payment', error?.message || 'withdrawal_error');
         trackApiLatency('/api/crypto/withdraw', Date.now() - startTime, 500);

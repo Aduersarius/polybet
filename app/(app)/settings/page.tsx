@@ -124,6 +124,7 @@ function SettingsPageContent() {
     const [twoFAPassword, setTwoFAPassword] = useState('');
     const [show2FASetup, setShow2FASetup] = useState(false);
     const [totpUri, setTotpUri] = useState('');
+    const [totpSecret, setTotpSecret] = useState('');
     const [totpCode, setTotpCode] = useState('');
     const [is2FAEnabled, setIs2FAEnabled] = useState(false);
     const [showDisable2FAPrompt, setShowDisable2FAPrompt] = useState(false);
@@ -713,7 +714,7 @@ function SettingsPageContent() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
                         onClick={() => setShowChangeEmailModal(false)}
                     >
                         <motion.div
@@ -721,7 +722,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+                            className="bg-[#1a1d28] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Change Email</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -769,7 +770,7 @@ function SettingsPageContent() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
                         onClick={() => {
                             setShow2FAPasswordPrompt(false);
                             setTwoFAPassword('');
@@ -780,7 +781,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+                            className="bg-[#1a1d28] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Confirm Your Password</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -830,6 +831,16 @@ function SettingsPageContent() {
                                             }
 
                                             console.log('[2FA] TOTP URI extracted:', uri.substring(0, 50) + '...');
+
+                                            // Extract secret if possible for manual entry
+                                            try {
+                                                const url = new URL(uri);
+                                                const secret = url.searchParams.get('secret');
+                                                if (secret) setTotpSecret(secret);
+                                            } catch (e) {
+                                                console.error('[2FA] Failed to parse secret from URI', e);
+                                            }
+
                                             setTotpUri(uri);
                                             setTwoFAPassword(''); // Clear password after use
                                             setShow2FAPasswordPrompt(false);
@@ -856,7 +867,7 @@ function SettingsPageContent() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
                         onClick={() => setShow2FASetup(false)}
                     >
                         <motion.div
@@ -864,12 +875,12 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+                            className="bg-[#1a1d28] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Set up 2FA</h3>
                             {totpUri ? (
                                 <div className="flex justify-center py-2 mb-4">
-                                    <BrandedQRCode value={totpUri} size={380} />
+                                    <BrandedQRCode value={totpUri} size={320} />
                                 </div>
                             ) : (
                                 <div className="flex justify-center mb-6 p-4 bg-white/10 rounded-lg">
@@ -879,6 +890,27 @@ function SettingsPageContent() {
                             <p className="text-gray-400 text-sm mb-4">
                                 Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code below.
                             </p>
+
+                            {totpSecret && (
+                                <div className="mb-6">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Manual Entry Key</label>
+                                    <div className="flex items-center gap-2 group">
+                                        <div className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white/70 select-all truncate">
+                                            {totpSecret}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(totpSecret);
+                                                toast({ title: 'Key copied to clipboard', variant: 'success' });
+                                            }}
+                                            className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                                            title="Copy key"
+                                        >
+                                            <Copy className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             <input
                                 type="text"
                                 value={totpCode}
@@ -947,7 +979,7 @@ function SettingsPageContent() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
                         onClick={() => {
                             setShowDisable2FAPrompt(false);
                             setTwoFAPassword('');
@@ -958,7 +990,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+                            className="bg-[#1a1d28] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <h3 className="text-xl font-bold text-white mb-4">Disable 2FA</h3>
                             <p className="text-gray-400 text-sm mb-4">
@@ -1014,7 +1046,7 @@ function SettingsPageContent() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
                         onClick={() => {
                             setShowDeleteConfirm(false);
                             setDeleteConfirmText('');
@@ -1025,7 +1057,7 @@ function SettingsPageContent() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-surface-elevated border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+                            className="bg-[#1a1d28] border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
                         >
                             <div className="flex items-center gap-3 text-red-500 mb-4">
                                 <AlertTriangle className="w-6 h-6" />

@@ -306,6 +306,15 @@ You can reply to this chat to add more details to your ticket.
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pariflow.com';
       const adminPanelUrl = `${baseUrl}/admin/withdrawals`;
 
+      const statusEmojis: Record<string, string> = {
+        'PENDING': '⏳',
+        'APPROVED': '✅',
+        'COMPLETED': '💰',
+        'FAILED': '❌',
+        'REJECTED': '🚫'
+      };
+      const statusEmoji = statusEmojis[withdrawal.status] || '🔔';
+
       // Format message
       const text = `
 💰 *New Withdrawal Request*
@@ -314,7 +323,7 @@ ID: *${withdrawalId}*
 User: ${userName} (${withdrawal.user.email || 'No email'})
 Amount: *$${amount} ${currency}*
 Address: \`${withdrawal.toAddress}\`
-Status: PENDING
+Status: ${statusEmoji} ${withdrawal.status}
 Time: ${timestamp}
 
 [View in Admin Panel →](${adminPanelUrl})
