@@ -120,7 +120,7 @@ export function trackOrderBook(
  */
 export function trackTransaction(
     type: "deposit" | "withdrawal",
-    status: "pending" | "completed" | "failed",
+    status: "pending" | "completed" | "failed" | "auto_approved",
     amount: number
 ) {
     Sentry.metrics.count(`transactions.${type}`, 1, {

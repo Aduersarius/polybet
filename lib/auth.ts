@@ -322,7 +322,7 @@ export const auth = betterAuth({
     debug: !isProduction,
     events: {
         session: {
-            created: async ({ user }) => {
+            created: async ({ user }: { user: any }) => {
                 // If user doesn't have an image, generate a random gradient one
                 // Uses Boring Avatars (gradient type) for a premium, modern look
                 if (!user.image) {
