@@ -32,9 +32,10 @@ export default function TransactionsPage() {
 
   // WebSocket for real-time updates
   useEffect(() => {
-    if (!session?.user?.id) return;
+    const user = (session as any)?.user;
+    if (!user?.id) return;
 
-    const userId = session.user.id;
+    const userId = user.id;
 
     // Subscribe to transaction updates
     socket.emit('subscribe-transactions', userId);
