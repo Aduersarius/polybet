@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
 import { updateReferralStats } from '@/lib/affiliate-tracking';
+import { redis } from '@/lib/redis';
 
 const DEPOSIT_ADDRESS_SELECT = {
     address: true,
@@ -599,13 +600,46 @@ export class CryptoService {
                         }
                     });
 
-                    this.log(`[WITHDRAWAL] Successfully updated withdrawal ${withdrawalId} to COMPLETED`);
-                    break; // Success, exit loop
-                } catch (dbError) {
+                    // Broadcast successful withdrawal via Redis Pub/Sub
+                    try {
+                        const message = JSON.stringify({
+                            type: 'transaction',
+                            userId: withdrawal.userId,
+                            payload: {
+                                id: withdrawal.id,
+                                type: 'Withdrawal',
+                                amount: withdrawal.amount,
+                                currency: withdrawal.currency,
+                                status: 'COMPLETED',
+                                createdAt: withdrawal.createdAt,
+                                txHash: tx.hash
+                            }
+                        });
+
+                        const notification = JSON.stringify({
+                            type: 'notification',
+                            userId: withdrawal.userId,
+                            payload: {
+                                userId: withdrawal.userId,
+                                type: 'WITHDRAWAL_SUCCESS',
+                                message: `Withdrawal of ${withdrawal.amount} ${withdrawal.currency} confirmed!`,
+                                resourceId: withdrawal.id
+                            }
+                        });
+
+                        await redis.publish('user-updates', message);
+                        await redis.publish('user-updates', notification);
+                    } catch (redisErr) {
+                        console.error('[WITHDRAWAL] Failed to publish Redis update:', redisErr);
+                    }
+
+                    this.log(`[WITHDRAWAL] Successfully completed withdrawal ${withdrawalId}`);
+                    return tx.hash; // Done
+                } catch (updateErr) {
                     updateAttempts++;
-                    this.warn(`[WITHDRAWAL] DB update attempt ${updateAttempts} failed for ${withdrawalId}:`, dbError);
+                    this.warn(`[WITHDRAWAL] DB update attempt ${updateAttempts} failed for ${withdrawalId}:`, updateErr);
                     if (updateAttempts >= maxAttempts) {
-                        console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for %s:', withdrawalId, dbError);
+                        console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for %s:', withdrawalId, updateErr);
                         // At this point, transfer succeeded but DB update failed
                         // This is a critical error that needs manual intervention
                         throw new Error(`Transfer succeeded but database update failed for withdrawal ${withdrawalId} - manual intervention required`);

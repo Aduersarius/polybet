@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react';
 import { Navbar } from '../../components/Navbar';
 import { Footer } from '../../components/Footer';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { History, ArrowDownCircle, ArrowUpCircle, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { useSession } from '@/lib/auth-client';
+import { socket } from '@/lib/socket';
+import { useToast } from '@/components/ui/use-toast';
 
 interface Transaction {
   id: string;
@@ -19,11 +22,60 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchTransactions();
     document.title = 'Transaction History | Pariflow';
   }, []);
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const userId = session.user.id;
+
+    // Subscribe to transaction updates
+    socket.emit('subscribe-transactions', userId);
+
+    const handleTransactionUpdate = (data: any) => {
+      console.log('💸 Real-time transaction update:', data);
+
+      // Update local state by prepending the new transaction
+      setTransactions(prev => {
+        // Avoid duplicates if same event arrives twice
+        if (prev.some(t => t.id === data.id)) return prev;
+
+        const newTransaction: Transaction = {
+          id: data.id,
+          type: data.type,
+          amount: parseFloat(data.amount),
+          currency: data.currency,
+          status: data.status,
+          createdAt: data.createdAt
+        };
+
+        return [newTransaction, ...prev];
+      });
+
+      // Show toast notification
+      if (data.status === 'COMPLETED') {
+        toast({
+          title: `${data.type} Successful!`,
+          description: `Your ${data.type.toLowerCase()} of ${data.amount} ${data.currency} was processed.`,
+          variant: 'success'
+        });
+      }
+    };
+
+    socket.on('transaction-update', handleTransactionUpdate);
+
+    return () => {
+      socket.off('transaction-update', handleTransactionUpdate);
+      socket.emit('unsubscribe-transactions', userId);
+    };
+  }, [session, toast]);
 
   const fetchTransactions = async () => {
     try {
@@ -173,53 +225,57 @@ export default function TransactionsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {transactions.map((transaction, idx) => (
-                    <motion.tr
-                      key={transaction.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.03 }}
-                      className="group hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${transaction.type === 'Deposit'
-                            ? 'bg-emerald-500/10 border border-emerald-500/20'
-                            : 'bg-orange-500/10 border border-orange-500/20'
-                            }`}>
-                            {transaction.type === 'Deposit' ? (
-                              <ArrowDownCircle className="w-4 h-4 text-emerald-400" />
-                            ) : (
-                              <ArrowUpCircle className="w-4 h-4 text-orange-400" />
-                            )}
+                  <AnimatePresence initial={false}>
+                    {transactions.map((transaction, idx) => (
+                      <motion.tr
+                        key={transaction.id}
+                        layout
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="group hover:bg-white/[0.02] transition-colors"
+                      >
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg ${transaction.type === 'Deposit'
+                              ? 'bg-emerald-500/10 border border-emerald-500/20'
+                              : 'bg-orange-500/10 border border-orange-500/20'
+                              }`}>
+                              {transaction.type === 'Deposit' ? (
+                                <ArrowDownCircle className="w-4 h-4 text-emerald-400" />
+                              ) : (
+                                <ArrowUpCircle className="w-4 h-4 text-orange-400" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-white">{transaction.type}</span>
                           </div>
-                          <span className="text-sm font-medium text-white">{transaction.type}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={`text-sm font-mono font-medium ${transaction.type === 'Deposit' ? 'text-emerald-400' : 'text-orange-400'
-                          }`}>
-                          {transaction.type === 'Deposit' ? '+' : '-'}{transaction.amount.toFixed(4)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="text-sm font-medium text-gray-300 bg-white/5 px-2 py-0.5 rounded">
-                          {transaction.currency}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="text-sm text-gray-400">
-                          {formatDate(transaction.createdAt)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={getStatusBadge(transaction.status)}>
-                          {getStatusIcon(transaction.status)}
-                          {transaction.status}
-                        </span>
-                      </td>
-                    </motion.tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`text-sm font-mono font-medium ${transaction.type === 'Deposit' ? 'text-emerald-400' : 'text-orange-400'
+                            }`}>
+                            {transaction.type === 'Deposit' ? '+' : '-'}{transaction.amount.toFixed(4)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="text-sm font-medium text-gray-300 bg-white/5 px-2 py-0.5 rounded">
+                            {transaction.currency}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="text-sm text-gray-400">
+                            {formatDate(transaction.createdAt)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={getStatusBadge(transaction.status)}>
+                            {getStatusIcon(transaction.status)}
+                            {transaction.status}
+                          </span>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
                 </tbody>
               </table>
             </div>

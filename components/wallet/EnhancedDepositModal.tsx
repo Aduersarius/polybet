@@ -236,7 +236,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4">
             <div className="relative w-full max-w-md mx-auto">
                 {/* Glassmorphism card with gradient border */}
-                <div className="relative p-5 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+                <div className="relative p-5 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
                     {/* Subtle gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
 

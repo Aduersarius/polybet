@@ -292,233 +292,246 @@ export function GroupedBinaryEventCard({
 
 
     return (
-        <div className="relative w-full pt-2 pb-6 -mb-6" style={{ overflowX: 'hidden' }}>
+        <div className="relative w-full pt-2 pb-6 -mb-6" style={{ overflow: 'visible' }}>
             <motion.div
-                initial={{ opacity: 0, y: 20, x: '0%' }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{
                     opacity: 1,
                     y: 0,
-                    x: showBuyInterface ? '-50%' : '0%',
                 }}
                 transition={{
-                    opacity: { duration: 0.4, delay: index * 0.08, ease: "easeOut" },
-                    y: { duration: 0.4, delay: index * 0.08, ease: "easeOut" },
-                    x: { type: 'spring', damping: 30, stiffness: 500, duration: 0.3 }
+                    opacity: { duration: 0.2, delay: index * 0.05, ease: "easeOut" },
+                    y: { duration: 0.2, delay: index * 0.05, ease: "easeOut" }
                 }}
-                className="relative flex w-[200%]"
+                className="relative w-full h-[220px]"
                 style={{
                     willChange: 'transform',
                     transform: 'translateZ(0)'
                 }}
             >
-                {/* Normal Card View */}
-                <Link
+                <motion.div
                     key={event.id}
-                    href={`/event/${event.id}`}
-                    className="w-1/2 flex-shrink-0"
-                    style={{ overflow: 'visible' }}
+                    className="absolute inset-0 w-full h-full"
+                    animate={{
+                        opacity: showBuyInterface ? 0 : 1,
+                        pointerEvents: showBuyInterface ? 'none' : 'auto',
+                        x: showBuyInterface ? -20 : 0
+                    }}
+                    transition={{ duration: 0.2 }}
                 >
-                    <motion.div
-                        whileHover={{ y: -2 }}
-                        transition={{ duration: 0.2, delay: 0, ease: "easeOut" }}
-                        style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
-                        className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-300 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] ${isEnded ? 'opacity-50' : ''}`}
+                    <Link
+                        href={`/event/${event.id}`}
+                        className="w-full h-full block"
+                        style={{ overflow: 'visible' }}
                     >
-                        {/* 1. Header: Image & Title */}
-                        <div className="flex items-start gap-2.5">
-                            <div className="flex-shrink-0 relative">
-                                {event.imageUrl ? (
-                                    <img
-                                        src={event.imageUrl}
-                                        alt={event.title}
-                                        className="w-12 h-12 rounded-lg object-cover border border-blue-400/20 group-hover:border-blue-400/40 transition-all duration-300 shadow-md"
-                                    />
-                                ) : (
-                                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-sm font-bold text-blue-300 transition-all duration-300 shadow-inner">
-                                        <span className="text-lg">🎯</span>
-                                    </div>
-                                )}
-                            </div>
+                        <motion.div
+                            transition={{ duration: 0.15, delay: 0, ease: "easeOut" }}
+                            style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
+                            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-200 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] ${isEnded ? 'opacity-50' : ''}`}
+                        >
+                            {/* 1. Header: Image & Title */}
+                            <div className="flex items-start gap-2.5">
+                                <div className="flex-shrink-0 relative">
+                                    {event.imageUrl ? (
+                                        <img
+                                            src={event.imageUrl}
+                                            alt={event.title}
+                                            className="w-12 h-12 rounded-lg object-cover border border-blue-400/20 group-hover:border-blue-400/40 transition-all duration-300 shadow-md"
+                                        />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-sm font-bold text-blue-300 transition-all duration-300 shadow-inner">
+                                            <span className="text-lg">🎯</span>
+                                        </div>
+                                    )}
+                                </div>
 
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start gap-2">
-                                    <h3 className="text-[13px] font-bold text-white leading-tight line-clamp-3 group-hover:text-blue-100 transition-all duration-300">
-                                        {event.title}
-                                    </h3>
-                                    <button
-                                        onClick={toggleFavorite}
-                                        className="flex-shrink-0 text-gray-500 hover:text-pink-400 transition-all duration-300 pt-0.5 hover:scale-110"
-                                    >
-                                        <svg
-                                            className={`w-4 h-4 ${isFavorite ? 'fill-pink-500 text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]' : 'text-gray-500'}`}
-                                            fill={isFavorite ? 'currentColor' : 'none'}
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <h3 className="text-[13px] font-bold text-white leading-tight line-clamp-3 group-hover:text-blue-100 transition-all duration-300">
+                                            {event.title}
+                                        </h3>
+                                        <button
+                                            onClick={toggleFavorite}
+                                            className="flex-shrink-0 text-gray-500 hover:text-pink-400 transition-all duration-300 pt-0.5 hover:scale-110"
                                         >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                        </svg>
-                                    </button>
+                                            <svg
+                                                className={`w-4 h-4 ${isFavorite ? 'fill-pink-500 text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]' : 'text-gray-500'}`}
+                                                fill={isFavorite ? 'currentColor' : 'none'}
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* 2. Info Row: Categories & Time */}
-                        <div className="flex items-center justify-between relative" style={{ overflowX: 'visible', overflowY: 'visible', minHeight: '28px' }}>
-                            <motion.div
-                                className="flex items-center gap-2 flex-nowrap flex-1 -ml-1"
-                                animate={{ opacity: isCountdownHovered ? 0 : 1 }}
-                                transition={{ duration: 0.25, ease: "easeOut" }}
-                                style={{ pointerEvents: isCountdownHovered ? 'none' : 'auto' }}
-                            >
-                                {event.categories && event.categories.length > 0 ? (
-                                    event.categories.slice(0, 2).map((cat, idx) => {
-                                        const colorObj = getCategoryColor(cat) as { text: string; border: string; bg: string };
+                            {/* 2. Info Row: Categories & Time */}
+                            <div className="flex items-center justify-between relative" style={{ overflowX: 'visible', overflowY: 'visible', minHeight: '28px' }}>
+                                <motion.div
+                                    className="flex items-center gap-2 flex-nowrap flex-1 -ml-1"
+                                    animate={{ opacity: isCountdownHovered ? 0 : 1 }}
+                                    transition={{ duration: 0.25, ease: "easeOut" }}
+                                    style={{ pointerEvents: isCountdownHovered ? 'none' : 'auto' }}
+                                >
+                                    {event.categories && event.categories.length > 0 ? (
+                                        event.categories.slice(0, 2).map((cat, idx) => {
+                                            const colorObj = getCategoryColor(cat) as { text: string; border: string; bg: string };
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCategoryClick?.(cat); }}
+                                                    style={{ color: colorObj.text, borderColor: colorObj.border, backgroundColor: colorObj.bg }}
+                                                    className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
+                                                >
+                                                    {cat}
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCategoryClick?.(primaryCategory); }}
+                                            style={{ color: getCategoryColor(primaryCategory).text, borderColor: getCategoryColor(primaryCategory).border, backgroundColor: getCategoryColor(primaryCategory).bg }}
+                                            className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
+                                        >
+                                            {primaryCategory}
+                                        </div>
+                                    )}
+                                </motion.div>
+
+                                {/* Countdown Timer */}
+                                <div
+                                    className="absolute right-0 z-10 flex items-center"
+                                    style={{ top: 0, bottom: 0 }}
+                                    onMouseEnter={() => setIsCountdownHovered(true)}
+                                    onMouseLeave={() => setIsCountdownHovered(false)}
+                                >
+                                    <div className="absolute opacity-0 pointer-events-none" style={{ visibility: 'hidden' }}>
+                                        <span ref={countdownShortRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">{timeRemaining}</span>
+                                        <span ref={countdownFullRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">{fullTimeRemaining || getFullTimeRemaining(endDate)}</span>
+                                    </div>
+
+                                    <motion.div
+                                        className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-0 h-5 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap overflow-hidden inline-flex items-center"
+                                        style={{ lineHeight: 'normal' }}
+                                        animate={{ width: countdownWidth === 'auto' ? 'auto' : `${countdownWidth}px` }}
+                                        transition={{ duration: 0.2, ease: "easeOut" }}
+                                    >
+                                        <AnimatePresence mode="wait">
+                                            {!isCountdownHovered ? (
+                                                <motion.span
+                                                    key="short"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    transition={{ duration: 0.15, ease: "easeOut" }}
+                                                    className="inline-block"
+                                                >
+                                                    {timeRemaining}
+                                                </motion.span>
+                                            ) : (
+                                                <motion.span
+                                                    key="full"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    transition={{ duration: 0.15, ease: "easeOut" }}
+                                                    className="inline-block whitespace-nowrap"
+                                                >
+                                                    {fullTimeRemaining}
+                                                </motion.span>
+                                            )}
+                                        </AnimatePresence>
+                                    </motion.div>
+                                </div>
+                            </div>
+
+                            {/* Wrapper to push content to bottom */}
+                            <div className="flex-1 min-h-0 flex flex-col justify-end gap-2.5">
+                                {/* 4. Body: Grouped Binary Outcomes List */}
+                                <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent -mx-2 px-2 space-y-1.5 max-h-[60px]">
+                                    {outcomes.map((outcome, idx) => {
+                                        const probability = outcome.probability ?? 0;
+                                        const percentage = probability > 1 ? probability : Math.round(probability * 100);
+
                                         return (
-                                            <div
-                                                key={idx}
-                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCategoryClick?.(cat); }}
-                                                style={{ color: colorObj.text, borderColor: colorObj.border, backgroundColor: colorObj.bg }}
-                                                className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
-                                            >
-                                                {cat}
+                                            <div key={outcome.id || idx} className="flex items-center gap-2">
+                                                {/* Outcome Name */}
+                                                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                    <span className="text-gray-300 text-xs font-medium truncate group-hover/card:text-white transition-colors">
+                                                        {outcome.name}
+                                                    </span>
+                                                    <span className="text-gray-400 text-xs font-bold whitespace-nowrap">
+                                                        {percentage}%
+                                                    </span>
+                                                </div>
+
+                                                {/* Buttons Container */}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <motion.button
+                                                        whileHover="hover"
+                                                        initial="initial"
+                                                        onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'YES')}
+                                                        className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-emerald-500/30 group/btn"
+                                                        style={{ backgroundColor: greenHex }}
+                                                    >
+                                                        <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">Yes</span>
+                                                        <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{percentage}%</span>
+                                                    </motion.button>
+
+                                                    <motion.button
+                                                        whileHover="hover"
+                                                        initial="initial"
+                                                        onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'NO')}
+                                                        className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-red-500/30 group/btn"
+                                                        style={{ backgroundColor: redHex }}
+                                                    >
+                                                        <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">No</span>
+                                                        <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{100 - percentage}%</span>
+                                                    </motion.button>
+                                                </div>
                                             </div>
                                         );
-                                    })
-                                ) : (
-                                    <div
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCategoryClick?.(primaryCategory); }}
-                                        style={{ color: getCategoryColor(primaryCategory).text, borderColor: getCategoryColor(primaryCategory).border, backgroundColor: getCategoryColor(primaryCategory).bg }}
-                                        className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
-                                    >
-                                        {primaryCategory}
+                                    })}
+                                </div>
+
+                                {/* 3. Stats Row */}
+                                <div className="flex items-center justify-between text-white/60 pt-0.5">
+                                    <div className="flex items-center justify-between flex-1 pr-1">
+                                        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                            </svg>
+                                            {volume}
+                                        </span>
+                                        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                            </svg>
+                                            0
+                                        </span>
                                     </div>
-                                )}
-                            </motion.div>
-
-                            {/* Countdown Timer */}
-                            <div
-                                className="absolute right-0 z-10 flex items-center"
-                                style={{ top: 0, bottom: 0 }}
-                                onMouseEnter={() => setIsCountdownHovered(true)}
-                                onMouseLeave={() => setIsCountdownHovered(false)}
-                            >
-                                <div className="absolute opacity-0 pointer-events-none" style={{ visibility: 'hidden' }}>
-                                    <span ref={countdownShortRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">{timeRemaining}</span>
-                                    <span ref={countdownFullRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">{fullTimeRemaining || getFullTimeRemaining(endDate)}</span>
-                                </div>
-
-                                <motion.div
-                                    className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-0 h-5 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap overflow-hidden inline-flex items-center"
-                                    style={{ lineHeight: 'normal' }}
-                                    animate={{ width: countdownWidth === 'auto' ? 'auto' : `${countdownWidth}px` }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                >
-                                    <AnimatePresence mode="wait">
-                                        {!isCountdownHovered ? (
-                                            <motion.span
-                                                key="short"
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                transition={{ duration: 0.15, ease: "easeOut" }}
-                                                className="inline-block"
-                                            >
-                                                {timeRemaining}
-                                            </motion.span>
-                                        ) : (
-                                            <motion.span
-                                                key="full"
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                transition={{ duration: 0.15, ease: "easeOut" }}
-                                                className="inline-block whitespace-nowrap"
-                                            >
-                                                {fullTimeRemaining}
-                                            </motion.span>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            </div>
-                        </div>
-
-                        {/* Wrapper to push content to bottom */}
-                        <div className="flex-1 min-h-0 flex flex-col justify-end gap-2.5">
-                            {/* 4. Body: Grouped Binary Outcomes List */}
-                            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent -mx-2 px-2 space-y-1.5 max-h-[60px]">
-                                {outcomes.map((outcome, idx) => {
-                                    const probability = outcome.probability ?? 0;
-                                    const percentage = probability > 1 ? probability : Math.round(probability * 100);
-
-                                    return (
-                                        <div key={outcome.id || idx} className="flex items-center gap-2">
-                                            {/* Outcome Name */}
-                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                                <span className="text-gray-300 text-xs font-medium truncate group-hover/card:text-white transition-colors">
-                                                    {outcome.name}
-                                                </span>
-                                                <span className="text-gray-400 text-xs font-bold whitespace-nowrap">
-                                                    {percentage}%
-                                                </span>
-                                            </div>
-
-                                            {/* Buttons Container */}
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                <motion.button
-                                                    whileHover="hover"
-                                                    initial="initial"
-                                                    onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'YES')}
-                                                    className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-emerald-500/30 group/btn"
-                                                    style={{ backgroundColor: greenHex }}
-                                                >
-                                                    <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">Yes</span>
-                                                    <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{percentage}%</span>
-                                                </motion.button>
-
-                                                <motion.button
-                                                    whileHover="hover"
-                                                    initial="initial"
-                                                    onClick={(e) => handleSubBetClick(e, outcome.id, outcome.name, 'NO')}
-                                                    className="relative w-12 h-7 rounded-lg font-bold text-xs overflow-hidden shadow-sm hover:shadow-md transition-all border border-red-500/30 group/btn"
-                                                    style={{ backgroundColor: redHex }}
-                                                >
-                                                    <span className="absolute inset-0 flex items-center justify-center text-white transition-opacity duration-200 group-hover/btn:opacity-0">No</span>
-                                                    <span className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100">{100 - percentage}%</span>
-                                                </motion.button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* 3. Stats Row */}
-                            <div className="flex items-center justify-between text-white/60 pt-0.5">
-                                <div className="flex items-center justify-between flex-1 pr-1">
-                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                        </svg>
-                                        {volume}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                        </svg>
-                                        0
-                                    </span>
                                 </div>
                             </div>
-                        </div>
-                    </motion.div>
-                </Link>
+                        </motion.div>
+                    </Link>
+                </motion.div>
 
-                {/* Buy Interface - EventCard2 Style */}
-                <div className="w-1/2 flex-shrink-0">
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: showBuyInterface ? 1 : 0 }}
+                {/* Buy Interface - Polymarket style */}
+                <motion.div
+                    className="absolute inset-0 w-full h-full z-10"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{
+                        opacity: showBuyInterface ? 1 : 0,
+                        x: showBuyInterface ? 0 : 20,
+                        pointerEvents: showBuyInterface ? 'auto' : 'none'
+                    }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <div
                         style={{ backgroundColor: 'var(--surface)' }}
-                        className="border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-3 pb-3 h-[220px] w-full flex flex-col gap-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] transition-all duration-300 relative overflow-hidden"
+                        className="border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-3 pb-3 h-[220px] w-full flex flex-col gap-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] transition-all duration-200 relative overflow-hidden"
                     >
                         {/* Close button */}
                         <button
@@ -635,8 +648,8 @@ export function GroupedBinaryEventCard({
                             </span>
                         </button>
 
-                    </motion.div>
-                </div>
+                    </div>
+                </motion.div>
             </motion.div>
         </div>
     );

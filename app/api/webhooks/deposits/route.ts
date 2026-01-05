@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAlchemySignature, AlchemyWebhookPayload } from '@/lib/alchemy-webhook';
 import { ethers } from 'ethers';
 import { Prisma } from '@prisma/client';
+import { redis } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 
@@ -156,6 +157,38 @@ export async function POST(req: NextRequest) {
                         isRead: false
                     }
                 });
+
+                // Broadcast deposit via Redis Pub/Sub
+                try {
+                    const message = JSON.stringify({
+                        type: 'transaction',
+                        userId: depositAddress.userId,
+                        payload: {
+                            id: activity.hash, // Using txHash as ID for UI until fetch refresh
+                            type: 'Deposit',
+                            amount: usdcAmount,
+                            currency: 'USDC',
+                            status: 'COMPLETED',
+                            createdAt: new Date().toISOString()
+                        }
+                    });
+
+                    const notification = JSON.stringify({
+                        type: 'notification',
+                        userId: depositAddress.userId,
+                        payload: {
+                            userId: depositAddress.userId,
+                            type: 'DEPOSIT_SUCCESS',
+                            message: `Deposit of ${usdcAmount} USDC successfully processed.`,
+                            resourceId: activity.hash
+                        }
+                    });
+
+                    await redis.publish('user-updates', message);
+                    await redis.publish('user-updates', notification);
+                } catch (redisErr) {
+                    console.error('[Webhook] Failed to publish Redis update:', redisErr);
+                }
             });
 
             processedCount++;

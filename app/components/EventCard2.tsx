@@ -993,784 +993,945 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   };
 
   return (
-    <div className="relative w-full pt-2 pb-6 -mb-6" style={{ overflowX: 'hidden' }}>
+    <div className="relative w-full pt-2 pb-6 -mb-6" style={{ overflow: 'visible' }}>
       <motion.div
-        initial={{ opacity: 0, y: 20, x: '0%' }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{
           opacity: 1,
           y: 0,
-          x: showBuyInterface ? '-50%' : '0%',
         }}
         transition={{
-          opacity: { duration: 0.4, delay: index * 0.08, ease: "easeOut" },
-          y: { duration: 0.4, delay: index * 0.08, ease: "easeOut" },
-          x: { type: 'spring', damping: 30, stiffness: 500, duration: 0.3 }
+          opacity: { duration: 0.2, delay: index * 0.05, ease: "easeOut" },
+          y: { duration: 0.2, delay: index * 0.05, ease: "easeOut" }
         }}
-        className="relative flex w-[200%]"
+        className="relative w-full h-[220px]"
         style={{
           willChange: 'transform',
           transform: 'translateZ(0)'
         }}
       >
         {/* Normal Card View */}
-        <Link
+        <motion.div
           key={event.id}
-          href={`/event/${event.id}`}
-          scroll={false}
-          onClick={() => {
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('scrollPos', window.scrollY.toString());
-            }
+          className="absolute inset-0 w-full h-full"
+          animate={{
+            opacity: showBuyInterface ? 0 : 1,
+            pointerEvents: showBuyInterface ? 'none' : 'auto',
+            x: showBuyInterface ? -20 : 0
           }}
-          className="w-1/2 flex-shrink-0"
-          style={{ overflow: 'visible' }}
+          transition={{ duration: 0.2 }}
         >
-          <motion.div
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.2, delay: 0, ease: "easeOut" }}
-            style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
-            className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-300 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] relative ${isEnded ? 'opacity-50' : ''
-              }`}
+          <Link
+            href={`/event/${event.id}`}
+            scroll={false}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('scrollPos', window.scrollY.toString());
+              }
+            }}
+            className="w-full h-full block"
+            style={{ overflow: 'visible' }}
           >
-            {/* 1. Header: Image & Title */}
-            <div className="flex items-start gap-2.5">
-              <div className="flex-shrink-0 relative">
-                {event.imageUrl ? (
-                  <img
-                    src={event.imageUrl}
-                    alt={event.title}
-                    className="w-12 h-12 sm:w-12 sm:h-12 rounded-lg object-cover border border-blue-400/20 group-hover:border-blue-400/40 transition-all duration-300 shadow-md"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
-                    }}
-                  />
-                ) : null}
-                <div
-                  className={`w-12 h-12 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-sm font-bold text-blue-300 transition-all duration-300 shadow-inner ${event.imageUrl ? 'hidden' : ''
-                    }`}
-                >
-                  {event.categories && event.categories.length > 0
-                    ? event.categories[0][0]
-                    : event.category
-                      ? event.category[0]
-                      : '?'}
-                </div>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start gap-2">
-                  <h3 className="text-[13px] font-bold text-white leading-tight line-clamp-3 group-hover:text-blue-100 transition-all duration-300">
-                    {event.title}
-                  </h3>
-                  <button
-                    onClick={toggleFavorite}
-                    className="flex-shrink-0 text-gray-500 hover:text-pink-400 transition-all duration-300 pt-0.5 hover:scale-110"
+            <motion.div
+              transition={{ duration: 0.15, delay: 0, ease: "easeOut" }}
+              style={{ backgroundColor: 'var(--surface)', overflow: 'visible' }}
+              className={`group border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-4 pb-4 transition-colors transition-shadow duration-200 flex flex-col h-[220px] w-full gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] relative ${isEnded ? 'opacity-50' : ''
+                }`}
+            >
+              {/* 1. Header: Image & Title */}
+              <div className="flex items-start gap-2.5">
+                <div className="flex-shrink-0 relative">
+                  {event.imageUrl ? (
+                    <img
+                      src={event.imageUrl}
+                      alt={event.title}
+                      className="w-12 h-12 sm:w-12 sm:h-12 rounded-lg object-cover border border-blue-400/20 group-hover:border-blue-400/40 transition-all duration-300 shadow-md"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className={`w-12 h-12 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-sm font-bold text-blue-300 transition-all duration-300 shadow-inner ${event.imageUrl ? 'hidden' : ''
+                      }`}
                   >
-                    <svg
-                      className={`w-4 h-4 ${isFavorite ? 'fill-pink-500 text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]' : 'text-gray-500'}`}
-                      fill={isFavorite ? 'currentColor' : 'none'}
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                    {event.categories && event.categories.length > 0
+                      ? event.categories[0][0]
+                      : event.category
+                        ? event.category[0]
+                        : '?'}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="text-[13px] font-bold text-white leading-tight line-clamp-3 group-hover:text-blue-100 transition-all duration-300">
+                      {event.title}
+                    </h3>
+                    <button
+                      onClick={toggleFavorite}
+                      className="flex-shrink-0 text-gray-500 hover:text-pink-400 transition-all duration-300 pt-0.5 hover:scale-110"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className={`w-4 h-4 ${isFavorite ? 'fill-pink-500 text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]' : 'text-gray-500'}`}
+                        fill={isFavorite ? 'currentColor' : 'none'}
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* 2. Info Row: Categories & Time */}
-            <div className="flex items-center justify-between relative" style={{ overflowX: 'visible', overflowY: 'visible', minHeight: '28px' }}>
-              <motion.div
-                className="flex items-center gap-2 flex-nowrap flex-1 -ml-1"
-                animate={{
-                  opacity: isCountdownHovered ? 0 : 1,
-                }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                style={{
-                  pointerEvents: isCountdownHovered ? 'none' : 'auto',
-                }}
-              >
-                {event.categories && event.categories.length > 0 ? (
-                  // Show up to 2 categories with color-coding
-                  event.categories.slice(0, 2).map((cat, idx) => {
-                    // Use inline styles to ensure colors are applied (bypasses any CSS conflicts)
-                    const colorObj = getCategoryColor(cat) as { text: string; border: string; bg: string };
-                    // Debug: log category and colors in development
-                    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-                      console.log('[EventCard2] Category:', cat, 'Colors:', colorObj);
-                    }
-                    return (
-                      <div
-                        key={idx}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (onCategoryClick) {
-                            onCategoryClick(cat);
-                          }
-                        }}
-                        style={{
-                          color: colorObj.text,
-                          borderColor: colorObj.border,
-                          backgroundColor: colorObj.bg,
-                        }}
-                        className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
-                      >
-                        {cat}
-                      </div>
-                    );
-                  })
-                ) : event.category ? (
-                  // Fallback to single category if categories array not available
-                  (() => {
-                    const colorObj = getCategoryColor(event.category) as { text: string; border: string; bg: string };
-                    return (
-                      <div
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (onCategoryClick) {
-                            onCategoryClick(event.category);
-                          }
-                        }}
-                        style={{
-                          color: colorObj.text,
-                          borderColor: colorObj.border,
-                          backgroundColor: colorObj.bg,
-                        }}
-                        className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
-                      >
-                        {event.category}
-                      </div>
-                    );
-                  })()
-                ) : null}
-              </motion.div>
-              <div
-                className="absolute right-0 z-10 flex items-center"
-                style={{ top: 0, bottom: 0 }}
-                onMouseEnter={() => setIsCountdownHovered(true)}
-                onMouseLeave={() => setIsCountdownHovered(false)}
-              >
-                {/* Hidden spans to measure widths */}
-                <div className="absolute opacity-0 pointer-events-none" style={{ visibility: 'hidden' }}>
-                  <span ref={countdownShortRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
-                    {getTimeRemaining(new Date(event.resolutionDate))}
-                  </span>
-                  <span ref={countdownFullRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
-                    {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
-                  </span>
-                </div>
-
+              {/* 2. Info Row: Categories & Time */}
+              <div className="flex items-center justify-between relative" style={{ overflowX: 'visible', overflowY: 'visible', minHeight: '28px' }}>
                 <motion.div
-                  className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-0 h-5 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap overflow-hidden inline-flex items-center"
-                  style={{
-                    lineHeight: 'normal',
-                  }}
+                  className="flex items-center gap-2 flex-nowrap flex-1 -ml-1"
                   animate={{
-                    width: countdownWidth === 'auto' ? 'auto' : `${countdownWidth}px`,
+                    opacity: isCountdownHovered ? 0 : 1,
                   }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  style={{
+                    pointerEvents: isCountdownHovered ? 'none' : 'auto',
+                  }}
                 >
-                  <AnimatePresence mode="wait">
-                    {!isCountdownHovered ? (
-                      <motion.span
-                        key="short-time"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="inline-block"
-                      >
-                        {getTimeRemaining(new Date(event.resolutionDate))}
-                      </motion.span>
-                    ) : (
-                      <motion.span
-                        key="full-time"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="inline-block whitespace-nowrap"
-                      >
-                        {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              </div>
-            </div>
-
-            {/* 4. Outcomes / Buttons */}
-            {isMultiOutcomeEvent(event.type) && (liveOutcomes || event.outcomes) ? (
-              <div className="flex flex-col gap-2.5 mt-3">
-                {event.type === 'GROUPED_BINARY' ? (
-                  // Vertical list for Grouped Binary
-                  (() => {
-                    // Helper function to convert hex to rgba for opacity (same as binary card)
-                    const hexToRgba = (hex: string, opacity: number) => {
-                      const r = parseInt(hex.slice(1, 3), 16);
-                      const g = parseInt(hex.slice(3, 5), 16);
-                      const b = parseInt(hex.slice(5, 7), 16);
-                      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-                    };
-
-                    return (
-                      <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent space-y-1.5 max-h-[60px]">
-                        {(liveOutcomes || event.outcomes || []).map((outcome, idx) => {
-                          const probability = outcome.probability ?? 0;
-                          const percentage = probability > 1 ? probability : Math.round(probability * 100);
-
-                          return (
-                            <div key={outcome.id || idx} className="flex items-center gap-2 pr-1">
-                              {/* Outcome Name */}
-                              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                <span className="text-gray-300 text-xs font-medium truncate group-hover/card:text-white transition-colors">
-                                  {outcome.name}
-                                </span>
-                                <span className="text-gray-400 text-xs font-bold whitespace-nowrap">
-                                  {percentage}%
-                                </span>
-                              </div>
-
-                              {/* Buttons Container - matching binary card style with hover effects */}
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <motion.button
-                                  whileHover={{ scale: 1.02, backgroundColor: hexToRgba('#10b981', 0.2) }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={(e) => handleGroupedTradeClick(e, outcome.id, outcome.name, 'YES')}
-                                  className="group/btn relative w-12 h-6 rounded-lg font-bold text-[10px] overflow-hidden transition-all duration-300 flex items-center justify-center"
-                                  style={{ backgroundColor: hexToRgba('#10b981', 0.1) }}
-                                >
-                                  <span
-                                    className="relative z-10 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
-                                    style={{ color: '#10b981' }}
-                                  >Yes</span>
-                                  <span
-                                    className="absolute z-10 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
-                                    style={{ color: '#10b981' }}
-                                  >{percentage}%</span>
-                                </motion.button>
-
-                                <motion.button
-                                  whileHover={{ scale: 1.02, backgroundColor: hexToRgba('#f43f5e', 0.2) }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={(e) => handleGroupedTradeClick(e, outcome.id, outcome.name, 'NO')}
-                                  className="group/btn relative w-12 h-6 rounded-lg font-bold text-[10px] overflow-hidden transition-all duration-300 flex items-center justify-center"
-                                  style={{ backgroundColor: hexToRgba('#f43f5e', 0.1) }}
-                                >
-                                  <span
-                                    className="relative z-10 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
-                                    style={{ color: '#f43f5e' }}
-                                  >No</span>
-                                  <span
-                                    className="absolute z-10 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
-                                    style={{ color: '#f43f5e' }}
-                                  >{100 - percentage}%</span>
-                                </motion.button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()
-                ) : (
-                  (() => {
-                    // Use live outcomes for constant real-time correctness
-                    const outcomesForCalculation = liveOutcomes || event.outcomes;
-
-                    // Get all outcomes (unfiltered) to preserve original indices for color matching
-                    const allOutcomesUnfiltered = outcomesForCalculation || [];
-
-                    // Get all valid outcomes with probabilities - shared between slider and buttons
-                    // Include outcomes with 0% probability - they're still valid choices
-                    const allOutcomes = useMemo(() => {
-                      return allOutcomesUnfiltered.filter((outcome) => {
-                        const probValue = outcome?.probability;
-                        // Only filter out truly invalid outcomes (null/undefined/negative)
-                        // Keep 0% outcomes as they're valid choices users can bet on
-                        if (probValue == null || probValue < 0) return false;
-                        return true;
-                      });
-                    }, [allOutcomesUnfiltered]);
-
-                    // Helper function to get outcome color - use outcome.color if available, otherwise use centralized system
-                    // Uses original index from unfiltered array to match event page color assignment
-                    const getOutcomeColorForIndex = (outcome: { id: string; color?: string }) => {
-                      // If outcome has a color property, use it (from API/centralized system)
-                      if (outcome?.color) {
-                        return outcome.color;
+                  {event.categories && event.categories.length > 0 ? (
+                    // Show up to 2 categories with color-coding
+                    event.categories.slice(0, 2).map((cat, idx) => {
+                      // Use inline styles to ensure colors are applied (bypasses any CSS conflicts)
+                      const colorObj = getCategoryColor(cat) as { text: string; border: string; bg: string };
+                      // Debug: log category and colors in development
+                      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+                        console.log('[EventCard2] Category:', cat, 'Colors:', colorObj);
                       }
-                      // Find original index in unfiltered array to match event page color assignment
-                      const originalIdx = allOutcomesUnfiltered.findIndex(o => o.id === outcome.id);
-                      // Use centralized color system with original index
-                      return getOutcomeColor(originalIdx >= 0 ? originalIdx : 0);
-                    };
+                      return (
+                        <div
+                          key={idx}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onCategoryClick) {
+                              onCategoryClick(cat);
+                            }
+                          }}
+                          style={{
+                            color: colorObj.text,
+                            borderColor: colorObj.border,
+                            backgroundColor: colorObj.bg,
+                          }}
+                          className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
+                        >
+                          {cat}
+                        </div>
+                      );
+                    })
+                  ) : event.category ? (
+                    // Fallback to single category if categories array not available
+                    (() => {
+                      const colorObj = getCategoryColor(event.category) as { text: string; border: string; bg: string };
+                      return (
+                        <div
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onCategoryClick) {
+                              onCategoryClick(event.category);
+                            }
+                          }}
+                          style={{
+                            color: colorObj.text,
+                            borderColor: colorObj.border,
+                            backgroundColor: colorObj.bg,
+                          }}
+                          className="inline-flex items-center rounded-full border text-[10px] h-5 px-2 py-0 uppercase tracking-wide font-bold cursor-pointer hover:scale-105 transition-transform duration-200"
+                        >
+                          {event.category}
+                        </div>
+                      );
+                    })()
+                  ) : null}
+                </motion.div>
+                <div
+                  className="absolute right-0 z-10 flex items-center"
+                  style={{ top: 0, bottom: 0 }}
+                  onMouseEnter={() => setIsCountdownHovered(true)}
+                  onMouseLeave={() => setIsCountdownHovered(false)}
+                >
+                  {/* Hidden spans to measure widths */}
+                  <div className="absolute opacity-0 pointer-events-none" style={{ visibility: 'hidden' }}>
+                    <span ref={countdownShortRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
+                      {getTimeRemaining(new Date(event.resolutionDate))}
+                    </span>
+                    <span ref={countdownFullRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
+                      {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
+                    </span>
+                  </div>
 
-                    // Helper function to convert hex to rgba for opacity
-                    const hexToRgba = (hex: string, opacity: number) => {
-                      const r = parseInt(hex.slice(1, 3), 16);
-                      const g = parseInt(hex.slice(3, 5), 16);
-                      const b = parseInt(hex.slice(5, 7), 16);
-                      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-                    };
+                  <motion.div
+                    className="text-[10px] font-mono font-bold text-blue-300 bg-blue-500/10 px-2 py-0 h-5 rounded-lg border border-blue-400/20 shadow-inner cursor-pointer whitespace-nowrap overflow-hidden inline-flex items-center"
+                    style={{
+                      lineHeight: 'normal',
+                    }}
+                    animate={{
+                      width: countdownWidth === 'auto' ? 'auto' : `${countdownWidth}px`,
+                    }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                  >
+                    <AnimatePresence mode="wait">
+                      {!isCountdownHovered ? (
+                        <motion.span
+                          key="short-time"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                          className="inline-block"
+                        >
+                          {getTimeRemaining(new Date(event.resolutionDate))}
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="full-time"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                          className="inline-block whitespace-nowrap"
+                        >
+                          {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                </div>
+              </div>
 
-                    // Helper function to get muted text color from hex (same muting as slider)
-                    const getTextColorFromHex = (hex: string) => {
-                      // Use the same muteColor function with 0.4 desaturation as the slider
-                      return muteColor(hex, 0.4);
-                    };
+              {/* 4. Outcomes / Buttons */}
+              {isMultiOutcomeEvent(event.type) && (liveOutcomes || event.outcomes) ? (
+                <div className="flex flex-col gap-2.5 mt-3">
+                  {event.type === 'GROUPED_BINARY' ? (
+                    // Vertical list for Grouped Binary
+                    (() => {
+                      // Helper function to convert hex to rgba for opacity (same as binary card)
+                      const hexToRgba = (hex: string, opacity: number) => {
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                      };
 
-                    // Pre-calculate ALL segment positions BEFORE rendering - ensures no recalculation
-                    // Use stable outcomes to prevent recalculation during animation
-                    const segmentData = useMemo(() => {
-                      // Calculate segment data
-                      const calculated = allOutcomes.map((outcome, idx) => {
-                        const probValue = outcome.probability ?? 0;
-                        const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                      return (
+                        <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent space-y-1.5 max-h-[60px]">
+                          {(liveOutcomes || event.outcomes || []).map((outcome, idx) => {
+                            const probability = outcome.probability ?? 0;
+                            const percentage = probability > 1 ? probability : Math.round(probability * 100);
 
-                        // Calculate color inside useMemo
-                        const colorHex = outcome?.color
-                          ? outcome.color
-                          : getOutcomeColor(allOutcomesUnfiltered.findIndex(o => o.id === outcome.id) >= 0
-                            ? allOutcomesUnfiltered.findIndex(o => o.id === outcome.id)
-                            : 0);
-
-                        const leftPosition = allOutcomes.slice(0, idx).reduce((sum, o) => {
-                          const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
-                          return sum + p;
-                        }, 0);
-
-                        const segmentDelay = idx * 0.1;
-                        const segmentEnd = leftPosition + probability;
-
-                        // Calculate ALL values as fixed strings - never recalculate
-                        return {
-                          outcome,
-                          idx,
-                          probability,
-                          colorHex,
-                          leftPosition,
-                          segmentEnd,
-                          segmentDelay,
-                          segmentLeft: `${leftPosition}%`,
-                          segmentWidth: `${probability}%`,
-                          clipPathInitial: 'polygon(0% 0%, 0% 0%, 0% 100%, 0% 100%)',
-                          clipPathFinal: `polygon(0% 0%, ${segmentEnd}% 0%, ${segmentEnd}% 100%, 0% 100%)`,
-                          tooltipPosition: leftPosition + (probability / 2)
-                        };
-                      });
-
-                      // Update the ref for current data but continue to return calculated for live updates
-                      segmentDataRef.current = calculated;
-
-                      return calculated;
-                    }, [allOutcomes, allOutcomesUnfiltered]);
-
-                    // Shared arrow animation configuration for perfect sync
-                    const arrowTransition = {
-                      duration: 1.5,
-                      repeat: Infinity,
-                      ease: "easeInOut" as const
-                    };
-
-                    return (
-                      <>
-                        <div ref={sliderContainerRef} className="relative w-full">
-                          {/* Percentage numbers - hide when hovering */}
-                          {(() => {
-                            // Check if percentages should be shown
-                            const shouldShow = hoveredSegmentId === null;
-                            // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
-                            const skipAnimation = percentagesShownRef.current || hasEverHoveredRef.current;
-
-                            return segmentData.map(({ outcome, probability, tooltipPosition, segmentDelay, idx }) => {
-                              // Show percentage numbers only if not hovering and probability > 15%
-                              if (hoveredSegmentId !== null || probability <= 15) return null;
-
-                              return (
-                                <motion.div
-                                  key={`tooltip-${outcome.id}`}
-                                  initial={{ opacity: 0 }}
-                                  animate={{
-                                    opacity: probability > 0 ? 1 : 0
-                                  }}
-                                  transition={{
-                                    duration: 0.2,
-                                    ease: "easeOut"
-                                  }}
-                                  className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
-                                  style={{ left: `${tooltipPosition}%` }}
-                                >
-                                  <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
-                                    <AnimatedPercentage
-                                      value={probability}
-                                      delay={(index * 0.05) + 0.3 + segmentDelay}
-                                      duration={0.8}
-                                      skipAnimation={skipAnimation}
-                                    />
-                                  </span>
-                                </motion.div>
-                              );
-                            });
-                          })()}
-
-                          {/* Centered outcome name and percentage - shows when hovering any segment */}
-                          {hoveredSegmentId && (() => {
-                            const hoveredSegment = segmentData.find(s => s.outcome.id === hoveredSegmentId);
-                            if (!hoveredSegment) return null;
-
-                            // Position above the center of the hovered segment
                             return (
-                              <HoveredTextDisplay
-                                ref={hoveredTextRef}
-                                segmentCenter={hoveredSegment.tooltipPosition}
-                                containerRef={sliderContainerRef}
-                              >
-                                {hoveredSegment.outcome.name} {hoveredSegment.probability}%
-                              </HoveredTextDisplay>
+                              <div key={outcome.id || idx} className="flex items-center gap-2 pr-1">
+                                {/* Outcome Name */}
+                                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                  <span className="text-gray-300 text-xs font-medium truncate group-hover/card:text-white transition-colors">
+                                    {outcome.name}
+                                  </span>
+                                  <span className="text-gray-400 text-xs font-bold whitespace-nowrap">
+                                    {percentage}%
+                                  </span>
+                                </div>
+
+                                {/* Buttons Container - matching binary card style with hover effects */}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <motion.button
+                                    whileHover={{ backgroundColor: hexToRgba('#10b981', 0.2) }}
+                                    whileTap={{ opacity: 0.9 }}
+                                    onClick={(e) => handleGroupedTradeClick(e, outcome.id, outcome.name, 'YES')}
+                                    className="group/btn relative w-12 h-6 rounded-lg font-bold text-[10px] overflow-hidden transition-all duration-200 flex items-center justify-center"
+                                    style={{ backgroundColor: hexToRgba('#10b981', 0.1) }}
+                                  >
+                                    <span
+                                      className="relative z-10 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
+                                      style={{ color: '#10b981' }}
+                                    >Yes</span>
+                                    <span
+                                      className="absolute z-10 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                                      style={{ color: '#10b981' }}
+                                    >{percentage}%</span>
+                                  </motion.button>
+
+                                  <motion.button
+                                    whileHover={{ backgroundColor: hexToRgba('#f43f5e', 0.2) }}
+                                    whileTap={{ opacity: 0.9 }}
+                                    onClick={(e) => handleGroupedTradeClick(e, outcome.id, outcome.name, 'NO')}
+                                    className="group/btn relative w-12 h-6 rounded-lg font-bold text-[10px] overflow-hidden transition-all duration-300 flex items-center justify-center"
+                                    style={{ backgroundColor: hexToRgba('#f43f5e', 0.1) }}
+                                  >
+                                    <span
+                                      className="relative z-10 uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
+                                      style={{ color: '#f43f5e' }}
+                                    >No</span>
+                                    <span
+                                      className="absolute z-10 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                                      style={{ color: '#f43f5e' }}
+                                    >{100 - percentage}%</span>
+                                  </motion.button>
+                                </div>
+                              </div>
                             );
-                          })()}
+                          })}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    (() => {
+                      // Use live outcomes for constant real-time correctness
+                      const outcomesForCalculation = liveOutcomes || event.outcomes;
 
-                          {/* Slider with ALL outcomes */}
-                          <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500/30 group/slider">
-                            {/* Hover areas - positioned outside clipPath containers for accurate detection */}
-                            {segmentData.map(({ outcome, segmentLeft, segmentWidth, idx }) => {
-                              const isHovered = hoveredSegmentId === outcome.id;
-                              return (
-                                <div
-                                  key={`hover-${outcome.id}`}
-                                  className="absolute top-0 cursor-pointer"
-                                  style={{
-                                    left: segmentLeft,
-                                    width: segmentWidth,
-                                    height: '100%',
-                                    zIndex: isHovered ? 100 : idx + 50,
-                                    pointerEvents: 'auto',
-                                  }}
-                                  onMouseEnter={() => {
-                                    isHoveringSliderRef.current = true;
-                                    hasEverHoveredRef.current = true;
-                                    setHoveredSegmentId(outcome.id);
-                                  }}
-                                  onMouseLeave={() => {
-                                    isHoveringSliderRef.current = false;
-                                    setHoveredSegmentId(null);
-                                  }}
-                                />
-                              );
-                            })}
+                      // Get all outcomes (unfiltered) to preserve original indices for color matching
+                      const allOutcomesUnfiltered = outcomesForCalculation || [];
 
-                            {/* Visible segments with clipPath animations */}
-                            {segmentData.map(({ outcome, segmentLeft, segmentWidth, colorHex, clipPathInitial, clipPathFinal, segmentDelay, idx, probability }) => {
-                              const isHovered = hoveredSegmentId === outcome.id;
-                              const isAnyHovered = hoveredSegmentId !== null;
-                              const shouldTint = isAnyHovered && !isHovered;
-                              const isFirst = idx === 0;
-                              const isLast = idx === segmentData.length - 1;
-                              const roundedClasses = isFirst && isLast
-                                ? 'rounded-full'
-                                : isFirst
-                                  ? 'rounded-l-full'
-                                  : isLast
-                                    ? 'rounded-r-full'
-                                    : '';
+                      // Get all valid outcomes with probabilities - shared between slider and buttons
+                      // Include outcomes with 0% probability - they're still valid choices
+                      const allOutcomes = useMemo(() => {
+                        return allOutcomesUnfiltered.filter((outcome) => {
+                          const probValue = outcome?.probability;
+                          // Only filter out truly invalid outcomes (null/undefined/negative)
+                          // Keep 0% outcomes as they're valid choices users can bet on
+                          if (probValue == null || probValue < 0) return false;
+                          return true;
+                        });
+                      }, [allOutcomesUnfiltered]);
 
-                              // Always animate on first render - segmentData is locked after first calculation
-                              return (
-                                <motion.div
-                                  key={outcome.id}
-                                  initial={{ clipPath: clipPathInitial }}
-                                  animate={{
-                                    clipPath: clipPathFinal
-                                  }}
-                                  transition={{
-                                    duration: 0.8,
-                                    delay: (index * 0.05) + 0.3 + segmentDelay,
-                                    ease: [0.25, 0.1, 0.25, 1]
-                                  }}
-                                  className="absolute top-0 left-0 h-full overflow-visible segment-reveal pointer-events-none"
-                                  style={{
-                                    width: '100%',
-                                    willChange: 'clip-path',
-                                    zIndex: isHovered ? 60 : idx + 10,
-                                    transform: 'translateZ(0)', // Force GPU layer
-                                    backfaceVisibility: 'hidden', // Prevent flicker
-                                    // Set initial clip-path directly in style - applied immediately, before animation
-                                    clipPath: clipPathInitial
-                                  }}
-                                >
-                                  {/* Visible segment */}
+                      // Helper function to get outcome color - use outcome.color if available, otherwise use centralized system
+                      // Uses original index from unfiltered array to match event page color assignment
+                      const getOutcomeColorForIndex = (outcome: { id: string; color?: string }) => {
+                        // If outcome has a color property, use it (from API/centralized system)
+                        if (outcome?.color) {
+                          return outcome.color;
+                        }
+                        // Find original index in unfiltered array to match event page color assignment
+                        const originalIdx = allOutcomesUnfiltered.findIndex(o => o.id === outcome.id);
+                        // Use centralized color system with original index
+                        return getOutcomeColor(originalIdx >= 0 ? originalIdx : 0);
+                      };
+
+                      // Helper function to convert hex to rgba for opacity
+                      const hexToRgba = (hex: string, opacity: number) => {
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                      };
+
+                      // Helper function to get muted text color from hex (same muting as slider)
+                      const getTextColorFromHex = (hex: string) => {
+                        // Use the same muteColor function with 0.4 desaturation as the slider
+                        return muteColor(hex, 0.4);
+                      };
+
+                      // Pre-calculate ALL segment positions BEFORE rendering - ensures no recalculation
+                      // Use stable outcomes to prevent recalculation during animation
+                      const segmentData = useMemo(() => {
+                        // Calculate segment data
+                        const calculated = allOutcomes.map((outcome, idx) => {
+                          const probValue = outcome.probability ?? 0;
+                          const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+
+                          // Calculate color inside useMemo
+                          const colorHex = outcome?.color
+                            ? outcome.color
+                            : getOutcomeColor(allOutcomesUnfiltered.findIndex(o => o.id === outcome.id) >= 0
+                              ? allOutcomesUnfiltered.findIndex(o => o.id === outcome.id)
+                              : 0);
+
+                          const leftPosition = allOutcomes.slice(0, idx).reduce((sum, o) => {
+                            const p = Math.min(100, Math.max(0, Math.round((o.probability ?? 0) > 1 ? (o.probability ?? 0) : (o.probability ?? 0) * 100)));
+                            return sum + p;
+                          }, 0);
+
+                          const segmentDelay = idx * 0.1;
+                          const segmentEnd = leftPosition + probability;
+
+                          // Calculate ALL values as fixed strings - never recalculate
+                          return {
+                            outcome,
+                            idx,
+                            probability,
+                            colorHex,
+                            leftPosition,
+                            segmentEnd,
+                            segmentDelay,
+                            segmentLeft: `${leftPosition}%`,
+                            segmentWidth: `${probability}%`,
+                            clipPathInitial: 'polygon(0% 0%, 0% 0%, 0% 100%, 0% 100%)',
+                            clipPathFinal: `polygon(0% 0%, ${segmentEnd}% 0%, ${segmentEnd}% 100%, 0% 100%)`,
+                            tooltipPosition: leftPosition + (probability / 2)
+                          };
+                        });
+
+                        // Update the ref for current data but continue to return calculated for live updates
+                        segmentDataRef.current = calculated;
+
+                        return calculated;
+                      }, [allOutcomes, allOutcomesUnfiltered]);
+
+                      // Shared arrow animation configuration for perfect sync
+                      const arrowTransition = {
+                        duration: 1.5,
+                        repeat: Infinity,
+                        ease: "easeInOut" as const
+                      };
+
+                      return (
+                        <>
+                          <div ref={sliderContainerRef} className="relative w-full">
+                            {/* Percentage numbers - hide when hovering */}
+                            {(() => {
+                              // Check if percentages should be shown
+                              const shouldShow = hoveredSegmentId === null;
+                              // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
+                              const skipAnimation = percentagesShownRef.current || hasEverHoveredRef.current;
+
+                              return segmentData.map(({ outcome, probability, tooltipPosition, segmentDelay, idx }) => {
+                                // Show percentage numbers only if not hovering and probability > 15%
+                                if (hoveredSegmentId !== null || probability <= 15) return null;
+
+                                return (
                                   <motion.div
-                                    className={`absolute top-0 h-full origin-center ${roundedClasses}`}
+                                    key={`tooltip-${outcome.id}`}
+                                    initial={{ opacity: 0 }}
+                                    animate={{
+                                      opacity: probability > 0 ? 1 : 0
+                                    }}
+                                    transition={{
+                                      duration: 0.15,
+                                      ease: "easeOut"
+                                    }}
+                                    className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                                    style={{ left: `${tooltipPosition}%` }}
+                                  >
+                                    <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
+                                      <AnimatedPercentage
+                                        value={probability}
+                                        delay={(index * 0.05) + 0.3 + segmentDelay}
+                                        duration={0.8}
+                                        skipAnimation={skipAnimation}
+                                      />
+                                    </span>
+                                  </motion.div>
+                                );
+                              });
+                            })()}
+
+                            {/* Centered outcome name and percentage - shows when hovering any segment */}
+                            {hoveredSegmentId && (() => {
+                              const hoveredSegment = segmentData.find(s => s.outcome.id === hoveredSegmentId);
+                              if (!hoveredSegment) return null;
+
+                              // Position above the center of the hovered segment
+                              return (
+                                <HoveredTextDisplay
+                                  ref={hoveredTextRef}
+                                  segmentCenter={hoveredSegment.tooltipPosition}
+                                  containerRef={sliderContainerRef}
+                                >
+                                  {hoveredSegment.outcome.name} {hoveredSegment.probability}%
+                                </HoveredTextDisplay>
+                              );
+                            })()}
+
+                            {/* Slider with ALL outcomes */}
+                            <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-rose-500/30 group/slider">
+                              {/* Hover areas - positioned outside clipPath containers for accurate detection */}
+                              {segmentData.map(({ outcome, segmentLeft, segmentWidth, idx }) => {
+                                const isHovered = hoveredSegmentId === outcome.id;
+                                return (
+                                  <div
+                                    key={`hover-${outcome.id}`}
+                                    className="absolute top-0 cursor-pointer"
                                     style={{
                                       left: segmentLeft,
                                       width: segmentWidth,
-                                      position: 'absolute',
-                                      top: '0',
                                       height: '100%',
-                                      transformOrigin: 'center center',
-                                      backfaceVisibility: 'hidden',
+                                      zIndex: isHovered ? 100 : idx + 50,
+                                      pointerEvents: 'auto',
                                     }}
-                                    animate={{
-                                      scaleY: isHovered ? 1.8 : 1,
-                                      opacity: shouldTint ? 0.4 : 1,
-                                      backgroundColor: isHovered ? colorHex : muteColor(colorHex, 0.4),
+                                    onMouseEnter={() => {
+                                      isHoveringSliderRef.current = true;
+                                      hasEverHoveredRef.current = true;
+                                      setHoveredSegmentId(outcome.id);
                                     }}
-                                    transition={{
-                                      duration: 0.2,
-                                      ease: "easeOut"
+                                    onMouseLeave={() => {
+                                      isHoveringSliderRef.current = false;
+                                      setHoveredSegmentId(null);
                                     }}
                                   />
-                                </motion.div>
-                              );
-                            })}
+                                );
+                              })}
+
+                              {/* Visible segments with clipPath animations */}
+                              {segmentData.map(({ outcome, segmentLeft, segmentWidth, colorHex, clipPathInitial, clipPathFinal, segmentDelay, idx, probability }) => {
+                                const isHovered = hoveredSegmentId === outcome.id;
+                                const isAnyHovered = hoveredSegmentId !== null;
+                                const shouldTint = isAnyHovered && !isHovered;
+                                const isFirst = idx === 0;
+                                const isLast = idx === segmentData.length - 1;
+                                const roundedClasses = isFirst && isLast
+                                  ? 'rounded-full'
+                                  : isFirst
+                                    ? 'rounded-l-full'
+                                    : isLast
+                                      ? 'rounded-r-full'
+                                      : '';
+
+                                // Always animate on first render - segmentData is locked after first calculation
+                                return (
+                                  <motion.div
+                                    key={outcome.id}
+                                    initial={{ clipPath: clipPathInitial }}
+                                    animate={{
+                                      clipPath: clipPathFinal
+                                    }}
+                                    transition={{
+                                      duration: 0.4,
+                                      delay: (index * 0.03) + 0.1 + segmentDelay,
+                                      ease: [0.25, 0.1, 0.25, 1]
+                                    }}
+                                    className="absolute top-0 left-0 h-full overflow-visible segment-reveal pointer-events-none"
+                                    style={{
+                                      width: '100%',
+                                      willChange: 'clip-path',
+                                      zIndex: isHovered ? 60 : idx + 10,
+                                      transform: 'translateZ(0)', // Force GPU layer
+                                      backfaceVisibility: 'hidden', // Prevent flicker
+                                      // Set initial clip-path directly in style - applied immediately, before animation
+                                      clipPath: clipPathInitial
+                                    }}
+                                  >
+                                    {/* Visible segment */}
+                                    <motion.div
+                                      className={`absolute top-0 h-full origin-center ${roundedClasses}`}
+                                      style={{
+                                        left: segmentLeft,
+                                        width: segmentWidth,
+                                        position: 'absolute',
+                                        top: '0',
+                                        height: '100%',
+                                        transformOrigin: 'center center',
+                                        backfaceVisibility: 'hidden',
+                                      }}
+                                      animate={{
+                                        scaleY: isHovered ? 1.8 : 1,
+                                        opacity: shouldTint ? 0.4 : 1,
+                                        backgroundColor: isHovered ? colorHex : muteColor(colorHex, 0.4),
+                                      }}
+                                      transition={{
+                                        duration: 0.2,
+                                        ease: "easeOut"
+                                      }}
+                                    />
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="relative min-h-[36px] overflow-visible">
-                          {/* Horizontal scrollable carousel */}
-                          <div
-                            ref={outcomesCarouselRef}
-                            className="flex items-center gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1"
-                            style={{
-                              WebkitOverflowScrolling: 'touch',
-                            }}
-                            onScroll={(e) => {
-                              const target = e.currentTarget;
-                              const isAtStart = target.scrollLeft <= 5;
-                              const isAtEnd = target.scrollWidth - target.scrollLeft <= target.clientWidth + 5;
+                          <div className="relative min-h-[36px] overflow-visible">
+                            {/* Horizontal scrollable carousel */}
+                            <div
+                              ref={outcomesCarouselRef}
+                              className="flex items-center gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1"
+                              style={{
+                                WebkitOverflowScrolling: 'touch',
+                              }}
+                              onScroll={(e) => {
+                                const target = e.currentTarget;
+                                const isAtStart = target.scrollLeft <= 5;
+                                const isAtEnd = target.scrollWidth - target.scrollLeft <= target.clientWidth + 5;
 
-                              // Hide arrows immediately when scrolling
-                              setShowRightArrow(false);
-                              setShowLeftArrow(false);
+                                // Hide arrows immediately when scrolling
+                                setShowRightArrow(false);
+                                setShowLeftArrow(false);
 
-                              // Clear existing timer
-                              if (scrollInactivityTimerRef.current) {
-                                clearTimeout(scrollInactivityTimerRef.current);
-                              }
+                                // Clear existing timer
+                                if (scrollInactivityTimerRef.current) {
+                                  clearTimeout(scrollInactivityTimerRef.current);
+                                }
 
-                              // Show arrows after 3 seconds of inactivity
-                              scrollInactivityTimerRef.current = setTimeout(() => {
-                                setShowRightArrow(!isAtEnd);
-                                setShowLeftArrow(!isAtStart);
-                              }, 3000);
-                            }}
-                          >
-                            {allOutcomes.map((outcome) => {
-                              if (!outcome) return null;
-                              const probValue = outcome.probability ?? 0;
-                              const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
-                              const colorHex = getOutcomeColorForIndex(outcome);
-                              const textColor = getTextColorFromHex(colorHex);
+                                // Show arrows after 3 seconds of inactivity
+                                scrollInactivityTimerRef.current = setTimeout(() => {
+                                  setShowRightArrow(!isAtEnd);
+                                  setShowLeftArrow(!isAtStart);
+                                }, 3000);
+                              }}
+                            >
+                              {allOutcomes.map((outcome) => {
+                                if (!outcome) return null;
+                                const probValue = outcome.probability ?? 0;
+                                const probability = Math.min(100, Math.max(0, Math.round(probValue > 1 ? probValue : probValue * 100)));
+                                const colorHex = getOutcomeColorForIndex(outcome);
+                                const textColor = getTextColorFromHex(colorHex);
 
-                              return (
-                                <motion.button
-                                  key={outcome.id}
-                                  onClick={(e) => handleMultipleTradeClick(e, outcome.id, outcome.name)}
-                                  className="group/btn relative flex-shrink-0 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
-                                  style={{
-                                    backgroundColor: hexToRgba(colorHex, 0.1),
-                                    ...(binaryButtonWidth ? { width: `${binaryButtonWidth}px` } : {}),
-                                  }}
-                                  whileHover={{ scale: 1.01 }}
-                                  whileTap={{ scale: 0.99 }}
-                                  onMouseEnter={(e) => {
-                                    isHoveringSliderRef.current = true;
-                                    e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
-                                    setHoveredSegmentId(outcome.id);
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    isHoveringSliderRef.current = false;
-                                    e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
-                                    setHoveredSegmentId(null);
-                                  }}
+                                return (
+                                  <motion.button
+                                    key={outcome.id}
+                                    onClick={(e) => handleMultipleTradeClick(e, outcome.id, outcome.name)}
+                                    className="group/btn relative flex-shrink-0 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
+                                    style={{
+                                      backgroundColor: hexToRgba(colorHex, 0.1),
+                                      ...(binaryButtonWidth ? { width: `${binaryButtonWidth}px` } : {}),
+                                    }}
+                                    whileHover={{ backgroundColor: hexToRgba(colorHex, 0.2) }}
+                                    whileTap={{ opacity: 0.9 }}
+                                    onMouseEnter={(e) => {
+                                      isHoveringSliderRef.current = true;
+                                      e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.2);
+                                      setHoveredSegmentId(outcome.id);
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      isHoveringSliderRef.current = false;
+                                      e.currentTarget.style.backgroundColor = hexToRgba(colorHex, 0.1);
+                                      setHoveredSegmentId(null);
+                                    }}
+                                  >
+                                    <span
+                                      className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 whitespace-nowrap truncate w-full text-center"
+                                      style={{ color: textColor }}
+                                    >
+                                      {outcome.name}
+                                    </span>
+                                    <span
+                                      className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 whitespace-nowrap"
+                                      style={{ color: textColor }}
+                                    >
+                                      {probability}%
+                                    </span>
+                                  </motion.button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Left scroll indicator arrow - shows when content is hidden on the left */}
+                            {showLeftArrow && (
+                              <motion.div
+                                initial={{ opacity: 0, x: 0, y: '-50%' }}
+                                animate={{
+                                  opacity: [0.4, 1, 0.4],
+                                  x: [0, -4, 0],
+                                  y: '-50%'
+                                }}
+                                transition={arrowTransition}
+                                className="absolute left-[-8px] flex items-center justify-center pointer-events-none z-20"
+                                style={{
+                                  top: 'calc(50% - 2px)', // Slightly up to align with text center
+                                }}
+                              >
+                                <svg
+                                  className="w-4 h-4 text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.5)]"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
                                 >
-                                  <span
-                                    className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300 whitespace-nowrap truncate w-full text-center"
-                                    style={{ color: textColor }}
-                                  >
-                                    {outcome.name}
-                                  </span>
-                                  <span
-                                    className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 whitespace-nowrap"
-                                    style={{ color: textColor }}
-                                  >
-                                    {probability}%
-                                  </span>
-                                </motion.button>
-                              );
-                            })}
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M15 19l-7-7 7-7"
+                                  />
+                                </svg>
+                              </motion.div>
+                            )}
+
+                            {/* Right scroll indicator arrow - shows when content is hidden on the right */}
+                            {showRightArrow && (
+                              <motion.div
+                                initial={{ opacity: 0, x: 0, y: '-50%' }}
+                                animate={{
+                                  opacity: [0.4, 1, 0.4],
+                                  x: [0, 4, 0],
+                                  y: '-50%'
+                                }}
+                                transition={arrowTransition}
+                                className="absolute right-[-8px] flex items-center justify-center pointer-events-none z-20"
+                                style={{
+                                  top: 'calc(50% - 2px)', // Slightly up to align with text center
+                                }}
+                              >
+                                <svg
+                                  className="w-4 h-4 text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.5)]"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M9 5l7 7-7 7"
+                                  />
+                                </svg>
+                              </motion.div>
+                            )}
                           </div>
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5 mt-3">
+                  {(() => {
+                    const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
+                    const noVal = liveNoOdds ?? event.noOdds ?? 0;
+                    const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
+                    const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+                    const isYesHovered = hoveredSegmentId === 'YES';
+                    const isNoHovered = hoveredSegmentId === 'NO';
+                    const isAnyHovered = hoveredSegmentId !== null;
 
-                          {/* Left scroll indicator arrow - shows when content is hidden on the left */}
-                          {showLeftArrow && (
-                            <motion.div
-                              initial={{ opacity: 0, x: 0, y: '-50%' }}
-                              animate={{
-                                opacity: [0.4, 1, 0.4],
-                                x: [0, -4, 0],
-                                y: '-50%'
-                              }}
-                              transition={arrowTransition}
-                              className="absolute left-[-8px] flex items-center justify-center pointer-events-none z-20"
-                              style={{
-                                top: 'calc(50% - 2px)', // Slightly up to align with text center
-                              }}
-                            >
-                              <svg
-                                className="w-4 h-4 text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.5)]"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                    return (
+                      <div ref={sliderContainerRef} className="relative">
+                        {/* Percentage numbers - hide when hovering */}
+                        {(() => {
+                          // Check if percentages should be shown
+                          const shouldShow = hoveredSegmentId === null;
+                          // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
+                          const skipAnimation = binaryPercentageAnimatedRef.current || hasEverHoveredRef.current;
+
+                          const segments = [
+                            { id: 'YES', probability: yesDisplay, position: yesDisplay / 2, show: yesDisplay > 15 },
+                            { id: 'NO', probability: noDisplay, position: yesDisplay + (noDisplay / 2), show: noDisplay > 15 }
+                          ];
+
+                          return segments.map(seg => {
+                            if (!shouldShow || !seg.show) return null;
+
+                            return (
+                              <motion.div
+                                key={seg.id}
+                                initial={binaryPercentageAnimatedRef.current ? { opacity: 1, left: `${seg.position}%` } : { opacity: 0, left: '50%' }}
+                                animate={{
+                                  opacity: 1,
+                                  left: `${seg.position}%`
+                                }}
+                                transition={{
+                                  opacity: { duration: 0.2, ease: "easeOut" },
+                                  left: {
+                                    duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8,
+                                    delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3,
+                                    ease: "easeOut"
+                                  }
+                                }}
+                                className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2.5}
-                                  d="M15 19l-7-7 7-7"
-                                />
-                              </svg>
-                            </motion.div>
-                          )}
+                                <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
+                                  <AnimatedPercentage
+                                    value={seg.probability}
+                                    delay={(index * 0.05) + 0.3}
+                                    duration={0.8}
+                                    skipAnimation={skipAnimation}
+                                  />
+                                </span>
+                              </motion.div>
+                            );
+                          });
+                        })()}
 
-                          {/* Right scroll indicator arrow - shows when content is hidden on the right */}
-                          {showRightArrow && (
-                            <motion.div
-                              initial={{ opacity: 0, x: 0, y: '-50%' }}
-                              animate={{
-                                opacity: [0.4, 1, 0.4],
-                                x: [0, 4, 0],
-                                y: '-50%'
-                              }}
-                              transition={arrowTransition}
-                              className="absolute right-[-8px] flex items-center justify-center pointer-events-none z-20"
-                              style={{
-                                top: 'calc(50% - 2px)', // Slightly up to align with text center
-                              }}
-                            >
-                              <svg
-                                className="w-4 h-4 text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.5)]"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2.5}
-                                  d="M9 5l7 7-7 7"
-                                />
-                              </svg>
-                            </motion.div>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2.5 mt-3">
-                {(() => {
-                  const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
-                  const noVal = liveNoOdds ?? event.noOdds ?? 0;
-                  const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
-                  const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
-                  const isYesHovered = hoveredSegmentId === 'YES';
-                  const isNoHovered = hoveredSegmentId === 'NO';
-                  const isAnyHovered = hoveredSegmentId !== null;
-
-                  return (
-                    <div ref={sliderContainerRef} className="relative">
-                      {/* Percentage numbers - hide when hovering */}
-                      {(() => {
-                        // Check if percentages should be shown
-                        const shouldShow = hoveredSegmentId === null;
-                        // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
-                        const skipAnimation = binaryPercentageAnimatedRef.current || hasEverHoveredRef.current;
-
-                        const segments = [
-                          { id: 'YES', probability: yesDisplay, position: yesDisplay / 2, show: yesDisplay > 15 },
-                          { id: 'NO', probability: noDisplay, position: yesDisplay + (noDisplay / 2), show: noDisplay > 15 }
-                        ];
-
-                        return segments.map(seg => {
-                          if (!shouldShow || !seg.show) return null;
+                        {/* Centered outcome name and percentage - shows when hovering */}
+                        {hoveredSegmentId && (() => {
+                          // Calculate the center of the hovered segment
+                          const segmentCenter = hoveredSegmentId === 'YES'
+                            ? yesDisplay / 2  // Center of YES segment (half of yesDisplay)
+                            : yesDisplay + (noDisplay / 2);  // Center of NO segment (yesDisplay + half of noDisplay)
 
                           return (
-                            <motion.div
-                              key={seg.id}
-                              initial={binaryPercentageAnimatedRef.current ? { opacity: 1, left: `${seg.position}%` } : { opacity: 0, left: '50%' }}
-                              animate={{
-                                opacity: 1,
-                                left: `${seg.position}%`
-                              }}
-                              transition={{
-                                opacity: { duration: 0.2, ease: "easeOut" },
-                                left: {
-                                  duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8,
-                                  delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3,
-                                  ease: "easeOut"
-                                }
-                              }}
-                              className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                            <HoveredTextDisplay
+                              ref={hoveredTextRef}
+                              segmentCenter={segmentCenter}
+                              containerRef={sliderContainerRef}
+                              textClassName="text-sm"
                             >
-                              <span className="text-sm font-bold text-gray-400 whitespace-nowrap">
-                                <AnimatedPercentage
-                                  value={seg.probability}
-                                  delay={(index * 0.05) + 0.3}
-                                  duration={0.8}
-                                  skipAnimation={skipAnimation}
-                                />
-                              </span>
-                            </motion.div>
+                              {hoveredSegmentId} {hoveredSegmentId === 'YES' ? yesDisplay : noDisplay}%
+                            </HoveredTextDisplay>
                           );
-                        });
-                      })()}
+                        })()}
 
-                      {/* Centered outcome name and percentage - shows when hovering */}
-                      {hoveredSegmentId && (() => {
-                        // Calculate the center of the hovered segment
-                        const segmentCenter = hoveredSegmentId === 'YES'
-                          ? yesDisplay / 2  // Center of YES segment (half of yesDisplay)
-                          : yesDisplay + (noDisplay / 2);  // Center of NO segment (yesDisplay + half of noDisplay)
+                        {/* Slider */}
+                        <div
+                          className="relative h-1.5 w-full rounded-full overflow-hidden group/slider"
+                          style={{ backgroundColor: muteColor('#f43f5e', 0.4) }}
+                        >
+                          {/* Hover areas - positioned for accurate detection */}
+                          {yesDisplay > 0 && (
+                            <div
+                              className="absolute top-0 cursor-pointer"
+                              style={{
+                                left: '0%',
+                                width: `${yesDisplay}%`,
+                                height: '100%',
+                                zIndex: isYesHovered ? 100 : 50,
+                                pointerEvents: 'auto',
+                              }}
+                              onMouseEnter={() => {
+                                isHoveringSliderRef.current = true;
+                                hasEverHoveredRef.current = true;
+                                setHoveredSegmentId('YES');
+                              }}
+                              onMouseLeave={() => {
+                                isHoveringSliderRef.current = false;
+                                setHoveredSegmentId(null);
+                              }}
+                            />
+                          )}
+                          {noDisplay > 0 && (
+                            <div
+                              className="absolute top-0 cursor-pointer"
+                              style={{
+                                left: `${yesDisplay}%`,
+                                width: `${noDisplay}%`,
+                                height: '100%',
+                                zIndex: isNoHovered ? 100 : 60,
+                                pointerEvents: 'auto',
+                              }}
+                              onMouseEnter={() => {
+                                isHoveringSliderRef.current = true;
+                                hasEverHoveredRef.current = true;
+                                setHoveredSegmentId('NO');
+                              }}
+                              onMouseLeave={() => {
+                                isHoveringSliderRef.current = false;
+                                setHoveredSegmentId(null);
+                              }}
+                            />
+                          )}
 
-                        return (
-                          <HoveredTextDisplay
-                            ref={hoveredTextRef}
-                            segmentCenter={segmentCenter}
-                            containerRef={sliderContainerRef}
-                            textClassName="text-sm"
-                          >
-                            {hoveredSegmentId} {hoveredSegmentId === 'YES' ? yesDisplay : noDisplay}%
-                          </HoveredTextDisplay>
-                        );
-                      })()}
+                          {/* YES segment */}
+                          {yesDisplay > 0 && (
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${yesDisplay}%` }}
+                              transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                              className="absolute left-0 top-0 h-full overflow-visible pointer-events-none"
+                              style={{
+                                zIndex: isYesHovered ? 60 : 10,
+                                transform: 'translateZ(0)',
+                                backfaceVisibility: 'hidden',
+                              }}
+                            >
+                              <motion.div
+                                className={`absolute top-0 h-full origin-center ${yesDisplay === 100 ? 'rounded-full' : 'rounded-l-full'}`}
+                                style={{
+                                  left: '0%',
+                                  width: '100%',
+                                  position: 'absolute',
+                                  top: '0',
+                                  height: '100%',
+                                  transformOrigin: 'center center',
+                                  backfaceVisibility: 'hidden',
+                                }}
+                                animate={{
+                                  scaleY: isYesHovered ? 1.8 : 1,
+                                  opacity: isAnyHovered && !isYesHovered ? 0.4 : 1,
+                                  backgroundColor: isYesHovered ? '#10b981' : muteColor('#10b981', 0.4),
+                                }}
+                                transition={{
+                                  duration: 0.2,
+                                  ease: "easeOut"
+                                }}
+                              />
+                            </motion.div>
+                          )}
 
-                      {/* Slider */}
-                      <div
-                        className="relative h-1.5 w-full rounded-full overflow-hidden group/slider"
-                        style={{ backgroundColor: muteColor('#f43f5e', 0.4) }}
-                      >
-                        {/* Hover areas - positioned for accurate detection */}
-                        {yesDisplay > 0 && (
-                          <div
-                            className="absolute top-0 cursor-pointer"
+                          {/* NO segment */}
+                          {noDisplay > 0 && (
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${noDisplay}%` }}
+                              transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                              className="absolute top-0 h-full overflow-visible pointer-events-none"
+                              style={{
+                                left: `${yesDisplay}%`,
+                                zIndex: isNoHovered ? 60 : 10,
+                                transform: 'translateZ(0)',
+                                backfaceVisibility: 'hidden',
+                              }}
+                            >
+                              <motion.div
+                                className={`absolute top-0 h-full origin-center ${noDisplay === 100 ? 'rounded-full' : 'rounded-r-full'}`}
+                                style={{
+                                  left: '0%',
+                                  width: '100%',
+                                  position: 'absolute',
+                                  top: '0',
+                                  height: '100%',
+                                  transformOrigin: 'center center',
+                                  backfaceVisibility: 'hidden',
+                                }}
+                                animate={{
+                                  scaleY: isNoHovered ? 1.8 : 1,
+                                  opacity: isAnyHovered && !isNoHovered ? 0.4 : 1,
+                                  backgroundColor: isNoHovered ? '#f43f5e' : muteColor('#f43f5e', 0.4),
+                                }}
+                                transition={{
+                                  duration: 0.2,
+                                  ease: "easeOut"
+                                }}
+                              />
+                            </motion.div>
+                          )}
+
+                          {/* Separator */}
+                          {yesDisplay > 0 && yesDisplay < 100 && (
+                            <motion.div
+                              initial={{ left: '0%', opacity: 0 }}
+                              animate={{
+                                left: `${yesDisplay}%`,
+                                opacity: 1
+                              }}
+                              transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
+                              className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)] pointer-events-none"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div ref={binaryButtonContainerRef} className="flex gap-2.5 min-h-[36px]">
+                    {(() => {
+                      const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
+                      const noVal = liveNoOdds ?? event.noOdds ?? 0;
+                      const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
+                      const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
+                      const isYesHovered = hoveredSegmentId === 'YES';
+                      const isNoHovered = hoveredSegmentId === 'NO';
+
+                      // Helper function to convert hex to rgba for opacity
+                      const hexToRgba = (hex: string, opacity: number) => {
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                      };
+
+                      return (
+                        <>
+                          <motion.button
+                            ref={binaryButtonRef}
+                            onClick={(e) => handleTradeClick(e, 'YES')}
+                            whileHover={{ backgroundColor: hexToRgba('#10b981', 0.2) }}
+                            whileTap={{ scale: 1 }}
+                            className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
                             style={{
-                              left: '0%',
-                              width: `${yesDisplay}%`,
-                              height: '100%',
-                              zIndex: isYesHovered ? 100 : 50,
-                              pointerEvents: 'auto',
+                              backgroundColor: isYesHovered
+                                ? hexToRgba('#10b981', 0.2)
+                                : hexToRgba('#10b981', 0.1),
                             }}
                             onMouseEnter={() => {
                               isHoveringSliderRef.current = true;
@@ -1781,17 +1942,25 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                               isHoveringSliderRef.current = false;
                               setHoveredSegmentId(null);
                             }}
-                          />
-                        )}
-                        {noDisplay > 0 && (
-                          <div
-                            className="absolute top-0 cursor-pointer"
+                          >
+                            <span
+                              className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
+                              style={{ color: muteColor('#10b981', 0.4) }}
+                            >YES</span>
+                            <span
+                              className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 whitespace-nowrap"
+                              style={{ color: muteColor('#10b981', 0.4) }}
+                            >{yesDisplay}%</span>
+                          </motion.button>
+                          <motion.button
+                            onClick={(e) => handleTradeClick(e, 'NO')}
+                            whileHover={{ backgroundColor: hexToRgba('#f43f5e', 0.2) }}
+                            whileTap={{ scale: 1 }}
+                            className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
                             style={{
-                              left: `${yesDisplay}%`,
-                              width: `${noDisplay}%`,
-                              height: '100%',
-                              zIndex: isNoHovered ? 100 : 60,
-                              pointerEvents: 'auto',
+                              backgroundColor: isNoHovered
+                                ? hexToRgba('#f43f5e', 0.2)
+                                : hexToRgba('#f43f5e', 0.1),
                             }}
                             onMouseEnter={() => {
                               isHoveringSliderRef.current = true;
@@ -1802,213 +1971,59 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                               isHoveringSliderRef.current = false;
                               setHoveredSegmentId(null);
                             }}
-                          />
-                        )}
-
-                        {/* YES segment */}
-                        {yesDisplay > 0 && (
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${yesDisplay}%` }}
-                            transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                            className="absolute left-0 top-0 h-full overflow-visible pointer-events-none"
-                            style={{
-                              zIndex: isYesHovered ? 60 : 10,
-                              transform: 'translateZ(0)',
-                              backfaceVisibility: 'hidden',
-                            }}
                           >
-                            <motion.div
-                              className={`absolute top-0 h-full origin-center ${yesDisplay === 100 ? 'rounded-full' : 'rounded-l-full'}`}
-                              style={{
-                                left: '0%',
-                                width: '100%',
-                                position: 'absolute',
-                                top: '0',
-                                height: '100%',
-                                transformOrigin: 'center center',
-                                backfaceVisibility: 'hidden',
-                              }}
-                              animate={{
-                                scaleY: isYesHovered ? 1.8 : 1,
-                                opacity: isAnyHovered && !isYesHovered ? 0.4 : 1,
-                                backgroundColor: isYesHovered ? '#10b981' : muteColor('#10b981', 0.4),
-                              }}
-                              transition={{
-                                duration: 0.2,
-                                ease: "easeOut"
-                              }}
-                            />
-                          </motion.div>
-                        )}
+                            <span
+                              className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
+                              style={{ color: muteColor('#f43f5e', 0.4) }}
+                            >NO</span>
+                            <span
+                              className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+                              style={{ color: muteColor('#f43f5e', 0.4) }}
+                            >{noDisplay}%</span>
+                          </motion.button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
 
-                        {/* NO segment */}
-                        {noDisplay > 0 && (
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${noDisplay}%` }}
-                            transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                            className="absolute top-0 h-full overflow-visible pointer-events-none"
-                            style={{
-                              left: `${yesDisplay}%`,
-                              zIndex: isNoHovered ? 60 : 10,
-                              transform: 'translateZ(0)',
-                              backfaceVisibility: 'hidden',
-                            }}
-                          >
-                            <motion.div
-                              className={`absolute top-0 h-full origin-center ${noDisplay === 100 ? 'rounded-full' : 'rounded-r-full'}`}
-                              style={{
-                                left: '0%',
-                                width: '100%',
-                                position: 'absolute',
-                                top: '0',
-                                height: '100%',
-                                transformOrigin: 'center center',
-                                backfaceVisibility: 'hidden',
-                              }}
-                              animate={{
-                                scaleY: isNoHovered ? 1.8 : 1,
-                                opacity: isAnyHovered && !isNoHovered ? 0.4 : 1,
-                                backgroundColor: isNoHovered ? '#f43f5e' : muteColor('#f43f5e', 0.4),
-                              }}
-                              transition={{
-                                duration: 0.2,
-                                ease: "easeOut"
-                              }}
-                            />
-                          </motion.div>
-                        )}
-
-                        {/* Separator */}
-                        {yesDisplay > 0 && yesDisplay < 100 && (
-                          <motion.div
-                            initial={{ left: '0%', opacity: 0 }}
-                            animate={{
-                              left: `${yesDisplay}%`,
-                              opacity: 1
-                            }}
-                            transition={{ duration: 0.8, delay: (index * 0.05) + 0.3, ease: "easeOut" }}
-                            className="absolute top-0 h-full w-[2px] bg-white/80 z-10 shadow-[0_0_4px_rgba(255,255,255,0.5)] pointer-events-none"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div ref={binaryButtonContainerRef} className="flex gap-2.5 min-h-[36px]">
-                  {(() => {
-                    const yesVal = liveYesOdds ?? event.yesOdds ?? 0;
-                    const noVal = liveNoOdds ?? event.noOdds ?? 0;
-                    const yesDisplay = Math.min(100, Math.max(0, Math.round(yesVal > 1 ? yesVal : yesVal * 100)));
-                    const noDisplay = Math.min(100, Math.max(0, Math.round(noVal > 1 ? noVal : noVal * 100)));
-                    const isYesHovered = hoveredSegmentId === 'YES';
-                    const isNoHovered = hoveredSegmentId === 'NO';
-
-                    // Helper function to convert hex to rgba for opacity
-                    const hexToRgba = (hex: string, opacity: number) => {
-                      const r = parseInt(hex.slice(1, 3), 16);
-                      const g = parseInt(hex.slice(3, 5), 16);
-                      const b = parseInt(hex.slice(5, 7), 16);
-                      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-                    };
-
-                    return (
-                      <>
-                        <motion.button
-                          ref={binaryButtonRef}
-                          onClick={(e) => handleTradeClick(e, 'YES')}
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
-                          style={{
-                            backgroundColor: isYesHovered
-                              ? hexToRgba('#10b981', 0.2)
-                              : hexToRgba('#10b981', 0.1),
-                          }}
-                          onMouseEnter={() => {
-                            isHoveringSliderRef.current = true;
-                            hasEverHoveredRef.current = true;
-                            setHoveredSegmentId('YES');
-                          }}
-                          onMouseLeave={() => {
-                            isHoveringSliderRef.current = false;
-                            setHoveredSegmentId(null);
-                          }}
-                        >
-                          <span
-                            className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
-                            style={{ color: muteColor('#10b981', 0.4) }}
-                          >YES</span>
-                          <span
-                            className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 whitespace-nowrap"
-                            style={{ color: muteColor('#10b981', 0.4) }}
-                          >{yesDisplay}%</span>
-                        </motion.button>
-                        <motion.button
-                          onClick={(e) => handleTradeClick(e, 'NO')}
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          className="group/btn relative flex-1 rounded-xl flex items-center justify-center px-3 py-2 cursor-pointer transition-all duration-300 overflow-hidden"
-                          style={{
-                            backgroundColor: isNoHovered
-                              ? hexToRgba('#f43f5e', 0.2)
-                              : hexToRgba('#f43f5e', 0.1),
-                          }}
-                          onMouseEnter={() => {
-                            isHoveringSliderRef.current = true;
-                            hasEverHoveredRef.current = true;
-                            setHoveredSegmentId('NO');
-                          }}
-                          onMouseLeave={() => {
-                            isHoveringSliderRef.current = false;
-                            setHoveredSegmentId(null);
-                          }}
-                        >
-                          <span
-                            className="relative z-10 text-[12px] font-bold uppercase tracking-wide opacity-100 group-hover/btn:opacity-0 transition-opacity duration-300"
-                            style={{ color: muteColor('#f43f5e', 0.4) }}
-                          >NO</span>
-                          <span
-                            className="absolute z-10 text-[13px] font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
-                            style={{ color: muteColor('#f43f5e', 0.4) }}
-                          >{noDisplay}%</span>
-                        </motion.button>
-                      </>
-                    );
-                  })()}
+              {/* 3. Stats Row */}
+              <div className={`flex items-center justify-between text-white/60 pt-0.5 ${event.type === 'GROUPED_BINARY' ? 'absolute bottom-2 left-4 right-4' : 'mt-auto'}`}>
+                <div className="flex items-center justify-between flex-1 pr-1">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    {volume}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    </svg>
+                    {commentsCount}
+                  </span>
                 </div>
               </div>
-            )}
+            </motion.div>
 
-            {/* 3. Stats Row */}
-            <div className={`flex items-center justify-between text-white/60 pt-0.5 ${event.type === 'GROUPED_BINARY' ? 'absolute bottom-2 left-4 right-4' : 'mt-auto'}`}>
-              <div className="flex items-center justify-between flex-1 pr-1">
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                  {volume}
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                  </svg>
-                  {commentsCount}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        </Link>
+          </Link>
+        </motion.div>
 
         {/* Buy Interface - Polymarket style */}
-        <div className="w-1/2 flex-shrink-0">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: showBuyInterface ? 1 : 0 }}
+        <motion.div
+          className="absolute inset-0 w-full h-full z-10"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{
+            opacity: showBuyInterface ? 1 : 0,
+            x: showBuyInterface ? 0 : 20,
+            pointerEvents: showBuyInterface ? 'auto' : 'none'
+          }}
+          transition={{ duration: 0.2 }}
+        >
+          <div
             style={{ backgroundColor: 'var(--surface)' }}
-            className="border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-3 pb-3 h-[220px] w-full flex flex-col gap-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] transition-all duration-300 relative overflow-hidden"
+            className="border border-blue-400/10 hover:border-blue-400/30 rounded-2xl px-4 pt-3 pb-3 h-[220px] w-full flex flex-col gap-2 shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] transition-all duration-200 relative overflow-hidden"
           >
             {/* Close button */}
             <button
@@ -2160,9 +2175,9 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                 To win ${winAmount.toFixed(2)}
               </span>
             </button>
-          </motion.div>
-        </div>
-      </motion.div>
-    </div>
+          </div>
+        </motion.div>
+      </motion.div >
+    </div >
   );
 }

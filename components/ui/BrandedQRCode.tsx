@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface BrandedQRCodeProps {
   value: string;
@@ -12,6 +13,7 @@ interface BrandedQRCodeProps {
 
 export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQRCodeProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const mainQrRef = useRef<HTMLDivElement>(null);
   const expandedQrRef = useRef<HTMLDivElement>(null);
   const [QRCodeStyling, setQRCodeStyling] = useState<any>(null);
@@ -19,13 +21,14 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
 
   // Dynamically import qr-code-styling (it's not SSR compatible)
   useEffect(() => {
+    setMounted(true);
     import('qr-code-styling').then((module) => {
       setQRCodeStyling(() => module.default);
     });
   }, []);
 
   // Create QR code config
-  const createQRConfig = useCallback((qrSize: number, imageSize: number = 0.08) => ({
+  const createQRConfig = useCallback((qrSize: number, imageSize: number = 0.05) => ({
     width: qrSize,
     height: qrSize,
     type: 'svg' as const,
@@ -40,7 +43,7 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
       type: 'extra-rounded' as const,
     },
     cornersDotOptions: {
-      color: '#1a3c9cff',
+      color: '#ffffff',
       type: 'dot' as const,
     },
     backgroundOptions: {
@@ -48,7 +51,7 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
     },
     imageOptions: {
       crossOrigin: 'anonymous',
-      margin: 0, // Minimal margin for tighter integration
+      margin: 0, // Minimal margin to fit logo size as requested
       imageSize: imageSize,
       hideBackgroundDots: true,
     },
@@ -128,64 +131,74 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
           {/* Scan animation on hover */}
           {expandable && (
             <div
-              className="absolute bottom-1 left-1/2 -translate-x-1/2 w-3/4 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              className="absolute bottom-1 left-1/2 -translate-x-1/2 w-3/4 h-0.5 bg-gradient-to-r from-transparent via-blue-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-[0_0_10px_rgba(59,130,246,0.3)]"
             />
           )}
         </div>
 
         {/* Click hint */}
         {expandable && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-white/0 group-hover:text-white/25 transition-all whitespace-nowrap pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-white/0 group-hover:text-white/20 transition-all font-medium whitespace-nowrap pointer-events-none">
             Click to expand
           </div>
         )}
       </div>
 
-      {/* Full Screen Expanded Modal */}
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95"
-            onClick={() => setIsExpanded(false)}
-          >
-            {/* Close button - top right */}
-            <button
-              onClick={() => setIsExpanded(false)}
-              className="absolute top-6 right-6 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
-            >
-              <X className="w-6 h-6 text-white/70" />
-            </button>
-
+      {/* Full Screen Expanded Modal - Portaled to Body */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {isExpanded && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="flex flex-col items-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md"
+              onClick={() => setIsExpanded(false)}
             >
-              {/* QR Code - fills screen */}
-              <div
-                ref={expandedQrRef}
-                className="relative rounded-2xl overflow-hidden flex items-center justify-center"
-                style={{
-                  width: fullscreenSize,
-                  height: fullscreenSize,
-                  background: 'linear-gradient(135deg, rgba(8, 12, 20, 0.8) 0%, rgba(12, 18, 28, 0.8) 100%)',
-                }}
-              />
+              {/* Close button - top right */}
+              <button
+                onClick={() => setIsExpanded(false)}
+                className="absolute top-6 right-6 p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors z-[100000]"
+              >
+                <X className="w-8 h-8 text-white/70" />
+              </button>
 
-              <p className="text-center mt-6 text-sm text-white/50">
-                Tap anywhere to close
-              </p>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                onClick={(e) => e.stopPropagation()}
+                className="flex flex-col items-center"
+              >
+                {/* QR Code - fills screen */}
+                <div
+                  ref={expandedQrRef}
+                  className="relative rounded-3xl overflow-hidden flex items-center justify-center p-4"
+                  style={{
+                    width: fullscreenSize + 32,
+                    height: fullscreenSize + 32,
+                    background: 'linear-gradient(145deg, rgba(15, 20, 30, 0.98) 0%, rgba(5, 8, 15, 0.98) 100%)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                  }}
+                />
+
+                <motion.p
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-center mt-8 text-sm text-white/40 font-medium tracking-widest uppercase"
+                >
+                  Tap anywhere to close
+                </motion.p>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }
