@@ -68,6 +68,7 @@ export function AdminPolymarketIntake() {
 
   // Pagination, Filtering, Sorting state
   const [statusFilter, setStatusFilter] = useState<'all' | 'unmapped' | 'approved' | 'rejected'>('all');
+  const [outcomeFilter, setOutcomeFilter] = useState<'all' | '2' | '3-5' | '6+'>('all');
   const [sortBy, setSortBy] = useState<'volume' | 'date' | 'title'>('volume');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -317,6 +318,17 @@ export function AdminPolymarketIntake() {
   const filteredAndSorted = useMemo(() => {
     let result = [...items];
 
+    // Filter by outcome count
+    if (outcomeFilter !== 'all') {
+      result = result.filter((item) => {
+        const count = item.outcomes?.length || 0;
+        if (outcomeFilter === '2') return count === 2;
+        if (outcomeFilter === '3-5') return count >= 3 && count <= 5;
+        if (outcomeFilter === '6+') return count >= 6;
+        return true;
+      });
+    }
+
     // Status is now filtered server-side, but we keep this for sorting/consistency
     // Sort
     result.sort((a, b) => {
@@ -333,7 +345,7 @@ export function AdminPolymarketIntake() {
     });
 
     return result;
-  }, [items, sortBy, sortOrder]);
+  }, [items, sortBy, sortOrder, outcomeFilter]);
 
   const totalItems = filteredAndSorted.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -526,21 +538,44 @@ export function AdminPolymarketIntake() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4 py-2">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 no-scrollbar">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mr-2">Status</span>
-          {(['all', 'unmapped', 'approved', 'rejected'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${statusFilter === s
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-zinc-200'
-                }`}
-            >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-              {s === 'all' && ` (${items.length})`}
-            </button>
-          ))}
+        <div className="flex items-center gap-4 overflow-x-auto pb-2 sm:pb-0 no-scrollbar">
+          {/* Status Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mr-2">Status</span>
+            {(['all', 'unmapped', 'approved', 'rejected'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${statusFilter === s
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-zinc-200'
+                  }`}
+              >
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'all' && ` (${items.length})`}
+              </button>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-white/10" />
+
+          {/* Outcome Count Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mr-2">Outcomes</span>
+            {(['all', '2', '3-5', '6+'] as const).map((o) => (
+              <button
+                key={o}
+                onClick={() => { setOutcomeFilter(o); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${outcomeFilter === o
+                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                  : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-zinc-200'
+                  }`}
+              >
+                {o === 'all' ? 'All' : o === '2' ? '2 (Binary)' : o}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-4">

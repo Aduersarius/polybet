@@ -151,11 +151,9 @@ export async function GET(request: Request) {
     const status = searchParams.get('status') || 'all';
 
     // Fetch a larger pool from Gamma to ensure filters have enough data to work with
-    const fetchLimit = search ? 100 : 1000;
-    let url = `https://gamma-api.polymarket.com/events?limit=${fetchLimit}&closed=false&archived=false&order=volume&ascending=false`;
-    if (search) {
-      url += `&search=${encodeURIComponent(search)}`;
-    }
+    // NOTE: Gamma API does NOT support search param on /events endpoint, so we filter client-side
+    const fetchLimit = 1000;
+    const url = `https://gamma-api.polymarket.com/events?limit=${fetchLimit}&closed=false&archived=false&order=volume&ascending=false`;
 
     const upstream = await fetch(url, {
       cache: 'no-store',
@@ -501,10 +499,20 @@ export async function GET(request: Request) {
       });
     }
 
-    // Server-side filtering by status
+    // Client-side search filtering (Gamma API doesn't support search on /events)
     let filteredResults = results;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredResults = filteredResults.filter(r =>
+        (r.title?.toLowerCase().includes(searchLower)) ||
+        (r.question?.toLowerCase().includes(searchLower)) ||
+        (r.description?.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Server-side filtering by status
     if (status !== 'all') {
-      filteredResults = results.filter(r => r.status === status);
+      filteredResults = filteredResults.filter(r => r.status === status);
     }
 
     return NextResponse.json(filteredResults);

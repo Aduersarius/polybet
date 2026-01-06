@@ -870,7 +870,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       // For multiple outcomes, use outcome name; for binary, use YES/NO
       const isGrouped = event.type === 'GROUPED_BINARY';
       const optionValue = isMultiOutcomeEvent(event.type) && selectedOutcomeId && !isGrouped
-        ? selectedOption // Use outcome name for multiple
+        ? 'YES' // Always buy YES for specific outcome in multiple choice
         : selectedOption; // YES/NO for binary/grouped
 
       const response = await fetch('/api/bets', {

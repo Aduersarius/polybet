@@ -9,6 +9,55 @@
 
 import { Wallet } from 'ethers';
 import { ClobClient, Side as ClobSide, OrderType, TickSize } from '@polymarket/clob-client';
+import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
+// Configure proxy for axios using HttpsProxyAgent
+const proxyUrl = process.env.POLYMARKET_PROXY_URL;
+let httpsAgent: any = null;
+
+if (proxyUrl) {
+  console.log('[Polymarket] Configuring proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+
+  try {
+    httpsAgent = new HttpsProxyAgent(proxyUrl);
+
+    // Use axios interceptor to add the agent and browser-like headers
+    axios.interceptors.request.use((config) => {
+      // Check both url and baseURL to enable proxy for clob-client (which uses baseURL)
+      const isPolymarket =
+        (config.url && config.url.includes('polymarket.com')) ||
+        (config.baseURL && config.baseURL.includes('polymarket.com'));
+
+      if (httpsAgent && isPolymarket) {
+        // Use Object.defineProperty to make httpsAgent non-enumerable
+        // This prevents "Converting circular structure to JSON" errors when axios/clob-client logs errors
+        Object.defineProperty(config, 'httpsAgent', {
+          value: httpsAgent,
+          enumerable: false,
+          writable: true,
+          configurable: true
+        });
+
+        config.proxy = false; // Disable axios native proxy, use our agent
+
+        // Add browser-like headers to bypass Cloudflare POST blocking
+        config.headers = {
+          ...config.headers,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Origin': 'https://polymarket.com',
+          'Referer': 'https://polymarket.com/'
+        };
+      }
+      return config;
+    });
+
+    console.log('[Polymarket] Proxy agent configured successfully');
+  } catch (error) {
+    console.error('[Polymarket] Failed to configure proxy:', error);
+  }
+}
 
 // Types
 export interface PolymarketOrderRequest {
@@ -55,6 +104,7 @@ class PolymarketTradingService {
   private apiSecret: string;
   private passphrase: string;
   private privateKey: string;
+  private funderAddress: string;
   private wallet: Wallet | null = null;
   private chainId: number;
   private clobClient: ClobClient | null = null;
@@ -65,17 +115,41 @@ class PolymarketTradingService {
     this.apiSecret = process.env.POLYMARKET_API_SECRET || '';
     this.passphrase = process.env.POLYMARKET_PASSPHRASE || '';
     this.privateKey = process.env.POLYMARKET_PRIVATE_KEY || '';
-    this.chainId = parseInt(process.env.POLYMARKET_CHAIN_ID || '137'); // Polygon mainnet
+    this.funderAddress = process.env.POLYMARKET_FUNDER_ADDRESS || '';
+    this.chainId = parseInt(process.env.POLYMARKET_CHAIN_ID || '137');
 
     if (this.privateKey && this.privateKey !== 'YOUR_PRIVATE_KEY_HERE') {
       try {
-        this.wallet = new Wallet(this.privateKey);
+        const rawWallet = new Wallet(this.privateKey);
+        // Create ethers v5 compatibility wrapper
+        // Polymarket CLOB client expects v5's _signTypedData, but v6 uses signTypedData
+        this.wallet = this.wrapWalletForV5Compat(rawWallet);
       } catch (error) {
         console.error('[Polymarket] Failed to initialize wallet:', error);
       }
     }
 
     this.initializeClient();
+  }
+
+  /**
+   * Wrap an ethers v6 wallet with v5 compatibility methods
+   */
+  private wrapWalletForV5Compat(wallet: Wallet): Wallet {
+    const wrappedWallet = wallet as any;
+
+    // Add ethers v5 _signTypedData method that delegates to v6 signTypedData
+    if (!wrappedWallet._signTypedData && wrappedWallet.signTypedData) {
+      wrappedWallet._signTypedData = function (
+        domain: any,
+        types: any,
+        value: any
+      ): Promise<string> {
+        return this.signTypedData(domain, types, value);
+      };
+    }
+
+    return wrappedWallet as Wallet;
   }
 
   /**
@@ -90,10 +164,19 @@ class PolymarketTradingService {
           ? { key: this.apiKey, secret: this.apiSecret, passphrase: this.passphrase }
           : undefined;
 
-      // signatureType: 0 = browser wallet, 1 = magic/email. We default to 0.
-      const signatureType = 0;
-      // clob-client typings expect an ethers v5 wallet; cast v6 wallet for compatibility.
-      this.clobClient = new ClobClient(this.apiUrl, this.chainId, this.wallet as any, creds, signatureType);
+      // signatureType: 1 = magic/email/proxy, 0 = direct EOA.
+      // If we have a funder address (Proxy), we MUST use signatureType 1.
+      const signatureType = this.funderAddress ? 1 : 0;
+
+      // Wallet is now wrapped with v5 compatibility
+      this.clobClient = new ClobClient(
+        this.apiUrl,
+        this.chainId,
+        this.wallet as any,
+        creds,
+        signatureType,
+        this.funderAddress || undefined
+      );
     } catch (error) {
       console.error('[Polymarket] Failed to initialize CLOB client:', error);
       this.clobClient = null;
@@ -219,6 +302,8 @@ class PolymarketTradingService {
       const tickSize: TickSize | undefined = (ob as any).tick_size ?? undefined;
       const negRisk = ob.neg_risk ?? false;
 
+      console.log(`[Polymarket] Placing order for token ${request.tokenId} (Price: ${request.price}, Size: ${request.size})`);
+
       const orderResponse = await this.clobClient.createAndPostOrder(
         {
           tokenID: request.tokenId,
@@ -232,8 +317,17 @@ class PolymarketTradingService {
         OrderType.GTC
       );
 
+      // Validate response - CLOB client may return empty/invalid response on 403/blocked requests
+      const orderId = orderResponse?.orderID || orderResponse?.id;
+      if (!orderId) {
+        console.error('[Polymarket] Invalid order response:', orderResponse);
+        throw new Error('Polymarket API rejected order - no order ID returned (possible Cloudflare block)');
+      }
+
+      console.log(`[Polymarket] Order placed successfully: ${orderId}`);
+
       return {
-        orderId: orderResponse.orderID || orderResponse.id,
+        orderId,
         marketId: request.marketId,
         side: request.side,
         size: request.size,
@@ -244,7 +338,14 @@ class PolymarketTradingService {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-    } catch (error) {
+    } catch (error: any) {
+      // detailed error logging for proxy debugging
+      if (error.response) {
+        console.error(`[Polymarket] Order failed with status ${error.response.status}:`, error.response.statusText);
+        if (error.response.status === 403) {
+          console.error('[Polymarket] 🚫 CLOUDFLARE BLOCK DETECTED - Try changing Proxy Country (Non-US)');
+        }
+      }
       console.error('[Polymarket] Failed to place order:', error);
       throw error;
     }
@@ -260,8 +361,8 @@ class PolymarketTradingService {
     side: 'BUY' | 'SELL',
     size: number
   ): Promise<PolymarketOrder> {
-    // Get current orderbook
-    const orderbook = await this.getOrderbook(marketId);
+    // Get current orderbook using tokenId (not marketId - CLOB requires token ID)
+    const orderbook = await this.getOrderbook(tokenId);
 
     // Use aggressive pricing to ensure fill
     const levels = side === 'BUY' ? orderbook.asks : orderbook.bids;
@@ -334,6 +435,7 @@ class PolymarketTradingService {
         filledSize: parseFloat(sizeMatched),
         remainingSize: parseFloat(sizeRemaining),
         createdAt,
+        updatedAt,
         updatedAt,
       };
     } catch (error) {
@@ -459,9 +561,8 @@ export const polymarketTrading = new PolymarketTradingService();
 export function estimatePolymarketFees(size: number, price: number): number {
   // Polymarket typically charges ~2% fee
   const tradingFee = size * price * 0.02;
-  // Approximate gas cost (varies with network conditions)
-  const gasCost = 0.1; // ~$0.10 in MATIC
+  // Approximate gas cost on Polygon (very cheap now, ~$0.005 per tx)
+  const gasCost = 0.005;
 
   return tradingFee + gasCost;
 }
-

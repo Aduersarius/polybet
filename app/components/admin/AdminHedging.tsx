@@ -186,18 +186,18 @@ export function AdminHedging() {
           {/* System Health Banner */}
           <div
             className={`rounded-xl border p-4 flex items-center gap-3 ${healthStatus.color === 'green'
-                ? 'border-emerald-500/30 bg-emerald-500/10'
-                : healthStatus.color === 'yellow'
-                  ? 'border-yellow-500/30 bg-yellow-500/10'
-                  : healthStatus.color === 'orange'
-                    ? 'border-orange-500/30 bg-orange-500/10'
-                    : 'border-red-500/30 bg-red-500/10'
+              ? 'border-emerald-500/30 bg-emerald-500/10'
+              : healthStatus.color === 'yellow'
+                ? 'border-yellow-500/30 bg-yellow-500/10'
+                : healthStatus.color === 'orange'
+                  ? 'border-orange-500/30 bg-orange-500/10'
+                  : 'border-red-500/30 bg-red-500/10'
               }`}
           >
             <HealthIcon className={`h-6 w-6 ${healthStatus.color === 'green' ? 'text-emerald-400' :
-                healthStatus.color === 'yellow' ? 'text-yellow-400' :
-                  healthStatus.color === 'orange' ? 'text-orange-400' :
-                    'text-red-400'
+              healthStatus.color === 'yellow' ? 'text-yellow-400' :
+                healthStatus.color === 'orange' ? 'text-orange-400' :
+                  'text-red-400'
               }`} />
             <div className="flex-1">
               <div className="font-semibold text-zinc-200">System Status: {healthStatus.text}</div>
@@ -247,7 +247,7 @@ export function AdminHedging() {
               },
               {
                 label: 'Net Profit',
-                value: formatCurrency(data.summary.totalProfit),
+                value: `$${Number(data.summary.totalProfit || 0).toFixed(3)}`,
                 sub: `${data.summary.netProfitMargin}% margin`,
                 icon: <DollarSign className="h-5 w-5 text-green-300" />,
                 color: 'green',
@@ -297,17 +297,17 @@ export function AdminHedging() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Spread Captured</span>
-                  <span className="text-zinc-200 font-semibold">{formatCurrency(data.summary.totalSpreadCaptured)}</span>
+                  <span className="text-zinc-200 font-semibold">${Number(data.summary.totalSpreadCaptured || 0).toFixed(3)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Polymarket Fees</span>
-                  <span className="text-red-400">-{formatCurrency(data.summary.totalFees)}</span>
+                  <span className="text-red-400">-${Number(data.summary.totalFees || 0).toFixed(3)}</span>
                 </div>
                 <div className="h-px bg-white/5" />
                 <div className="flex justify-between items-center">
                   <span className="text-zinc-200 font-semibold">Net Profit</span>
                   <span className={`font-bold ${data.summary.totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {formatCurrency(data.summary.totalProfit)}
+                    ${Number(data.summary.totalProfit || 0).toFixed(3)}
                   </span>
                 </div>
               </CardContent>

@@ -338,11 +338,19 @@ export function validateUUID(value: unknown, required: boolean = false): Validat
         return stringResult;
     }
 
-    if (stringResult.sanitized && !uuidPattern.test(stringResult.sanitized)) {
+    const sanitized = stringResult.sanitized;
+    if (!sanitized) {
+        if (required) {
+            return { valid: false, error: 'Field is required' };
+        }
+        return { valid: true, sanitized: undefined };
+    }
+
+    if (!uuidPattern.test(sanitized)) {
         return { valid: false, error: 'Invalid UUID format' };
     }
 
-    return stringResult;
+    return { valid: true, sanitized };
 }
 
 /**

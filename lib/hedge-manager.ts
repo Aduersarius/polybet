@@ -20,7 +20,7 @@ export interface HedgeConfig {
 
 // Default configuration
 const DEFAULT_CONFIG: HedgeConfig = {
-  enabled: false, // Disabled by default until credentials configured
+  enabled: true, // Enabled by default
   minSpreadBps: 200, // 2% minimum spread
   maxSlippageBps: 100, // 1% max slippage
   maxUnhedgedExposure: 10000, // $10k max unhedged
@@ -191,10 +191,12 @@ export class HedgeManager {
     size: number;
     price: number;
     side: 'buy' | 'sell';
+    option: string; // YES/NO or outcome ID
   }): Promise<{
     feasible: boolean;
     reason?: string;
     polymarketMarketId?: string;
+    polymarketTokenId?: string;
     estimatedSpread?: number;
     estimatedFees?: number;
   }> {
@@ -206,11 +208,12 @@ export class HedgeManager {
       };
     }
 
-    // Check position size limits
-    if (params.size > this.config.maxPositionSize) {
+    // Check position size limits (in USD value, not share count)
+    const positionValueUsd = params.size * params.price;
+    if (positionValueUsd > this.config.maxPositionSize) {
       return {
         feasible: false,
-        reason: `Position size ${params.size} exceeds maximum ${this.config.maxPositionSize}`,
+        reason: `Position value $${positionValueUsd.toFixed(2)} exceeds maximum $${this.config.maxPositionSize}`,
       };
     }
 
@@ -226,30 +229,46 @@ export class HedgeManager {
       };
     }
 
-    // Calculate spread
+    // Find the correct token ID for the option (YES/NO)
+    let tokenId = mapping.polymarketTokenId; // Default to the main token
+    if (mapping.outcomeMapping) {
+      const outcomeData = (mapping.outcomeMapping as any)?.outcomes;
+      if (Array.isArray(outcomeData)) {
+        const targetOutcome = outcomeData.find((o: any) =>
+          o.name?.toUpperCase() === params.option.toUpperCase() || o.internalId === params.option
+        );
+        if (targetOutcome?.polymarketId) {
+          tokenId = targetOutcome.polymarketId;
+        }
+      }
+    }
+
+    if (!tokenId) {
+      return {
+        feasible: false,
+        reason: `No Polymarket token ID found for outcome ${params.option}`,
+      };
+    }
+
+    // Calculate spread (for logging purposes)
     const spreadBps = this.calculateSpread({
       eventId: params.eventId,
       size: params.size,
     });
 
-    // Estimate fees
+    // Estimate fees (for logging purposes)
     const estimatedFees = estimatePolymarketFees(params.size, params.price);
-
-    // Check if spread covers fees
     const spreadValue = (spreadBps / 10000) * params.size * params.price;
-    if (spreadValue < estimatedFees * 1.5) {
-      return {
-        feasible: false,
-        reason: `Spread (${spreadValue.toFixed(2)}) insufficient to cover fees (${estimatedFees.toFixed(2)})`,
-        estimatedSpread: spreadValue,
-        estimatedFees,
-      };
+
+    // Log economics but don't block - hedging is for risk management, not profit on small trades
+    if (spreadValue < estimatedFees) {
+      console.log(`[HEDGE] Warning: Spread ($${spreadValue.toFixed(4)}) < fees ($${estimatedFees.toFixed(4)}) - hedging anyway for risk management`);
     }
 
-    // Check Polymarket liquidity (optional - skip if checking top volume markets)
+    // Check Polymarket liquidity using the correct token ID
     try {
       const liquidityCheck = await polymarketTrading.checkLiquidity(
-        mapping.polymarketId,
+        tokenId,
         params.side === 'buy' ? 'BUY' : 'SELL',
         params.size,
         this.config.maxSlippageBps
@@ -260,6 +279,7 @@ export class HedgeManager {
           feasible: false,
           reason: liquidityCheck.reason,
           polymarketMarketId: mapping.polymarketId,
+          polymarketTokenId: tokenId,
           estimatedSpread: spreadValue,
           estimatedFees,
         };
@@ -268,6 +288,7 @@ export class HedgeManager {
       return {
         feasible: true,
         polymarketMarketId: mapping.polymarketId,
+        polymarketTokenId: tokenId,
         estimatedSpread: spreadValue,
         estimatedFees,
       };
@@ -279,6 +300,7 @@ export class HedgeManager {
       return {
         feasible: true,
         polymarketMarketId: mapping.polymarketId,
+        polymarketTokenId: tokenId,
         estimatedSpread: spreadValue,
         estimatedFees,
       };
@@ -294,6 +316,7 @@ export class HedgeManager {
     size: number;
     userPrice: number;
     side: 'buy' | 'sell';
+    option: string; // YES/NO or outcome ID
   }): Promise<{
     success: boolean;
     hedgePositionId?: string;
@@ -303,7 +326,7 @@ export class HedgeManager {
     avgExecutionPrice?: number;
     error?: string;
   }> {
-    const { userOrderId, eventId, size, userPrice, side } = params;
+    const { userOrderId, eventId, size, userPrice, side, option } = params;
 
     try {
       // Get Polymarket mapping
@@ -321,6 +344,27 @@ export class HedgeManager {
         throw new Error(`Invalid mapping: ${validation.error}`);
       }
 
+      // Find the correct token ID for the option (YES/NO)
+      let tokenId = mapping.polymarketTokenId;
+      if (mapping.outcomeMapping) {
+        const outcomeData = (mapping.outcomeMapping as any)?.outcomes;
+        if (Array.isArray(outcomeData)) {
+          const targetOutcome = outcomeData.find((o: any) =>
+            o.name?.toUpperCase() === option.toUpperCase() || o.internalId === option
+          );
+          if (targetOutcome?.polymarketId) {
+            tokenId = targetOutcome.polymarketId;
+          }
+        }
+      }
+
+      if (!tokenId) {
+        throw new Error(`No Polymarket token ID found for outcome ${option}`);
+      }
+
+      // Add token ID to mapping for downstream use
+      const mappingWithTokenId = { ...mapping, resolvedTokenId: tokenId };
+
       // Calculate spread and hedge price
       const spreadBps = this.calculateSpread({ eventId, size });
       const { hedgePrice } = this.calculateHedgePrices({
@@ -336,7 +380,7 @@ export class HedgeManager {
         // Small order - execute normally
         return await this.executeSingleHedge({
           userOrderId,
-          mapping,
+          mapping: mappingWithTokenId,
           size,
           userPrice,
           hedgePrice,
@@ -349,7 +393,7 @@ export class HedgeManager {
       return await this.executeSplitHedge({
         userOrderId,
         eventId,
-        mapping,
+        mapping: mappingWithTokenId,
         size,
         userPrice,
         hedgePrice,
@@ -403,7 +447,7 @@ export class HedgeManager {
         const polymarketOrder = await polymarketTrading.placeMarketOrder(
           mapping.polymarketId,
           mapping.polymarketConditionId || '',
-          mapping.polymarketTokenId || '',
+          mapping.resolvedTokenId || mapping.polymarketTokenId || '',
           side === 'buy' ? 'BUY' : 'SELL',
           size
         );
@@ -533,7 +577,7 @@ export class HedgeManager {
         const polymarketOrder = await polymarketTrading.placeMarketOrder(
           mapping.polymarketId,
           mapping.polymarketConditionId || '',
-          mapping.polymarketTokenId || '',
+          mapping.resolvedTokenId || mapping.polymarketTokenId || '',
           side === 'buy' ? 'BUY' : 'SELL',
           chunk.size
         );
