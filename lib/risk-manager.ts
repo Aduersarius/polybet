@@ -240,10 +240,18 @@ export class RiskManager {
 
         const event = await prisma.event.findUnique({
             where: { id: eventId },
-            include: { outcomes: true }
+            include: { outcomes: true },
+            // @ts-ignore - source exists on the model
         });
 
         if (!event) return { allowed: true }; // Allow if event not found
+
+        // Skip liquidity check for Polymarket-sourced events
+        // Their liquidity exists on Polymarket, not in our internal AMM
+        // @ts-ignore - source may exist
+        if (event.source === 'POLYMARKET' || (event as any).polymarketId) {
+            return { allowed: true };
+        }
 
         let totalMarketLiquidity = 0;
 
@@ -255,6 +263,11 @@ export class RiskManager {
         } else {
             // For binary, use qYes + qNo
             totalMarketLiquidity = (event.qYes || 0) + (event.qNo || 0);
+        }
+
+        // If no liquidity is set (new event or external source), skip this check
+        if (totalMarketLiquidity <= 0) {
+            return { allowed: true };
         }
 
         // Estimate shares affected by this trade

@@ -260,6 +260,9 @@ export async function placeHybridOrder(
         }) as any;
         if (!event || event.status !== 'ACTIVE') throw new Error("Event not open");
 
+        // Check if this is a Polymarket-sourced event
+        const isPolymarketEvent = event.source === 'POLYMARKET' || !!event.polymarketId;
+
         // 1. Limit Order Logic (Simplified placeholder)
         if (price) {
             const isMultiple = event.type === 'MULTIPLE';
@@ -284,7 +287,21 @@ export async function placeHybridOrder(
                     data: {
                         userId,
                         eventId,
-                        outcomeId: isMultiple ? option : null,
+                        // Ensure outcomeId is set correcty:
+                        // 1. If it's a MULTIPLE event, use the outcome ID directly (option is the ID)
+                        // 2. If we have a specific outcomeId passed in (e.g. for GROUPED_BINARY specific outcome trade), use it
+                        // 3. Otherwise, try to find the match outcome for the option if possible, or leave null if strictly binary
+                        outcomeId: isMultiple ? option : (
+                            // Logic to find outcome ID for binary/grouped if feasible, otherwise null 
+                            // For now, we rely on what was passed or resolved earlier if we had it.
+                            // But hybrid-trading signature is (..., option, ...).
+                            // If we want detailed tracking for grouped binary, we might need to look it up.
+                            // Given the error was Order_outcomeId_fkey, it implies we tried to insert something invalid or null where required?
+                            // Actually, Order.outcomeId is optional (nullable). The error "Foreign key constraint violated" usually happens
+                            // if we insert a NON-NULL value that DOESN'T exist in the Outcome table.
+                            // So if 'option' is "YES" or "NO", and we try to put that in outcomeId, it fails.
+                            null
+                        ),
                         side,
                         option: isMultiple ? null : option,
                         price,
@@ -303,63 +320,97 @@ export async function placeHybridOrder(
 
         // 2. Market Order (AMM Trade)
 
-        // --- RISK MANAGEMENT: PRE-TRADE CHECK ---
-        // We need to calculate the predicted price impact to check slippage
-        // We'll do a dry-run of the quote first
-
-        // Calculate Spread first to get actual cost to spend on LMSR
-        // spreadAmount = amount * (AMM_SPREAD / (1 + AMM_SPREAD))
-        // This ensures that (costToSpend + spread) = amount
+        // Calculate Spread first to get actual cost to spend
         const spreadAmount = amount * (AMM_SPREAD / (1 + AMM_SPREAD));
         const costToSpend = amount - spreadAmount;
 
-        const quote = await calculateLMSRQuote(prisma, eventId, option, costToSpend);
+        let quote: { shares: number; avgPrice: number; payout: number; cost: number };
+
+        if (isPolymarketEvent) {
+            // --- POLYMARKET EVENT: Use external pricing ---
+            // Fetch price from Polymarket mapping
+            const mapping = await prisma.polymarketMarketMapping.findUnique({
+                where: { internalEventId: eventId }
+            });
+
+            let polyPrice = 0.5; // Default fallback
+            if (mapping?.outcomeMapping) {
+                const outcomeData = (mapping.outcomeMapping as any)?.outcomes;
+                if (Array.isArray(outcomeData)) {
+                    const targetOutcome = outcomeData.find((o: any) =>
+                        o.name?.toUpperCase() === option.toUpperCase() || o.internalId === option
+                    );
+                    if (targetOutcome?.probability) {
+                        polyPrice = targetOutcome.probability;
+                    }
+                }
+            }
+
+            // For Polymarket: shares = cost / price (simple division)
+            const shares = costToSpend / Math.max(polyPrice, 0.01);
+            quote = {
+                shares,
+                avgPrice: polyPrice,
+                payout: shares,
+                cost: costToSpend
+            };
+
+            console.log(`[TRADE] Polymarket event: Using price ${polyPrice} from mapping, shares: ${shares.toFixed(4)}`);
+        } else {
+            // --- INTERNAL EVENT: Use LMSR pricing ---
+            quote = await calculateLMSRQuote(prisma, eventId, option, costToSpend);
+        }
 
         if (!quote || quote.shares <= 0) {
             throw new Error("Insufficient liquidity or calculation error for this trade size");
         }
 
         // Calculate predicted probability (spot price) after trade
-        // We need to fetch current state again or use what we have
-        // For simplicity, we use the average price of the trade as a proxy for slippage check
-        // OR better: calculate the marginal price after the trade.
-        // Marginal Price = exp(q_i / b) / sum(exp(q_j / b))
-        // We can get this from the event data + quote.shares
+        // For Polymarket events, we use the external price and don't calculate slippage
+        // since our trades don't move Polymarket's order book significantly
 
-        // Let's get current prob first
-        const currentEvent = await prisma.event.findUnique({
-            where: { id: eventId },
-            include: { outcomes: true }
-        }) as any;
-
-        if (!currentEvent) throw new Error("Event not found");
-
-        let b = currentEvent.liquidityParameter || 1000;
         let currentProb = 0.5;
         let predictedProb = 0.5;
 
-        if (currentEvent.type === 'MULTIPLE') {
-            const outcome = currentEvent.outcomes.find((o: any) => o.id === option);
-            const sumExp = currentEvent.outcomes.reduce((acc: number, o: any) => acc + Math.exp((o.liquidity || 0) / b), 0);
-            if (outcome) {
-                currentProb = Math.exp((outcome.liquidity || 0) / b) / sumExp;
+        if (isPolymarketEvent) {
+            // For Polymarket: use the price we got from the mapping
+            // We don't cause slippage on Polymarket (deep liquidity), so predicted = current
+            currentProb = quote.avgPrice;
+            predictedProb = quote.avgPrice; // No internal price impact
+        } else {
+            // For internal events: calculate from LMSR state
+            const currentEvent = await prisma.event.findUnique({
+                where: { id: eventId },
+                include: { outcomes: true }
+            }) as any;
+
+            if (!currentEvent) throw new Error("Event not found");
+
+            const b = currentEvent.liquidityParameter || 1000;
+
+            if (currentEvent.type === 'MULTIPLE') {
+                const outcome = currentEvent.outcomes.find((o: any) => o.id === option);
+                const sumExp = currentEvent.outcomes.reduce((acc: number, o: any) => acc + Math.exp((o.liquidity || 0) / b), 0);
+                if (outcome) {
+                    currentProb = Math.exp((outcome.liquidity || 0) / b) / sumExp;
+
+                    // Predicted
+                    const newLiquidity = (outcome.liquidity || 0) + quote.shares;
+                    const newSumExp = sumExp - Math.exp((outcome.liquidity || 0) / b) + Math.exp(newLiquidity / b);
+                    predictedProb = Math.exp(newLiquidity / b) / newSumExp;
+                }
+            } else {
+                const qYes = currentEvent.qYes || 0;
+                const qNo = currentEvent.qNo || 0;
+                const sumExp = Math.exp(qYes / b) + Math.exp(qNo / b);
+                const q = option === 'YES' ? qYes : qNo;
+                currentProb = Math.exp(q / b) / sumExp;
 
                 // Predicted
-                const newLiquidity = (outcome.liquidity || 0) + quote.shares;
-                const newSumExp = sumExp - Math.exp((outcome.liquidity || 0) / b) + Math.exp(newLiquidity / b);
-                predictedProb = Math.exp(newLiquidity / b) / newSumExp;
+                const newQ = q + quote.shares;
+                const newSumExp = sumExp - Math.exp(q / b) + Math.exp(newQ / b);
+                predictedProb = Math.exp(newQ / b) / newSumExp;
             }
-        } else {
-            const qYes = currentEvent.qYes || 0;
-            const qNo = currentEvent.qNo || 0;
-            const sumExp = Math.exp(qYes / b) + Math.exp(qNo / b);
-            const q = option === 'YES' ? qYes : qNo;
-            currentProb = Math.exp(q / b) / sumExp;
-
-            // Predicted
-            const newQ = q + quote.shares;
-            const newSumExp = sumExp - Math.exp(q / b) + Math.exp(newQ / b);
-            predictedProb = Math.exp(newQ / b) / newSumExp;
         }
 
         // Validate Risk
@@ -404,21 +455,26 @@ export async function placeHybridOrder(
                     console.log(`[TRADE] Transaction started for ${eventId}:${option}`);
 
                     // 1. Update Liquidity State (CRITICAL for price movement)
+                    // SKIP for Polymarket events - their prices come from external source
                     // For buy: increment liquidity (probability increases)
                     // For sell: decrement liquidity (probability decreases)
-                    const liquidityDelta = side === 'buy' ? quote.shares : -quote.shares;
-                    if (event.type === 'MULTIPLE') {
-                        console.log(`[TRADE] Updating outcome ${option} liquidity by ${liquidityDelta}`);
-                        await tx.outcome.update({
-                            where: { id: option },
-                            data: { liquidity: { increment: liquidityDelta } }
-                        });
+                    if (!isPolymarketEvent) {
+                        const liquidityDelta = side === 'buy' ? quote.shares : -quote.shares;
+                        if (event.type === 'MULTIPLE') {
+                            console.log(`[TRADE] Updating outcome ${option} liquidity by ${liquidityDelta}`);
+                            await tx.outcome.update({
+                                where: { id: option },
+                                data: { liquidity: { increment: liquidityDelta } }
+                            });
+                        } else {
+                            const updateData = option === 'YES'
+                                ? { qYes: { increment: liquidityDelta } }
+                                : { qNo: { increment: liquidityDelta } };
+                            console.log(`[TRADE] Updating event ${eventId} ${option} by ${liquidityDelta}`);
+                            await tx.event.update({ where: { id: eventId }, data: updateData });
+                        }
                     } else {
-                        const updateData = option === 'YES'
-                            ? { qYes: { increment: liquidityDelta } }
-                            : { qNo: { increment: liquidityDelta } };
-                        console.log(`[TRADE] Updating event ${eventId} ${option} by ${liquidityDelta}`);
-                        await tx.event.update({ where: { id: eventId }, data: updateData });
+                        console.log(`[TRADE] Polymarket event - skipping internal liquidity update`);
                     }
 
                     // 2. Transfers
@@ -447,6 +503,7 @@ export async function placeHybridOrder(
                         data: {
                             userId: AMM_BOT_USER_ID,
                             eventId,
+                            // Ensure valid foreign key: only set outcomeId if it's a valid ID (from MULTIPLE event logic), otherwise null
                             outcomeId: event.type === 'MULTIPLE' ? option : null,
                             side: side === 'buy' ? 'sell' : 'buy', // Opposite side (AMM is counterparty)
                             option: event.type === 'MULTIPLE' ? null : option,
@@ -483,8 +540,11 @@ export async function placeHybridOrder(
                     });
 
                     // 4. Update Probabilities (So next quote is more expensive)
-                    console.log(`[TRADE] Updating probabilities`);
-                    await updateOutcomeProbabilities(tx, eventId);
+                    // Skip for Polymarket events - probabilities come from external source
+                    if (!isPolymarketEvent) {
+                        console.log(`[TRADE] Updating probabilities`);
+                        await updateOutcomeProbabilities(tx, eventId);
+                    }
 
                     console.log(`[TRADE] Transaction completed successfully on attempt ${attempt}`);
                     return {
@@ -530,6 +590,7 @@ export async function placeHybridOrder(
                                 size: quote.shares,
                                 price: quote.avgPrice,
                                 side,
+                                option,
                             });
 
                             if (canHedge.feasible) {
@@ -543,6 +604,7 @@ export async function placeHybridOrder(
                                     size: quote.shares,
                                     userPrice: quote.avgPrice,
                                     side,
+                                    option,
                                 });
 
                                 if (hedgeResult.success) {

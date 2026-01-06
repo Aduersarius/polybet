@@ -30,6 +30,11 @@ export async function GET(request: NextRequest) {
                     select: {
                         name: true
                     }
+                },
+                order: {
+                    include: {
+                        hedgePosition: true
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' },
@@ -40,14 +45,14 @@ export async function GET(request: NextRequest) {
             id: bet.id,
             eventId: bet.eventId,
             eventTitle: bet.event.title,
-            amount: bet.amount,
+            amount: Number(bet.amount),
             option: bet.outcome?.name || bet.option || 'Unknown',
             createdAt: bet.createdAt.toISOString(),
             status: bet.event.status === 'RESOLVED'
                 ? ((bet.outcome?.name || bet.option) === bet.event.result ? 'WON' : 'LOST')
                 : 'PENDING',
             payout: bet.event.status === 'RESOLVED' && (bet.outcome?.name || bet.option) === bet.event.result
-                ? bet.amount * 1.95 // Simplified payout calculation
+                ? Number(bet.amount) * 1.95 // Simplified payout calculation
                 : undefined
         }));
 

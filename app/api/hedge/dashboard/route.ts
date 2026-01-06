@@ -45,9 +45,10 @@ export async function GET(request: NextRequest) {
     const pendingHedges = hedgePositions.filter((h: any) => h.status === 'pending');
 
     // Calculate statistics
-    const totalProfit = successfulHedges.reduce((sum: number, h: any) => sum + h.netProfit, 0);
-    const totalFees = successfulHedges.reduce((sum: number, h: any) => sum + h.polymarketFees + h.gasCost, 0);
-    const totalSpreadCaptured = successfulHedges.reduce((sum: number, h: any) => sum + h.spreadCaptured, 0);
+    // Calculate statistics - explicit Number conversion for Prisma Decimals
+    const totalProfit = successfulHedges.reduce((sum: number, h: any) => sum + Number(h.netProfit || 0), 0);
+    const totalFees = successfulHedges.reduce((sum: number, h: any) => sum + Number(h.polymarketFees || 0) + Number(h.gasCost || 0), 0);
+    const totalSpreadCaptured = successfulHedges.reduce((sum: number, h: any) => sum + Number(h.spreadCaptured || 0), 0);
 
     const avgHedgeTime = successfulHedges.length > 0
       ? successfulHedges
@@ -94,8 +95,8 @@ export async function GET(request: NextRequest) {
           marketId: stat.polymarketMarketId,
           eventId: mapping?.internalEventId || 'unknown',
           hedgeCount: stat._count,
-          totalVolume: stat._sum.amount || 0,
-          totalProfit: stat._sum.netProfit || 0,
+          totalVolume: Number(stat._sum.amount || 0),
+          totalProfit: Number(stat._sum.netProfit || 0),
         };
       })
     );
@@ -107,9 +108,9 @@ export async function GET(request: NextRequest) {
       marketId: h.polymarketMarketId,
       reason: h.failureReason,
       createdAt: h.createdAt,
-      amount: h.amount,
-      userPrice: h.userPrice,
-      hedgePrice: h.hedgePrice,
+      amount: Number(h.amount || 0),
+      userPrice: Number(h.userPrice || 0),
+      hedgePrice: Number(h.hedgePrice || 0),
     }));
 
     // System health checks

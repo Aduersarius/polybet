@@ -9,7 +9,7 @@ import { requireAuth } from '@/lib/auth';
 import { redis } from '@/lib/redis';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateNumber, validateUUID } from '@/lib/validation';
+import { validateString, validateNumber, validateUUID, validateEventId } from '@/lib/validation';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { trackTrade, trackApiLatency, trackError } from '@/lib/sentry-metrics';
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // Validate all inputs
-        const eventIdResult = validateUUID(body.eventId, true);
+        const eventIdResult = validateEventId(body.eventId, true);
         if (!eventIdResult.valid) {
             return createClientErrorResponse(`eventId: ${eventIdResult.error}`, 400);
         }
@@ -79,7 +79,12 @@ export async function POST(request: Request) {
         }
 
         if (body.outcomeId) {
-            const outcomeIdResult = validateUUID(body.outcomeId, false);
+            // Relax validation to allow CUIDs and other ID formats, not just UUIDs
+            const outcomeIdResult = validateString(body.outcomeId, {
+                required: false,
+                maxLength: 50,
+                pattern: /^[a-zA-Z0-9_-]+$/
+            });
             if (!outcomeIdResult.valid) {
                 return createClientErrorResponse(`outcomeId: ${outcomeIdResult.error}`, 400);
             }
@@ -109,20 +114,35 @@ export async function POST(request: Request) {
         const side = sideResult.sanitized as 'buy' | 'sell';
         const amount = amountResult.sanitized!;
 
+        // Fetch event to determine type for correct parameter handling
+        const event = await prisma.event.findUnique({
+            where: { id: eventId },
+            select: { type: true }
+        });
+
+        if (!event) {
+            return createClientErrorResponse('Event not found', 404);
+        }
+
         // Determine targetOption from option or outcomeId
         let targetOption: string;
         if (option) {
             targetOption = option.toUpperCase();
         } else if (outcomeId) {
-            // Fetch outcome to get its name
-            const outcome = await prisma.outcome.findUnique({
-                where: { id: outcomeId },
-                select: { name: true }
-            });
-            if (!outcome) {
-                return createClientErrorResponse('Outcome not found', 404);
+            if (event.type === 'MULTIPLE') {
+                // For MULTIPLE, the 'option' IS the outcomeId
+                targetOption = outcomeId;
+            } else {
+                // Fetch outcome to get its name
+                const outcome = await prisma.outcome.findUnique({
+                    where: { id: outcomeId },
+                    select: { name: true }
+                });
+                if (!outcome) {
+                    return createClientErrorResponse('Outcome not found', 404);
+                }
+                targetOption = outcome.name;
             }
-            targetOption = outcome.name;
         } else {
             return createClientErrorResponse('Either option or outcomeId is required', 400);
         }
