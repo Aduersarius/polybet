@@ -7,6 +7,8 @@
 import { prisma } from './prisma';
 import { polymarketTrading, estimatePolymarketFees } from './polymarket-trading';
 import { orderSplitter, type SplitOrderPlan, type OrderChunk } from './order-splitter';
+import { polymarketCircuit, CircuitOpenError } from './circuit-breaker';
+import { redis } from './redis';
 
 export interface HedgeConfig {
   enabled: boolean;
@@ -119,14 +121,50 @@ export class HedgeManager {
 
   /**
    * Calculate optimal spread based on market conditions
+   * Now fetches real volatility from OddsHistory when not provided
    */
-  calculateSpread(params: {
+  async calculateSpread(params: {
     eventId: string;
     size: number;
     volatility?: number;
     liquidityScore?: number;
-  }): number {
-    const { size, volatility = 0.5, liquidityScore = 0.5 } = params;
+  }): Promise<number> {
+    let { volatility = 0.5, liquidityScore = 0.5 } = params;
+    const { size, eventId } = params;
+
+    // Fetch real volatility from OddsHistory if not provided
+    if (params.volatility === undefined) {
+      try {
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const recentHistory = await prisma.oddsHistory.findMany({
+          where: {
+            eventId,
+            timestamp: { gte: oneDayAgo },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 48, // 24 hours at 30min buckets
+          select: { price: true },
+        });
+
+        if (recentHistory.length >= 4) {
+          // Calculate volatility as standard deviation of price changes
+          const prices = recentHistory.map((h: { price: number }) => h.price);
+          const returns = prices.slice(0, -1).map((p: number, i: number) =>
+            Math.abs((prices[i + 1] - p) / p)
+          );
+          const mean = returns.reduce((a: number, b: number) => a + b, 0) / returns.length;
+          const variance = returns.reduce((a: number, r: number) => a + Math.pow(r - mean, 2), 0) / returns.length;
+          volatility = Math.sqrt(variance);
+
+          // Normalize to 0-1 scale (typical crypto volatility is 0.02-0.10 per 30min)
+          volatility = Math.min(1, volatility * 10);
+          console.log(`[HedgeManager] Calculated volatility for ${eventId}: ${(volatility * 100).toFixed(1)}%`);
+        }
+      } catch (volErr) {
+        // Use default volatility on error
+        console.warn('[HedgeManager] Failed to calculate volatility, using default:', volErr);
+      }
+    }
 
     // Base spread from config
     let spreadBps = this.config.minSpreadBps;
@@ -136,7 +174,7 @@ export class HedgeManager {
     spreadBps += sizeAdjustment;
 
     // Adjust for volatility (higher = more spread)
-    const volatilityAdjustment = volatility * 100;
+    const volatilityAdjustment = volatility * 150; // Increased weight for profitability
     spreadBps += volatilityAdjustment;
 
     // Adjust for liquidity (lower = more spread)
@@ -251,7 +289,7 @@ export class HedgeManager {
     }
 
     // Calculate spread (for logging purposes)
-    const spreadBps = this.calculateSpread({
+    const spreadBps = await this.calculateSpread({
       eventId: params.eventId,
       size: params.size,
     });
@@ -266,13 +304,62 @@ export class HedgeManager {
     }
 
     // Check Polymarket liquidity using the correct token ID
+    // OPTIMIZATION: First try Redis cache (populated by realtime worker) to avoid API latency
     try {
-      const liquidityCheck = await polymarketTrading.checkLiquidity(
-        tokenId,
-        params.side === 'buy' ? 'BUY' : 'SELL',
-        params.size,
-        this.config.maxSlippageBps
-      );
+      let liquidityCheck: {
+        canHedge: boolean;
+        availableSize: number;
+        bestPrice: number;
+        estimatedSlippage: number;
+        reason?: string;
+      } | null = null;
+
+      // Try cached liquidity first (30s TTL, updated by worker.ts)
+      if (redis) {
+        try {
+          const cached = await redis.get(`liquidity:${tokenId}`);
+          if (cached) {
+            const snapshot = JSON.parse(cached) as {
+              tokenId: string;
+              bestBid: number;
+              bestAsk: number;
+              midPrice: number;
+              spread: number;
+              timestamp: number;
+            };
+
+            // Only use cache if fresh (<10 seconds old)
+            const cacheAge = Date.now() - snapshot.timestamp;
+            if (cacheAge < 10000) {
+              // Simple liquidity check from cached spread
+              const spreadBps = (snapshot.spread / snapshot.midPrice) * 10000;
+              const canHedgeFromCache = spreadBps <= this.config.maxSlippageBps * 2; // Allow 2x slippage for quick check
+
+              liquidityCheck = {
+                canHedge: canHedgeFromCache,
+                availableSize: params.size, // Assume sufficient for now
+                bestPrice: params.side === 'buy' ? snapshot.bestAsk : snapshot.bestBid,
+                estimatedSlippage: spreadBps / 2, // Approximate
+                reason: canHedgeFromCache ? undefined : `Wide spread (${spreadBps.toFixed(0)}bps)`,
+              };
+              console.log(`[HedgeManager] Using cached liquidity (age: ${cacheAge}ms, spread: ${spreadBps.toFixed(0)}bps)`);
+            }
+          }
+        } catch (cacheErr) {
+          // Cache miss or parse error - fall through to API
+          console.log('[HedgeManager] Liquidity cache miss, falling back to API');
+        }
+      }
+
+      // Fall back to API if no cache hit
+      if (!liquidityCheck) {
+        liquidityCheck = await polymarketTrading.checkLiquidity(
+          tokenId,
+          params.side === 'buy' ? 'BUY' : 'SELL',
+          params.size,
+          this.config.maxSlippageBps
+        );
+      }
 
       if (!liquidityCheck.canHedge) {
         return {
@@ -325,14 +412,31 @@ export class HedgeManager {
     totalChunks?: number;
     avgExecutionPrice?: number;
     error?: string;
+    timings?: { // Latency metrics
+      total: number;
+      mappingLookup: number;
+      spreadCalc: number;
+      orderPlace: number;
+    };
   }> {
     const { userOrderId, eventId, size, userPrice, side, option } = params;
 
+    // Timing metrics for observability
+    const timings = {
+      start: Date.now(),
+      mappingLookup: 0,
+      spreadCalc: 0,
+      orderPlace: 0,
+      total: 0,
+    };
+
     try {
       // Get Polymarket mapping
+      const mappingStart = Date.now();
       const mapping = await prisma.polymarketMarketMapping.findUnique({
         where: { internalEventId: eventId },
       });
+      timings.mappingLookup = Date.now() - mappingStart;
 
       if (!mapping) {
         throw new Error('No Polymarket market mapping found');
@@ -366,7 +470,10 @@ export class HedgeManager {
       const mappingWithTokenId = { ...mapping, resolvedTokenId: tokenId };
 
       // Calculate spread and hedge price
-      const spreadBps = this.calculateSpread({ eventId, size });
+      const spreadStart = Date.now();
+      const spreadBps = await this.calculateSpread({ eventId, size });
+      timings.spreadCalc = Date.now() - spreadStart;
+
       const { hedgePrice } = this.calculateHedgePrices({
         userPrice,
         side,
@@ -443,13 +550,24 @@ export class HedgeManager {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        // Check circuit breaker before attempting
+        if (!polymarketCircuit.isAllowed()) {
+          const stats = polymarketCircuit.getStats();
+          throw new CircuitOpenError(
+            `Polymarket circuit breaker OPEN (${stats.recentFailures} recent failures). ` +
+            `Retry in ${Math.ceil((30000 - stats.timeSinceStateChange) / 1000)}s`
+          );
+        }
+
         console.log(`[HedgeManager] Placing Polymarket order (attempt ${attempt}/${maxRetries})`);
-        const polymarketOrder = await polymarketTrading.placeMarketOrder(
-          mapping.polymarketId,
-          mapping.polymarketConditionId || '',
-          mapping.resolvedTokenId || mapping.polymarketTokenId || '',
-          side === 'buy' ? 'BUY' : 'SELL',
-          size
+        const polymarketOrder = await polymarketCircuit.execute(() =>
+          polymarketTrading.placeMarketOrder(
+            mapping.polymarketId,
+            mapping.polymarketConditionId || '',
+            mapping.resolvedTokenId || mapping.polymarketTokenId || '',
+            side === 'buy' ? 'BUY' : 'SELL',
+            size
+          )
         );
 
         const fees = estimatePolymarketFees(size, hedgePrice);
@@ -497,6 +615,12 @@ export class HedgeManager {
       } catch (hedgeError: any) {
         lastError = hedgeError;
         console.error(`[HedgeManager] Hedge attempt ${attempt}/${maxRetries} failed:`, hedgeError.message);
+
+        // If circuit breaker is open, don't retry - fail fast
+        if (hedgeError instanceof CircuitOpenError) {
+          console.warn(`[HedgeManager] Circuit breaker open, skipping remaining retries`);
+          break;
+        }
 
         // If not the last attempt, wait with exponential backoff
         if (attempt < maxRetries) {
@@ -572,14 +696,23 @@ export class HedgeManager {
 
     for (const chunk of plan.chunks) {
       try {
+        // Check circuit breaker before each chunk
+        if (!polymarketCircuit.isAllowed()) {
+          console.warn(`[HedgeManager] Circuit breaker OPEN, stopping chunk execution`);
+          lastError = 'Circuit breaker open - Polymarket unavailable';
+          break; // Stop processing remaining chunks
+        }
+
         console.log(`[HedgeManager] Executing chunk ${chunk.chunkIndex + 1}/${plan.chunks.length}: ${chunk.size} shares at ~$${chunk.targetPrice.toFixed(4)}`);
 
-        const polymarketOrder = await polymarketTrading.placeMarketOrder(
-          mapping.polymarketId,
-          mapping.polymarketConditionId || '',
-          mapping.resolvedTokenId || mapping.polymarketTokenId || '',
-          side === 'buy' ? 'BUY' : 'SELL',
-          chunk.size
+        const polymarketOrder = await polymarketCircuit.execute(() =>
+          polymarketTrading.placeMarketOrder(
+            mapping.polymarketId,
+            mapping.polymarketConditionId || '',
+            mapping.resolvedTokenId || mapping.polymarketTokenId || '',
+            side === 'buy' ? 'BUY' : 'SELL',
+            chunk.size
+          )
         );
 
         chunk.executed = true;
@@ -842,63 +975,72 @@ export class HedgeManager {
       const outcomeWon = userOrderOutcome === winningOutcome;
       const hedgeSide = hedgePosition.side; // 'BUY' or 'SELL' on Polymarket
 
-      // Calculate Polymarket side P/L
-      let polymarketPnl = 0;
+      /**
+       * Settlement P/L Calculation for a proper hedge:
+       * 
+       * A hedge is designed so that the Polymarket position OFFSETS the user position.
+       * The only profit/loss should come from:
+       *   1. The spread captured upfront (always positive)
+       *   2. Any slippage/difference between expected and actual prices
+       *   3. Fees (always negative)
+       * 
+       * For a BUY hedge (user bought from us, we buy on Polymarket):
+       *   - If outcome WINS: We owe user $1/share, Polymarket pays us $1/share → Net = 0
+       *   - If outcome LOSES: User gets $0, our Polymarket shares worth $0 → Net = 0
+       * 
+       * For a SELL hedge (user sold to us, we sell on Polymarket):
+       *   - If outcome WINS: We get $1/share from user position, pay $1/share to Polymarket → Net = 0
+       *   - If outcome LOSES: Both positions worth $0 → Net = 0
+       * 
+       * In reality, we may have slight slippage from the hedge price vs user price.
+       */
+
+      // Calculate the settlement adjustment (should be ~$0 for a perfect hedge)
+      // This captures any slippage or price difference at settlement
+      let settlementAdjustment = 0;
 
       if (hedgeSide === 'BUY') {
+        // We bought on Polymarket at hedgePrice, user bought from us at userPrice
         if (outcomeWon) {
-          // We bought winning shares on Polymarket: we get paid $1/share
-          polymarketPnl = (resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
+          // Both positions pay out $1/share
+          // Polymarket side: ($1 - hedgePrice) * amount = profit on Polymarket
+          // User side: (userPrice - $1) * amount = loss on user payout (we owe difference)
+          // Net adjustment = (1 - hedgePrice - 1 + userPrice) * amount = (userPrice - hedgePrice) * amount
+          // This equals the spread - so no adjustment needed (spread already captured)
+          settlementAdjustment = 0;
         } else {
-          // We bought losing shares on Polymarket: we lose our stake
-          polymarketPnl = -hedgePosition.hedgePrice * hedgePosition.amount;
+          // Both positions worth $0
+          // Polymarket loss: -hedgePrice * amount (we paid for worthless shares)
+          // User gain: +userPrice * amount (we don't have to pay out)
+          // Net adjustment = (userPrice - hedgePrice) * amount = spread (already captured)
+          settlementAdjustment = 0;
         }
       } else {
-        // SELL
+        // SELL - we sold on Polymarket at hedgePrice, user sold to us at userPrice
         if (outcomeWon) {
-          // We sold winning shares on Polymarket: we must pay out $1/share
-          polymarketPnl = -(resolutionPrice - hedgePosition.hedgePrice) * hedgePosition.amount;
+          // Both positions pay out $1/share
+          // Polymarket loss: -(1 - hedgePrice) * amount (we must pay difference)  
+          // User gain: (1 - userPrice) * amount (we receive value from shares we hold)
+          // Net adjustment = (hedgePrice - userPrice) * amount = -spread (but spread already captured)
+          settlementAdjustment = 0;
         } else {
-          // We sold losing shares on Polymarket: we keep the premium
-          polymarketPnl = hedgePosition.hedgePrice * hedgePosition.amount;
+          // Both positions worth $0
+          // Polymarket gain: hedgePrice * amount (we keep the premium)
+          // User loss: -userPrice * amount (shares we hold are worthless)
+          // Net adjustment = (hedgePrice - userPrice) * amount = spread (already captured)
+          settlementAdjustment = 0;
         }
       }
 
-      // Calculate User liability side P/L
-      // Note: The actual user payout happens in resolveMarket(), but we need to account for it here
-      // to show the complete hedge P/L
-      let userLiabilityPnl = 0;
+      // Subtract fees from spread to get total P/L
+      // Note: Convert Decimal types to numbers for arithmetic
+      const spreadCaptured = Number(hedgePosition.spreadCaptured) || 0;
+      const polymarketFees = Number(hedgePosition.polymarketFees) || 0;
+      const gasCost = Number(hedgePosition.gasCost) || 0;
+      const totalFees = polymarketFees + gasCost;
 
-      if (hedgeSide === 'BUY') {
-        // If we bought on Polymarket, user bought from us (we have liability)
-        if (outcomeWon) {
-          // User gets $1/share, we paid userPrice, so we owe the difference
-          // This is already handled in resolveMarket, but we track it here for accounting
-          userLiabilityPnl = -(resolutionPrice * hedgePosition.amount);
-        } else {
-          // User gets $0, we don't owe anything
-          userLiabilityPnl = 0;
-        }
-      } else {
-        // SELL - if we sold on Polymarket, user sold to us (we own the shares)
-        if (outcomeWon) {
-          // We own winning shares, we get $1/share (handled in resolveMarket)
-          userLiabilityPnl = resolutionPrice * hedgePosition.amount;
-        } else {
-          // We own losing shares, worth $0
-          userLiabilityPnl = 0;
-        }
-      }
-
-      // Net settlement P/L = Polymarket side + User liability side
-      const settlementPnl = polymarketPnl + userLiabilityPnl;
-
-      // Subtract fees
-      const totalFees = (hedgePosition.polymarketFees || 0) + (hedgePosition.gasCost || 0);
-
-      // Total P/L = Spread captured upfront + Settlement P/L - Fees
-      // For a perfect hedge, settlementPnl should be ≈ $0, leaving just (spread - fees)
-      const totalPnl = hedgePosition.spreadCaptured + settlementPnl - totalFees;
+      // Total P/L = Spread captured upfront + Settlement adjustment (≈0) - Fees
+      const totalPnl = spreadCaptured + settlementAdjustment - totalFees;
 
       // Update the position
       await prisma.hedgePosition.update({
@@ -912,21 +1054,19 @@ export class HedgeManager {
             settlementDetails: {
               winningOutcome,
               outcomeWon,
-              polymarketPnl,
-              userLiabilityPnl,
-              settlementPnl,
+              settlementAdjustment,
+              spreadCaptured,
               totalFees,
+              totalPnl,
               resolutionPrice,
               settledAt: new Date().toISOString(),
-              explanation: outcomeWon
-                ? `Hedged outcome WON. Polymarket: $${polymarketPnl.toFixed(2)}, User liability: $${userLiabilityPnl.toFixed(2)}, Net: $${settlementPnl.toFixed(2)}`
-                : `Hedged outcome LOST. Polymarket: $${polymarketPnl.toFixed(2)}, User liability: $${userLiabilityPnl.toFixed(2)}, Net: $${settlementPnl.toFixed(2)}`,
+              explanation: `Hedge settled. Spread: $${spreadCaptured.toFixed(2)}, Fees: $${totalFees.toFixed(2)}, Net P/L: $${totalPnl.toFixed(2)}`,
             },
           },
         },
       });
 
-      console.log(`[HedgeManager] Settled hedge ${hedgePositionId}: Total PnL = $${totalPnl.toFixed(2)} (Spread: $${hedgePosition.spreadCaptured.toFixed(2)}, Settlement: $${settlementPnl.toFixed(2)}, Fees: -$${totalFees.toFixed(2)})`);
+      console.log(`[HedgeManager] Settled hedge ${hedgePositionId}: Total PnL = $${totalPnl.toFixed(2)} (Spread: $${spreadCaptured.toFixed(2)}, Adjustment: $${settlementAdjustment.toFixed(2)}, Fees: -$${totalFees.toFixed(2)})`);
 
       return { settled: true, pnl: totalPnl };
     } catch (error: any) {

@@ -452,17 +452,23 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
 
                                     {/* Address */}
                                     <div className="mt-2">
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <label className="text-xs font-medium text-white/70">Your deposit address</label>
-                                            <span className="text-[10px] text-white/40">
-                                                {copied ? '✓ Copied!' : 'Click to copy'}
-                                            </span>
-                                        </div>
-                                        <div
-                                            onClick={copyToClipboard}
-                                            className="px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-mono cursor-pointer hover:bg-white/10 hover:border-blue-400/30 transition-all select-all truncate"
-                                        >
-                                            {depositAddress}
+                                        <label className="text-xs font-medium text-white/70 mb-1.5 block">Your deposit address</label>
+                                        <div className="flex items-center gap-2">
+                                            <div
+                                                className="flex-1 px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-mono select-all truncate"
+                                            >
+                                                {depositAddress}
+                                            </div>
+                                            <button
+                                                onClick={copyToClipboard}
+                                                className="px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:border-blue-400/30 transition-all text-xs font-medium text-white/70 hover:text-white whitespace-nowrap"
+                                            >
+                                                {copied ? (
+                                                    <span className="text-emerald-400">Copied!</span>
+                                                ) : (
+                                                    <span>Copy</span>
+                                                )}
+                                            </button>
                                         </div>
                                     </div>
 

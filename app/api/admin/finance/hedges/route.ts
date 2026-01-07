@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         const pageOrders = orders.slice(0, limit);
         const nextCursor = hasMore ? pageOrders[pageOrders.length - 1].createdAt.toISOString() : null;
 
-        const formattedHedges = pageOrders.map((order) => {
+        const formattedHedges = pageOrders.map((order: typeof pageOrders[number]) => {
             const hedge = order.hedgePosition;
             const poly = order.polyOrder;
 

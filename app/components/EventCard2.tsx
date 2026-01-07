@@ -1697,51 +1697,45 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
                     return (
                       <div ref={sliderContainerRef} className="relative">
-                        {/* Percentage numbers - hide when hovering */}
+                        {/* Single percentage above separator - shows YES odd */}
                         {(() => {
                           // Check if percentages should be shown
                           const shouldShow = hoveredSegmentId === null;
                           // Skip animation if we've already animated OR if user has ever hovered (to prevent animation on hover-off)
                           const skipAnimation = binaryPercentageAnimatedRef.current || hasEverHoveredRef.current;
 
-                          const segments = [
-                            { id: 'YES', probability: yesDisplay, position: yesDisplay / 2, show: yesDisplay > 15 },
-                            { id: 'NO', probability: noDisplay, position: yesDisplay + (noDisplay / 2), show: noDisplay > 15 }
-                          ];
+                          if (!shouldShow) return null;
 
+                          // Position at separator if between 0-100, or at center of slider for extremes
+                          const position = yesDisplay <= 0 ? 50 : yesDisplay >= 100 ? 50 : yesDisplay;
 
-                          return segments.map(seg => {
-                            if (!shouldShow || !seg.show) return null;
-
-                            return (
-                              <motion.div
-                                key={seg.id}
-                                initial={binaryPercentageAnimatedRef.current ? { opacity: 1, left: `${seg.position}%` } : { opacity: 0, left: '50%' }}
-                                animate={{
-                                  opacity: 1,
-                                  left: `${seg.position}%`
-                                }}
-                                transition={{
-                                  opacity: { duration: 0.2, ease: "easeOut" },
-                                  left: {
-                                    duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8,
-                                    delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3,
-                                    ease: "easeOut"
-                                  }
-                                }}
-                                className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
-                              >
-                                <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
-                                  <AnimatedPercentage
-                                    value={seg.probability}
-                                    delay={(index * 0.05) + 0.3}
-                                    duration={0.8}
-                                    skipAnimation={skipAnimation}
-                                  />
-                                </span>
-                              </motion.div>
-                            );
-                          });
+                          return (
+                            <motion.div
+                              initial={binaryPercentageAnimatedRef.current ? { opacity: 1, left: `${position}%` } : { opacity: 0, left: '0%' }}
+                              animate={{
+                                opacity: 1,
+                                left: `${position}%`
+                              }}
+                              transition={{
+                                opacity: { duration: 0.2, ease: "easeOut" },
+                                left: {
+                                  duration: binaryPercentageAnimatedRef.current ? 0.2 : 0.8,
+                                  delay: binaryPercentageAnimatedRef.current ? 0 : (index * 0.05) + 0.3,
+                                  ease: "easeOut"
+                                }
+                              }}
+                              className="absolute -top-6 -translate-x-1/2 pointer-events-none z-10"
+                            >
+                              <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
+                                <AnimatedPercentage
+                                  value={yesDisplay}
+                                  delay={(index * 0.05) + 0.3}
+                                  duration={0.8}
+                                  skipAnimation={skipAnimation}
+                                />
+                              </span>
+                            </motion.div>
+                          );
                         })()}
 
                         {/* Centered outcome name and percentage - shows when hovering */}

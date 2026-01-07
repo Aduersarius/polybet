@@ -17,6 +17,11 @@ const pool = new Pool({
     max: isProd ? 20 : 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
+    // Prevent stale connections
+    allowExitOnIdle: false,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
+    statement_timeout: 30_000, // 30s query timeout
 });
 
 function createPrismaClient() {

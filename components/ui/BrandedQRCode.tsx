@@ -28,7 +28,7 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
   }, []);
 
   // Create QR code config
-  const createQRConfig = useCallback((qrSize: number, imageSize: number = 0.05) => ({
+  const createQRConfig = useCallback((qrSize: number, imageSize: number = 0.15) => ({
     width: qrSize,
     height: qrSize,
     type: 'svg' as const,
@@ -110,12 +110,12 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
     <>
       {/* Main QR Code (always rendered) */}
       <div
-        className={`relative inline-block ${expandable ? 'cursor-pointer group' : ''}`}
+        className={`flex flex-col items-center ${expandable ? 'cursor-pointer group' : ''}`}
         onClick={() => expandable && setIsExpanded(true)}
       >
         {/* Outer container */}
         <div
-          className="relative rounded-xl overflow-hidden transition-all duration-300"
+          className="relative rounded-xl overflow-hidden transition-transform duration-300 group-hover:scale-[1.02]"
         >
           {/* QR Code container */}
           <div
@@ -124,23 +124,18 @@ export function BrandedQRCode({ value, size = 240, expandable = true }: BrandedQ
             style={{
               width: size,
               height: size,
-              background: 'linear-gradient(135deg, rgba(8, 12, 20, 0.5) 0%, rgba(12, 18, 28, 0.5) 100%)',
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '16px',
             }}
           />
-
-          {/* Scan animation on hover */}
-          {expandable && (
-            <div
-              className="absolute bottom-1 left-1/2 -translate-x-1/2 w-3/4 h-0.5 bg-gradient-to-r from-transparent via-blue-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-[0_0_10px_rgba(59,130,246,0.3)]"
-            />
-          )}
         </div>
 
-        {/* Click hint */}
+        {/* Click hint - below the QR code */}
         {expandable && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-white/0 group-hover:text-white/20 transition-all font-medium whitespace-nowrap pointer-events-none">
+          <p className="text-center mt-2 text-xs text-white/40 font-medium">
             Click to expand
-          </div>
+          </p>
         )}
       </div>
 

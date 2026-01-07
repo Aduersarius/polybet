@@ -177,12 +177,27 @@ export async function POST(request: Request) {
 
         // Create a notification for the user (fire-and-forget)
         try {
+            // Fetch event title and image for richer notification
+            const eventData = await prisma.event.findUnique({
+                where: { id: eventId },
+                select: { title: true, imageUrl: true }
+            });
+
             await prisma.notification.create({
                 data: {
                     userId: sessionUserId,
                     type: 'BET_RESULT',
                     message: `Trade executed: ${side.toUpperCase()} ${amount} ${targetOption}`,
                     resourceId: eventId,
+                    metadata: {
+                        eventTitle: eventData?.title || 'Unknown Event',
+                        imageUrl: eventData?.imageUrl || null,
+                        side: side,
+                        amount: result.totalFilled,
+                        price: result.averagePrice,
+                        outcome: targetOption,
+                        outcomeId: outcomeId || null,
+                    }
                 },
             });
         } catch (err) {

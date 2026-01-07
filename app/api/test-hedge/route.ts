@@ -44,11 +44,11 @@ export async function GET() {
 
   for (const varName of requiredVars) {
     const value = process.env[varName];
-    const isSet = value && 
-                  value !== '' && 
-                  !value.includes('your_') &&
-                  !value.includes('YOUR_');
-    
+    const isSet = value &&
+      value !== '' &&
+      !value.includes('your_') &&
+      !value.includes('YOUR_');
+
     envStatus[varName] = isSet ? '✓ Set' : '✗ Not Set';
     if (!isSet) allEnvSet = false;
   }
@@ -101,7 +101,7 @@ export async function GET() {
     addTest(
       'API Connection (Orderbook Fetch)',
       !!success,
-      success 
+      success
         ? `Successfully fetched orderbook with ${orderbook.bids.length} bids and ${orderbook.asks.length} asks`
         : 'Failed to fetch orderbook',
       success ? {
@@ -117,7 +117,7 @@ export async function GET() {
       'API Connection (Orderbook Fetch)',
       false,
       `⚠️ Orderbook fetch failed (not critical): ${error.message}`,
-      { 
+      {
         error: error.message,
         note: 'This is used for pre-trade liquidity checks. Hedging can still work without it.',
         possibleCauses: [
@@ -144,7 +144,7 @@ export async function GET() {
     addTest(
       'Liquidity Check',
       !!liquidityCheck,
-      liquidityCheck 
+      liquidityCheck
         ? `Can hedge: ${liquidityCheck.canHedge}, Available: ${liquidityCheck.availableSize.toFixed(2)} shares`
         : 'Liquidity check failed',
       liquidityCheck ? {
@@ -194,8 +194,8 @@ export async function GET() {
   try {
     await hedgeManager.loadConfig();
     const testSize = 100;
-    
-    const spreadBps = hedgeManager.calculateSpread({
+
+    const spreadBps = await hedgeManager.calculateSpread({
       eventId: 'test-event',
       size: testSize,
       volatility: 0.5,
@@ -239,7 +239,7 @@ export async function GET() {
   // Final summary
   results.summary.status = results.summary.failed === 0 ? 'PASSED' : 'FAILED';
   results.summary.successRate = `${((results.summary.passed / results.summary.total) * 100).toFixed(1)}%`;
-  
+
   if (results.summary.status === 'PASSED') {
     results.summary.message = '✅ All tests passed! Your Polymarket credentials are working correctly.';
     results.nextSteps = [
