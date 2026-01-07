@@ -154,7 +154,14 @@ export async function POST(req: NextRequest) {
                         type: 'DEPOSIT_SUCCESS',
                         message: `Deposit of ${usdcAmount} USDC successfully processed.`,
                         resourceId: deposit.id,
-                        isRead: false
+                        isRead: false,
+                        metadata: {
+                            amount: usdcAmount,
+                            netAmount: netAmount,
+                            fee: fee,
+                            currency: 'USDC',
+                            txHash: activity.hash
+                        }
                     }
                 });
 

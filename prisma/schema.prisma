@@ -328,7 +328,11 @@ model Notification {
   isRead     Boolean  @default(false)
   userId     String
   createdAt  DateTime @default(now())
+  metadata   Json?    // Rich context: {eventTitle, amount, price, outcome, side, etc.}
   user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }
 
 model Order {

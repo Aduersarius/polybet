@@ -35,7 +35,7 @@ export class OrderSplitter {
   private defaultConfig: SplitConfig = {
     maxChunkSize: 100, // $100 per chunk
     minChunkSize: 10, // $10 min
-    delayBetweenChunks: 2000, // 2 seconds
+    delayBetweenChunks: 500, // 500ms (reduced from 2s for faster execution) 
     maxSlippagePerChunk: 50, // 0.5%
     adaptiveSizing: true,
   };
@@ -65,7 +65,7 @@ export class OrderSplitter {
 
     // Calculate number of chunks
     const numChunks = Math.ceil(totalSize / maxChunk);
-    
+
     // Calculate chunk sizes (distribute evenly)
     const chunks: OrderChunk[] = [];
     let remainingSize = totalSize;
@@ -73,7 +73,7 @@ export class OrderSplitter {
     for (let i = 0; i < numChunks; i++) {
       // Calculate size for this chunk
       let chunkSize = Math.min(maxChunk, remainingSize);
-      
+
       // Ensure last chunk isn't too small
       if (i === numChunks - 2 && remainingSize - chunkSize < minChunk) {
         // Merge last two chunks
@@ -123,12 +123,12 @@ export class OrderSplitter {
     // Impact = k * sqrt(orderSize / liquidity)
     // where k is market impact coefficient (typically 0.1-0.5)
     const k = 0.2; // Conservative estimate
-    
+
     // Assume total liquidity is 10x the order size (conservative)
     const estimatedLiquidity = totalLiquidity * 10;
-    
+
     const impact = k * Math.sqrt(orderSize / estimatedLiquidity);
-    
+
     // Cap impact at 5%
     return Math.min(impact, 0.05);
   }
@@ -144,7 +144,7 @@ export class OrderSplitter {
     // Buy orders push price up, sell orders push price down
     const direction = side === 'buy' ? 1 : -1;
     const newPrice = basePrice * (1 + direction * impact);
-    
+
     // Ensure price stays within valid range (0.01 to 0.99)
     return Math.max(0.01, Math.min(0.99, newPrice));
   }
@@ -167,7 +167,7 @@ export class OrderSplitter {
     // If slippage is high, reduce chunk size
     // If slippage is low, can increase chunk size
     const slippageRatio = currentSlippage / targetSlippage;
-    
+
     let adaptiveSize: number;
     if (slippageRatio > 1.5) {
       // High slippage - reduce chunk size by 50%
@@ -192,12 +192,13 @@ export class OrderSplitter {
    */
   getOptimalDelay(volatility: number = 0.5): number {
     const baseDelay = this.config.delayBetweenChunks || this.defaultConfig.delayBetweenChunks;
-    
+
     // Higher volatility = longer delay to let market stabilize
     // Volatility range: 0 (calm) to 1 (very volatile)
-    const volatilityMultiplier = 1 + volatility;
-    
-    return Math.round(baseDelay * volatilityMultiplier);
+    const volatilityMultiplier = 1 + (volatility * 2); // Max 3x multiplier
+
+    // Cap at 1500ms max to prevent excessive delays
+    return Math.round(Math.min(1500, baseDelay * volatilityMultiplier));
   }
 
   /**
@@ -219,7 +220,7 @@ export class OrderSplitter {
 
     // Find remaining chunks
     const remainingChunks = plan.chunks.filter(c => !c.executed);
-    
+
     if (remainingChunks.length === 0) {
       return plan; // All done
     }
@@ -252,7 +253,7 @@ export class OrderSplitter {
     duration: number;
   } {
     const executedChunks = plan.chunks.filter(c => c.executed);
-    
+
     if (executedChunks.length === 0) {
       return {
         totalExecuted: 0,
@@ -269,7 +270,7 @@ export class OrderSplitter {
       0
     );
     const avgPrice = totalValue / totalExecuted;
-    
+
     const basePrice = plan.chunks[0].targetPrice;
     const totalSlippage = Math.abs((avgPrice - basePrice) / basePrice) * 10000; // bps
 
@@ -296,7 +297,7 @@ export const orderSplitter = new OrderSplitter();
 export async function loadOrderSplitterConfig(): Promise<OrderSplitter> {
   try {
     const { prisma } = await import('./prisma');
-    
+
     const configs = await prisma.hedgeConfig.findMany({
       where: {
         key: {

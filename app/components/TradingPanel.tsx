@@ -294,7 +294,15 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
             if (!res.ok) {
                 const error = await res.json();
-                throw new Error(error.error || 'Trade failed');
+                const errorMessage = error.error || 'Trade failed';
+
+                // For rate-limit/cooldown errors, return a soft error instead of throwing
+                // This prevents console.error spam for expected behavior
+                if (res.status === 429 || errorMessage.toLowerCase().includes('cooldown') || errorMessage.toLowerCase().includes('wait')) {
+                    return { __error: true, message: errorMessage, isCooldown: true };
+                }
+
+                throw new Error(errorMessage);
             }
 
             const result = await res.json();
@@ -319,6 +327,15 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 title: 'Trade successful',
                 description: `${selectedTab === 'buy' ? 'Bought' : 'Sold'} ${result.totalFilled.toFixed(2)} ${selectedOption} tokens`,
             });
+
+            return result;
+        },
+        onSuccess: (data) => {
+            // Handle soft errors (cooldown) that were returned instead of thrown
+            if (data?.__error && data?.isCooldown) {
+                const { title, description, variant } = getUserFriendlyError(new Error(data.message));
+                toast({ variant, title, description });
+            }
         },
         onError: (error) => {
             console.error('Trade error:', error);
@@ -673,14 +690,8 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div
-                                        className="p-2 rounded-lg"
-                                        style={{ backgroundColor: `${selectedOption === 'YES' ? yesColor : noColor}33` }}
-                                    >
-                                        <AlertTriangle
-                                            className="w-5 h-5"
-                                            style={{ color: selectedOption === 'YES' ? yesColor : noColor }}
-                                        />
+                                    <div className="p-2 rounded-lg bg-blue-500/20">
+                                        <AlertTriangle className="w-5 h-5 text-blue-400" />
                                     </div>
                                     <h3 className="text-lg font-bold text-white">Confirm Trade</h3>
                                 </div>
@@ -709,10 +720,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">You receive</span>
-                                    <span
-                                        className="font-bold"
-                                        style={{ color: selectedOption === 'YES' ? yesColor : noColor }}
-                                    >
+                                    <span className="font-bold text-blue-400">
                                         {selectedTab === 'buy' ? `${potentialPayout.toFixed(2)} shares` : formatCurrency(potentialPayout)}
                                     </span>
                                 </div>
@@ -727,10 +735,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 </button>
                                 <button
                                     onClick={executeTrade}
-                                    className="flex-1 py-3 rounded-lg font-bold text-black transition-all hover:opacity-90"
-                                    style={{
-                                        backgroundColor: selectedOption === 'YES' ? yesColor : noColor
-                                    }}
+                                    className="flex-1 py-3 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-500 transition-all"
                                 >
                                     Confirm
                                 </button>

@@ -48,7 +48,7 @@ if (proxyUrl) {
           'Accept-Language': 'en-US,en;q=0.9',
           'Origin': 'https://polymarket.com',
           'Referer': 'https://polymarket.com/'
-        };
+        } as any;
       }
       return config;
     });
@@ -435,7 +435,6 @@ class PolymarketTradingService {
         filledSize: parseFloat(sizeMatched),
         remainingSize: parseFloat(sizeRemaining),
         createdAt,
-        updatedAt,
         updatedAt,
       };
     } catch (error) {

@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
     try {
-        const isDev = process.env.NODE_ENV !== 'production';
         const session = await auth.api.getSession({
             headers: req.headers
         });
@@ -29,13 +28,7 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        if (isDev) {
-            console.log(
-                'Balance API - Found balances:',
-                balances.length,
-                balances.map((b: (typeof balances)[number]) => `${b.tokenSymbol}: ${b.amount}`)
-            );
-        }
+
 
         // Also include TUSD balance for backward compatibility
         const tusdBalance = balances.find(
