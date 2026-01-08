@@ -7,11 +7,20 @@
  * This runs as a persistent container alongside the main app.
  */
 
-import { RealTimeDataClient, Message } from '@polymarket/real-time-data-client';
+import WebSocket from 'ws';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
+
+interface PolymarketWSMessage {
+    event_type: 'market' | 'book' | 'tick_size' | 'last_trade_price' | 'user';
+    market?: string;
+    asset_id?: string;
+    hash?: string;
+    data?: any;
+    price?: string; // For last_trade_price events sometimes
+}
 
 // Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -90,7 +99,8 @@ let marketMappings: Map<string, MarketMapping> = new Map(); // tokenId -> mappin
 let lastPrices: Map<string, number> = new Map(); // tokenId -> price
 let spikeTracker: Map<string, { price: number, count: number }> = new Map(); // tokenId -> spike status
 let subscriptionTokenIds: string[] = [];
-let wsClient: RealTimeDataClient | null = null;
+let wsClient: WebSocket | null = null;
+let heartbeatInterval: NodeJS.Timeout | null = null;
 let stats = { messages: 0, updates: 0, errors: 0 };
 
 /**
@@ -357,101 +367,73 @@ async function updateOutcomeProbability(
 /**
  * Handle incoming WebSocket messages
  */
-async function handleMessage(message: Message): Promise<void> {
+async function handleMessage(rawData: WebSocket.Data): Promise<void> {
     stats.messages++;
-    const { topic, type, payload } = message;
-
-    if (DRY_RUN) {
-        console.log(`[DRY_RUN] ${topic}/${type}:`, JSON.stringify(payload).slice(0, 200));
-        return;
-    }
-
     try {
-        if (topic === 'clob_market') {
-            if (type === 'last_trade_price') {
-                // LastTradePrice: { asset_id, market, price, side, size, fee_rate_bps }
-                const { asset_id, price } = payload as any;
-                if (!asset_id || price === undefined) return;
+        const message = JSON.parse(rawData.toString()) as PolymarketWSMessage;
 
-                const priceNum = parseFloat(price);
-                if (!Number.isFinite(priceNum)) return;
+        if (DRY_RUN) {
+            // console.log(`[DRY_RUN] Message:`, JSON.stringify(message).slice(0, 100));
+        }
 
-                // Update cache
-                lastPrices.set(asset_id, priceNum);
+        // Handle 'market' event (contains data object with price/bids)
+        // OR 'last_trade_price' event (contains direct price)
+        let assetId: string | undefined;
+        let priceNum: number | undefined;
 
-                // Find mapping for this token
-                const mapping = marketMappings.get(asset_id);
-                if (!mapping) return;
+        if (message.event_type === 'market' && message.data) {
+            assetId = message.asset_id;
+            // Use mid price if available (best_bid/best_ask), else price
+            const data = message.data;
+            if (data.best_bid && data.best_ask) {
+                const bid = parseFloat(data.best_bid);
+                const ask = parseFloat(data.best_ask);
+                const spread = ask - bid;
 
-                await updateOutcomeProbability(mapping.internalEventId, asset_id, priceNum, mapping);
-                stats.updates++;
-                console.log(`[Worker] Updated ${asset_id}: ${(priceNum * 100).toFixed(1)}%`);
-            } else if (type === 'price_change') {
-                // PriceChanges: { m (market), pc (price changes array), t (timestamp) }
-                const { pc } = payload as any;
-                if (!Array.isArray(pc)) return;
+                // SPREAD VALIDATION
+                if (spread <= MAX_ALLOWED_SPREAD) {
+                    priceNum = (bid + ask) / 2;
 
-                for (const change of pc) {
-                    const { a: assetId, p: price, bb: bestBid, ba: bestAsk } = change;
-                    if (!assetId) continue;
-
-                    // Use mid price if available, otherwise last trade price
-                    let priceNum: number;
-                    if (bestBid && bestAsk) {
-                        const bid = parseFloat(bestBid);
-                        const ask = parseFloat(bestAsk);
-                        const spread = ask - bid;
-
-                        // SPREAD VALIDATION: Reject wide spreads that produce garbage mid-prices
-                        if (spread > MAX_ALLOWED_SPREAD) {
-                            // Wide spread - skip this update
-                            continue;
-                        }
-
-                        priceNum = (bid + ask) / 2;
-                    } else if (price) {
-                        priceNum = parseFloat(price);
-                    } else {
-                        continue;
+                    // Cache liquidity
+                    if (redis) {
+                        // Cache liquidity snapshot
+                        const liquiditySnapshot = {
+                            tokenId: assetId,
+                            bestBid: bid,
+                            bestAsk: ask,
+                            midPrice: priceNum,
+                            spread: spread,
+                            timestamp: Date.now(),
+                        };
+                        redis.set(`liquidity:${assetId}`, JSON.stringify(liquiditySnapshot), 'EX', 30).catch(() => { });
                     }
-
-                    if (!Number.isFinite(priceNum)) continue;
-
-                    // Update in-memory price cache
-                    lastPrices.set(assetId, priceNum);
-
-                    // Cache liquidity snapshot to Redis for fast canHedge checks
-                    // This reduces hedge latency by ~200-500ms by avoiding API calls
-                    if (redis && bestBid && bestAsk) {
-                        try {
-                            const liquiditySnapshot = {
-                                tokenId: assetId,
-                                bestBid: parseFloat(bestBid),
-                                bestAsk: parseFloat(bestAsk),
-                                midPrice: priceNum,
-                                spread: parseFloat(bestAsk) - parseFloat(bestBid),
-                                timestamp: Date.now(),
-                            };
-                            await redis.set(
-                                `liquidity:${assetId}`,
-                                JSON.stringify(liquiditySnapshot),
-                                'EX',
-                                30 // 30 second TTL
-                            );
-                        } catch (cacheErr) {
-                            // Non-blocking, log but continue
-                            console.warn('[Worker] Failed to cache liquidity:', cacheErr);
-                        }
-                    }
-
-                    // Find mapping
-                    const mapping = marketMappings.get(assetId);
-                    if (!mapping) continue;
-
-                    await updateOutcomeProbability(mapping.internalEventId, assetId, priceNum, mapping);
                 }
             }
+
+            if (priceNum === undefined && data.price) {
+                priceNum = parseFloat(data.price);
+            }
+
+        } else if (message.event_type === 'last_trade_price') {
+            assetId = message.asset_id;
+            if (message.price) {
+                priceNum = parseFloat(message.price);
+            }
         }
+
+        if (!assetId || priceNum === undefined || !Number.isFinite(priceNum)) return;
+
+        // Update cache
+        lastPrices.set(assetId, priceNum);
+
+        // Find mapping
+        const mapping = marketMappings.get(assetId);
+        if (!mapping) return;
+
+        await updateOutcomeProbability(mapping.internalEventId, assetId, priceNum, mapping);
+        stats.updates++;
+        // console.log(`[Worker] Updated ${assetId}: ${(priceNum * 100).toFixed(1)}%`);
+
     } catch (err) {
         console.error('[Worker] Error handling message:', err);
     }
@@ -460,62 +442,73 @@ async function handleMessage(message: Message): Promise<void> {
 /**
  * Connect to Polymarket WebSocket and subscribe to markets
  */
+/**
+ * Connect to Polymarket WebSocket and subscribe to markets
+ * Using native ws client to ws-subscriptions-clob.polymarket.com
+ */
 function connect(): void {
     console.log('[Worker] Connecting to Polymarket WebSocket...');
 
-    const onConnect = (client: RealTimeDataClient): void => {
-        console.log('[Worker] Connected! Subscribing to markets...');
-        wsClient = client;
+    try {
+        wsClient = new WebSocket('wss://ws-live-data.polymarket.com/');
 
-        if (subscriptionTokenIds.length === 0) {
-            console.log('[Worker] No token IDs to subscribe to');
-            return;
-        }
+        wsClient.on('open', () => {
+            console.log('[Worker] Connected! Subscribing to markets...');
 
-        // Subscribe to LastTradePrice and PriceChanges for our tokens
-        // Filter format: JSON string of array of objects with token_id
-        const filter = JSON.stringify(subscriptionTokenIds.map(id => ({ token_id: id })));
+            // Start heartbeat
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(() => {
+                if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+                    wsClient.ping();
+                }
+            }, HEARTBEAT_INTERVAL_MS);
 
-        client.subscribe({
-            subscriptions: [
-                {
-                    topic: 'clob_market',
-                    type: 'last_trade_price',
-                    filters: filter,
-                },
-                {
-                    topic: 'clob_market',
-                    type: 'price_change',
-                    filters: filter,
-                },
-            ],
+            // Send subscriptions
+            if (subscriptionTokenIds.length > 0) {
+                subscriptionTokenIds.forEach(id => subscribeToToken(id));
+                console.log(`[Worker] Sent subscriptions for ${subscriptionTokenIds.length} tokens`);
+            }
         });
 
-        console.log(`[Worker] Subscribed to ${subscriptionTokenIds.length} token IDs`);
-    };
-
-    const onMessage = (_client: RealTimeDataClient, message: Message): void => {
-        handleMessage(message).catch(err => {
-            console.error('[Worker] Async error:', err);
+        wsClient.on('message', (data: WebSocket.Data) => {
+            handleMessage(data);
         });
-    };
 
-    // Use onStatusChange for connection state logging
-    const onStatusChange = (status: string): void => {
-        console.log(`[Worker] Connection status: ${status}`);
-        if (status === 'disconnected' || status === 'error') {
+        wsClient.on('error', (err) => {
+            console.error('[Worker] WS Error:', err.message);
+        });
+
+        wsClient.on('close', () => {
+            console.log('[Worker] WS Disconnected. Reconnecting in 5s...');
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
             wsClient = null;
-        }
-    };
+            setTimeout(connect, 5000);
+        });
 
-    const client = new RealTimeDataClient({
-        onMessage,
-        onConnect,
-        onStatusChange,
-        autoReconnect: true, // Library handles reconnection automatically
-    });
+    } catch (err) {
+        console.error('[Worker] Connect failed:', err);
+        setTimeout(connect, 5000);
+    }
+}
 
-    client.connect();
+function subscribeToToken(assetId: string) {
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+        wsClient.send(JSON.stringify({
+            type: 'subscribe',
+            channel: 'market',
+            asset_id: assetId
+        }));
+    }
+}
+
+function unsubscribeFromToken(assetId: string) {
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+        wsClient.send(JSON.stringify({
+            type: 'unsubscribe',
+            channel: 'market',
+            asset_id: assetId
+        }));
+    }
 }
 
 /**
@@ -523,27 +516,28 @@ function connect(): void {
  */
 async function refreshMappings(): Promise<void> {
     try {
-        const oldCount = subscriptionTokenIds.length;
+        const oldIds = new Set(subscriptionTokenIds);
         await loadMappings();
+        const newIds = new Set(subscriptionTokenIds);
 
-        if (subscriptionTokenIds.length !== oldCount && wsClient) {
-            console.log('[Worker] Mappings changed, resubscribing...');
-
-            const filter = JSON.stringify(subscriptionTokenIds.map(id => ({ token_id: id })));
-            wsClient.subscribe({
-                subscriptions: [
-                    {
-                        topic: 'clob_market',
-                        type: 'last_trade_price',
-                        filters: filter,
-                    },
-                    {
-                        topic: 'clob_market',
-                        type: 'price_change',
-                        filters: filter,
-                    },
-                ],
-            });
+        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+            // Unsubscribe removed
+            for (const id of oldIds) {
+                if (!newIds.has(id)) {
+                    unsubscribeFromToken(id);
+                }
+            }
+            // Subscribe new
+            let added = 0;
+            for (const id of newIds) {
+                if (!oldIds.has(id)) {
+                    subscribeToToken(id);
+                    added++;
+                }
+            }
+            if (added > 0) {
+                console.log(`[Worker] Subscribed to ${added} new tokens`);
+            }
         }
     } catch (err) {
         console.error('[Worker] Error refreshing mappings:', err);
@@ -1237,7 +1231,7 @@ function shutdown(): void {
     console.log('[Worker] Shutting down...');
 
     if (wsClient) {
-        wsClient.disconnect();
+        wsClient.close();
     }
 
     if (redis) {
