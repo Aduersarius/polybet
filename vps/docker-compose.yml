@@ -83,6 +83,25 @@ services:
       redis:
         condition: service_healthy
 
+  # Maintenance Worker
+  # Handles backfill queue processing + periodic odds sync (every 30min)
+  maintenance:
+    build:
+      context: ..
+      dockerfile: workers/maintenance/Dockerfile
+    container_name: polybet-maintenance
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://polybet_user:${POSTGRES_PASSWORD}@postgres:5432/polybet
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      POLYMARKET_CLOB_API_URL: https://clob.polymarket.com
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

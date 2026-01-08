@@ -16,52 +16,65 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = Math.min(parseInt(searchParams.get('limit') || '10', 10), 100);
         const search = searchParams.get('search') || '';
+        const status = searchParams.get('status') || '';
+        const type = searchParams.get('type') || '';
+        const visibility = searchParams.get('visibility') || '';
         const skip = (page - 1) * limit;
 
-        const baseWhere: Prisma.EventWhereInput = {
-            AND: [
-                {
-                    NOT: {
-                        categories: {
-                            hasSome: ['SPORTS', 'ESPORTS']
-                        }
-                    }
-                },
-                // Also exclude lowercase versions to be safe, though usually they are uppercase
-                {
-                    NOT: {
-                        categories: {
-                            hasSome: ['sports', 'esports', 'Sports', 'Esports']
-                        }
+        // Build filter conditions array
+        const conditions: Prisma.EventWhereInput[] = [
+            // Exclude sports/esports categories
+            {
+                NOT: {
+                    categories: {
+                        hasSome: ['SPORTS', 'ESPORTS']
                     }
                 }
-            ]
-        };
+            },
+            {
+                NOT: {
+                    categories: {
+                        hasSome: ['sports', 'esports', 'Sports', 'Esports']
+                    }
+                }
+            }
+        ];
 
-        const where: Prisma.EventWhereInput = search
-            ? {
-                AND: [
-                    baseWhere,
+        // Add status filter
+        if (status && status !== 'all') {
+            conditions.push({ status: status });
+        }
+
+        // Add type filter
+        if (type && type !== 'all') {
+            conditions.push({ type: type });
+        }
+
+        // Add visibility filter
+        if (visibility && visibility !== 'all') {
+            conditions.push({ isHidden: visibility === 'hidden' });
+        }
+
+        // Add search filter
+        if (search) {
+            conditions.push({
+                OR: [
+                    { title: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                    { description: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                    { categories: { has: search } },
                     {
-                        OR: [
-                            { title: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                            { description: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                            { categories: { has: search } },
-                            { status: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                            { type: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                            {
-                                creator: {
-                                    OR: [
-                                        { username: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                                        { address: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                                    ]
-                                }
-                            }
-                        ]
+                        creator: {
+                            OR: [
+                                { username: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                                { address: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                            ]
+                        }
                     }
                 ]
-            }
-            : baseWhere;
+            });
+        }
+
+        const where: Prisma.EventWhereInput = { AND: conditions };
 
         const [events, total] = await Promise.all([
             prisma.event.findMany({
@@ -118,8 +131,17 @@ export async function PUT(request: NextRequest) {
             const result = await resolveMarket(eventId, value);
             return NextResponse.json(result);
         } else if (action === 'delete') {
-            // Soft-delete the event and drop any polymarket mappings so it can reappear in intake
-            const [event] = await prisma.$transaction([
+            // Soft-delete the event and clean up related data so it can reappear in intake
+            const results = await prisma.$transaction([
+                // Delete odds history (prevents stale data on re-import)
+                prisma.oddsHistory.deleteMany({
+                    where: { eventId },
+                }),
+                // Delete polymarket mappings so it can reappear in intake
+                prisma.polymarketMarketMapping.deleteMany({
+                    where: { internalEventId: eventId },
+                }),
+                // Soft-delete the event
                 prisma.event.update({
                     where: { id: eventId },
                     data: {
@@ -127,11 +149,8 @@ export async function PUT(request: NextRequest) {
                         isHidden: true,
                     },
                 }),
-                prisma.polymarketMarketMapping.deleteMany({
-                    where: { internalEventId: eventId },
-                }),
             ]);
-            updatedEvent = event;
+            updatedEvent = results[results.length - 1];
         }
 
         return NextResponse.json(updatedEvent);

@@ -1,0 +1,22 @@
+{
+    "name": "maintenance-worker",
+    "version": "1.0.0",
+    "description": "Backfill queue processor and periodic OddsHistory sync",
+    "type": "module",
+    "main": "dist/worker.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/worker.js",
+        "dev": "tsx watch worker.ts"
+    },
+    "dependencies": {
+        "ioredis": "^5.4.1",
+        "pg": "^8.13.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.2",
+        "@types/pg": "^8.16.0",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2"
+    }
+}

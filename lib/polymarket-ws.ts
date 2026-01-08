@@ -37,22 +37,23 @@ class PolymarketWebSocketClient {
 
   constructor() {
     this.connect();
+    this.setupDynamicSubscription();
   }
 
   private connect() {
     try {
       console.log('[Polymarket WS] Connecting to WebSocket...');
-      
+
       this.ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com');
 
       this.ws.on('open', () => {
         console.log('[Polymarket WS] ✅ Connected!');
         this.isConnected = true;
         this.reconnectAttempts = 0;
-        
+
         // Start heartbeat
         this.startHeartbeat();
-        
+
         // Resubscribe to markets
         this.resubscribeToMarkets();
       });
@@ -138,8 +139,8 @@ class PolymarketWebSocketClient {
       const { asset_id, data } = message;
       if (!asset_id || !data) return;
 
-      // Find event by asset_id (condition token ID)
-      const mapping = await prisma.polymarketMarketMapping.findFirst({
+      // Primary lookup: Find by yesTokenId or noTokenId (binary events)
+      let mapping = await prisma.polymarketMarketMapping.findFirst({
         where: {
           OR: [
             { yesTokenId: asset_id },
@@ -147,34 +148,98 @@ class PolymarketWebSocketClient {
           ]
         },
         include: {
-          event: true,
+          event: {
+            include: {
+              outcomes: true,
+            }
+          },
         }
       });
 
-      if (!mapping) return;
+      // Fallback lookup: Check outcomeMapping JSON for MULTIPLE events
+      // outcomeMapping.outcomes[].polymarketId contains token IDs
+      if (!mapping) {
+        // PostgreSQL JSON query for array contains
+        const rawMappings = await prisma.$queryRaw<any[]>`
+          SELECT pm.*, e.id as event_id, e.title, e.type
+          FROM "PolymarketMarketMapping" pm
+          JOIN "Event" e ON pm."internalEventId" = e.id
+          WHERE pm."outcomeMapping"::jsonb -> 'outcomes' @> ${JSON.stringify([{ polymarketId: asset_id }])}::jsonb
+          LIMIT 1
+        `;
 
-      // Update event odds in database
-      const isYes = mapping.yesTokenId === asset_id;
+        if (rawMappings && rawMappings.length > 0) {
+          const raw = rawMappings[0];
+          // Fetch full mapping with includes
+          mapping = await prisma.polymarketMarketMapping.findUnique({
+            where: { id: raw.id },
+            include: {
+              event: {
+                include: {
+                  outcomes: true,
+                }
+              },
+            }
+          });
+        }
+      }
+
+      if (!mapping || !mapping.event) return;
+
       const price = parseFloat(data.price || data.best_bid || '0.5');
+      const event = mapping.event;
 
-      const updateData = isYes 
-        ? { yesOdds: price }
-        : { noOdds: price };
+      // Handle binary events (yesTokenId/noTokenId match)
+      if (mapping.yesTokenId === asset_id || mapping.noTokenId === asset_id) {
+        const isYes = mapping.yesTokenId === asset_id;
 
-      await prisma.event.update({
-        where: { id: mapping.eventId },
-        data: updateData,
-      });
+        await prisma.event.update({
+          where: { id: mapping.internalEventId },
+          data: isYes ? { yesOdds: price } : { noOdds: price },
+        });
 
-      console.log(`[Polymarket WS] Updated odds for "${mapping.event.title.substring(0, 40)}": ${isYes ? 'YES' : 'NO'} = ${price}`);
+        console.log(`[Polymarket WS] Updated binary odds for "${event.title?.substring(0, 40)}": ${isYes ? 'YES' : 'NO'} = ${price}`);
 
-      // Broadcast via Redis for our WebSocket to pick up
-      if (redis) {
-        await redis.publish('sports-odds', JSON.stringify({
-          eventId: mapping.eventId,
-          [isYes ? 'yesOdds' : 'noOdds']: price,
-          timestamp: Date.now(),
-        }));
+        // Broadcast binary update
+        if (redis) {
+          await redis.publish('sports-odds', JSON.stringify({
+            eventId: mapping.internalEventId,
+            yesPrice: isYes ? price : undefined,
+            noPrice: isYes ? undefined : price,
+            timestamp: Date.now(),
+          }));
+        }
+      } else {
+        // Handle MULTIPLE/GROUPED_BINARY events - find matching outcome
+        const outcome = event.outcomes?.find((o: any) => o.polymarketOutcomeId === asset_id);
+
+        if (outcome) {
+          await prisma.outcome.update({
+            where: { id: outcome.id },
+            data: { probability: price },
+          });
+
+          console.log(`[Polymarket WS] Updated outcome "${outcome.name}" for "${event.title?.substring(0, 40)}": ${price}`);
+
+          // Broadcast multiple outcome update
+          if (redis) {
+            // Fetch all outcomes for consistent broadcast
+            const allOutcomes = await prisma.outcome.findMany({
+              where: { eventId: mapping.internalEventId },
+              select: { id: true, name: true, probability: true },
+            });
+
+            await redis.publish('sports-odds', JSON.stringify({
+              eventId: mapping.internalEventId,
+              outcomes: allOutcomes.map((o: { id: string; name: string; probability: number | null }) => ({
+                id: o.id,
+                name: o.name,
+                probability: o.probability,
+              })),
+              timestamp: Date.now(),
+            }));
+          }
+        }
       }
 
     } catch (error) {
@@ -234,36 +299,39 @@ class PolymarketWebSocketClient {
   }
 
   /**
-   * Subscribe to all active sports events
+   * Subscribe to all active events with Polymarket mappings
+   * Previously: subscribeToAllSportsEvents (only sports/esports)
+   * Now: subscribes to ALL active events with valid token IDs
    */
-  public async subscribeToAllSportsEvents() {
+  public async subscribeToAllActiveEvents() {
     try {
-      // Get all active sports events with market mappings
+      // Get ALL active events with market mappings that have token IDs
       const mappings = await prisma.polymarketMarketMapping.findMany({
         where: {
-          event: {
-            status: 'ACTIVE',
-            OR: [
-              { isEsports: true },
-              { sport: { not: null } },
-            ],
-          },
+          isActive: true,
+          OR: [
+            { yesTokenId: { not: null } },
+            { noTokenId: { not: null } },
+          ],
         },
         include: {
           event: {
             select: {
               id: true,
               title: true,
-              live: true,
+              status: true,
             },
           },
         },
       });
 
-      console.log(`[Polymarket WS] Found ${mappings.length} sports events to subscribe to`);
+      // Filter to only ACTIVE events (in case mapping.isActive doesn't reflect event status)
+      const activeEventMappings = mappings.filter((m: typeof mappings[number]) => m.event?.status === 'ACTIVE');
+
+      console.log(`[Polymarket WS] Found ${activeEventMappings.length} active events to subscribe to`);
 
       // Subscribe to both YES and NO tokens for each event
-      for (const mapping of mappings) {
+      for (const mapping of activeEventMappings) {
         if (mapping.yesTokenId) {
           this.subscribeToMarket(mapping.yesTokenId);
         }
@@ -274,15 +342,70 @@ class PolymarketWebSocketClient {
 
       console.log(`[Polymarket WS] ✅ Subscribed to ${this.subscribedMarkets.size} markets`);
     } catch (error) {
-      console.error('[Polymarket WS] Error subscribing to sports events:', error);
+      console.error('[Polymarket WS] Error subscribing to active events:', error);
     }
   }
+
+  /**
+   * @deprecated Use subscribeToAllActiveEvents() instead
+   */
+  public async subscribeToAllSportsEvents() {
+    return this.subscribeToAllActiveEvents();
+  }
+
+  /**
+   * Subscribe to a single market by its mapping (called when new market is approved)
+   */
+  public subscribeToMapping(mapping: { yesTokenId?: string | null; noTokenId?: string | null }) {
+    if (mapping.yesTokenId) {
+      this.subscribeToMarket(mapping.yesTokenId);
+    }
+    if (mapping.noTokenId) {
+      this.subscribeToMarket(mapping.noTokenId);
+    }
+  }
+
+  /**
+   * Set up Redis listener for dynamic market subscriptions
+   * Called when new markets are approved
+   */
+  public async setupDynamicSubscription() {
+    if (!redis) {
+      console.warn('[Polymarket WS] Redis not available, dynamic subscription disabled');
+      return;
+    }
+
+    // Create separate Redis client for subscription (can't use same client for pub/sub and commands)
+    const { Redis } = await import('ioredis');
+    const subClient = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+
+    subClient.subscribe('new-market-approved', (err) => {
+      if (err) {
+        console.error('[Polymarket WS] Failed to subscribe to new-market-approved:', err);
+        return;
+      }
+      console.log('[Polymarket WS] 📡 Listening for new market approvals');
+    });
+
+    subClient.on('message', (channel, message) => {
+      if (channel === 'new-market-approved') {
+        try {
+          const mapping = JSON.parse(message);
+          console.log(`[Polymarket WS] New market approved, subscribing: ${mapping.internalEventId}`);
+          this.subscribeToMapping(mapping);
+        } catch (err) {
+          console.error('[Polymarket WS] Error processing new market:', err);
+        }
+      }
+    });
+  }
+
 
   private resubscribeToMarkets() {
     // After reconnection, resubscribe to all markets
     const markets = Array.from(this.subscribedMarkets);
     this.subscribedMarkets.clear();
-    
+
     markets.forEach(assetId => {
       this.subscribeToMarket(assetId);
     });
@@ -293,9 +416,9 @@ class PolymarketWebSocketClient {
    */
   public disconnect() {
     console.log('[Polymarket WS] Disconnecting...');
-    
+
     this.stopHeartbeat();
-    
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
