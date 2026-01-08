@@ -17,9 +17,20 @@ export default function manifest(): MetadataRoute.Manifest {
         theme_color: '#0a0a0a',
         icons: [
             {
+                src: '/favicon.ico',
+                type: 'image/x-icon',
+                sizes: '48x48',
+            },
+            {
+                src: '/icon.png',
+                type: 'image/png',
+                sizes: '512x512',
+            },
+            {
                 src: '/diamond_logo_nobg.png',
                 type: 'image/png',
                 sizes: 'any',
+                purpose: 'maskable',
             },
         ],
     };

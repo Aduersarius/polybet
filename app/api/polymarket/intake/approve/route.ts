@@ -1116,12 +1116,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Backfill odds history for each mapped outcome/token
+    // Queue async backfill for each mapped outcome/token
+    // This makes approval fast - backfill happens in background worker
+    const { queueBackfillJob } = await import('@/lib/backfill-queue');
+
     for (const [idx, o] of outcomesFromMapping.entries()) {
       const name = o.name || `Outcome ${idx + 1}`;
       const mappingPolyId = o.polymarketTokenId || o.polymarketId;
       const outcomeId = (mappingPolyId ? outcomeIdsByPolyId[mappingPolyId] : undefined) || outcomeIdsByName[name];
-      if (!outcomeId) continue;
+      if (!outcomeId || !o.polymarketTokenId) continue;
+
       const marketIdForHistory: string | undefined =
         (o as any)._marketIdForHistory ||
         eventData?.polymarketMarketId ||
@@ -1130,27 +1134,35 @@ export async function POST(request: NextRequest) {
         polymarketConditionId ||
         polymarketId;
 
-      const latestProb = await backfillOddsHistory({
-        prisma,
+      // Queue backfill job for background processing
+      await queueBackfillJob({
         eventId: dbEvent.id,
         outcomeId,
         tokenId: o.polymarketTokenId,
         marketId: marketIdForHistory,
-        fallbackProbability: typeof o.probability === 'number' ? o.probability : undefined,
-        eventCreatedAt: dbEvent.createdAt,
-        polymarketStartDate: eventData?.startDate || eventData?.createdAt, // Use Polymarket market creation date
+        polymarketStartDate: eventData?.startDate || eventData?.createdAt,
+        probability: typeof o.probability === 'number' ? o.probability : undefined,
       });
 
-      // CRITICAL: Update the outcome probability with the latest historical price
-      // This prevents the "50% spike" bug where fresh outcomes default to 0.5 
-      // and the realtime worker rejects valid 0.1 updates as spikes.
-      if (latestProb !== undefined) {
-        await prisma.outcome.update({
-          where: { id: outcomeId },
-          data: { probability: latestProb },
-        });
-        console.log(`[Polymarket] Updated outcome ${outcomeId} probability from backfill: ${latestProb}`);
+      console.log(`[Polymarket] Queued backfill job for ${dbEvent.id}/${outcomeId}`);
+    }
+
+    // Notify Polymarket WebSocket client to subscribe to new market tokens (dynamic subscription)
+    // This enables real-time price updates without restarting the WS server
+    try {
+      const { redis } = await import('@/lib/redis');
+      if (redis) {
+        await redis.publish('new-market-approved', JSON.stringify({
+          internalEventId: dbEvent.id,
+          polymarketId,
+          yesTokenId: mapping.yesTokenId,
+          noTokenId: mapping.noTokenId,
+        }));
+        console.log('[Polymarket] Published new-market-approved event for dynamic subscription');
       }
+    } catch (redisErr) {
+      // Non-critical: WS will pick up new markets on next restart or via API poll
+      console.log('[Polymarket] Redis publish failed (non-critical):', redisErr);
     }
 
     // Trigger Polymarket WebSocket stream ingestion for fresh odds updates (fire-and-forget)
