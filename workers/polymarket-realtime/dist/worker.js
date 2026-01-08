@@ -391,9 +391,8 @@ function connect() {
             return;
         }
         // Subscribe to LastTradePrice and PriceChanges for our tokens
-        // Filter format for clob_market: JSON array of token IDs (per Polymarket docs)
-        // We pass a stringified JSON array as filters (SDK expects string)
-        const filter = JSON.stringify(subscriptionTokenIds);
+        // Filter format: JSON string of array of objects with token_id
+        const filter = JSON.stringify(subscriptionTokenIds.map(id => ({ token_id: id })));
         client.subscribe({
             subscriptions: [
                 {
@@ -439,7 +438,7 @@ async function refreshMappings() {
         await loadMappings();
         if (subscriptionTokenIds.length !== oldCount && wsClient) {
             console.log('[Worker] Mappings changed, resubscribing...');
-            const filter = JSON.stringify(subscriptionTokenIds);
+            const filter = JSON.stringify(subscriptionTokenIds.map(id => ({ token_id: id })));
             wsClient.subscribe({
                 subscriptions: [
                     {
