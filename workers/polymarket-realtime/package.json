@@ -11,12 +11,13 @@
         "generate": "prisma generate"
     },
     "dependencies": {
-        "@polymarket/real-time-data-client": "^1.4.0",
         "@prisma/adapter-pg": "^7.0.0",
         "@prisma/client": "^7.0.0",
+        "@types/ws": "^8.18.1",
         "decimal.js": "^10.4.3",
         "ioredis": "^5.4.1",
-        "pg": "^8.13.1"
+        "pg": "^8.13.1",
+        "ws": "^8.19.0"
     },
     "devDependencies": {
         "@types/node": "^22.10.2",
