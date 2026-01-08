@@ -765,7 +765,7 @@ async function processBackfillJob(job: BackfillJob): Promise<void> {
     if (rows.length === 0) return;
 
     // Batch insert using Prisma createMany
-    const data = rows.map(r => ({
+    const insertData = rows.map(r => ({
         eventId: r.eventId,
         outcomeId: r.outcomeId,
         polymarketTokenId: r.polymarketTokenId,
@@ -776,8 +776,8 @@ async function processBackfillJob(job: BackfillJob): Promise<void> {
     }));
 
     // Chunk formatting is handled by Prisma, but let's do safe batching (1000 items)
-    for (let i = 0; i < data.length; i += 1000) {
-        const chunk = data.slice(i, i + 1000);
+    for (let i = 0; i < insertData.length; i += 1000) {
+        const chunk = insertData.slice(i, i + 1000);
         await prisma.oddsHistory.createMany({
             data: chunk,
             skipDuplicates: true,
@@ -893,25 +893,17 @@ async function syncOddsHistory(): Promise<void> {
                     // We'll filter in JS for now since we load all active mappings anyway
                 ],
             },
+            // @ts-ignore
             include: {
                 event: {
-                    select: {
-                        id: true,
-                        status: true,
-                        type: true,
-                        outcomes: {
-                            select: {
-                                id: true,
-                                name: true,
-                                polymarketOutcomeId: true,
-                            }
-                        }
+                    include: {
+                        outcomes: true,
                     }
                 }
             }
         });
 
-        const activeMappings = mappings.filter(m => m.event?.status === 'ACTIVE');
+        const activeMappings = mappings.filter((m: any) => m.event?.status === 'ACTIVE');
         console.log(`[Sync] Found ${activeMappings.length} active events to sync`);
 
         const bucketTs = Math.floor(Date.now() / ODDS_HISTORY_BUCKET_MS) * ODDS_HISTORY_BUCKET_MS;
@@ -919,17 +911,17 @@ async function syncOddsHistory(): Promise<void> {
         let fetched = 0;
 
         for (const mapping of activeMappings) {
-            const event = mapping.event!;
+            const event = mapping.event as any;
+            if (!event) continue;
 
             // Collect tokens to fetch
             const tokensToFetch: Array<{ tokenId: string, outcomeId: string }> = [];
 
             if (event.type === 'BINARY') {
                 if (mapping.yesTokenId) {
-                    const yesOutcome = event.outcomes.find(o => o.name.toUpperCase() === 'YES');
+                    const yesOutcome = event.outcomes.find((o: any) => o.name.toUpperCase() === 'YES');
                     if (yesOutcome) tokensToFetch.push({ tokenId: mapping.yesTokenId, outcomeId: yesOutcome.id });
                 }
-                // We only store YES history typically, but could store NO if needed
             } else {
                 for (const o of event.outcomes) {
                     if (o.polymarketOutcomeId) {
