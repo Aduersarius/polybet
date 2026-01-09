@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
             console.log(`[Webhook] Processing deposit: ${usdcAmount} ${tokenSymbol} for user ${depositAddress.userId} (Tx: ${activity.hash})`);
 
-            let depositId: string;
+            let depositId!: string; // Definite assignment - will be set in transaction
 
             // 5. Transaction: Create Deposit + Credit User + Ledger
             await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
