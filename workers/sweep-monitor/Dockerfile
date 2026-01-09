@@ -21,7 +21,6 @@ RUN npx prisma generate
 # Copy worker source files
 COPY workers/sweep-monitor/tsconfig.json ./
 COPY workers/sweep-monitor/worker.ts ./
-COPY workers/sweep-monitor/lib/ ./lib/
 
 # Build TypeScript
 RUN npm run build
