@@ -93,6 +93,8 @@ export async function POST(req: NextRequest) {
 
             console.log(`[Webhook] Processing deposit: ${usdcAmount} ${tokenSymbol} for user ${depositAddress.userId} (Tx: ${activity.hash})`);
 
+            let depositId: string;
+
             // 5. Transaction: Create Deposit + Credit User + Ledger
             await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 // Read current balance for ledger
@@ -110,11 +112,13 @@ export async function POST(req: NextRequest) {
                         amount: new Prisma.Decimal(usdcAmount),
                         currency: tokenSymbol,
                         txHash: activity.hash,
-                        status: 'PENDING_SWEEP', // New status indicating it needs sweeping
+                        status: 'PENDING_SWEEP', // Will be updated after sweep
                         fromAddress: activity.fromAddress,
                         toAddress: activity.toAddress,
                     }
                 });
+
+                depositId = deposit.id;
 
                 // Credit User Balance
                 await tx.user.update({
@@ -151,14 +155,14 @@ export async function POST(req: NextRequest) {
                     data: {
                         userId: depositAddress.userId,
                         type: 'DEPOSIT_SUCCESS',
-                        message: `Deposit of ${usdcAmount} USDC successfully processed.`,
+                        message: `Deposit of ${usdcAmount} ${tokenSymbol} successfully processed.`,
                         resourceId: deposit.id,
                         isRead: false,
                         metadata: {
                             amount: usdcAmount,
                             netAmount: netAmount,
                             fee: fee,
-                            currency: 'USDC',
+                            currency: tokenSymbol,
                             txHash: activity.hash
                         }
                     }
@@ -196,6 +200,38 @@ export async function POST(req: NextRequest) {
                     console.error('[Webhook] Failed to publish Redis update:', redisErr);
                 }
             });
+
+            // 6. Trigger immediate sweep (non-blocking)
+            // Import crypto service dynamically to avoid circular dependencies
+            console.log(`[Webhook] Triggering immediate sweep for deposit ${depositId}...`);
+
+            // Run sweep in background - don't await to keep webhook fast
+            (async () => {
+                try {
+                    const { getCryptoService } = await import('@/lib/crypto-service');
+                    const cryptoService = getCryptoService();
+
+                    // Determine token address
+                    const tokenAddress = assetAddress === USDC_NATIVE_ADDRESS
+                        ? USDC_NATIVE_ADDRESS
+                        : USDC_BRIDGED_ADDRESS;
+
+                    await cryptoService.sweepAndCredit(
+                        depositAddress,
+                        amountBigInt,
+                        {
+                            sweepOnly: true,
+                            depositId: depositId,
+                            tokenAddress: tokenAddress
+                        }
+                    );
+
+                    console.log(`[Webhook] ✅ Sweep completed for deposit ${depositId}`);
+                } catch (sweepError) {
+                    console.error(`[Webhook] ⚠️  Sweep failed for deposit ${depositId}:`, sweepError);
+                    console.log(`[Webhook] Sweep-monitor will retry this deposit`);
+                }
+            })();
 
             processedCount++;
         }
