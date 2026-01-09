@@ -17,12 +17,18 @@ type DepositAddressLite = Prisma.DepositAddressGetPayload<{ select: typeof DEPOS
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL || 'https://polygon-rpc.com';
 const MASTER_WALLET_ADDRESS = process.env.MASTER_WALLET_ADDRESS;
 
-// USDC on Polygon
-const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Mainnet USDC
+// USDC tokens on Polygon - we support both native and bridged
+const USDC_NATIVE_ADDRESS = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Native USDC (new)
+const USDC_BRIDGED_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // USDC.e (bridged from Ethereum)
+
+// Use native USDC as default for withdrawals
+const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || USDC_NATIVE_ADDRESS;
+
 const ERC20_ABI = [
     "function balanceOf(address owner) view returns (uint256)",
     "function transfer(address to, uint256 amount) returns (bool)",
-    "function decimals() view returns (uint8)"
+    "function decimals() view returns (uint8)",
+    "function symbol() view returns (string)"
 ];
 
 export class CryptoService {
@@ -148,38 +154,53 @@ export class CryptoService {
             select: DEPOSIT_ADDRESS_SELECT,
         });
 
-        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, this.provider);
+        // Check both USDC tokens
+        const usdcNativeContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, this.provider);
+        const usdcBridgedContract = new ethers.Contract(USDC_BRIDGED_ADDRESS, ERC20_ABI, this.provider);
 
-        // Check balances in parallel to prevent blocking
-        const balancePromises = addresses.map(async (addr: DepositAddressLite) => {
-            try {
-                const balance = await usdcContract.balanceOf(addr.address);
-                return { addr, balance };
-            } catch (error) {
-                console.error(`Error checking address ${addr.address}:`, error);
-                return { addr, balance: 0n };
-            }
-        });
+        // Check balances for both tokens in parallel
+        const balancePromises = addresses.flatMap((addr: DepositAddressLite) => [
+            // Check native USDC
+            (async () => {
+                try {
+                    const balance = await usdcNativeContract.balanceOf(addr.address);
+                    return { addr, balance, tokenAddress: USDC_NATIVE_ADDRESS, symbol: 'USDC' };
+                } catch (error) {
+                    console.error(`Error checking USDC balance for ${addr.address}:`, error);
+                    return { addr, balance: 0n, tokenAddress: USDC_NATIVE_ADDRESS, symbol: 'USDC' };
+                }
+            })(),
+            // Check bridged USDC.e
+            (async () => {
+                try {
+                    const balance = await usdcBridgedContract.balanceOf(addr.address);
+                    return { addr, balance, tokenAddress: USDC_BRIDGED_ADDRESS, symbol: 'USDC.e' };
+                } catch (error) {
+                    console.error(`Error checking USDC.e balance for ${addr.address}:`, error);
+                    return { addr, balance: 0n, tokenAddress: USDC_BRIDGED_ADDRESS, symbol: 'USDC.e' };
+                }
+            })()
+        ]);
 
         const balanceResults = await Promise.all(balancePromises);
 
         // Process deposits sequentially to avoid database conflicts
-        for (const { addr, balance } of balanceResults) {
+        for (const { addr, balance, tokenAddress, symbol } of balanceResults) {
             // Minimum deposit amount (e.g., 0.5 USDC)
             const minDeposit = ethers.parseUnits('0.5', 6); // USDC has 6 decimals
 
             if (balance > minDeposit) {
-                this.log(`Found balance ${ethers.formatUnits(balance, 6)} USDC at ${addr.address}`);
+                this.log(`Found balance ${ethers.formatUnits(balance, 6)} ${symbol} at ${addr.address}`);
                 try {
-                    await this.sweepAndCredit(addr, balance);
+                    await this.sweepAndCredit(addr, balance, { tokenAddress });
                 } catch (error) {
-                    console.error(`Error sweeping and crediting ${addr.address}:`, error);
+                    console.error(`Error sweeping and crediting ${symbol} from ${addr.address}:`, error);
                 }
             }
         }
     }
 
-    public async sweepAndCredit(addr: DepositAddressLite, tokenBalance: bigint, options: { sweepOnly?: boolean; depositId?: string } = {}) {
+    public async sweepAndCredit(addr: DepositAddressLite, tokenBalance: bigint, options: { sweepOnly?: boolean; depositId?: string; tokenAddress?: string } = {}) {
         if (!MASTER_WALLET_ADDRESS) {
             console.error('MASTER_WALLET_ADDRESS not set');
             return;
@@ -189,7 +210,9 @@ export class CryptoService {
         const userWallet = this.depositNode.derivePath(path).connect(this.provider);
         const masterWallet = this.hotNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
 
-        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, userWallet);
+        // Use the specified token address or default to USDC_ADDRESS
+        const tokenAddress = options.tokenAddress || USDC_ADDRESS;
+        const usdcContract = new ethers.Contract(tokenAddress, ERC20_ABI, userWallet);
 
         // 1. Check MATIC balance for gas and get fee data in parallel
         let maticBalance: bigint;
