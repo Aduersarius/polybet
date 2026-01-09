@@ -133,46 +133,32 @@ echo -e "${GREEN}✓ PostgreSQL container setup complete${NC}"
 echo ""
 echo -e "${BLUE}[3/7] Creating backup on old VPS...${NC}"
 
-# First, get the old database name (might be polybet)
-OLD_DB_NAME=$(ssh ${OLD_VPS_USER}@${OLD_VPS_IP} bash <<'EOF'
-    export PGPASSWORD="Baltim0r"
-    psql -h localhost -U polybet_user -l -t | cut -d'|' -f1 | grep -E 'polybet|pariflow' | head -1 | xargs
-EOF
-)
+# First, detect the old database name
+echo "Detecting old database name..."
+OLD_DB_NAME=$(ssh ${OLD_VPS_USER}@${OLD_VPS_IP} "PGPASSWORD='Baltim0r' psql -h localhost -U polybet_user -l -t 2>/dev/null | cut -d'|' -f1 | grep -E 'polybet|pariflow' | head -1 | xargs" 2>/dev/null || echo "polybet")
 
 if [ -z "$OLD_DB_NAME" ]; then
-    echo -e "${RED}Could not detect database name on old VPS${NC}"
-    read -p "Enter old database name: " OLD_DB_NAME
+    OLD_DB_NAME="polybet"
 fi
 
 echo "Old database name: $OLD_DB_NAME"
 
-ssh ${OLD_VPS_USER}@${OLD_VPS_IP} bash <<EOF
-    set -e
-    
-    export PGPASSWORD="${DB_PASSWORD}"
-    
-    echo "Creating backup of ${OLD_DB_NAME}..."
-    
-    # Try with postgres user first, fallback to regular user
-    sudo -u postgres pg_dump -d ${OLD_DB_NAME} \
-        --format=custom \
-        --file=${BACKUP_PATH} \
-        --verbose 2>&1 | grep -v "^$" || \
-    pg_dump -h localhost -U polybet_user -d ${OLD_DB_NAME} \
-        --format=custom \
-        --file=${BACKUP_PATH} \
-        --verbose || \
-    PGPASSWORD="Baltim0r" pg_dump -h localhost -U polybet_user -d ${OLD_DB_NAME} \
-        --format=custom \
-        --file=${BACKUP_PATH} \
-        --verbose
-    
-    echo "Backup created: ${BACKUP_PATH}"
-    ls -lh ${BACKUP_PATH}
-EOF
+# Create backup (simpler command to avoid SSH timeout)
+echo "Creating backup..."
+ssh ${OLD_VPS_USER}@${OLD_VPS_IP} "PGPASSWORD='Baltim0r' pg_dump -h localhost -U polybet_user -d ${OLD_DB_NAME} --format=custom --file=${BACKUP_PATH} --verbose 2>&1 | tail -20" || {
+    echo -e "${YELLOW}Trying with sudo...${NC}"
+    ssh ${OLD_VPS_USER}@${OLD_VPS_IP} "sudo -u postgres pg_dump -d ${OLD_DB_NAME} --format=custom --file=${BACKUP_PATH} 2>&1 | tail -20"
+}
 
-echo -e "${GREEN}✓ Backup created successfully${NC}"
+# Verify backup was created
+BACKUP_SIZE=$(ssh ${OLD_VPS_USER}@${OLD_VPS_IP} "ls -lh ${BACKUP_PATH} 2>/dev/null | awk '{print \$5}'" || echo "0")
+
+if [ "$BACKUP_SIZE" = "0" ] || [ -z "$BACKUP_SIZE" ]; then
+    echo -e "${RED}Backup failed or file is empty${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Backup created: ${BACKUP_SIZE}${NC}"
 
 ################################################################################
 # Step 4: Transfer Backup to New VPS
