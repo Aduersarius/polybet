@@ -151,6 +151,9 @@ export default withSentryConfig(configWithAnalyzer, {
   org: "pariflow",
   project: "sentry-green-window",
 
+  // Disable source map uploads (requires auth token)
+  disableSourceMapUploading: true,
+
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
