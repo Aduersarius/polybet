@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import bundleAnalyzer from '@next/bundle-analyzer';
-import { withSentryConfig } from "@sentry/nextjs";
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
@@ -146,37 +145,6 @@ const nextConfig: NextConfig = {
 // Apply bundle analyzer
 const configWithAnalyzer = withBundleAnalyzer(nextConfig);
 
-// Export with Sentry wrapper (single wrap, not double)
-export default withSentryConfig(configWithAnalyzer, {
-  org: "pariflow",
-  project: "sentry-green-window",
-
-  // Disable source map uploads (requires auth token)
-  disableSourceMapUploading: true,
-
-  // Only print logs for uploading source maps in CI
-  silent: !process.env.CI,
-
-  // Upload a larger set of source maps for prettier stack traces
-  widenClientFileUpload: true,
-
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers
-  tunnelRoute: "/monitoring",
-
-  // Configure source maps
-  sourcemaps: {
-    deleteSourcemapsAfterUpload: true,
-  },
-
-  // Enable automatic instrumentation of Vercel Cron Monitors
-  automaticVercelMonitors: true,
-
-  // Webpack-specific options
-  webpack: {
-    // Tree-shaking options for reducing bundle size
-    treeshake: {
-      // Remove Sentry logger statements to reduce bundle size
-      removeDebugLogging: true,
-    },
-  },
-});
+// Export without Sentry wrapper to avoid build-time errors
+// Sentry runtime monitoring still works via sentry.*.config.ts files
+export default configWithAnalyzer;
