@@ -516,15 +516,18 @@ model Deposit {
   amount      Decimal
   currency    String
   txHash      String   @unique
-  status      String // "PENDING", "COMPLETED", "FAILED"
+  status      String // "PENDING", "PENDING_SWEEP", "COMPLETED", "FAILED"
   fromAddress String
   toAddress   String
+  retryCount  Int?     @default(0) // Track sweep retries
+  metadata    Json?    // Store error logs, retry schedules, etc.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([txHash])
+  @@index([status]) // Index for efficient PENDING_SWEEP queries
 }
 
 model Withdrawal {

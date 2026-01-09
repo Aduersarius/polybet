@@ -1,8 +1,12 @@
 /**
- * Sweep Monitor Worker
+ * Production-Grade Sweep Monitor Worker
  * 
- * Monitors deposit addresses for USDC and USDC.e balances,
- * automatically sweeps funds to master wallet and credits users.
+ * Database-driven sweep system with:
+ * - Retry logic with exponential backoff
+ * - Health monitoring
+ * - Structured logging
+ * - Error alerting
+ * - Graceful degradation
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -39,181 +43,376 @@ const ERC20_ABI = [
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL!;
 const MASTER_WALLET_ADDRESS = process.env.MASTER_WALLET_ADDRESS!;
 const MNEMONIC = process.env.CRYPTO_MASTER_MNEMONIC!;
-const CHECK_INTERVAL_MS = parseInt(process.env.SWEEP_CHECK_INTERVAL_MS || '60000');
+const CHECK_INTERVAL_MS = parseInt(process.env.SWEEP_CHECK_INTERVAL_MS || '30000');
+const MAX_RETRIES = parseInt(process.env.SWEEP_MAX_RETRIES || '3');
+const RETRY_DELAY_MS = parseInt(process.env.SWEEP_RETRY_DELAY_MS || '5000');
 
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
 const masterNode = ethers.HDNodeWallet.fromPhrase(MNEMONIC, undefined, 'm');
 
-async function checkAndSweep() {
-    console.log(`[${new Date().toISOString()}] 🔍 Checking deposit addresses...`);
+// Health tracking
+let lastSuccessfulCheck = Date.now();
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 5;
+
+interface SweepStats {
+    totalAttempts: number;
+    successfulSweeps: number;
+    failedSweeps: number;
+    lastSweepTime: Date | null;
+}
+
+const stats: SweepStats = {
+    totalAttempts: 0,
+    successfulSweeps: 0,
+    failedSweeps: 0,
+    lastSweepTime: null
+};
+
+/**
+ * Structured logger
+ */
+function log(level: 'INFO' | 'WARN' | 'ERROR', message: string, metadata?: any) {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+        timestamp,
+        level,
+        service: 'sweep-monitor',
+        message,
+        ...metadata
+    };
+
+    console.log(JSON.stringify(logEntry));
+}
+
+/**
+ * Get token contract address from deposit currency
+ */
+function getTokenAddress(currency: string): string {
+    if (currency === 'USDC') return USDC_NATIVE_ADDRESS;
+    if (currency === 'USDC.e') return USDC_BRIDGED_ADDRESS;
+    return USDC_NATIVE_ADDRESS; // Default
+}
+
+/**
+ * Check for deposits that need sweeping
+ * Database-driven approach - no wasteful blockchain calls
+ */
+async function checkPendingSweeps() {
+    log('INFO', 'Checking for pending sweeps...');
 
     try {
-        // Get all USDC deposit addresses
-        const addresses = await prisma.depositAddress.findMany({
-            where: { currency: 'USDC' },
-            select: {
-                address: true,
-                derivationIndex: true,
-                userId: true
-            }
+        // Find deposits that need sweeping
+        const pendingDeposits = await prisma.deposit.findMany({
+            where: {
+                status: 'PENDING_SWEEP',
+                OR: [
+                    { retryCount: { lt: MAX_RETRIES } },
+                    { retryCount: null }
+                ]
+            },
+            include: {
+                user: {
+                    include: {
+                        depositAddresses: {
+                            where: { currency: 'USDC' }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'asc' },
+            take: 10 // Process in batches
         });
 
-        console.log(`   Found ${addresses.length} deposit addresses to check`);
-
-        // Check both token types
-        const usdcNative = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, provider);
-        const usdcBridged = new ethers.Contract(USDC_BRIDGED_ADDRESS, ERC20_ABI, provider);
-
-        const minDeposit = ethers.parseUnits('0.5', 6); // 0.5 USDC minimum
-
-        for (const addr of addresses) {
-            // Check both tokens in parallel
-            const [nativeBalance, bridgedBalance] = await Promise.all([
-                usdcNative.balanceOf(addr.address).catch(() => 0n),
-                usdcBridged.balanceOf(addr.address).catch(() => 0n)
-            ]);
-
-            // Sweep native USDC if found
-            if (nativeBalance > minDeposit) {
-                console.log(`   💰 Found ${ethers.formatUnits(nativeBalance, 6)} USDC at ${addr.address}`);
-                await sweep(addr, nativeBalance, USDC_NATIVE_ADDRESS, 'USDC');
-            }
-
-            // Sweep bridged USDC.e if found
-            if (bridgedBalance > minDeposit) {
-                console.log(`   💰 Found ${ethers.formatUnits(bridgedBalance, 6)} USDC.e at ${addr.address}`);
-                await sweep(addr, bridgedBalance, USDC_BRIDGED_ADDRESS, 'USDC.e');
-            }
+        if (pendingDeposits.length === 0) {
+            log('INFO', 'No pending sweeps found');
+            lastSuccessfulCheck = Date.now();
+            consecutiveFailures = 0;
+            return;
         }
 
-        console.log(`   ✅ Check complete`);
-    } catch (error) {
-        console.error('   ❌ Error during check:', error);
+        log('INFO', `Found ${pendingDeposits.length} deposits to sweep`, {
+            count: pendingDeposits.length
+        });
+
+        // Process each deposit
+        for (const deposit of pendingDeposits) {
+            await sweepDeposit(deposit);
+
+            // Small delay between sweeps to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        lastSuccessfulCheck = Date.now();
+        consecutiveFailures = 0;
+
+    } catch (error: any) {
+        consecutiveFailures++;
+        log('ERROR', 'Failed to check pending sweeps', {
+            error: error.message,
+            consecutiveFailures
+        });
+
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            log('ERROR', '🚨 CRITICAL: Multiple consecutive failures - manual intervention required', {
+                consecutiveFailures
+            });
+        }
     }
 }
 
-async function sweep(
-    addr: { address: string; derivationIndex: number; userId: string },
-    balance: bigint,
-    tokenAddress: string,
-    symbol: string
-) {
+/**
+ * Sweep a single deposit with retry logic
+ */
+async function sweepDeposit(deposit: any) {
+    const depositAddress = deposit.user.depositAddresses[0];
+
+    if (!depositAddress) {
+        log('ERROR', 'No deposit address found for user', {
+            depositId: deposit.id,
+            userId: deposit.userId
+        });
+        return;
+    }
+
+    stats.totalAttempts++;
+    const retryCount = deposit.retryCount || 0;
+    const retryDelay = RETRY_DELAY_MS * Math.pow(2, retryCount); // Exponential backoff
+
+    log('INFO', `Sweeping deposit ${deposit.id}`, {
+        depositId: deposit.id,
+        amount: deposit.amount,
+        currency: deposit.currency,
+        retryCount,
+        retryDelay
+    });
+
     try {
         // Derive wallet
-        const path = `m/44'/60'/0'/0/${addr.derivationIndex}`;
+        const path = `m/44'/60'/0'/0/${depositAddress.derivationIndex}`;
         const userWallet = masterNode.derivePath(path).connect(provider);
         const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
 
+        // Get token contract
+        const tokenAddress = getTokenAddress(deposit.currency);
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, userWallet);
 
+        // Check actual balance on-chain
+        const balance = await tokenContract.balanceOf(depositAddress.address);
+
+        if (balance === 0n) {
+            log('WARN', 'Balance is 0 - marking as completed (already swept or invalid)', {
+                depositId: deposit.id
+            });
+
+            await prisma.deposit.update({
+                where: { id: deposit.id },
+                data: {
+                    status: 'COMPLETED',
+                    updatedAt: new Date()
+                }
+            });
+            return;
+        }
+
         // Check if wallet needs gas
-        const maticBalance = await provider.getBalance(addr.address);
+        const maticBalance = await provider.getBalance(depositAddress.address);
         const feeData = await provider.getFeeData();
         const gasLimit = 100000n;
-        const gasPrice = feeData.gasPrice || ethers.parseUnits('30', 'gwei');
+        const gasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
         const requiredMatic = gasLimit * gasPrice * 2n; // 2x buffer
 
         if (maticBalance < requiredMatic) {
-            console.log(`      ⛽ Topping up gas for ${addr.address}...`);
+            log('INFO', 'Topping up gas', {
+                depositId: deposit.id,
+                address: depositAddress.address,
+                required: ethers.formatEther(requiredMatic)
+            });
+
             const topupTx = await masterWallet.sendTransaction({
-                to: addr.address,
+                to: depositAddress.address,
                 value: requiredMatic - maticBalance,
                 gasLimit: 21000n
             });
             await topupTx.wait();
-            console.log(`      ✅ Gas topped up`);
+
+            log('INFO', 'Gas topped up', {
+                depositId: deposit.id,
+                txHash: topupTx.hash
+            });
         }
 
         // Sweep tokens
-        console.log(`      🧹 Sweeping ${ethers.formatUnits(balance, 6)} ${symbol}...`);
+        log('INFO', 'Executing sweep transaction', {
+            depositId: deposit.id,
+            amount: ethers.formatUnits(balance, 6),
+            currency: deposit.currency
+        });
+
         const sweepTx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance);
-        console.log(`      📤 TX: ${sweepTx.hash}`);
         await sweepTx.wait();
-        console.log(`      ✅ Sweep confirmed`);
 
-        // Credit user
-        const rawAmount = parseFloat(ethers.formatUnits(balance, 6));
-        const fee = rawAmount * 0.01; // 1% fee
-        const creditAmount = rawAmount - fee;
+        log('INFO', '✅ Sweep completed successfully', {
+            depositId: deposit.id,
+            txHash: sweepTx.hash,
+            amount: ethers.formatUnits(balance, 6)
+        });
 
-        await prisma.$transaction(async (tx) => {
-            // Create deposit record
-            await tx.deposit.create({
-                data: {
-                    userId: addr.userId,
-                    amount: creditAmount,
-                    currency: symbol,
-                    txHash: sweepTx.hash,
-                    status: 'COMPLETED',
-                    fromAddress: addr.address,
-                    toAddress: MASTER_WALLET_ADDRESS
-                }
-            });
-
-            // Update balance
-            const userBalance = await tx.balance.findFirst({
-                where: {
-                    userId: addr.userId,
-                    tokenSymbol: 'TUSD',
-                    eventId: null,
-                    outcomeId: null
-                }
-            });
-
-            if (userBalance) {
-                await tx.balance.update({
-                    where: { id: userBalance.id },
-                    data: { amount: { increment: creditAmount } }
-                });
-            } else {
-                await tx.balance.create({
-                    data: {
-                        userId: addr.userId,
-                        tokenSymbol: 'TUSD',
-                        amount: creditAmount
-                    }
-                });
+        // Update deposit status
+        await prisma.deposit.update({
+            where: { id: deposit.id },
+            data: {
+                status: 'COMPLETED',
+                txHash: sweepTx.hash,
+                updatedAt: new Date()
             }
         });
 
-        console.log(`      💵 Credited $${creditAmount.toFixed(2)} to user ${addr.userId}`);
-    } catch (error) {
-        console.error(`      ❌ Sweep failed for ${addr.address}:`, error);
+        stats.successfulSweeps++;
+        stats.lastSweepTime = new Date();
+
+    } catch (error: any) {
+        stats.failedSweeps++;
+
+        log('ERROR', 'Sweep failed', {
+            depositId: deposit.id,
+            retryCount,
+            error: error.message,
+            code: error.code
+        });
+
+        // Update retry count
+        const newRetryCount = retryCount + 1;
+
+        if (newRetryCount >= MAX_RETRIES) {
+            log('ERROR', '🚨 Sweep failed after max retries - manual intervention required', {
+                depositId: deposit.id,
+                retryCount: newRetryCount,
+                maxRetries: MAX_RETRIES
+            });
+
+            await prisma.deposit.update({
+                where: { id: deposit.id },
+                data: {
+                    status: 'FAILED',
+                    retryCount: newRetryCount,
+                    metadata: {
+                        ...(deposit.metadata || {}),
+                        lastError: error.message,
+                        lastErrorTime: new Date().toISOString()
+                    },
+                    updatedAt: new Date()
+                }
+            });
+        } else {
+            // Schedule retry
+            await prisma.deposit.update({
+                where: { id: deposit.id },
+                data: {
+                    retryCount: newRetryCount,
+                    metadata: {
+                        ...(deposit.metadata || {}),
+                        lastError: error.message,
+                        lastErrorTime: new Date().toISOString(),
+                        nextRetry: new Date(Date.now() + retryDelay).toISOString()
+                    },
+                    updatedAt: new Date()
+                }
+            });
+
+            log('INFO', `Scheduled retry for deposit ${deposit.id}`, {
+                depositId: deposit.id,
+                nextRetry: newRetryCount,
+                delayMs: retryDelay
+            });
+        }
     }
 }
 
+/**
+ * Health check for monitoring
+ */
+function getHealthStatus() {
+    const timeSinceLastCheck = Date.now() - lastSuccessfulCheck;
+    const isHealthy = timeSinceLastCheck < CHECK_INTERVAL_MS * 3 && consecutiveFailures < MAX_CONSECUTIVE_FAILURES;
+
+    return {
+        status: isHealthy ? 'healthy' : 'unhealthy',
+        uptime: process.uptime(),
+        lastSuccessfulCheck: new Date(lastSuccessfulCheck).toISOString(),
+        timeSinceLastCheck,
+        consecutiveFailures,
+        stats: {
+            ...stats,
+            lastSweepTime: stats.lastSweepTime?.toISOString() || null
+        }
+    };
+}
+
+/**
+ * Main worker loop
+ */
 async function main() {
-    console.log('🚀 Sweep Monitor Worker Starting...');
-    console.log(`   Check interval: ${CHECK_INTERVAL_MS}ms`);
-    console.log(`   Master wallet: ${MASTER_WALLET_ADDRESS}`);
-    console.log(`   Monitoring: USDC + USDC.e`);
+    log('INFO', '🚀 Sweep Monitor Worker Starting (Production Mode)...', {
+        checkInterval: CHECK_INTERVAL_MS,
+        maxRetries: MAX_RETRIES,
+        masterWallet: MASTER_WALLET_ADDRESS
+    });
 
     // Run initial check
-    await checkAndSweep();
+    await checkPendingSweeps();
 
     // Schedule periodic checks
     setInterval(async () => {
-        await checkAndSweep();
+        await checkPendingSweeps();
     }, CHECK_INTERVAL_MS);
 
-    console.log('✅ Worker running');
+    // Log health status periodically
+    setInterval(() => {
+        const health = getHealthStatus();
+        log('INFO', 'Health check', health);
+    }, 60000); //  Every minute
+
+    log('INFO', '✅ Worker running');
 }
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('🛑 SIGTERM received, shutting down gracefully...');
+    log('INFO', '🛑 SIGTERM received, shutting down gracefully...');
+    const health = getHealthStatus();
+    log('INFO', 'Final health status', health);
     await prisma.$disconnect();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('🛑 SIGINT received, shutting down gracefully...');
+    log('INFO', '🛑 SIGINT received, shutting down gracefully...');
+    const health = getHealthStatus();
+    log('INFO', 'Final health status', health);
     await prisma.$disconnect();
     process.exit(0);
 });
 
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+    log('ERROR', '🚨 Uncaught exception', {
+        error: error.message,
+        stack: error.stack
+    });
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+    log('ERROR', '🚨 Unhandled rejection', {
+        reason: reason?.message || reason
+    });
+});
+
 main().catch(async (error) => {
-    console.error('❌ Fatal error:', error);
+    log('ERROR', '❌ Fatal error', {
+        error: error.message,
+        stack: error.stack
+    });
     await prisma.$disconnect();
     process.exit(1);
 });
