@@ -12,51 +12,118 @@ import { ClobClient, Side as ClobSide, OrderType, TickSize } from '@polymarket/c
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
-// Configure proxy for axios using HttpsProxyAgent
+// Configure proxy for axios using HttpsProxyAgent with fallback support
 const proxyUrl = process.env.POLYMARKET_PROXY_URL;
 let httpsAgent: any = null;
+let proxyDisabled = false; // Track if proxy is down
+let proxyDisabledUntil = 0; // Timestamp when we should retry proxy
+
+const PROXY_RETRY_INTERVAL = 5 * 60 * 1000; // Retry proxy every 5 minutes
+
+// Browser-like headers for all Polymarket requests
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://polymarket.com',
+  'Referer': 'https://polymarket.com/'
+};
 
 if (proxyUrl) {
-  console.log('[Polymarket] Configuring proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+  console.log('[Polymarket] Configuring proxy with fallback:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
 
   try {
     httpsAgent = new HttpsProxyAgent(proxyUrl);
 
-    // Use axios interceptor to add the agent and browser-like headers
+    // Request interceptor: add proxy agent and headers
     axios.interceptors.request.use((config) => {
-      // Check both url and baseURL to enable proxy for clob-client (which uses baseURL)
       const isPolymarket =
         (config.url && config.url.includes('polymarket.com')) ||
         (config.baseURL && config.baseURL.includes('polymarket.com'));
 
-      if (httpsAgent && isPolymarket) {
-        // Use Object.defineProperty to make httpsAgent non-enumerable
-        // This prevents "Converting circular structure to JSON" errors when axios/clob-client logs errors
+      if (!isPolymarket) return config;
+
+      // Always add browser headers
+      config.headers = { ...config.headers, ...BROWSER_HEADERS } as any;
+
+      // Check if we should retry the proxy
+      if (proxyDisabled && Date.now() > proxyDisabledUntil) {
+        console.log('[Polymarket] Retrying proxy connection...');
+        proxyDisabled = false;
+      }
+
+      // Only use proxy if it's not disabled
+      if (httpsAgent && !proxyDisabled) {
         Object.defineProperty(config, 'httpsAgent', {
           value: httpsAgent,
           enumerable: false,
           writable: true,
           configurable: true
         });
-
-        config.proxy = false; // Disable axios native proxy, use our agent
-
-        // Add browser-like headers to bypass Cloudflare POST blocking
-        config.headers = {
-          ...config.headers,
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Origin': 'https://polymarket.com',
-          'Referer': 'https://polymarket.com/'
-        } as any;
+        config.proxy = false;
       }
+
       return config;
     });
 
-    console.log('[Polymarket] Proxy agent configured successfully');
+    // Response interceptor: detect proxy failures and retry without proxy
+    axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const config = error.config;
+        const isPolymarket =
+          (config?.url && config.url.includes('polymarket.com')) ||
+          (config?.baseURL && config.baseURL.includes('polymarket.com'));
+
+        // Check for proxy-specific errors
+        const status = error.response?.status;
+        const statusText = error.response?.statusText || '';
+        const isProxyError =
+          status === 407 ||
+          statusText.includes('TRAFFIC_EXHAUSTED') ||
+          statusText.includes('PROXY') ||
+          error.code === 'ECONNREFUSED';
+
+        // If this is a proxy error and we haven't retried yet
+        if (isPolymarket && isProxyError && !config._proxyRetried && httpsAgent) {
+          console.warn(`[Polymarket] ⚠️ Proxy failed (${status} ${statusText}), falling back to direct connection`);
+
+          // Mark proxy as disabled temporarily
+          proxyDisabled = true;
+          proxyDisabledUntil = Date.now() + PROXY_RETRY_INTERVAL;
+
+          // Mark this request as retried to prevent infinite loop
+          config._proxyRetried = true;
+
+          // Remove proxy agent for retry
+          delete config.httpsAgent;
+          config.proxy = undefined;
+
+          // Retry the request without proxy
+          console.log('[Polymarket] Retrying request without proxy...');
+          return axios.request(config);
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    console.log('[Polymarket] Proxy with fallback configured successfully');
   } catch (error) {
     console.error('[Polymarket] Failed to configure proxy:', error);
   }
+} else {
+  // No proxy configured - just add browser headers
+  console.log('[Polymarket] No proxy configured, using direct connection');
+  axios.interceptors.request.use((config) => {
+    const isPolymarket =
+      (config.url && config.url.includes('polymarket.com')) ||
+      (config.baseURL && config.baseURL.includes('polymarket.com'));
+
+    if (isPolymarket) {
+      config.headers = { ...config.headers, ...BROWSER_HEADERS } as any;
+    }
+    return config;
+  });
 }
 
 // Types

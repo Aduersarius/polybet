@@ -53,6 +53,7 @@
     "@vercel/speed-insights": "^1.2.0",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.4.4-beta.1",
+    "botid": "^1.5.10",
     "braintrust": "^0.4.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
