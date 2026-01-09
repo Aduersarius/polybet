@@ -8,8 +8,9 @@ import { redis } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 
-// Use same USDC address as crypto-service
-const USDC_ADDRESS = (process.env.USDC_CONTRACT_ADDRESS || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359').toLowerCase();
+// Support both USDC tokens on Polygon
+const USDC_NATIVE_ADDRESS = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'.toLowerCase(); // Native USDC
+const USDC_BRIDGED_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'.toLowerCase(); // USDC.e (bridged)
 
 export async function POST(req: NextRequest) {
     try {
@@ -43,18 +44,16 @@ export async function POST(req: NextRequest) {
         let processedCount = 0;
 
         for (const activity of activities) {
-            // 1. Filter for valid USDC transfers
-            // We only care about incoming transfers (we don't check 'toAddress' here yet, we query DB)
-            // Asset address should match USDC or be null (native token) - but we only want USDC usually depending on game logic
-            // Based on crypto-service, we only sweep USDC.
-
+            // 1. Filter for valid USDC transfers (both native and bridged)
             const assetAddress = activity.rawContract.address?.toLowerCase();
 
-            // If asset is not USDC, ignore (unless you want to support MATIC deposits too?)
-            // For now, let's stick to USDC as per crypto-service.ts
-            if (assetAddress !== USDC_ADDRESS) {
+            // Check if it's either USDC or USDC.e
+            if (assetAddress !== USDC_NATIVE_ADDRESS && assetAddress !== USDC_BRIDGED_ADDRESS) {
                 continue;
             }
+
+            // Determine token symbol for logging
+            const tokenSymbol = assetAddress === USDC_NATIVE_ADDRESS ? 'USDC' : 'USDC.e';
 
             // 2. Check if 'toAddress' belongs to a user
             const toAddress = activity.toAddress;
@@ -92,7 +91,7 @@ export async function POST(req: NextRequest) {
             const fee = usdcAmount * 0.01;
             const netAmount = usdcAmount - fee;
 
-            console.log(`[Webhook] Processing deposit: ${usdcAmount} USDC for user ${depositAddress.userId} (Tx: ${activity.hash})`);
+            console.log(`[Webhook] Processing deposit: ${usdcAmount} ${tokenSymbol} for user ${depositAddress.userId} (Tx: ${activity.hash})`);
 
             // 5. Transaction: Create Deposit + Credit User + Ledger
             await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -109,7 +108,7 @@ export async function POST(req: NextRequest) {
                     data: {
                         userId: depositAddress.userId,
                         amount: new Prisma.Decimal(usdcAmount),
-                        currency: 'USDC',
+                        currency: tokenSymbol,
                         txHash: activity.hash,
                         status: 'PENDING_SWEEP', // New status indicating it needs sweeping
                         fromAddress: activity.fromAddress,
@@ -138,10 +137,10 @@ export async function POST(req: NextRequest) {
                         balanceBefore: new Prisma.Decimal(balanceBefore),
                         balanceAfter: new Prisma.Decimal(balanceAfter),
                         metadata: {
-                            description: 'Crypto Deposit (USDC)',
+                            description: `Crypto Deposit (${tokenSymbol})`,
                             fee: fee,
                             originalAmount: usdcAmount,
-                            currency: 'USDC',
+                            currency: tokenSymbol,
                             txHash: activity.hash
                         }
                     }
@@ -174,7 +173,7 @@ export async function POST(req: NextRequest) {
                             id: activity.hash, // Using txHash as ID for UI until fetch refresh
                             type: 'Deposit',
                             amount: usdcAmount,
-                            currency: 'USDC',
+                            currency: tokenSymbol,
                             status: 'COMPLETED',
                             createdAt: new Date().toISOString()
                         }
@@ -186,7 +185,7 @@ export async function POST(req: NextRequest) {
                         payload: {
                             userId: depositAddress.userId,
                             type: 'DEPOSIT_SUCCESS',
-                            message: `Deposit of ${usdcAmount} USDC successfully processed.`,
+                            message: `Deposit of ${usdcAmount} ${tokenSymbol} successfully processed.`,
                             resourceId: activity.hash
                         }
                     });
