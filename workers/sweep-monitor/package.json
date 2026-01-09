@@ -1,0 +1,21 @@
+{
+    "name": "sweep-monitor",
+    "version": "1.0.0",
+    "description": "Deposit monitor and sweep service for USDC/USDC.e",
+    "main": "dist/worker.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/worker.js",
+        "dev": "tsx watch worker.ts"
+    },
+    "dependencies": {
+        "@prisma/client": "^7.2.0",
+        "ethers": "^6.15.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.5",
+        "prisma": "^7.2.0",
+        "tsx": "^4.7.0",
+        "typescript": "^5.3.3"
+    }
+}
