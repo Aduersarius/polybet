@@ -172,6 +172,7 @@ export default function EventPage() {
     // Real-time updates via WebSocket
     useEffect(() => {
         const { socket } = require('@/lib/socket');
+        const channel = socket.subscribe(`event-${eventId}`);
 
         function onTradeUpdate(update: any) {
             console.log('Received real-time update:', update);
@@ -214,12 +215,11 @@ export default function EventPage() {
             });
         }
 
-        socket.emit('join-event', eventId);
-        socket.on(`odds-update-${eventId}`, onTradeUpdate);
+        channel.bind(`odds-update`, onTradeUpdate);
 
         return () => {
-            socket.emit('leave-event', eventId);
-            socket.off(`odds-update-${eventId}`, onTradeUpdate);
+            channel.unbind(`odds-update`, onTradeUpdate);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId]);
 

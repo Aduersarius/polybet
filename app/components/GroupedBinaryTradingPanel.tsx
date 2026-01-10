@@ -74,6 +74,7 @@ export function GroupedBinaryTradingPanel({
     // WebSocket listener for real-time updates
     useEffect(() => {
         const { socket } = require('@/lib/socket');
+        const channel = socket.subscribe(`event-${eventId}`);
 
         function onOddsUpdate(update: any) {
             if (update.eventId !== eventId) return;
@@ -83,9 +84,11 @@ export function GroupedBinaryTradingPanel({
             }
         }
 
-        socket.on(`odds-update-${eventId}`, onOddsUpdate);
+        channel.bind('odds-update', onOddsUpdate);
+
         return () => {
-            socket.off(`odds-update-${eventId}`, onOddsUpdate);
+            channel.unbind('odds-update', onOddsUpdate);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId]);
 

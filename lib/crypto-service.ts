@@ -623,25 +623,22 @@ export class CryptoService {
                         }
                     });
 
-                    // Broadcast successful withdrawal via Redis Pub/Sub
+                    // Publish via Pusher (Soketi) for Frontend
                     try {
-                        const message = JSON.stringify({
-                            type: 'transaction',
-                            userId: withdrawal.userId,
-                            payload: {
-                                id: withdrawal.id,
-                                type: 'Withdrawal',
-                                amount: withdrawal.amount,
-                                currency: withdrawal.currency,
-                                status: 'COMPLETED',
-                                createdAt: withdrawal.createdAt,
-                                txHash: tx.hash
-                            }
+                        const { triggerUserUpdate } = await import('@/lib/pusher-server');
+
+                        await triggerUserUpdate(withdrawal.userId, 'transaction-update', {
+                            id: withdrawal.id,
+                            type: 'Withdrawal',
+                            amount: withdrawal.amount,
+                            currency: withdrawal.currency,
+                            status: 'COMPLETED',
+                            createdAt: withdrawal.createdAt,
+                            txHash: tx.hash
                         });
 
-                        const notification = JSON.stringify({
-                            type: 'notification',
-                            userId: withdrawal.userId,
+                        await triggerUserUpdate(withdrawal.userId, 'user-update', {
+                            type: 'WITHDRAWAL_SUCCESS',
                             payload: {
                                 userId: withdrawal.userId,
                                 type: 'WITHDRAWAL_SUCCESS',
@@ -649,11 +646,8 @@ export class CryptoService {
                                 resourceId: withdrawal.id
                             }
                         });
-
-                        await redis.publish('user-updates', message);
-                        await redis.publish('user-updates', notification);
-                    } catch (redisErr) {
-                        console.error('[WITHDRAWAL] Failed to publish Redis update:', redisErr);
+                    } catch (pusherErr) {
+                        console.error('[WITHDRAWAL] Failed to publish Pusher update:', pusherErr);
                     }
 
                     this.log(`[WITHDRAWAL] Successfully completed withdrawal ${withdrawalId}`);

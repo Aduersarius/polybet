@@ -23,7 +23,7 @@ export default function SportsPage() {
   const [showConnectedBadge, setShowConnectedBadge] = useState(false);
   const queryClient = useQueryClient();
   const router = useRouter();
-  
+
   // Fetch sports events from database (show all events - live and upcoming)
   const { data, isLoading, error } = useQuery<{
     events: SportsEvent[];
@@ -36,11 +36,11 @@ export default function SportsPage() {
         filter: 'all', // Show all events
         limit: '100',
       });
-      
+
       if (selectedSport && selectedSport !== 'popular') {
         params.append('sport', selectedSport);
       }
-      
+
       const res = await fetch(`/api/sports?${params.toString()}`);
       if (!res.ok) {
         throw new Error('Failed to fetch sports events');
@@ -50,9 +50,9 @@ export default function SportsPage() {
     staleTime: 30000, // 30 seconds
     refetchInterval: 10000, // Poll every 10s for all events
   });
-  
+
   const events = data?.events || [];
-  
+
   // Calculate event counts by category for sidebar
   const { data: countsData } = useQuery({
     queryKey: ['sports-counts'],
@@ -60,7 +60,7 @@ export default function SportsPage() {
       const res = await fetch('/api/sports?filter=all&limit=1000');
       if (!res.ok) return { counts: {} };
       const data = await res.json();
-      
+
       // Count events by sport/league
       const counts: Record<string, number> = {};
       data.events.forEach((event: SportsEvent) => {
@@ -72,13 +72,13 @@ export default function SportsPage() {
           const key = event.sport.toLowerCase().replace(/\s+/g, '-');
           counts[key] = (counts[key] || 0) + 1;
         }
-        
+
         // Map to common sport IDs
         if (event.sport?.includes('Counter-Strike')) counts['cs2'] = (counts['cs2'] || 0) + 1;
         if (event.sport?.includes('League of Legends')) counts['lol'] = (counts['lol'] || 0) + 1;
         if (event.sport?.includes('Dota')) counts['dota2'] = (counts['dota2'] || 0) + 1;
         if (event.sport?.includes('Rocket League')) counts['rocket-league'] = (counts['rocket-league'] || 0) + 1;
-        
+
         // Count esports and traditional
         if (event.isEsports) {
           counts['esports'] = (counts['esports'] || 0) + 1;
@@ -86,39 +86,33 @@ export default function SportsPage() {
           counts['football'] = (counts['football'] || 0) + 1;
         }
       });
-      
+
       counts['popular'] = data.total;
-      
+
       return { counts };
     },
     staleTime: 60000, // 1 minute
   });
-  
+
   const eventCounts = countsData?.counts || {};
-  
+
   // Connect to WebSocket for real-time odds updates (<500ms latency)
   useEffect(() => {
     console.log('🔌 Connecting to WebSocket for sports odds...');
-    
-    // Connect to WebSocket
-    socket.connect();
+
+    // Subscribe to sports-odds channel
+    const channel = socket.subscribe('sports-odds');
 
     // Connection handlers
     const handleConnect = () => {
       console.log('✅ WebSocket connected for sports');
       setIsConnected(true);
       setShowConnectedBadge(true);
-      
+
       // Hide the "connected" badge after 3 seconds
       setTimeout(() => {
         setShowConnectedBadge(false);
       }, 3000);
-      
-      // Join sport room if not 'popular'
-      if (selectedSport !== 'popular') {
-        socket.emit('join-sport', selectedSport);
-        console.log(`📡 Joined sport room: ${selectedSport}`);
-      }
     };
 
     const handleDisconnect = () => {
@@ -129,18 +123,18 @@ export default function SportsPage() {
     // Listen for sports odds updates
     const handleOddsUpdate = (data: any) => {
       console.log(`📊 Received odds update: ${data.count} events, latency: ${Date.now() - new Date(data.timestamp).getTime()}ms`);
-      
+
       // Update React Query cache with new odds
       queryClient.setQueryData(
         ['sports-events', selectedSport],
         (oldData: any) => {
           if (!oldData || !data.events) return oldData;
-          
+
           // Create a map of updated events by ID for faster lookup
           const updatedEventsMap = new Map(
             data.events.map((e: SportsEvent) => [e.id, e])
           );
-          
+
           // Update existing events with new odds
           const updatedEvents = oldData.events.map((event: SportsEvent) => {
             const updated = updatedEventsMap.get(event.id) as SportsEvent | undefined;
@@ -158,7 +152,7 @@ export default function SportsPage() {
             }
             return event;
           });
-          
+
           return {
             ...oldData,
             events: updatedEvents,
@@ -167,44 +161,24 @@ export default function SportsPage() {
       );
     };
 
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('sports:odds-update', handleOddsUpdate);
+    socket.connection.bind('connected', handleConnect);
+    socket.connection.bind('disconnected', handleDisconnect);
+    channel.bind('sports:odds-update', handleOddsUpdate);
+
+    // Initial check if already connected
+    if (socket.connection.state === 'connected') {
+      handleConnect();
+    }
 
     // Cleanup
     return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('sports:odds-update', handleOddsUpdate);
-      
-      // Leave sport room
-      if (selectedSport !== 'popular') {
-        socket.emit('leave-sport', selectedSport);
-      }
-      
-      socket.disconnect();
+      channel.unbind('sports:odds-update', handleOddsUpdate);
+      socket.connection.unbind('connected', handleConnect);
+      socket.connection.unbind('disconnected', handleDisconnect);
+      socket.unsubscribe('sports-odds');
     };
-  }, [queryClient]);
-  
-  // Handle sport changes - join/leave rooms
-  useEffect(() => {
-    if (!isConnected) return;
-    
-    console.log(`🔄 Switching to sport: ${selectedSport}`);
-    
-    // Leave old sport room, join new one
-    if (selectedSport !== 'popular') {
-      socket.emit('join-sport', selectedSport);
-      console.log(`📡 Joined sport room: ${selectedSport}`);
-    }
-    
-    return () => {
-      if (selectedSport !== 'popular') {
-        socket.emit('leave-sport', selectedSport);
-      }
-    };
-  }, [selectedSport, isConnected]);
-  
+  }, [queryClient, selectedSport]);
+
   // Handle category change from navbar
   const handleCategoryChange = (category: string) => {
     if (category === 'SPORTS') {
@@ -215,15 +189,15 @@ export default function SportsPage() {
       router.push(`/?category=${category}`);
     }
   };
-  
+
   return (
     <SportsTradingProvider>
       {/* Navbar with category subheader */}
-      <Navbar 
+      <Navbar
         selectedCategory={selectedCategory}
         onCategoryChange={handleCategoryChange}
       />
-      
+
       <div className="min-h-screen">
         {/* WebSocket Connection Status Indicator */}
         {!isConnected && (
@@ -236,7 +210,7 @@ export default function SportsPage() {
             <span className="text-sm font-medium">Reconnecting...</span>
           </motion.div>
         )}
-        
+
         {showConnectedBadge && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -249,7 +223,7 @@ export default function SportsPage() {
             <span className="text-sm font-medium">Live • &lt;500ms</span>
           </motion.div>
         )}
-        
+
         <div className="flex">
           {/* Mobile Sidebar Toggle */}
           <button
@@ -258,7 +232,7 @@ export default function SportsPage() {
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          
+
           {/* Sidebar - Desktop always visible, Mobile toggleable */}
           <div className={`
             fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] z-40 lg:z-0
@@ -274,7 +248,7 @@ export default function SportsPage() {
               eventCounts={eventCounts}
             />
           </div>
-          
+
           {/* Mobile overlay */}
           {sidebarOpen && (
             <div
@@ -282,7 +256,7 @@ export default function SportsPage() {
               onClick={() => setSidebarOpen(false)}
             />
           )}
-          
+
           {/* Main Content */}
           <div className="flex-1 min-w-0 px-4 sm:px-6 py-8">
             <div className="max-w-7xl mx-auto">
@@ -295,7 +269,7 @@ export default function SportsPage() {
                   Live games and upcoming matches
                 </p>
               </div>
-              
+
               {/* Loading State */}
               {isLoading && (
                 <div className="space-y-3">
@@ -307,7 +281,7 @@ export default function SportsPage() {
                   ))}
                 </div>
               )}
-              
+
               {/* Error State */}
               {error && (
                 <div className="text-center py-12">
@@ -320,7 +294,7 @@ export default function SportsPage() {
                   </button>
                 </div>
               )}
-              
+
               {/* Events Display */}
               {!isLoading && !error && (
                 <LiveGamesList events={events} />
@@ -329,10 +303,10 @@ export default function SportsPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Footer */}
       <Footer />
-      
+
       {/* Sliding Trading Sidebar */}
       <SportsTradingSidebar />
     </SportsTradingProvider>

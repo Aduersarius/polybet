@@ -202,12 +202,31 @@ class PolymarketWebSocketClient {
 
         // Broadcast binary update
         if (redis) {
-          await redis.publish('sports-odds', JSON.stringify({
+          const payload = {
             eventId: mapping.internalEventId,
             yesPrice: isYes ? price : undefined,
             noPrice: isYes ? undefined : price,
             timestamp: Date.now(),
-          }));
+          };
+
+          await redis.publish('sports-odds', JSON.stringify(payload));
+
+          try {
+            // Use dynamic import or simple wrapper if available, or just ignore since backend->frontend
+            // BUT this file seems to be part of the app.
+            const { getPusherServer } = await import('@/lib/pusher-server');
+            const pusher = getPusherServer();
+            await pusher.trigger(`event-${mapping.internalEventId}`, 'odds-update', payload);
+            await pusher.trigger('sports-odds', 'sports:odds-update', {
+              events: [{
+                id: mapping.internalEventId,
+                yesOdds: payload.yesPrice,
+                noOdds: payload.noPrice,
+              }]
+            });
+          } catch (pErr) {
+            console.error('[Polymarket WS] Pusher broadcast failed:', pErr);
+          }
         }
       } else {
         // Handle MULTIPLE/GROUPED_BINARY events - find matching outcome
@@ -229,7 +248,7 @@ class PolymarketWebSocketClient {
               select: { id: true, name: true, probability: true },
             });
 
-            await redis.publish('sports-odds', JSON.stringify({
+            const payload = {
               eventId: mapping.internalEventId,
               outcomes: allOutcomes.map((o: { id: string; name: string; probability: number | null }) => ({
                 id: o.id,
@@ -237,11 +256,20 @@ class PolymarketWebSocketClient {
                 probability: o.probability,
               })),
               timestamp: Date.now(),
-            }));
+            };
+
+            await redis.publish('sports-odds', JSON.stringify(payload));
+
+            try {
+              const { getPusherServer } = await import('@/lib/pusher-server');
+              const pusher = getPusherServer();
+              await pusher.trigger(`event-${mapping.internalEventId}`, 'odds-update', payload);
+            } catch (pErr) {
+              console.error('[Polymarket WS] Pusher broadcast failed:', pErr);
+            }
           }
         }
       }
-
     } catch (error) {
       console.error('[Polymarket WS] Error handling market update:', error);
     }

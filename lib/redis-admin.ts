@@ -7,7 +7,7 @@ export function getRedisClient(): Redis {
     if (!redisClient && !connectionAttempted) {
         connectionAttempted = true;
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-        
+
         redisClient = new Redis(redisUrl, {
             maxRetriesPerRequest: 3,
             retryStrategy(times) {
@@ -58,7 +58,7 @@ export async function publishAdminEvent(eventType: string, payload?: any) {
             console.warn(`⚠️ [Redis Admin] No Redis client available, skipping admin event broadcast: ${eventType}`);
             return;
         }
-        
+
         // Check connection status
         const status = redis.status;
         if (status !== 'ready' && status !== 'connect') {
@@ -72,16 +72,28 @@ export async function publishAdminEvent(eventType: string, payload?: any) {
             }
             return;
         }
-        
+
         const message = JSON.stringify({
             type: eventType,
             payload: payload || {},
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`📡 [Redis Admin] Publishing to 'admin-events' channel:`, { type: eventType, payload });
         const result = await redis.publish('admin-events', message);
-        console.log(`✅ [Redis Admin] Published successfully, ${result} subscriber(s) received the message`);
+        console.log(`✅ [Redis Admin] Published successfully to Redis, ${result} subscriber(s) received the message`);
+
+        // Also publish via Pusher (Soketi) for Frontend
+        try {
+            const { getPusherServer } = await import('@/lib/pusher-server');
+            const pusherServer = getPusherServer();
+            // Prefix eventType with 'admin:' if not already present
+            const pusherEventName = eventType.startsWith('admin:') ? eventType : `admin:${eventType}`;
+            await pusherServer.trigger('admin-events', pusherEventName, payload || {});
+            console.log(`✅ [Redis Admin] Published successfully to Pusher/Soketi: ${pusherEventName}`);
+        } catch (pusherErr) {
+            console.error('❌ [Redis Admin] Failed to publish Pusher admin event:', pusherErr);
+        }
     } catch (error) {
         console.error('❌ [Redis Admin] Failed to publish admin event:', error);
         // Don't throw - allow the request to complete even if broadcast fails

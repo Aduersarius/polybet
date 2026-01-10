@@ -233,19 +233,27 @@ export async function POST(request: Request) {
             })();
         }
 
-        // 4. Publish to Redis for Real-time Updates (non-blocking)
-        if (redis) {
-            const updatePayload = {
-                eventId,
-                timestamp: Math.floor(Date.now() / 1000),
-                yesPrice: newOdds.yesPrice,
-                volume: numericAmount
-            };
-            // Don't await - fire and forget for better performance
-            redis.publish('event-updates', JSON.stringify(updatePayload)).catch(err =>
-                console.error('Redis publish failed:', err)
-            );
-        }
+        // 4. Publish to Pusher for Real-time Updates (non-blocking)
+        (async () => {
+            try {
+                const { getPusherServer, triggerUserUpdate } = await import('@/lib/pusher-server');
+                const pusherServer = getPusherServer();
+
+                await pusherServer.trigger(`event-${eventId}`, 'odds-update', {
+                    eventId,
+                    timestamp: Math.floor(Date.now() / 1000),
+                    yesPrice: newOdds.yesPrice,
+                    volume: numericAmount
+                });
+
+                await triggerUserUpdate(targetUserId, 'user-update', {
+                    type: 'POSITION_UPDATE',
+                    payload: { eventId }
+                });
+            } catch (err) {
+                console.error('[Pusher] Broadcast failed:', err);
+            }
+        })();
 
         const totalTime = Date.now() - startTime;
         console.log(`✅ Trade executed: ${option} $${numericAmount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
@@ -265,19 +273,8 @@ export async function POST(request: Request) {
         // will automatically pick up this bet within 3 seconds and recalculate hybrid odds
         Promise.all([
             (async () => {
-                if (redis && (redis as any).status === 'ready') {
-                    await redis.del(`event:${eventId}`).catch(() => { });
-                    await redis.del(`event:amm:${eventId}`).catch(() => { });
-
-                    const updatePayload = {
-                        eventId,
-                        timestamp: Math.floor(Date.now() / 1000),
-                        yesPrice: newOdds.yesPrice,
-                        volume: numericAmount
-                    };
-                    await redis.publish('event-updates', JSON.stringify(updatePayload))
-                        .catch(e => console.error('Redis publish failed:', e));
-                }
+                await redis.del(`event:${eventId}`).catch(() => { });
+                await redis.del(`event:amm:${eventId}`).catch(() => { });
             })()
         ]).catch(err => console.error('Post-bet cleanup failed:', err));
 

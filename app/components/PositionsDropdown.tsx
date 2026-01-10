@@ -41,6 +41,7 @@ export function PositionsDropdown() {
 
         const { socket } = require('@/lib/socket');
         const userId = (session as any).user.id;
+        const channel = socket.subscribe(`user-${userId}`);
 
         function onUserUpdate(update: any) {
             if (update.type === 'POSITION_UPDATE') {
@@ -48,13 +49,11 @@ export function PositionsDropdown() {
             }
         }
 
-        // Join user-specific room
-        socket.emit('join-user-room', userId);
-        socket.on('user-update', onUserUpdate);
+        channel.bind('user-update', onUserUpdate);
 
         return () => {
-            socket.emit('leave-user-room', userId);
-            socket.off('user-update', onUserUpdate);
+            channel.unbind('user-update', onUserUpdate);
+            socket.unsubscribe(`user-${userId}`);
         };
     }, [(session as any)?.user?.id, queryClient]);
 

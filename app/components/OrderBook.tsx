@@ -128,7 +128,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                             yesOdds: data.yes.mid || 0.5,
                             noOdds: data.no.mid || 0.5
                         });
-                        
+
                         // Convert Polymarket data to orderbook format
                         const book = selectedOption === 'YES' ? data.yes : data.no;
                         if (book && book.bids && book.asks) {
@@ -153,12 +153,12 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     useEffect(() => {
         if (dataSource === 'polymarket') {
             const eventSource = new EventSource('/api/sports/probabilities/stream');
-            
+
             eventSource.onmessage = (event) => {
                 try {
                     const { updates } = JSON.parse(event.data);
                     const myUpdate = updates?.find((u: any) => u.eventId === eventId);
-                    
+
                     if (myUpdate) {
                         setLiveOdds({
                             yesOdds: myUpdate.yesOdds,
@@ -169,12 +169,12 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     console.error('[OrderBook] SSE parse error:', error);
                 }
             };
-            
+
             eventSource.onerror = (error) => {
                 console.error('[OrderBook] SSE error:', error);
                 eventSource.close();
             };
-            
+
             return () => eventSource.close();
         }
     }, [eventId, dataSource]);
@@ -204,6 +204,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     useEffect(() => {
         if (visualMode || dataSource === 'polymarket') return;
         const { socket } = require('@/lib/socket');
+        const channel = socket.subscribe(`event-${eventId}`);
 
         function onOrderbookUpdate(update: any) {
             if (update.eventId !== eventId) return;
@@ -212,16 +213,11 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
             setOrderBook({ bids: update.bids, asks: update.asks });
         }
 
-        // Join event room for updates
-        socket.emit('join-event', eventId);
-        socket.emit('subscribe-orderbook', isMultiple ? { eventId, outcomeId: selectedOutcomeId } : { eventId, option: selectedOption });
-
-        socket.on('orderbook-update', onOrderbookUpdate);
+        channel.bind('orderbook-update', onOrderbookUpdate);
 
         return () => {
-            socket.emit('leave-event', eventId);
-            socket.emit('unsubscribe-orderbook', isMultiple ? { eventId, outcomeId: selectedOutcomeId } : { eventId, option: selectedOption });
-            socket.off('orderbook-update', onOrderbookUpdate);
+            channel.unbind('orderbook-update', onOrderbookUpdate);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
 

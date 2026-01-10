@@ -36,9 +36,7 @@ export default function TransactionsPage() {
     if (!user?.id) return;
 
     const userId = user.id;
-
-    // Subscribe to transaction updates
-    socket.emit('subscribe-transactions', userId);
+    const channel = socket.subscribe(`user-${userId}`);
 
     const handleTransactionUpdate = (data: any) => {
       console.log('💸 Real-time transaction update:', data);
@@ -70,11 +68,11 @@ export default function TransactionsPage() {
       }
     };
 
-    socket.on('transaction-update', handleTransactionUpdate);
+    channel.bind('transaction-update', handleTransactionUpdate);
 
     return () => {
-      socket.off('transaction-update', handleTransactionUpdate);
-      socket.emit('unsubscribe-transactions', userId);
+      channel.unbind('transaction-update', handleTransactionUpdate);
+      socket.unsubscribe(`user-${userId}`);
     };
   }, [session, toast]);
 

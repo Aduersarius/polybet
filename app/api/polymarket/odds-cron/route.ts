@@ -344,13 +344,36 @@ export async function POST(request: Request) {
                 if (redis && updates.length > 0) {
                     const lastUpdate = updates[updates.length - 1];
                     try {
-                        await redis.publish('sports-odds', JSON.stringify({
+                        const payload = {
                             eventId: event.id,
                             probability: lastUpdate.probability,
                             timestamp: Date.now(),
-                        }));
+                        };
+
+                        await redis.publish('sports-odds', JSON.stringify(payload));
+
+                        // Push to Frontend via Soketi
+                        const { getPusherServer } = await import('@/lib/pusher-server');
+                        const pusher = getPusherServer();
+                        // For odds-cron, we might want to trigger event-specific or sports-wide updates
+                        // This mirrors redis 'sports-odds' channel which seems to be consumed by clients?
+                        // Actually 'sports-odds' redis channel is legacy. The new system uses 'event-${id}'
+                        await pusher.trigger(`event-${event.id}`, 'odds-update', {
+                            eventId: event.id,
+                            timestamp: payload.timestamp,
+                            // If it's single probability update, we might need more info?
+                            // The updates[] array has tokenId, price, probability.
+                            // If updates contains multiple outcomes, we should broadcast all?
+                            // But here we only take lastUpdate?
+                            // Let's improve this to broadcast all updates for this event
+                            outcomes: updates.filter(u => u.eventId === event.id).map(u => ({
+                                id: u.outcomeId,
+                                probability: u.probability
+                            }))
+                        });
+
                     } catch {
-                        // Ignore Redis errors
+                        // Ignore Redis/Pusher errors
                     }
                 }
             } catch (mappingError) {

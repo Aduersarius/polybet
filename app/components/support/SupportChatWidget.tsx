@@ -360,9 +360,7 @@ export function SupportChatWidget() {
     // Dynamically import socket only on client side
     import('@/lib/socket').then(({ socket }) => {
       socketInstance = socket;
-
-      // Join user room for real-time updates
-      socket.emit('join-user-room', userId);
+      const channel = socket.subscribe(`user-${userId}`);
 
       // Listen for support updates
       handleUserUpdate = (data: any) => {
@@ -393,15 +391,18 @@ export function SupportChatWidget() {
         }
       };
 
-      socket.on('user-update', handleUserUpdate);
+      channel.bind('user-update', handleUserUpdate);
     }).catch((err) => {
       console.warn('Failed to load WebSocket client:', err);
     });
 
     return () => {
-      if (socketInstance && handleUserUpdate) {
-        socketInstance.off('user-update', handleUserUpdate);
-        socketInstance.emit('leave-user-room', userId);
+      if (socketInstance) {
+        const channel = socketInstance.channel(`user-${userId}`);
+        if (channel && handleUserUpdate) {
+          channel.unbind('user-update', handleUserUpdate);
+        }
+        socketInstance.unsubscribe(`user-${userId}`);
       }
     };
   }, [mounted, session?.user?.id, currentView, selectedTicketId]);

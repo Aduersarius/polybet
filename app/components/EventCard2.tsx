@@ -386,6 +386,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
   // Listen for real-time odds updates across the entire app
   useEffect(() => {
     const { socket } = require('@/lib/socket');
+    const channel = socket.subscribe(`event-${event.id}`);
 
     function onOddsUpdate(update: any) {
       if (update.eventId !== event.id) return;
@@ -428,10 +429,11 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       }
     }
 
-    socket.on(`odds-update-${event.id}`, onOddsUpdate);
+    channel.bind('odds-update', onOddsUpdate);
 
     return () => {
-      socket.off(`odds-update-${event.id}`, onOddsUpdate);
+      channel.unbind('odds-update', onOddsUpdate);
+      socket.unsubscribe(`event-${event.id}`);
     };
   }, [event.id, event.type, selectedOption, selectedOutcomeId, showBuyInterface]);
 
@@ -535,20 +537,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     }
 
     // For multiple events, calculate based on carousel container width
-    // The carousel has -mx-1 px-1 which means:
-    // - Extends 4px beyond parent on each side (8px total extension)
-    // - Adds 4px padding on each side (8px total padding)
-    // - clientWidth includes the padding, so content width = clientWidth - 8px
-    // Binary buttons container is just "flex gap-2.5" with same parent, so its width matches content width
-    // Binary buttons use flex-1 with gap-2.5 (10px), so each button is (contentWidth - 10px) / 2
     if (isMultiOutcomeEvent(event.type) && outcomesCarouselRef.current && !binaryButtonWidth) {
       const measureWidth = () => {
         if (outcomesCarouselRef.current) {
-          // Get the scrollable content width (excluding padding)
-          // The carousel's scrollWidth gives us the actual content width
-          // But we need the container width. clientWidth includes padding (8px total)
           const contentWidth = outcomesCarouselRef.current.clientWidth - 8;
-          // Binary buttons use flex-1 with gap-2.5 (10px), so each button is (width - 10px) / 2
           const buttonWidth = (contentWidth - 10) / 2;
           if (buttonWidth > 0) {
             setBinaryButtonWidth(buttonWidth);
@@ -583,18 +575,13 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         setShowRightArrow(false);
         setShowLeftArrow(false);
       } else {
-        // Show right arrow if not at end
         setShowRightArrow(!isAtEnd);
-        // Show left arrow if not at start
         setShowLeftArrow(!isAtStart);
       }
     };
 
-    // Check initially and after a short delay to ensure DOM is ready
     checkScrollable();
     const timeoutId = setTimeout(checkScrollable, 100);
-
-    // Also check on window resize
     window.addEventListener('resize', checkScrollable);
 
     return () => {
@@ -612,12 +599,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     };
   }, []);
 
-  // Mark binary animation as complete after initial animation duration
+  // Mark binary animation as complete
   useEffect(() => {
     if (!isMultiOutcomeEvent(event.type) && !binaryPercentageAnimatedRef.current) {
-      const animationDuration = 0.8;
-      const delay = (index * 0.05) + 0.3;
-      const totalTime = (delay + animationDuration) * 1000;
+      const totalTime = ((index * 0.05) + 0.3 + 0.8) * 1000;
       const timer = setTimeout(() => {
         binaryPercentageAnimatedRef.current = true;
       }, totalTime);
@@ -625,13 +610,11 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     }
   }, [event.type, index]);
 
-  // Mark non-binary animation as complete after initial animation duration
+  // Mark non-binary animation as complete
   useEffect(() => {
     if (isMultiOutcomeEvent(event.type) && !percentagesShownRef.current && segmentDataRef.current) {
       const maxSegmentDelay = Math.max(...segmentDataRef.current.map(s => s.segmentDelay), 0);
-      const animationDuration = 0.8;
-      const delay = (index * 0.05) + 0.3;
-      const totalTime = (delay + maxSegmentDelay + animationDuration) * 1000;
+      const totalTime = ((index * 0.05) + 0.3 + maxSegmentDelay + 0.8) * 1000;
       const timer = setTimeout(() => {
         percentagesShownRef.current = true;
       }, totalTime);
@@ -639,9 +622,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     }
   }, [event.type, index]);
 
-
-
-  // Fetch latest odds history to seed with freshest point (binary or multiple)
+  // Fetch latest odds history to seed
   const { data: latestHistory } = useQuery({
     queryKey: ['event-latest-odds', event.id],
     enabled: Boolean(event.id),
@@ -656,9 +637,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     },
   });
 
-  // Sync latest history data before first render to ensure correct initial values
+  // Sync latest history data
   useLayoutEffect(() => {
-    // If we have latestHistory data and haven't locked segmentData yet, use it
     if (latestHistory && latestHistory.length > 0 && segmentDataRef.current === null) {
       const last = latestHistory[latestHistory.length - 1];
       if (isMultiOutcomeEvent(event.type) && Array.isArray(last?.outcomes)) {
@@ -674,10 +654,8 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
     if (!latestHistory || latestHistory.length === 0) return;
     const last = latestHistory[latestHistory.length - 1];
     if (isMultiOutcomeEvent(event.type) && Array.isArray(last?.outcomes)) {
-      // Only update if we haven't locked segment data yet - this prevents animation restart
       if (segmentDataRef.current === null) {
         setLiveOutcomes(last.outcomes);
-        // Store as initial outcomes if not set yet
         if (initialOutcomesRef.current === null) {
           initialOutcomesRef.current = last.outcomes;
         }
@@ -694,29 +672,6 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
       setLiveYesOdds(1 - latestNo);
     }
   }, [latestHistory, event.type]);
-
-  // Listen for real-time updates
-  useEffect(() => {
-    const { socket } = require('@/lib/socket');
-
-    function onOddsUpdate(update: any) {
-      if (update.eventId !== event.id) return;
-      if (isMultiOutcomeEvent(event.type) && update.outcomes) {
-        // For multiple outcomes, update the outcomes array
-        setLiveOutcomes(update.outcomes);
-      } else {
-        // For binary events, update yes/no probabilities
-        setLiveYesOdds(update.yesPrice);
-        setLiveNoOdds(1 - update.yesPrice);
-      }
-    }
-
-    socket.on(`odds-update-${event.id}`, onOddsUpdate);
-
-    return () => {
-      socket.off(`odds-update-${event.id}`, onOddsUpdate);
-    };
-  }, [event.id, event.type]);
 
   // Fetch messages count
   const { data: messages } = useQuery({
