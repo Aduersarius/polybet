@@ -12,7 +12,7 @@ class NotificationService {
     if (this.pusher) return this.pusher;
 
     const key = process.env.NEXT_PUBLIC_SOKETI_APP_KEY || 'pariflow_key';
-    const host = process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.polybet.ru';
+    const host = process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.pariflow.com';
     const port = parseInt(process.env.NEXT_PUBLIC_SOKETI_PORT || '443');
     const useTLS = process.env.NEXT_PUBLIC_SOKETI_USE_TLS !== 'false';
 
@@ -132,7 +132,7 @@ export class ServerNotificationService {
         appId: process.env.NEXT_PUBLIC_SOKETI_APP_ID || 'pariflow',
         key: process.env.NEXT_PUBLIC_SOKETI_APP_KEY || 'pariflow_key',
         secret: process.env.SOKETI_DEFAULT_APP_SECRET || 'pariflow_secret',
-        host: process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.polybet.ru',
+        host: process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.pariflow.com',
         port: process.env.NEXT_PUBLIC_SOKETI_PORT || '443',
         useTLS: true,
       });

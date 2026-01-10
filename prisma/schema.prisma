@@ -154,10 +154,11 @@ model Event {
   marketActivity     MarketActivity[]
   orders             Order[]
   favorites          UserFavorite[]
-  creator            User                     @relation(fields: [creatorId], references: [id])
-  polyOrders         PolyOrder[]              @relation("PolyOrderEvent")
-  polyPositions      PolyPosition[]           @relation("PolyPositionEvent")
+  creator            User                      @relation(fields: [creatorId], references: [id])
+  polyOrders         PolyOrder[]               @relation("PolyOrderEvent")
+  polyPositions      PolyPosition[]            @relation("PolyPositionEvent")
   oddsHistory        OddsHistory[]
+  polymarketMapping  PolymarketMarketMapping?  @relation("PolymarketMapping")
 
   // Sports-specific metadata
   league     String? // "NFL", "NBA", "CSGO", "Dota 2"
@@ -648,6 +649,8 @@ model PolymarketMarketMapping {
   notes                 String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+
+  event                 Event     @relation("PolymarketMapping", fields: [internalEventId], references: [id])
 
   @@index([polymarketId])
   @@index([internalEventId])

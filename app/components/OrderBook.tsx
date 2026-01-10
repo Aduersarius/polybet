@@ -184,8 +184,10 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         if (visualMode || dataSource === 'polymarket') return;
         const fetchOrderBook = async () => {
             try {
+                // For multiple outcomes, selectedOption is actually a UUID (outcomeId)
+                // For binary, selectedOption is 'YES' or 'NO'
                 const params = isMultiple
-                    ? `eventId=${eventId}&outcomeId=${selectedOutcomeId}`
+                    ? `eventId=${eventId}&outcomeId=${selectedOption}`
                     : `eventId=${eventId}&option=${selectedOption}`;
                 const response = await fetch(`/api/order-book?${params}`);
                 if (response.ok) {
