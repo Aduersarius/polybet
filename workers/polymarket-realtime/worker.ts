@@ -370,8 +370,21 @@ async function updateOutcomeProbability(
             // Publish via Redis for legacy/internal consumers
             await redis.publish('event-updates', JSON.stringify(eventPayload));
 
-            // Publish via Pusher (Soketi) for Frontend
+            // Publish via Pusher (Soketi) for Frontend Targeted Event
             await pusher.trigger(`event-${eventId}`, 'odds-update', eventPayload);
+
+            // Publish via Pusher (Soketi) for Sports List View
+            // Mapping to expected format { events: [ { id, yesOdds, ... } ] }
+            await pusher.trigger('sports-odds', 'sports:odds-update', {
+                count: 1,
+                timestamp: new Date().toISOString(),
+                events: [{
+                    id: eventId,
+                    yesOdds: eventPayload.yesPrice,
+                    noOdds: eventPayload.noPrice,
+                    outcomes: eventPayload.outcomes,
+                }]
+            });
         } catch (err) {
             console.error('[Worker] Broadcast error:', err);
         }

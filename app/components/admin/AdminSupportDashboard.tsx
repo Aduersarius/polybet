@@ -67,36 +67,31 @@ export function AdminSupportDashboard() {
   useEffect(() => {
     if (!mounted || !session?.user?.id || typeof window === 'undefined') return;
 
-    // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
-    }
+    const channel = socket.subscribe('admin-events');
 
     // Listen for admin events (ticket creation, updates, etc.)
-    // Note: server emits data.payload directly, so the handler receives the payload object
     const handleTicketCreated = (payload: any) => {
       console.log('🟢 [AdminSupportDashboard] Received admin:ticket-created event:', payload);
-      // Refresh dashboard stats and trigger ticket list refresh
       fetchDashboardStats();
       setRefreshTrigger((prev) => prev + 1);
     };
 
     const handleTicketUpdated = (payload: any) => {
       console.log('🟢 [AdminSupportDashboard] Received admin:ticket-updated event:', payload);
-      // Refresh dashboard stats and trigger ticket list refresh
       fetchDashboardStats();
       setRefreshTrigger((prev) => prev + 1);
     };
 
-    socket.on('admin:ticket-created', handleTicketCreated);
-    socket.on('admin:ticket-updated', handleTicketUpdated);
+    channel.bind('admin:ticket-created', handleTicketCreated);
+    channel.bind('admin:ticket-updated', handleTicketUpdated);
 
-    console.log('✅ [AdminSupportDashboard] WebSocket listeners registered for ticket events');
+    console.log('✅ [AdminSupportDashboard] Pusher bindings registered for ticket events');
 
     return () => {
-      socket.off('admin:ticket-created', handleTicketCreated);
-      socket.off('admin:ticket-updated', handleTicketUpdated);
-      console.log('🧹 [AdminSupportDashboard] WebSocket listeners cleaned up');
+      channel.unbind('admin:ticket-created', handleTicketCreated);
+      channel.unbind('admin:ticket-updated', handleTicketUpdated);
+      socket.unsubscribe('admin-events');
+      console.log('🧹 [AdminSupportDashboard] Pusher bindings cleaned up');
     };
   }, [mounted, session?.user?.id, fetchDashboardStats]);
 

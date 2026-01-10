@@ -201,8 +201,9 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     }, [orderType, selectedOption, yesPrice, noPrice]); // Removed price dependency to avoid loop
 
     // Real-time odds updates via WebSocket
-    // Real-time odds updates via WebSocket
     useEffect(() => {
+        const channel = socket.subscribe(`event-${eventId}`);
+
         const handler = (update: any) => {
             if (update.eventId !== eventId) return;
 
@@ -224,9 +225,11 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
             }
         };
 
-        socket.on(`odds-update-${eventId}`, handler);
+        channel.bind('odds-update', handler);
+
         return () => {
-            socket.off(`odds-update-${eventId}`, handler);
+            channel.unbind('odds-update', handler);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId]);
 

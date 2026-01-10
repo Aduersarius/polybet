@@ -13,6 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { ethers } from 'ethers';
+import Pusher from 'pusher';
 
 // Environment validation
 const requiredEnvVars = [
@@ -62,6 +63,24 @@ const RETRY_DELAY_MS = parseInt(process.env.SWEEP_RETRY_DELAY_MS || '5000');
 
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
 const masterNode = ethers.HDNodeWallet.fromPhrase(MNEMONIC, undefined, 'm');
+
+// Initialize Pusher (Soketi)
+const pusher = new Pusher({
+    appId: process.env.SOKETI_DEFAULT_APP_ID || 'pariflow',
+    key: process.env.NEXT_PUBLIC_SOKETI_APP_KEY || 'pariflow_key',
+    secret: process.env.SOKETI_DEFAULT_APP_SECRET || 'pariflow_secret',
+    host: process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.polybet.ru',
+    port: process.env.NEXT_PUBLIC_SOKETI_PORT || '443',
+    useTLS: process.env.NEXT_PUBLIC_SOKETI_USE_TLS !== 'false',
+});
+
+async function triggerUserUpdate(userId: string, type: string, payload: any) {
+    try {
+        await pusher.trigger(`user-${userId}`, type, payload);
+    } catch (error) {
+        console.error(`[Pusher] Error triggering user update for ${userId}:`, error);
+    }
+}
 
 // Health tracking
 let lastSuccessfulCheck = Date.now();
@@ -281,6 +300,14 @@ async function sweepDeposit(deposit: any) {
             }
         });
 
+        // Publish via Pusher (Soketi) for Frontend
+        await triggerUserUpdate(depositAddress.userId, 'transaction-update', {
+            id: deposit.id,
+            status: 'COMPLETED',
+            txHash: sweepTx.hash,
+            updatedAt: new Date().toISOString()
+        });
+
         stats.successfulSweeps++;
         stats.lastSweepTime = new Date();
 
@@ -319,6 +346,15 @@ async function sweepDeposit(deposit: any) {
             });
         } else {
             // Schedule retry
+            // Publish via Pusher (Soketi) for Frontend
+            await triggerUserUpdate(depositAddress.userId, 'transaction-update', {
+                id: deposit.id,
+                status: 'PENDING_SWEEP',
+                retryCount: newRetryCount,
+                lastError: error.message,
+                nextRetry: new Date(Date.now() + retryDelay).toISOString()
+            });
+
             await prisma.deposit.update({
                 where: { id: deposit.id },
                 data: {

@@ -251,15 +251,17 @@ export async function POST(request: Request) {
                 }
             }
 
-            // Publish to Redis for WebSocket broadcasting (non-blocking)
-            const publishSuccess = await safePublish('hybrid-trades', JSON.stringify(updatePayload));
-            if (!publishSuccess) {
-                console.warn('[Trading] Failed to publish real-time update (Redis unavailable)');
-            }
+            // 5. Publish to Pusher (Soketi) for Frontend
+            const { getPusherServer, triggerUserUpdate } = await import('@/lib/pusher-server');
+            const pusherServer = getPusherServer();
 
-            // Publish user-specific update (non-blocking)
-            await safePublish('user-updates', JSON.stringify({
-                userId: sessionUserId,
+            // Broad event update
+            await pusherServer.trigger(`event-${eventId}`, 'odds-update', updatePayload).catch(err =>
+                console.error('[Pusher] Event update failed:', err)
+            );
+
+            // User-specific update for positions
+            await triggerUserUpdate(sessionUserId, 'user-update', {
                 type: 'POSITION_UPDATE',
                 payload: {
                     eventId,
@@ -268,18 +270,13 @@ export async function POST(request: Request) {
                     amount: result.totalFilled,
                     price: result.averagePrice
                 }
-            }));
+            });
 
-            // Invalidate Caches (non-blocking, best-effort)
+            // Invalidate Caches
             const cacheKey = outcomeId ? `orderbook:${eventId}:${outcomeId}` : `orderbook:${eventId}:${option}`;
-            const cacheKeys = [
-                `event:${eventId}`,
-                `event:amm:${eventId}`,
-                cacheKey
-            ];
-            safeDelete(cacheKeys[0]);
-            safeDelete(cacheKeys[1]);
-            safeDelete(cacheKeys[2]);
+            safeDelete(`event:${eventId}`);
+            safeDelete(`event:amm:${eventId}`);
+            safeDelete(cacheKey);
         }
 
         return NextResponse.json({

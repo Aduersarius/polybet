@@ -74,13 +74,18 @@ export function EventChat({ eventId }: EventChatProps) {
     // Real-time updates
     useEffect(() => {
         const { socket } = require('@/lib/socket');
+        const channel = socket.subscribe(`event-${eventId}`);
+
         function onMessage() {
             // Refetch first page to get new messages
             refetch();
         }
-        socket.on(`chat-message-${eventId}`, onMessage);
+
+        channel.bind('chat-message', onMessage);
+
         return () => {
-            socket.off(`chat-message-${eventId}`, onMessage);
+            channel.unbind('chat-message', onMessage);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId, refetch]);
 

@@ -89,22 +89,29 @@ export async function POST(
         // Publish a lightweight reaction event via Redis so WebSocket clients can refresh
         try {
             const { redis } = await import('@/lib/redis');
-            if (redis) {
-                const payload = {
-                    eventId: message.eventId,
-                    reaction: {
-                        messageId,
-                        type,
-                        status,
-                    },
-                };
+            const payload = {
+                eventId: message.eventId,
+                reaction: {
+                    messageId,
+                    type,
+                    status,
+                },
+            };
 
+            if (redis) {
                 // Use same channel as chat messages so the WS bridge can treat them uniformly
                 await redis.publish('chat-messages', JSON.stringify(payload));
             }
+
+            // Also publish via Pusher (Soketi) for Frontend
+            const { getPusherServer } = await import('@/lib/pusher-server');
+            const pusherServer = getPusherServer();
+            // Use 'chat-message' event name so EventChat component gets triggered to refetch
+            await pusherServer.trigger(`event-${message.eventId}`, 'chat-message', payload);
+            console.log(`✅ [API] Message reaction published to Pusher for event ${message.eventId}`);
         } catch (pubError) {
             console.error('Error publishing reaction event:', pubError);
-            // Do not fail the request if publishing to Redis fails
+            // Do not fail the request if publishing to Redis/Pusher fails
         }
 
         return NextResponse.json({ status });

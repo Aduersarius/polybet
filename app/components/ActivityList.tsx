@@ -63,16 +63,19 @@ export function ActivityList({ eventId }: ActivityListProps) {
 
     // Real-time updates via WebSocket (only invalidate if on first page)
     useEffect(() => {
+        const channel = socket.subscribe(`event-${eventId}`);
+
         const handleOddsUpdate = (update: any) => {
             if (update.eventId === eventId && !cursor) {
                 queryClient.invalidateQueries({ queryKey: ['trades', eventId] });
             }
         };
 
-        socket.on('odds-update', handleOddsUpdate);
+        channel.bind('odds-update', handleOddsUpdate);
 
         return () => {
-            socket.off('odds-update', handleOddsUpdate);
+            channel.unbind('odds-update', handleOddsUpdate);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId, queryClient, cursor]);
 

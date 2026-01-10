@@ -242,23 +242,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         // Publish to WebSocket (non-blocking)
         const { redis } = await import('@/lib/redis');
+        const messagePayload = {
+            eventId: id,
+            message: {
+                id: message.id,
+                text: message.text,
+                userId: message.userId,
+                username: message.user.username,
+                avatarUrl: message.user.avatarUrl || message.user.image,
+                address: message.user.address,
+                createdAt: message.createdAt,
+                parentId: message.parentId,
+                reactions: {}
+            }
+        };
+
         if (redis) {
-            const messagePayload = {
-                eventId: id,
-                message: {
-                    id: message.id,
-                    text: message.text,
-                    userId: message.userId,
-                    username: message.user.username,
-                    avatarUrl: message.user.avatarUrl || message.user.image,
-                    address: message.user.address,
-                    createdAt: message.createdAt,
-                    parentId: message.parentId,
-                    reactions: {}
-                }
-            };
             redis.publish('chat-messages', JSON.stringify(messagePayload))
                 .catch(err => console.error('Redis publish failed:', err));
+        }
+
+        // Also publish to Pusher (Soketi) for Frontend
+        try {
+            const { getPusherServer } = await import('@/lib/pusher-server');
+            const pusherServer = getPusherServer();
+            await pusherServer.trigger(`event-${id}`, 'chat-message', messagePayload);
+            console.log(`✅ [API] Message published to Pusher/Soketi for event ${id}`);
+        } catch (pusherErr) {
+            console.error('❌ [API] Pusher publish failed:', pusherErr);
         }
 
         // OPTIMIZATION: Minimal cache invalidation - only this event's messages

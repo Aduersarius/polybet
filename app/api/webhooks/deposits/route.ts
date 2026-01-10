@@ -168,24 +168,21 @@ export async function POST(req: NextRequest) {
                     }
                 });
 
-                // Broadcast deposit via Redis Pub/Sub
+                // Publish via Pusher (Soketi) for Frontend
                 try {
-                    const message = JSON.stringify({
-                        type: 'transaction',
-                        userId: depositAddress.userId,
-                        payload: {
-                            id: activity.hash, // Using txHash as ID for UI until fetch refresh
-                            type: 'Deposit',
-                            amount: usdcAmount,
-                            currency: tokenSymbol,
-                            status: 'COMPLETED',
-                            createdAt: new Date().toISOString()
-                        }
+                    const { triggerUserUpdate } = await import('@/lib/pusher-server');
+
+                    await triggerUserUpdate(depositAddress.userId, 'transaction-update', {
+                        id: activity.hash,
+                        type: 'Deposit',
+                        amount: usdcAmount,
+                        currency: tokenSymbol,
+                        status: 'COMPLETED',
+                        createdAt: new Date().toISOString()
                     });
 
-                    const notification = JSON.stringify({
-                        type: 'notification',
-                        userId: depositAddress.userId,
+                    await triggerUserUpdate(depositAddress.userId, 'user-update', {
+                        type: 'DEPOSIT_SUCCESS',
                         payload: {
                             userId: depositAddress.userId,
                             type: 'DEPOSIT_SUCCESS',
@@ -193,9 +190,6 @@ export async function POST(req: NextRequest) {
                             resourceId: activity.hash
                         }
                     });
-
-                    await redis.publish('user-updates', message);
-                    await redis.publish('user-updates', notification);
                 } catch (redisErr) {
                     console.error('[Webhook] Failed to publish Redis update:', redisErr);
                 }

@@ -208,32 +208,46 @@ export async function POST(
         hasTicketUserId: !!ticket?.userId,
         ticketUserId: ticket?.userId,
         currentUserId: user.id,
-        reason: !isAgent ? 'not_agent' : 
-                messageInput.isInternal ? 'internal_message' :
-                !ticket?.userId ? 'no_ticket_user' :
-                ticket.userId === user.id ? 'same_user' : 'unknown',
+        reason: !isAgent ? 'not_agent' :
+          messageInput.isInternal ? 'internal_message' :
+            !ticket?.userId ? 'no_ticket_user' :
+              ticket.userId === user.id ? 'same_user' : 'unknown',
       });
     }
 
     // Publish to Redis for WebSocket broadcasting (non-blocking)
     if (ticket?.userId) {
+      const payload = {
+        ticketId,
+        messageId: newMessage.id,
+        content: newMessage.content,
+        source: newMessage.source,
+        createdAt: newMessage.createdAt,
+        userId: newMessage.user.id,
+        username: newMessage.user.username || newMessage.user.name,
+      };
+
       const { redis } = await import('@/lib/redis');
       if (redis) {
         redis.publish('user-updates', JSON.stringify({
           userId: ticket.userId,
           type: 'SUPPORT_MESSAGE',
-          payload: {
-            ticketId,
-            messageId: newMessage.id,
-            content: newMessage.content,
-            source: newMessage.source,
-            createdAt: newMessage.createdAt,
-            userId: newMessage.user.id,
-            username: newMessage.user.username || newMessage.user.name,
-          }
+          payload
         })).catch((err) => {
           console.error('Redis publish failed:', err);
         });
+      }
+
+      // Also publish to Pusher (Soketi) for Frontend
+      try {
+        const { triggerUserUpdate } = await import('@/lib/pusher-server');
+        // We use 'user-update' as the generic event name on the private channel
+        // or just use the type as the event name.
+        // SupportChatWidget.tsx uses channel.bind('SUPPORT_MESSAGE', ...)
+        await triggerUserUpdate(ticket.userId, 'SUPPORT_MESSAGE', payload);
+        console.log(`✅ [API] Support message published to Pusher for user ${ticket.userId}`);
+      } catch (pusherErr) {
+        console.error('❌ [API] Pusher publish failed:', pusherErr);
       }
     }
 

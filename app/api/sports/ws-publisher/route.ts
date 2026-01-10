@@ -9,7 +9,7 @@ let isPublishing = false;
 // Start the publisher
 export async function POST(request: Request) {
   if (publishInterval) {
-    return NextResponse.json({ 
+    return NextResponse.json({
       status: 'already_running',
       message: 'Sports odds publisher is already running'
     });
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
           try {
             const { yesVolume, noVolume } = await getInternalOrderVolume(prisma, event.id);
-            
+
             const hybrid = calculateHybridOdds({
               polymarketYes: event.yesOdds,
               polymarketNo: event.noOdds,
@@ -80,12 +80,12 @@ export async function POST(request: Request) {
               ourNoVolume: noVolume,
               polymarketLiquidity: event.externalVolume || 1000000,
             });
-            
-            return { 
-              ...event, 
-              yesOdds: hybrid.yes, 
+
+            return {
+              ...event,
+              yesOdds: hybrid.yes,
               noOdds: hybrid.no,
-              oddsSource: hybrid.source 
+              oddsSource: hybrid.source
             };
           } catch (error) {
             console.error(`Error calculating odds for event ${event.id}:`, error);
@@ -112,9 +112,17 @@ export async function POST(request: Request) {
 
       if (redis) {
         await redis.publish('sports-odds', JSON.stringify(payload));
-        console.log(`📡 Published ${eventsWithOdds.length} sports odds updates`);
-      } else {
-        console.error('❌ Redis not available');
+        console.log(`📡 Published ${eventsWithOdds.length} sports odds updates to Redis`);
+      }
+
+      // Publish to Pusher (Soketi) for Frontend
+      try {
+        const { getPusherServer } = await import('@/lib/pusher-server');
+        const pusherServer = getPusherServer();
+        await pusherServer.trigger('sports-odds', 'sports:odds-update', payload);
+        console.log(`📡 Published ${eventsWithOdds.length} sports odds updates to Pusher/Soketi`);
+      } catch (pusherErr) {
+        console.error('❌ Pusher publish failed:', pusherErr);
       }
     } catch (error) {
       console.error('❌ Error publishing sports odds:', error);
@@ -127,8 +135,8 @@ export async function POST(request: Request) {
   // Then run every 500ms
   publishInterval = setInterval(publishOdds, 500);
 
-  return NextResponse.json({ 
-    status: 'started', 
+  return NextResponse.json({
+    status: 'started',
     interval: '500ms',
     message: 'Sports odds publisher started successfully'
   });
@@ -141,12 +149,12 @@ export async function DELETE() {
     publishInterval = null;
     isPublishing = false;
     console.log('🛑 Stopped sports odds WebSocket publisher');
-    return NextResponse.json({ 
+    return NextResponse.json({
       status: 'stopped',
       message: 'Sports odds publisher stopped successfully'
     });
   }
-  return NextResponse.json({ 
+  return NextResponse.json({
     status: 'not_running',
     message: 'Publisher was not running'
   });
@@ -154,7 +162,7 @@ export async function DELETE() {
 
 // Check status
 export async function GET() {
-  return NextResponse.json({ 
+  return NextResponse.json({
     status: publishInterval ? 'running' : 'stopped',
     interval: publishInterval ? '500ms' : null,
     isPublishing

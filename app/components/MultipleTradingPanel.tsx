@@ -110,6 +110,8 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     // Listen for real-time odds updates via WebSocket
     useEffect(() => {
         const { socket } = require('@/lib/socket');
+        const channel = socket.subscribe(`event-${eventId}`);
+
         const handler = (update: any) => {
             if (update.eventId !== eventId) return;
 
@@ -132,9 +134,11 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
             }
         };
 
-        socket.on(`odds-update-${eventId}`, handler);
+        channel.bind('odds-update', handler);
+
         return () => {
-            socket.off(`odds-update-${eventId}`, handler);
+            channel.unbind('odds-update', handler);
+            socket.unsubscribe(`event-${eventId}`);
         };
     }, [eventId]);
 
