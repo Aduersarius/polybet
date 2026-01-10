@@ -19,20 +19,18 @@ export function useOddsRealtime(opts: {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { socket } = require('@/lib/socket');
 
-    const handler = (update: any) => {
-      if (update?.eventId !== eventId) return;
+    const channel = socket.subscribe(`event-${eventId}`);
 
+    const handler = (update: any) => {
       setData((prev) => {
         const rawTs = Number(update?.timestamp ?? Date.now());
         const tsSeconds = rawTs >= 1e11 ? Math.floor(rawTs / 1000) : Math.floor(rawTs);
 
         const newPoint: OddsHistoryPoint = {
-          // Normalize to seconds to match history API and chart ticks
           timestamp: tsSeconds,
           ...(isMultipleOutcomes ? { outcomes: update.outcomes } : { yesPrice: update.yesPrice }),
         };
 
-        // Dedupe identical timestamp
         const last = prev[prev.length - 1];
         if (last && last.timestamp === newPoint.timestamp) return prev;
 
@@ -44,9 +42,11 @@ export function useOddsRealtime(opts: {
       });
     };
 
-    socket.on(`odds-update-${eventId}`, handler);
+    channel.bind('odds-update', handler);
+
     return () => {
-      socket.off(`odds-update-${eventId}`, handler);
+      channel.unbind('odds-update', handler);
+      socket.unsubscribe(`event-${eventId}`);
     };
   }, [eventId, eventType, isMultipleOutcomes, setData]);
 }
