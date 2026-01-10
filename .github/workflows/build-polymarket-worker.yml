@@ -11,7 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/polymarket-worker
+  IMAGE_NAME: aduersarius/polybet/polymarket-worker
 
 jobs:
   build-and-push:
