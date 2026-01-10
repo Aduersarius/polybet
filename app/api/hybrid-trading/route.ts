@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { placeHybridOrder, getOrderBook } from '@/lib/hybrid-trading';
 import { requireAuth } from '@/lib/auth';
 import { redis } from '@/lib/redis';
+import { safePublish, safeDelete } from '@/lib/redis-utils';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { validateString, validateNumber, validateUUID, validateEventId } from '@/lib/validation';
@@ -250,11 +251,14 @@ export async function POST(request: Request) {
                 }
             }
 
-            // Publish to Redis for WebSocket broadcasting
-            await redis.publish('hybrid-trades', JSON.stringify(updatePayload));
+            // Publish to Redis for WebSocket broadcasting (non-blocking)
+            const publishSuccess = await safePublish('hybrid-trades', JSON.stringify(updatePayload));
+            if (!publishSuccess) {
+                console.warn('[Trading] Failed to publish real-time update (Redis unavailable)');
+            }
 
-            // Publish user-specific update
-            await redis.publish('user-updates', JSON.stringify({
+            // Publish user-specific update (non-blocking)
+            await safePublish('user-updates', JSON.stringify({
                 userId: sessionUserId,
                 type: 'POSITION_UPDATE',
                 payload: {
@@ -266,15 +270,16 @@ export async function POST(request: Request) {
                 }
             }));
 
-            // Invalidate Caches
+            // Invalidate Caches (non-blocking, best-effort)
             const cacheKey = outcomeId ? `orderbook:${eventId}:${outcomeId}` : `orderbook:${eventId}:${option}`;
-            if (redis && (redis as any).status === 'ready') {
-                await Promise.all([
-                    redis.del(`event:${eventId}`).catch(() => { }),
-                    redis.del(`event:amm:${eventId}`).catch(() => { }),
-                    redis.del(cacheKey).catch(() => { })
-                ]);
-            }
+            const cacheKeys = [
+                `event:${eventId}`,
+                `event:amm:${eventId}`,
+                cacheKey
+            ];
+            safeDelete(cacheKeys[0]);
+            safeDelete(cacheKeys[1]);
+            safeDelete(cacheKeys[2]);
         }
 
         return NextResponse.json({
