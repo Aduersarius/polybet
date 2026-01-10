@@ -2,7 +2,7 @@ import Pusher from 'pusher-js';
 
 // Get configuration from env with defaults
 const PUSHER_KEY = process.env.NEXT_PUBLIC_SOKETI_APP_KEY || 'pariflow_key';
-const PUSHER_HOST = process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.polybet.ru';
+const PUSHER_HOST = process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.pariflow.com';
 const PUSHER_PORT = parseInt(process.env.NEXT_PUBLIC_SOKETI_PORT || '443');
 const USE_TLS = process.env.NEXT_PUBLIC_SOKETI_USE_TLS !== 'false';
 
@@ -18,7 +18,29 @@ export const socket = new Pusher(PUSHER_KEY, {
     enabledTransports: ['ws', 'wss'],
     disableStats: true,
     cluster: 'mt1', // Required by Pusher-js but ignored by Soketi
+    // Enable verbose logging in development (note: might not work in all Pusher versions)
 });
+
+// Log connection status in development
+if (process.env.NODE_ENV === 'development') {
+    console.log('[Pusher] Initializing with config:', {
+        wsHost: PUSHER_HOST,
+        wsPort: PUSHER_PORT,
+        forceTLS: USE_TLS,
+    });
+
+    socket.connection.bind('connected', () => {
+        console.log('[Pusher] ✅ Connected to Soketi');
+    });
+
+    socket.connection.bind('error', (err: any) => {
+        console.error('[Pusher] ❌ Connection error:', err);
+    });
+
+    socket.connection.bind('failed', () => {
+        console.error('[Pusher] ❌ Connection failed');
+    });
+}
 
 // For backward compatibility and easier export usage
 export default socket;
