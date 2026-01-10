@@ -11,8 +11,8 @@
         "generate": "prisma generate"
     },
     "dependencies": {
-        "@prisma/adapter-pg": "^7.0.0",
-        "@prisma/client": "^7.0.0",
+        "@prisma/adapter-pg": "^7.2.0",
+        "@prisma/client": "^7.2.0",
         "@types/ws": "^8.18.1",
         "decimal.js": "^10.4.3",
         "ioredis": "^5.4.1",
@@ -23,7 +23,7 @@
     "devDependencies": {
         "@types/node": "^22.10.2",
         "@types/pg": "^8.16.0",
-        "prisma": "^7.0.0",
+        "prisma": "^7.2.0",
         "tsx": "^4.19.2",
         "typescript": "^5.7.2"
     },

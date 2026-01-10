@@ -9,11 +9,14 @@
         "dev": "tsx watch worker.ts"
     },
     "dependencies": {
+        "@prisma/adapter-pg": "^7.2.0",
         "@prisma/client": "^7.2.0",
-        "ethers": "^6.15.0"
+        "ethers": "^6.15.0",
+        "pg": "^8.11.3"
     },
     "devDependencies": {
         "@types/node": "^20.11.5",
+        "@types/pg": "^8.11.2",
         "prisma": "^7.2.0",
         "tsx": "^4.7.0",
         "typescript": "^5.3.3"
