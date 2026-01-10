@@ -10,6 +10,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import { ethers } from 'ethers';
 
 // Environment validation
@@ -27,7 +29,18 @@ for (const envVar of requiredEnvVars) {
     }
 }
 
-const prisma = new PrismaClient();
+const DATABASE_URL = process.env.DATABASE_URL!;
+
+// Initialize Prisma with pg adapter (bulletproof pattern for Alpine/Prisma 7)
+const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined, // Allow self-signed for now since we have the fix
+    max: 5,
+});
+
+const prisma = new PrismaClient({
+    adapter: new PrismaPg(pool),
+});
 
 // USDC tokens on Polygon
 const USDC_NATIVE_ADDRESS = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Native USDC
