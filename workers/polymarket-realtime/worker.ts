@@ -12,6 +12,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
+import Pusher from 'pusher';
 
 interface PolymarketWSMessage {
     event_type: 'market' | 'book' | 'tick_size' | 'last_trade_price' | 'user';
@@ -61,6 +62,16 @@ if (REDIS_URL) {
     });
     redis.on('error', (err) => console.error('[Redis] Error:', err.message));
 }
+
+// Initialize Pusher (Soketi) for real-time broadcasting
+const pusher = new Pusher({
+    appId: process.env.SOKETI_DEFAULT_APP_ID || 'pariflow',
+    key: process.env.SOKETI_DEFAULT_APP_KEY || 'pariflow_key',
+    secret: process.env.SOKETI_DEFAULT_APP_SECRET || 'pariflow_secret',
+    host: process.env.SOKETI_HOST || 'soketi-z4kk8g8kggo4o4cgkc4kks8o', // Internal host if in same network
+    port: process.env.SOKETI_PORT || '6001',
+    useTLS: process.env.SOKETI_USE_TLS === 'true',
+});
 
 // Types
 interface EventInfo {
@@ -320,7 +331,7 @@ async function updateOutcomeProbability(
         // Ignore duplicate key errors
     }
 
-    // Broadcast update via Redis
+    // Broadcast update via Redis & Soketi
     if (redis) {
         try {
             // 1. Broad sports-odds update (legacy/targeted)
@@ -347,7 +358,6 @@ async function updateOutcomeProbability(
                 eventPayload.noPrice = isYes ? oppositePrice : price;
             } else {
                 // For Multiple/Grouped, we can send the updated outcomes list
-                // We'll map the current outcome and use cached values for others
                 eventPayload.outcomes = mapping.outcomeMapping.map(oc => {
                     const ocPrice = oc.polymarketId === tokenId ? price : (lastPrices.get(oc.polymarketId) || 0);
                     return {
@@ -357,9 +367,13 @@ async function updateOutcomeProbability(
                 });
             }
 
+            // Publish via Redis for legacy/internal consumers
             await redis.publish('event-updates', JSON.stringify(eventPayload));
+
+            // Publish via Pusher (Soketi) for Frontend
+            await pusher.trigger(`event-${eventId}`, 'odds-update', eventPayload);
         } catch (err) {
-            console.error('[Worker] Redis publish error:', err);
+            console.error('[Worker] Broadcast error:', err);
         }
     }
 }

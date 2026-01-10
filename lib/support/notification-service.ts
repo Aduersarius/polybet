@@ -1,191 +1,120 @@
-/**
- * Support Notification Service - Real-time notifications via WebSocket
- */
-
-import { io as ioClient, Socket } from 'socket.io-client';
+import Pusher from 'pusher-js';
 import type { TicketDetail } from './types';
 
-// Server-side event types (for future WebSocket server extension)
-export interface SupportWebSocketEvents {
-  // Client -> Server
-  'support:subscribe': (ticketId: string) => void;
-  'support:unsubscribe': (ticketId: string) => void;
-  'support:subscribe_agent_room': () => void;
-  'support:typing': (ticketId: string) => void;
-  
-  // Server -> Client
-  'support:new_message': (data: { ticketId: string; message: any }) => void;
-  'support:status_changed': (data: { ticketId: string; newStatus: string; oldStatus: string }) => void;
-  'support:assigned': (data: { ticketId: string; agent: any }) => void;
-  'support:agent_typing': (data: { ticketId: string; agent: any }) => void;
-  'support:new_ticket': (data: { ticket: any }) => void; // Only to agents
-  'support:ticket_updated': (data: { ticketId: string; updates: any }) => void;
-}
-
 class NotificationService {
-  private socket: Socket | null = null;
+  private pusher: Pusher | null = null;
+  private channels: Map<string, any> = new Map();
 
   /**
-   * Initialize WebSocket connection (client-side)
+   * Initialize Pusher client
    */
-  initializeClient(wsUrl: string = 'http://localhost:3001'): Socket {
-    if (this.socket?.connected) {
-      return this.socket;
-    }
+  initializeClient(): Pusher {
+    if (this.pusher) return this.pusher;
 
-    this.socket = ioClient(wsUrl, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+    const key = process.env.NEXT_PUBLIC_SOKETI_APP_KEY || 'pariflow_key';
+    const host = process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.polybet.ru';
+    const port = parseInt(process.env.NEXT_PUBLIC_SOKETI_PORT || '443');
+    const useTLS = process.env.NEXT_PUBLIC_SOKETI_USE_TLS !== 'false';
+
+    this.pusher = new Pusher(key, {
+      wsHost: host,
+      wsPort: port,
+      wssPort: port,
+      forceTLS: useTLS,
+      enabledTransports: ['ws', 'wss'],
+      disableStats: true,
+      cluster: 'mt1',
     });
 
-    this.socket.on('connect', () => {
-      console.log('🔌 Support WebSocket connected');
+    this.pusher.connection.bind('connected', () => {
+      console.log('🔌 Support WebSocket (Soketi) connected');
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('🔌 Support WebSocket disconnected');
-    });
-
-    return this.socket;
+    return this.pusher;
   }
 
   /**
    * Subscribe to a specific ticket for real-time updates
    */
   subscribeToTicket(ticketId: string): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
+    if (!this.pusher) return;
+    const channelName = `ticket-${ticketId}`;
+    if (!this.channels.has(channelName)) {
+      const channel = this.pusher.subscribe(channelName);
+      this.channels.set(channelName, channel);
     }
-
-    this.socket.emit('support:subscribe', ticketId);
   }
 
   /**
    * Unsubscribe from a ticket
    */
   unsubscribeFromTicket(ticketId: string): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
-    }
-
-    this.socket.emit('support:unsubscribe', ticketId);
+    if (!this.pusher) return;
+    const channelName = `ticket-${ticketId}`;
+    this.pusher.unsubscribe(channelName);
+    this.channels.delete(channelName);
   }
 
   /**
    * Subscribe to agent room (for agents only)
    */
   subscribeToAgentRoom(): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
+    if (!this.pusher) return;
+    const channelName = 'support-agents';
+    if (!this.channels.has(channelName)) {
+      const channel = this.pusher.subscribe(channelName);
+      this.channels.set(channelName, channel);
     }
-
-    this.socket.emit('support:subscribe_agent_room');
-  }
-
-  /**
-   * Send typing indicator
-   */
-  sendTypingIndicator(ticketId: string): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
-    }
-
-    this.socket.emit('support:typing', ticketId);
   }
 
   /**
    * Listen for new messages
    */
-  onNewMessage(callback: (data: { ticketId: string; message: any }) => void): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
+  onNewMessage(ticketId: string, callback: (data: { ticketId: string; message: any }) => void): void {
+    const channelName = `ticket-${ticketId}`;
+    const channel = this.channels.get(channelName);
+    if (channel) {
+      channel.bind('support:new_message', callback);
     }
-
-    this.socket.on('support:new_message', callback);
   }
 
   /**
    * Listen for status changes
    */
-  onStatusChanged(callback: (data: { ticketId: string; newStatus: string; oldStatus: string }) => void): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
+  onStatusChanged(ticketId: string, callback: (data: { ticketId: string; newStatus: string; oldStatus: string }) => void): void {
+    const channelName = `ticket-${ticketId}`;
+    const channel = this.channels.get(channelName);
+    if (channel) {
+      channel.bind('support:status_changed', callback);
     }
-
-    this.socket.on('support:status_changed', callback);
-  }
-
-  /**
-   * Listen for ticket assignments
-   */
-  onTicketAssigned(callback: (data: { ticketId: string; agent: any }) => void): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
-    }
-
-    this.socket.on('support:assigned', callback);
-  }
-
-  /**
-   * Listen for typing indicators
-   */
-  onAgentTyping(callback: (data: { ticketId: string; agent: any }) => void): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
-    }
-
-    this.socket.on('support:agent_typing', callback);
   }
 
   /**
    * Listen for new tickets (agents only)
    */
   onNewTicket(callback: (data: { ticket: any }) => void): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
+    const channel = this.channels.get('support-agents');
+    if (channel) {
+      channel.bind('support:new_ticket', callback);
     }
-
-    this.socket.on('support:new_ticket', callback);
-  }
-
-  /**
-   * Listen for ticket updates
-   */
-  onTicketUpdated(callback: (data: { ticketId: string; updates: any }) => void): void {
-    if (!this.socket) {
-      console.warn('WebSocket not initialized');
-      return;
-    }
-
-    this.socket.on('support:ticket_updated', callback);
   }
 
   /**
    * Disconnect WebSocket
    */
   disconnect(): void {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
+    if (this.pusher) {
+      this.pusher.disconnect();
+      this.pusher = null;
+      this.channels.clear();
     }
   }
 
   /**
-   * Get socket instance
+   * Get pusher instance
    */
-  getSocket(): Socket | null {
-    return this.socket;
+  getPusher(): Pusher | null {
+    return this.pusher;
   }
 }
 
@@ -194,39 +123,69 @@ export const notificationService = new NotificationService();
 
 // Server-side notification helpers (to be used in API routes)
 export class ServerNotificationService {
+  private static pusher: any = null;
+
+  private static getPusher() {
+    if (!this.pusher) {
+      const PusherServer = require('pusher');
+      this.pusher = new PusherServer({
+        appId: process.env.NEXT_PUBLIC_SOKETI_APP_ID || 'pariflow',
+        key: process.env.NEXT_PUBLIC_SOKETI_APP_KEY || 'pariflow_key',
+        secret: process.env.SOKETI_DEFAULT_APP_SECRET || 'pariflow_secret',
+        host: process.env.NEXT_PUBLIC_SOKETI_HOST || 'soketi.polybet.ru',
+        port: process.env.NEXT_PUBLIC_SOKETI_PORT || '443',
+        useTLS: true,
+      });
+    }
+    return this.pusher;
+  }
+
   /**
-   * Notify user of new message (would be called from API route)
-   * Note: This requires the Socket.IO server instance to be accessible
+   * Notify user of new message
    */
   static async notifyNewMessage(ticketId: string, message: any): Promise<void> {
-    // This would emit to the WebSocket server
-    // In a real implementation, you'd use a message queue or direct server access
-    console.log(`[Notify] New message in ticket ${ticketId}`);
-    // Example: io.to(`ticket-${ticketId}`).emit('support:new_message', { ticketId, message });
+    try {
+      await this.getPusher().trigger(`ticket-${ticketId}`, 'support:new_message', { ticketId, message });
+      console.log(`[Notify] New message in ticket ${ticketId}`);
+    } catch (err) {
+      console.error('[Notify] Error notifying new message:', err);
+    }
   }
 
   /**
    * Notify of status change
    */
   static async notifyStatusChange(ticketId: string, oldStatus: string, newStatus: string): Promise<void> {
-    console.log(`[Notify] Status changed for ticket ${ticketId}: ${oldStatus} -> ${newStatus}`);
-    // Example: io.to(`ticket-${ticketId}`).emit('support:status_changed', { ticketId, oldStatus, newStatus });
+    try {
+      await this.getPusher().trigger(`ticket-${ticketId}`, 'support:status_changed', { ticketId, oldStatus, newStatus });
+      console.log(`[Notify] Status changed for ticket ${ticketId}: ${oldStatus} -> ${newStatus}`);
+    } catch (err) {
+      console.error('[Notify] Error notifying status change:', err);
+    }
   }
 
   /**
    * Notify agents of new ticket
    */
   static async notifyNewTicket(ticket: TicketDetail): Promise<void> {
-    console.log(`[Notify] New ticket created: ${ticket.ticketNumber}`);
-    // Example: io.to('support-agents').emit('support:new_ticket', { ticket });
+    try {
+      await this.getPusher().trigger('support-agents', 'support:new_ticket', { ticket });
+      console.log(`[Notify] New ticket created: ${ticket.ticketNumber}`);
+    } catch (err) {
+      console.error('[Notify] Error notifying new ticket:', err);
+    }
   }
 
   /**
    * Notify of ticket assignment
    */
   static async notifyTicketAssignment(ticketId: string, agent: any): Promise<void> {
-    console.log(`[Notify] Ticket ${ticketId} assigned to ${agent.name}`);
-    // Example: io.to(`ticket-${ticketId}`).emit('support:assigned', { ticketId, agent });
+    try {
+      await this.getPusher().trigger(`ticket-${ticketId}`, 'support:assigned', { ticketId, agent });
+      console.log(`[Notify] Ticket ${ticketId} assigned to ${agent.name}`);
+    } catch (err) {
+      console.error('[Notify] Error notifying ticket assignment:', err);
+    }
   }
 }
 
