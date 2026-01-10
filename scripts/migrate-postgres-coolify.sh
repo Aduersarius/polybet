@@ -252,7 +252,7 @@ fi
 echo ""
 echo -e "${BLUE}[7/7] Updating configuration...${NC}"
 
-NEW_CONNECTION="postgresql://${DB_USER}:${DB_PASSWORD}@${NEW_VPS_IP}:${PG_PORT}/${DB_NAME}"
+NEW_CONNECTION="postgresql://${DB_USER}:${DB_PASSWORD}@${NEW_VPS_IP}:${PG_PORT}/${DB_NAME}?sslmode=disable"
 
 # Update .env
 if [ -f ".env" ]; then
@@ -291,14 +291,14 @@ echo -e "${YELLOW}New database connection string:${NC}"
 echo "${NEW_CONNECTION}"
 echo ""
 echo -e "${YELLOW}For internal Coolify services (same VPS):${NC}"
-echo "postgresql://${DB_USER}:${DB_PASSWORD}@${CONTAINER_NAME}:5432/${DB_NAME}"
+echo "postgresql://${DB_USER}:${DB_PASSWORD}@${CONTAINER_NAME}:5432/${DB_NAME}?sslmode=disable"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Update DATABASE_URL in Vercel:"
 echo "   ${NEW_CONNECTION}"
 echo ""
 echo "2. Update DATABASE_URL in Coolify services (use internal connection):"
-echo "   postgresql://${DB_USER}:${DB_PASSWORD}@${CONTAINER_NAME}:5432/${DB_NAME}"
+echo "   postgresql://${DB_USER}:${DB_PASSWORD}@${CONTAINER_NAME}:5432/${DB_NAME}?sslmode=disable"
 echo ""
 echo "3. Add PostgreSQL to Coolify network:"
 echo "   ssh ${NEW_VPS_USER}@${NEW_VPS_IP}"

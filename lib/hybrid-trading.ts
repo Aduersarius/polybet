@@ -444,6 +444,70 @@ export async function placeHybridOrder(
             await ensureSufficientBalance(prisma, userId, tokenSymbol, eventId, quote.shares, 'shares');
         }
 
+        // --- PRE-FLIGHT HEDGE EXECUTION (For Polymarket events only) ---
+        // CRITICAL: Execute hedge BEFORE committing internal trade
+        // This prevents unhedged positions when Polymarket is down
+        let hedgePositionId: string | undefined;
+
+        if (isPolymarketEvent) {
+            try {
+                // Import hedgeManager - keep this synchronous
+                const { hedgeManager } = await import('./hedge-manager');
+                await hedgeManager.loadConfig();
+
+                // Check if we should hedge this order
+                const canHedge = await hedgeManager.canHedge({
+                    eventId,
+                    size: quote.shares,
+                    price: quote.avgPrice,
+                    side,
+                    option,
+                });
+
+                if (canHedge.feasible) {
+                    console.log(`[HEDGE-PREFLIGHT] Attempting pre-flight hedge for ${quote.shares} shares @ ${quote.avgPrice}`);
+
+                    // Execute hedge synchronously BEFORE DB commit
+                    // Use a temporary order ID that we'll update after transaction
+                    const hedgeResult = await hedgeManager.executeHedge({
+                        userOrderId: 'PENDING', // Will update after commit
+                        eventId,
+                        size: quote.shares,
+                        userPrice: quote.avgPrice,
+                        side,
+                        option,
+                    });
+
+                    if (!hedgeResult.success) {
+                        // CRITICAL: Hedge failed, reject the entire trade
+                        console.error(`[HEDGE-PREFLIGHT] Hedge failed, rejecting trade:`, hedgeResult.error);
+                        return {
+                            success: false,
+                            error: `Unable to execute trade: hedging unavailable (${hedgeResult.error}). Please try again later.`,
+                            totalFilled: 0,
+                            averagePrice: 0,
+                        };
+                    }
+
+                    // Hedge succeeded - save position ID to link after commit
+                    hedgePositionId = hedgeResult.hedgePositionId;
+                    console.log(`[HEDGE-PREFLIGHT] Hedge successful, position ID: ${hedgePositionId}`);
+                } else {
+                    console.log(`[HEDGE-PREFLIGHT] Skipping hedge:`, canHedge.reason);
+                }
+            } catch (hedgeError: any) {
+                // Hedge system completely failed - reject trade
+                console.error(`[HEDGE-PREFLIGHT] Hedge system error:`, hedgeError);
+                return {
+                    success: false,
+                    error: 'Unable to execute trade: hedging system unavailable. Please try again later.',
+                    totalFilled: 0,
+                    averagePrice: 0,
+                };
+            }
+        }
+
+
         // DB Transaction to ensure atomicity with deadlock retry
         const maxRetries = 3;
         let lastError: any;
@@ -546,6 +610,15 @@ export async function placeHybridOrder(
                         await updateOutcomeProbabilities(tx, eventId);
                     }
 
+                    // 5. Link pre-flight hedge to actual order (if hedge was executed)
+                    if (hedgePositionId) {
+                        console.log(`[TRADE] Linking hedge position ${hedgePositionId} to order ${placeholderOrder.id}`);
+                        await tx.hedgePosition.update({
+                            where: { id: hedgePositionId },
+                            data: { userOrderId: placeholderOrder.id },
+                        });
+                    }
+
                     console.log(`[TRADE] Transaction completed successfully on attempt ${attempt}`);
                     return {
                         success: true,
@@ -560,8 +633,10 @@ export async function placeHybridOrder(
                     timeout: 20000
                 });
 
-                // Attempt hedge asynchronously (don't block user order)
-                if (result.success && result.placeholderOrderId) {
+
+                // NOTE: For Polymarket events, hedge was already executed in pre-flight (before transaction)
+                // Only run async hedging for non-Polymarket events as fallback
+                if (result.success && result.placeholderOrderId && !isPolymarketEvent) {
                     // Import hedgeManager dynamically to avoid circular dependencies
                     import('./hedge-manager').then(async ({ hedgeManager }) => {
                         // Import Sentry for error tracking
