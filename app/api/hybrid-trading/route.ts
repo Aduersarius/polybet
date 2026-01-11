@@ -4,7 +4,8 @@ export const maxDuration = 30;
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { placeHybridOrder, getOrderBook } from '@/lib/hybrid-trading';
+import { getOrderBook } from '@/lib/hybrid-trading';
+import { executeTrade } from '@/lib/trade-orchestrator';
 import { requireAuth } from '@/lib/auth';
 import { redis } from '@/lib/redis';
 import { safePublish, safeDelete } from '@/lib/redis-utils';
@@ -151,14 +152,15 @@ export async function POST(request: Request) {
         // Note: Max amount already validated above with MAX_TRADE_AMOUNT constant
 
         // Execute hybrid order
-        const result = await placeHybridOrder(
-            sessionUserId,
+        // Execute hybrid order via Orchestrator
+        const result = await executeTrade({
+            userId: sessionUserId,
             eventId,
-            side as 'buy' | 'sell',
-            targetOption,
+            side: side as 'buy' | 'sell',
+            option: targetOption,
             amount,
-            orderType === 'limit' ? price : undefined
-        );
+            price: orderType === 'limit' ? price : undefined
+        });
 
         if (!result.success) {
             return NextResponse.json({ error: result.error || 'Order failed' }, { status: 400 });

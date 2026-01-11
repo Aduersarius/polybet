@@ -255,13 +255,12 @@ export class HedgeManager {
     }
 
     // Check minimum order size (Polymarket constraint)
-    // Most markets have a strict $5 minimum, some 10
-    // We hardcode 5 shares for now or approx >$1 value
+    // Most markets have a strict $1 minimum value
     const value = params.size * params.price;
-    if (value < 1.0) { // Safety check for dust
+    if (value < 1.1) { // Safety check for dust, using $1.1 to avoid rounding issues hitting $1.0 limit
       return {
         feasible: false,
-        reason: `Order value too small for hedging ($${value.toFixed(2)})`
+        reason: `Order value ($${value.toFixed(4)}) too small for hedging (min $1.10)`
       };
     }
     // Hardcoded safety min size from Polymarket docs (usually 5 USDC or shares)

@@ -103,6 +103,7 @@ export function AdminHedging() {
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('24h');
   const [updating, setUpdating] = useState(false);
+  const [closingPosition, setClosingPosition] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -161,6 +162,33 @@ export function AdminHedging() {
       alert(`❌ Failed to update: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleClosePosition = async (tokenId: string, side: string, amount: number) => {
+    if (!window.confirm(`Are you sure you want to close this ${side} position (${amount} shares)? This will place a market-equivalent order to liquidate the position.`)) {
+      return;
+    }
+
+    try {
+      setClosingPosition(tokenId);
+      const res = await fetch('/api/admin/polymarket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokenId, side, amount }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.error || 'Failed to close position');
+
+      alert(`✅ Close order placed successfully: ${result.orderId}`);
+      // Reload data to show updated state
+      loadPolymarketData();
+    } catch (err) {
+      alert(`❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setClosingPosition(null);
     }
   };
 
@@ -484,6 +512,7 @@ export function AdminHedging() {
                           <th className="text-right py-2 text-muted-foreground font-medium">Avg Price</th>
                           <th className="text-right py-2 text-muted-foreground font-medium">Cost</th>
                           <th className="text-center py-2 text-muted-foreground font-medium">Link</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -511,6 +540,15 @@ export function AdminHedging() {
                               >
                                 <ExternalLink className="h-4 w-4 inline" />
                               </a>
+                            </td>
+                            <td className="py-2 text-right">
+                              <button
+                                disabled={closingPosition === pos.tokenId}
+                                onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.shares)}
+                                className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-xs transition-colors disabled:opacity-50"
+                              >
+                                {closingPosition === pos.tokenId ? 'Closing...' : 'Close'}
+                              </button>
                             </td>
                           </tr>
                         ))}

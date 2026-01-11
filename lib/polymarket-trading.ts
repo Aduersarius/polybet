@@ -548,6 +548,11 @@ class PolymarketTradingService {
           throw new Error('Polymarket API rejected order - Unauthorized (Invalid API Key/Secret/Passphrase)');
         }
 
+        // Check for min size error
+        if (responseStr.includes('min size: $1')) {
+          throw new Error('Polymarket API rejected order - Order value below $1.00 minimum after rounding');
+        }
+
         throw new Error(`Polymarket API rejected order - no order ID returned. Response: ${responseStr.substring(0, 200)}...`);
       }
 

@@ -222,3 +222,66 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function POST(request: NextRequest) {
+    try {
+        const { tokenId, side, amount } = await request.json();
+
+        if (!tokenId || !side || !amount) {
+            return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+        }
+
+        console.log(`[Admin Polymarket API] Closing position: ${side} ${amount} shares of ${tokenId}`);
+
+        const client = getClobClient();
+
+        // To close a LONG position, we SELL. To close a SHORT position, we BUY.
+        const orderSide = (side === 'LONG' || side === 'buy' || side === 'BUY') ? 'SELL' : 'BUY';
+
+        // Fetch orderbook to get current market price and tick size
+        const orderbook = await client.getOrderBook(tokenId);
+
+        // Find the best price to execute 
+        let price = orderSide === 'BUY' ? 0.99 : 0.01;
+
+        if (orderSide === 'SELL' && orderbook.bids.length > 0) {
+            // Sort bids by price descending to find the best (highest) bid
+            const sortedBids = [...orderbook.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+            price = parseFloat(sortedBids[0].price);
+            // Slightly lower to ensure immediate fill (market-equivalent)
+            price = Math.max(0.01, price - 0.01);
+        } else if (orderSide === 'BUY' && orderbook.asks.length > 0) {
+            // Sort asks by price ascending to find the best (lowest) ask
+            const sortedAsks = [...orderbook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+            price = parseFloat(sortedAsks[0].price);
+            // Slightly higher to ensure immediate fill
+            price = Math.min(0.99, price + 0.01);
+        }
+
+        console.log(`[Admin Polymarket API] Using execution price: ${price} for ${orderSide}`);
+
+        const resp = await client.createAndPostOrder({
+            tokenID: tokenId,
+            price: price,
+            side: orderSide as any,
+            size: amount,
+        }, {
+            tickSize: (orderbook as any).tick_size,
+            negRisk: orderbook.neg_risk
+        });
+
+        console.log(`[Admin Polymarket API] Close order placed:`, resp);
+
+        return NextResponse.json({
+            success: true,
+            orderId: resp?.orderID || resp?.id,
+            result: resp
+        });
+    } catch (error) {
+        console.error('[Polymarket API] Error closing position:', error);
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Failed to close position' },
+            { status: 500 }
+        );
+    }
+}
