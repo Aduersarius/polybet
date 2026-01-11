@@ -1,0 +1,200 @@
+---
+title: API Overview
+description: Complete API reference for Pariflow
+---
+
+# API Overview
+
+Pariflow provides comprehensive REST APIs and WebSocket endpoints for developers building integrations with the platform.
+
+## Base URL
+
+```
+Production: https://api.pariflow.com
+Development: http://localhost:3000
+```
+
+## Authentication
+
+### API Key Authentication
+
+Most endpoints require API key authentication via the `X-API-Key` header:
+
+```bash
+curl -X GET https://api.pariflow.com/api/institutional/market-data/trades \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Content-Type: application/json"
+```
+
+### Getting API Access
+
+1. Contact support to request API access
+2. Receive your API key and credentials
+3. Review rate limits and permissions
+
+## API Categories
+
+### Market Data APIs
+
+Real-time and historical market data for algorithmic trading:
+
+- [Institutional Market Data API](/api/institutional-market-data) - OHLC, trades, orderbook
+- Market Statistics - Aggregated market metrics
+- Real-time WebSocket Feed - Live updates
+
+### Trading APIs
+
+Execute trades programmatically:
+
+- Place Orders - Market and limit orders
+- Cancel Orders - Cancel open orders
+- Order Status - Check order status
+- Trade History - View execution history
+
+### User APIs
+
+User account and portfolio management:
+
+- User Profile - Get user information
+- Portfolio - View positions and balances
+- Transaction History - Deposit/withdrawal history
+- Settings - Manage user preferences
+
+## Rate Limiting
+
+### Standard Limits
+
+- **Market Data APIs**: 1000 requests per minute
+- **Trading APIs**: 100 requests per minute
+- **User APIs**: 200 requests per minute
+
+### Rate Limit Headers
+
+Responses include rate limit information:
+
+```
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 950
+X-RateLimit-Reset: 1640995200
+```
+
+### Handling Rate Limits
+
+When rate limited, you'll receive a `429 Too Many Requests` response:
+
+```json
+{
+  "error": "Rate limit exceeded",
+  "retryAfter": 60
+}
+```
+
+Wait for the `retryAfter` seconds before making more requests.
+
+## Response Format
+
+### Success Response
+
+```json
+{
+  "data": { ... },
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "Error message",
+  "code": "ERROR_CODE",
+  "details": { ... }
+}
+```
+
+### HTTP Status Codes
+
+- `200` - Success
+- `400` - Bad Request (invalid parameters)
+- `401` - Unauthorized (missing/invalid API key)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Not Found
+- `429` - Rate Limit Exceeded
+- `500` - Internal Server Error
+
+## WebSocket API
+
+Real-time updates via WebSocket:
+
+```javascript
+const ws = new WebSocket('wss://api.pariflow.com/ws');
+
+ws.on('open', () => {
+  ws.send(JSON.stringify({
+    action: 'subscribe',
+    channels: ['trades', 'orderbook'],
+    eventId: 'event-uuid'
+  }));
+});
+
+ws.on('message', (data) => {
+  const update = JSON.parse(data);
+  // Handle update
+});
+```
+
+## Pagination
+
+List endpoints support pagination:
+
+```bash
+GET /api/institutional/market-data/trades?limit=100&offset=0
+```
+
+Response includes pagination metadata:
+
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "total": 500,
+    "hasMore": true
+  }
+}
+```
+
+## Filtering & Sorting
+
+Many endpoints support filtering and sorting:
+
+```bash
+# Filter by event
+GET /api/institutional/market-data/trades?eventId=event-uuid
+
+# Sort by timestamp
+GET /api/institutional/market-data/trades?sort=desc
+
+# Date range
+GET /api/institutional/market-data/trades?startTime=2024-01-01&endTime=2024-01-31
+```
+
+## SDKs & Libraries
+
+Official SDKs coming soon:
+- JavaScript/TypeScript SDK
+- Python SDK
+- Go SDK
+
+## Support
+
+- **Documentation**: [Full API Reference](/api/institutional-market-data)
+- **Support**: Contact support team
+- **Status**: Check [status page](https://status.pariflow.com)
+
+---
+
+Next: [Authentication Guide](/api/authentication) or [Institutional Market Data API](/api/institutional-market-data)

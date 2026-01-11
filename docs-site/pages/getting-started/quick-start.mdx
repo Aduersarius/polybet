@@ -1,0 +1,109 @@
+---
+title: Quick Start Guide
+description: Get started with Pariflow in minutes
+---
+
+# Quick Start Guide
+
+Welcome to Pariflow! This guide will help you get started with the platform quickly.
+
+## What is Pariflow?
+
+Pariflow is a production-grade prediction market platform where users trade on future outcomes. The platform combines:
+
+- **Hybrid Trading**: AMM (Automated Market Maker) + Order Book
+- **Real-time Updates**: WebSocket-powered live prices
+- **Risk Management**: Automated hedging with Polymarket
+- **Sports Integration**: Real-time sports betting markets
+
+## For Users
+
+### 1. Connect Your Wallet
+
+1. Visit [pariflow.com](https://pariflow.com)
+2. Click "Connect Wallet"
+3. Select your wallet provider (MetaMask, WalletConnect, etc.)
+4. Approve the connection
+
+### 2. Deposit Funds
+
+1. Navigate to your profile
+2. Click "Deposit"
+3. Follow the instructions to deposit USDC or other supported tokens
+4. Wait for confirmation (usually 1-2 minutes)
+
+### 3. Place Your First Trade
+
+1. Browse available markets on the homepage
+2. Click on an event you're interested in
+3. Choose your position (YES or NO)
+4. Enter the amount you want to trade
+5. Select order type:
+   - **Market Order**: Execute immediately at current price
+   - **Limit Order**: Set your desired price
+6. Click "Place Order"
+
+### 4. Monitor Your Positions
+
+- View your active positions in the "Portfolio" section
+- Track your PnL (Profit and Loss) in real-time
+- Set up notifications for important market events
+
+## For Developers
+
+### 1. Get API Access
+
+1. Contact support to request API access
+2. Receive your API key and credentials
+3. Review the [API Documentation](/api/overview)
+
+### 2. Authenticate
+
+```bash
+curl -X GET https://api.pariflow.com/api/institutional/market-data/trades \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Content-Type: application/json"
+```
+
+### 3. Start Building
+
+- Check out the [API Reference](/api/overview)
+- Review [Architecture Documentation](/architecture/overview)
+- Join our developer community
+
+## For Administrators
+
+### 1. Initial Setup
+
+Follow the [Setup & Configuration Guide](/admin/setup) to:
+- Configure environment variables
+- Set up database connections
+- Initialize the hedging system
+
+### 2. Enable Features
+
+- **Hedging System**: See [Hedging Guide](/admin/hedging)
+- **Sports Integration**: See [Sports Setup](/admin/sports)
+- **Telegram Bot**: See [Telegram Setup](/admin/telegram)
+
+### 3. Monitor System
+
+- Access admin dashboard at `/admin`
+- Monitor risk exposure
+- Track system health metrics
+
+## Next Steps
+
+- **Users**: Read the [Betting Flow Guide](/guides/betting-flow)
+- **Developers**: Explore the [API Documentation](/api/overview)
+- **Admins**: Review [Architecture Documentation](/architecture/overview)
+
+## Need Help?
+
+- Check our [FAQ](/guides/faq)
+- Contact support
+- Join our community Discord
+
+---
+
+**Ready to start?** [Browse Markets](https://pariflow.com) or [Read the Full Documentation](/guides/betting-flow)

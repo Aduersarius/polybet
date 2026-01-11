@@ -1,0 +1,295 @@
+---
+title: Institutional Market Data API
+description: Complete reference for institutional market data APIs
+---
+
+# Institutional Market Data API
+
+Complete API reference for accessing real-time and historical market data optimized for algorithmic trading systems.
+
+## Base URL
+
+```
+/api/institutional/market-data/
+```
+
+## Authentication
+
+All endpoints require API key authentication via `X-API-Key` header.
+
+## Rate Limiting
+
+- 1000 requests per minute per API key
+- Burst allowance of 100 requests
+
+## Endpoints
+
+### Trades API
+
+Query historical trade data with filtering and pagination.
+
+```bash
+GET /api/institutional/market-data/trades
+```
+
+**Parameters:**
+- `eventId` (required): Event identifier
+- `outcomeId` (optional): Specific outcome for multiple events
+- `option` (optional): 'YES' or 'NO' for binary events
+- `startTime` (optional): ISO 8601 timestamp
+- `endTime` (optional): ISO 8601 timestamp
+- `limit` (optional): Max 1000, default 100
+- `offset` (optional): Pagination offset
+- `sort` (optional): 'asc' or 'desc' by timestamp
+
+**Example:**
+```bash
+curl -X GET "https://api.pariflow.com/api/institutional/market-data/trades?eventId=event-uuid&limit=100" \
+  -H "X-API-Key: your-api-key"
+```
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "trade-uuid",
+      "eventId": "event-uuid",
+      "option": "YES",
+      "side": "buy",
+      "price": 0.65,
+      "amount": 100,
+      "volume": 65,
+      "timestamp": "2024-01-01T00:00:00Z",
+      "isAmmTrade": false
+    }
+  ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "total": 500,
+    "hasMore": true
+  }
+}
+```
+
+### OHLC API
+
+Get Open, High, Low, Close price data aggregated by time intervals.
+
+```bash
+GET /api/institutional/market-data/ohlc
+```
+
+**Parameters:**
+- `eventId` (required): Event identifier
+- `outcomeId` (optional): Specific outcome
+- `option` (optional): 'YES' or 'NO'
+- `interval` (required): '1m', '5m', '15m', '1h', '4h', '1d'
+- `startTime` (optional): ISO 8601 timestamp
+- `endTime` (optional): ISO 8601 timestamp
+- `limit` (optional): Max 1000, default 100
+
+**Example:**
+```bash
+curl -X GET "https://api.pariflow.com/api/institutional/market-data/ohlc?eventId=event-uuid&interval=5m&limit=100" \
+  -H "X-API-Key: your-api-key"
+```
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "eventId": "event-uuid",
+      "option": "YES",
+      "timestamp": "2024-01-01T00:00:00Z",
+      "interval": "5m",
+      "open": 0.65,
+      "high": 0.67,
+      "low": 0.64,
+      "close": 0.66,
+      "volume": 1000,
+      "trades": 50
+    }
+  ]
+}
+```
+
+### Order Book API
+
+Get current order book snapshot with depth.
+
+```bash
+GET /api/institutional/market-data/orderbook
+```
+
+**Parameters:**
+- `eventId` (required): Event identifier
+- `outcomeId` (optional): Specific outcome
+- `option` (optional): 'YES' or 'NO'
+- `depth` (optional): Number of price levels, max 50, default 20
+
+**Example:**
+```bash
+curl -X GET "https://api.pariflow.com/api/institutional/market-data/orderbook?eventId=event-uuid&option=YES&depth=20" \
+  -H "X-API-Key: your-api-key"
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "eventId": "event-uuid",
+    "option": "YES",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "bids": [
+      {"price": 0.64, "amount": 500, "orderCount": 5},
+      {"price": 0.63, "amount": 300, "orderCount": 3}
+    ],
+    "asks": [
+      {"price": 0.66, "amount": 200, "orderCount": 2},
+      {"price": 0.67, "amount": 400, "orderCount": 4}
+    ],
+    "spread": 0.02,
+    "midPrice": 0.65
+  }
+}
+```
+
+### Market Statistics API
+
+Get aggregated market statistics.
+
+```bash
+GET /api/institutional/market-data/statistics
+```
+
+**Parameters:**
+- `eventId` (required): Event identifier
+- `outcomeId` (optional): Specific outcome
+- `option` (optional): 'YES' or 'NO'
+- `period` (optional): '1h', '24h', '7d', '30d'
+
+**Example:**
+```bash
+curl -X GET "https://api.pariflow.com/api/institutional/market-data/statistics?eventId=event-uuid&period=24h" \
+  -H "X-API-Key: your-api-key"
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "eventId": "event-uuid",
+    "option": "YES",
+    "period": "24h",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "volume": 10000,
+    "trades": 500,
+    "high": 0.70,
+    "low": 0.60,
+    "open": 0.65,
+    "close": 0.68,
+    "vwap": 0.66,
+    "volatility": 0.05,
+    "liquidity": 5000
+  }
+}
+```
+
+## WebSocket Feed
+
+Real-time updates for trades, order book changes, and statistics.
+
+**Connection:**
+```
+wss://api.pariflow.com/api/institutional/market-data/ws
+```
+
+**Subscribe:**
+```json
+{
+  "action": "subscribe",
+  "channels": ["trades", "orderbook", "statistics"],
+  "eventId": "event-uuid",
+  "outcomeId": "outcome-uuid"
+}
+```
+
+**Unsubscribe:**
+```json
+{
+  "action": "unsubscribe",
+  "channels": ["trades"],
+  "eventId": "event-uuid"
+}
+```
+
+**Message Format:**
+```json
+{
+  "channel": "trades",
+  "eventId": "event-uuid",
+  "data": {
+    "id": "trade-uuid",
+    "price": 0.65,
+    "amount": 100,
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+## Data Export
+
+Export historical data in various formats.
+
+```bash
+GET /api/institutional/market-data/export
+```
+
+**Parameters:**
+- `type` (required): 'trades', 'ohlc', 'statistics'
+- `eventId` (required): Event identifier
+- `format` (required): 'json', 'csv', 'parquet'
+- `startTime` (required): ISO 8601 timestamp
+- `endTime` (required): ISO 8601 timestamp
+
+**Example:**
+```bash
+curl -X GET "https://api.pariflow.com/api/institutional/market-data/export?type=trades&eventId=event-uuid&format=csv&startTime=2024-01-01&endTime=2024-01-31" \
+  -H "X-API-Key: your-api-key" \
+  -o trades.csv
+```
+
+## Error Handling
+
+### Error Response Format
+
+```json
+{
+  "error": "Error message",
+  "code": "ERROR_CODE",
+  "details": {}
+}
+```
+
+### Common Error Codes
+
+- `INVALID_EVENT_ID`: Event not found
+- `INVALID_PARAMETER`: Invalid request parameter
+- `RATE_LIMIT_EXCEEDED`: Too many requests
+- `UNAUTHORIZED`: Invalid or missing API key
+- `INSUFFICIENT_PERMISSIONS`: API key lacks required permissions
+
+## Best Practices
+
+1. **Use WebSocket for Real-time Data**: More efficient than polling
+2. **Cache Historical Data**: Reduce API calls by caching
+3. **Handle Rate Limits**: Implement exponential backoff
+4. **Use Appropriate Intervals**: Choose intervals based on your needs
+5. **Monitor Connection**: Reconnect WebSocket on disconnect
+
+---
+
+For more details, see the [API Overview](/api/overview) or [Architecture Documentation](/architecture/overview).

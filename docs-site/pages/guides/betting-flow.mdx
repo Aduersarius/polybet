@@ -1,0 +1,141 @@
+---
+title: Bet Placement Flow
+description: Complete betting flow in Pariflow
+---
+
+# Bet Placement Flow
+
+This document explains the complete betting flow in Pariflow.
+
+## Architecture
+
+```
+User Browser
+    ↓
+TradingPanel Component
+    ↓
+POST /api/bets
+    ↓
+┌─────────────────────────────────┐
+│ 1. Fetch Event State (Postgres)│
+│ 2. Run AMM Calculations         │
+│ 3. Create User (if needed)      │
+│ 4. Database Transaction:        │
+│    - Update Event (qYes,qNo)    │
+│    - Create Bet Record          │
+│ 5. Publish to Redis             │
+└─────────────────────────────────┘
+    ↓
+Redis Channel: 'event-updates'
+    ↓
+VPS WebSocket Server (subscribed)
+    ↓
+Emit to Socket.IO clients
+    ↓
+┌────────────────────────────────────┐
+│ Frontend Components (WebSocket)   │
+│ - TradingPanel (price updates)    │
+│ - OddsGraph (new data points)     │
+│ - EventPage (real-time sync)      │
+└────────────────────────────────────┘
+```
+
+## Flow Details
+
+### 1. User Places Bet
+**File:** `app/components/TradingPanel.tsx`
+
+```typescript
+// User must be connected with wallet
+const { address } = useAccount();
+
+// POST to /api/bets
+fetch('/api/bets', {
+  method: 'POST',
+  body: JSON.stringify({
+    eventId: string,
+    outcome: 'YES' | 'NO',
+    amount: number,
+    userId: string (wallet address)
+  })
+});
+```
+
+### 2. API Processes Bet
+**File:** `app/api/bets/route.ts`
+
+**Steps:**
+1. **Fetch Event** - Query current AMM state (`qYes`, `qNo`, `liquidityParameter`)
+2. **Calculate** - Use LMSR formulas to determine:
+   - Tokens received for cost
+   - New qYes/qNo values
+   - New market odds
+3. **User Check** - Create user if doesn't exist
+4. **Transaction** - Atomic update in Postgres:
+   ```prisma
+   prisma.$transaction([
+     event.update({ qYes, qNo, yesOdds, noOdds }),
+     bet.create({ amount, option, userId, eventId })
+   ])
+   ```
+5. **Publish** - Send update to Redis:
+   ```typescript
+   redis.publish('event-updates', JSON.stringify({
+     eventId,
+     timestamp,
+     yesPrice,
+     volume
+   }))
+   ```
+
+### 3. VPS WebSocket Server
+**File:** `vps/server.js`
+
+```javascript
+// Subscribe to Redis channel
+redis.subscribe('event-updates');
+
+// Broadcast to all Socket.IO clients
+redis.on('message', (channel, message) => {
+  const data = JSON.parse(message);
+  io.emit(`odds-update-${data.eventId}`, data);
+});
+```
+
+### 4. Frontend Updates
+**Files:**
+- `app/components/TradingPanel.tsx` - Live price display
+- `app/components/OddsGraph.tsx` - Append new data point
+- `app/event/[id]/page.tsx` - Auto-sync state
+
+```typescript
+// Each component listens to WebSocket
+socket.on(`odds-update-${eventId}`, (update) => {
+  // Update local state - triggers re-render
+  setLiveYesPrice(update.yesPrice);
+  setLiveNoPrice(1 - update.yesPrice);
+});
+```
+
+## Key Benefits
+
+1. **Real-time** - Instant odds updates across all users
+2. **Atomic** - Postgres transaction ensures data consistency
+3. **Scalable** - Redis pub/sub handles thousands of concurrent users
+4. **Stateless** - Next.js API routes remain stateless
+5. **Resilient** - WebSocket reconnects automatically
+
+## Important Files
+
+| File | Purpose |
+|------|---------|
+| `app/components/TradingPanel.tsx` | User interface for placing bets |
+| `app/api/bets/route.ts` | Main betting API (with Redis) |
+| `lib/amm.ts` | LMSR market maker math |
+| `lib/redis.ts` | Redis client singleton |
+| `lib/socket.ts` | WebSocket client singleton |
+| `vps/server.js` | WebSocket server on VPS |
+
+## Deprecated Files
+
+- ❌ `app/api/events/[id]/bets/route.ts.old` - Old route without Redis (removed)
