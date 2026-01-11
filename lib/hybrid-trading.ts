@@ -71,56 +71,30 @@ function calculateSharesForCost(
 
     return qNew - currentShares[targetIndex];
 }
-
 // --- HELPER: Update User Balance ---
 async function updateBalance(prisma: any, userId: string, tokenSymbol: string, eventId: string | null, amountDelta: number) {
-    // Schema may differ across environments (older Balance tables). Gracefully skip if missing.
-    let existing: { id: string; amount: Prisma.Decimal | number } | null = null;
-    try {
-        existing = await prisma.balance.findFirst({
-            where: { userId, tokenSymbol, eventId, outcomeId: null },
-            select: { id: true, amount: true },
-        });
-    } catch (err) {
-        const code = (err as any)?.code;
-        if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
-            console.warn('[hybrid-trading] balance findFirst schema mismatch; aborting transaction:', (err as Error).message);
-            throw new Error('BALANCE_SCHEMA_MISMATCH');
-        }
-        throw err;
-    }
+    // Revert to findFirst + update/create because native upsert with nullable fields in compound unique
+    // is not supported by Prisma Client generated types (requires strict non-null matching).
+    // Performance is acceptable now that AMM updates are async and RiskManager is optimized.
 
-    const toNumber = (val: Prisma.Decimal | number) =>
-        val instanceof Prisma.Decimal ? val.toNumber() : Number(val);
+    // Check for existing balance
+    const existing = await prisma.balance.findFirst({
+        where: { userId, tokenSymbol, eventId, outcomeId: null },
+        select: { id: true, amount: true },
+    });
+
+    const toNumber = (val: any) =>
+        (val && typeof val.toNumber === 'function') ? val.toNumber() : Number(val);
 
     if (existing) {
-        const nextAmount = toNumber(existing.amount) + amountDelta;
-        try {
-            await prisma.balance.update({
-                where: { id: existing.id },
-                data: { amount: nextAmount },
-            });
-        } catch (err) {
-            const code = (err as any)?.code;
-            if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
-                console.warn('[hybrid-trading] balance update schema mismatch; aborting transaction:', (err as Error).message);
-                throw new Error('BALANCE_SCHEMA_MISMATCH');
-            }
-            throw err;
-        }
+        await prisma.balance.update({
+            where: { id: existing.id },
+            data: { amount: { increment: amountDelta } },
+        });
     } else {
-        try {
-            await prisma.balance.create({
-                data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta }
-            });
-        } catch (err) {
-            const code = (err as any)?.code;
-            if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
-                console.warn('[hybrid-trading] balance create schema mismatch; aborting transaction:', (err as Error).message);
-                throw new Error('BALANCE_SCHEMA_MISMATCH');
-            }
-            throw err;
-        }
+        await prisma.balance.create({
+            data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta }
+        });
     }
 }
 
@@ -253,11 +227,14 @@ export async function placeHybridOrder(
     amount: number, // In USD (Cost)
     price?: number
 ): Promise<HybridOrderResult> {
+    const startPHO = Date.now();
     try {
+        const startEventFetch = Date.now();
         const event = await prisma.event.findUnique({
             where: { id: eventId },
             include: { outcomes: true }
         }) as any;
+        console.log(`[PERF] Fetch Event: ${Date.now() - startEventFetch}ms`);
         if (!event || event.status !== 'ACTIVE') throw new Error("Event not open");
 
         // Check if this is a Polymarket-sourced event
@@ -360,6 +337,7 @@ export async function placeHybridOrder(
             // --- INTERNAL EVENT: Use LMSR pricing ---
             quote = await calculateLMSRQuote(prisma, eventId, option, costToSpend);
         }
+        console.log(`[PERF] Quote Calc (Polymarket/LMSR): ${Date.now() - startPHO}ms`); // Use PHO start as rough baselinewb for cumulative
 
         if (!quote || quote.shares <= 0) {
             throw new Error("Insufficient liquidity or calculation error for this trade size");
@@ -423,6 +401,7 @@ export async function placeHybridOrder(
             currentProb,
             predictedProb
         );
+        console.log(`[PERF] Risk Check: ${Date.now() - startPHO}ms`);
 
         if (!riskCheck.allowed) {
             return { success: false, error: riskCheck.reason, totalFilled: 0, averagePrice: 0 };
@@ -443,6 +422,7 @@ export async function placeHybridOrder(
         } else {
             await ensureSufficientBalance(prisma, userId, tokenSymbol, eventId, quote.shares, 'shares');
         }
+        console.log(`[PERF] Balance Check: ${Date.now() - startPHO}ms`);
 
         // --- PRE-FLIGHT HEDGE EXECUTION (For Polymarket events only) ---
         // CRITICAL: Execute hedge BEFORE committing internal trade
@@ -450,9 +430,13 @@ export async function placeHybridOrder(
         let hedgePositionId: string | undefined;
 
         if (isPolymarketEvent) {
+            const startHedge = Date.now();
             try {
                 // Import hedgeManager - keep this synchronous
+                const hStart = Date.now();
+                console.log(`[HEDGE-PREFLIGHT] Importing hedgeManager...`);
                 const { hedgeManager } = await import('./hedge-manager');
+                console.log(`[HEDGE-PREFLIGHT] hedgeManager imported in ${Date.now() - hStart}ms`);
                 await hedgeManager.loadConfig();
 
                 // Check if we should hedge this order
@@ -476,6 +460,8 @@ export async function placeHybridOrder(
                         userPrice: quote.avgPrice,
                         side,
                         option,
+                        polymarketTickSize: canHedge.polymarketTickSize,
+                        polymarketNegRisk: canHedge.polymarketNegRisk
                     });
 
                     if (!hedgeResult.success) {
@@ -557,12 +543,15 @@ export async function placeHybridOrder(
                     await updateBalance(tx, userId, tokenSymbol, eventId, userSharesDelta);
                     await updateBalance(tx, userId, 'TUSD', null, userTusdDelta);
 
-                    await updateBalance(tx, AMM_BOT_USER_ID, tokenSymbol, eventId, ammSharesDelta);
-                    await updateBalance(tx, AMM_BOT_USER_ID, 'TUSD', null, ammTusdDelta);
+                    // OPTIMIZATION: Move AMM balance updates out of critical transaction
+                    // The AMM bot is a shared resource and updating it inside the user's transaction
+                    // creates a choke point (lock contention) for all concurrent trades.
+                    // We can safely update the AMM balance asynchronously or after commit.
+                    // Note: We'll do it after commit in the main flow.
 
                     // 3. Record Trade
                     // For AMM trades, we need to create a placeholder order since orderId is required
-                    console.log(`[TRADE] Creating placeholder order`);
+                    console.log(`[TRADE] Creating placeholder order (Start DB insert)`);
                     const placeholderOrder = await (tx as any).order.create({
                         data: {
                             userId: AMM_BOT_USER_ID,
@@ -578,7 +567,7 @@ export async function placeHybridOrder(
                         }
                     });
 
-                    console.log(`[TRADE] Creating market activity`);
+                    console.log(`[TRADE] Creating market activity (Order created: ${placeholderOrder.id})`);
                     const marketActivity = await (tx as any).marketActivity.create({
                         data: {
                             type: 'TRADE',
@@ -594,6 +583,7 @@ export async function placeHybridOrder(
                         }
                     });
 
+                    console.log(`[TRADE] Creating order execution`);
                     // Create OrderExecution record for tracking fills
                     await (tx as any).orderExecution.create({
                         data: {
@@ -602,6 +592,8 @@ export async function placeHybridOrder(
                             price: quote.avgPrice,
                         }
                     });
+
+                    console.log(`[TRADE] DB Inserts done`);
 
                     // 4. Update Probabilities (So next quote is more expensive)
                     // Skip for Polymarket events - probabilities come from external source
@@ -626,12 +618,32 @@ export async function placeHybridOrder(
                         placeholderOrderId: placeholderOrder.id,
                         totalFilled: quote.shares,
                         averagePrice: quote.avgPrice,
-                        warning
+                        warning,
+                        // Pass data needed for async AMM updates
+                        ammData: {
+                            tokenSymbol,
+                            // eventId is available
+                            ammSharesDelta,
+                            ammTusdDelta
+                        }
                     };
-                }, {
-                    maxWait: 5000,
-                    timeout: 20000
                 });
+
+                // Post-transaction tasks
+                if (result.success) {
+                    // Update AMM balances asynchronously (fire and forget for latency)
+                    console.log('[TRADE] Updating AMM balances asynchronously...');
+                    const ammData = (result as any).ammData;
+                    if (ammData) {
+                        // Use global prisma, not tx
+                        Promise.all([
+                            updateBalance(prisma, AMM_BOT_USER_ID, ammData.tokenSymbol, eventId, ammData.ammSharesDelta),
+                            updateBalance(prisma, AMM_BOT_USER_ID, 'TUSD', null, ammData.ammTusdDelta)
+                        ]).catch(err => {
+                            console.error('[TRADE] Failed to update AMM balance (non-critical):', err);
+                        });
+                    }
+                }
 
 
                 // NOTE: For Polymarket events, hedge was already executed in pre-flight (before transaction)

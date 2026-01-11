@@ -603,7 +603,7 @@ model ApiKey {
 // Hedging and Risk Management Models
 model HedgePosition {
   id                 String    @id @default(cuid())
-  userOrderId        String    @unique
+  userOrderId        String?   @unique
   polymarketOrderId  String?
   polymarketMarketId String
   side               String // 'buy' or 'sell' on Polymarket
@@ -623,7 +623,7 @@ model HedgePosition {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  userOrder Order @relation(fields: [userOrderId], references: [id])
+  userOrder Order? @relation(fields: [userOrderId], references: [id])
 
   @@index([status])
   @@index([createdAt])

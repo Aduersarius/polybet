@@ -21,7 +21,7 @@ export async function getOrSet<T>(
     fn: () => Promise<T>,
     options: CacheOptions = {}
 ): Promise<T> {
-    const { ttl = 60, prefix = '', compress = false } = options;
+    const { ttl = 300, prefix = '', compress = false } = options;
     const fullKey = prefix ? `${prefix}:${key}` : key;
 
     // If Redis is not available, just execute the function

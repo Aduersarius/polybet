@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
             // Cache for shorter time (e.g., 2s) because prices move dynamically now
             if (redis && (redis as any).status === 'ready') {
                 try {
-                    await redis.setex(cacheKey, 2, JSON.stringify(orderbook));
+                    await redis.setex(cacheKey, 5, JSON.stringify(orderbook));
                 } catch (error: any) {
                     // Silently fail on cache write errors
                 }

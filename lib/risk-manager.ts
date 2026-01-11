@@ -110,66 +110,86 @@ export class RiskManager {
      * Max Payout = Max(Shares held by users for Outcome A, Shares held by users for Outcome B, ...)
      */
     static async calculateEventLiability(eventId: string): Promise<number> {
-        // Get all balances for this event, excluding AMM Bot
-        let balances: Array<{ tokenSymbol: string; amount: Prisma.Decimal }>;
         try {
-            balances = await prisma.balance.findMany({
+            // Use database aggregation instead of fetching all rows
+            const aggregations = await prisma.balance.groupBy({
+                by: ['tokenSymbol'],
                 where: {
                     eventId: eventId,
                     userId: { not: AMM_BOT_USER_ID },
-                    tokenSymbol: { not: 'TUSD' } // Only outcome tokens
+                    tokenSymbol: { not: 'TUSD' }
                 },
-                select: {
-                    tokenSymbol: true,
-                    amount: true,
-                },
+                _sum: {
+                    amount: true
+                }
             });
+
+            // Find the max payout among outcomes
+            let maxPayout = 0;
+            for (const agg of aggregations) {
+                const amount = agg._sum.amount ?
+                    (agg._sum.amount instanceof Prisma.Decimal ? agg._sum.amount.toNumber() : Number(agg._sum.amount))
+                    : 0;
+
+                if (amount > maxPayout) {
+                    maxPayout = amount;
+                }
+            }
+            return maxPayout;
+
         } catch (err) {
-            const code = (err as any)?.code;
-            // Gracefully handle schema drift (e.g., column missing in current DB)
-            if (code === 'P2022' || code === 'P2010' || (err as Error).message?.includes('does not exist')) {
-                console.warn('[risk-manager] balance query skipped due to schema mismatch:', (err as Error).message);
-                return 0;
-            }
-            throw err;
+            console.error('[risk-manager] Liability calculation failed:', err);
+            return 0;
         }
-
-        // Group by outcome (tokenSymbol)
-        const sharesByOutcome: Record<string, number> = {};
-
-        for (const bal of balances) {
-            const symbol = bal.tokenSymbol;
-            sharesByOutcome[symbol] = (sharesByOutcome[symbol] || 0) + bal.amount.toNumber();
-        }
-
-        // Find the max payout
-        let maxPayout = 0;
-        for (const symbol in sharesByOutcome) {
-            if (sharesByOutcome[symbol] > maxPayout) {
-                maxPayout = sharesByOutcome[symbol];
-            }
-        }
-
-        return maxPayout;
     }
 
     /**
      * Calculates the total liability across all events.
      */
     static async calculateGlobalLiability(): Promise<number> {
-        // We can iterate over all active events and sum their liabilities
-        // This might be expensive if there are many events, but for now it's safe.
-        const events = await prisma.event.findMany({
-            where: { status: 'ACTIVE' },
-            select: { id: true }
-        });
+        try {
+            // Fetch aggregated balances for ALL events in one query
+            // Group by eventId AND tokenSymbol to get total shares per outcome per event
+            const aggregations = await prisma.balance.groupBy({
+                by: ['eventId', 'tokenSymbol'],
+                where: {
+                    userId: { not: AMM_BOT_USER_ID },
+                    tokenSymbol: { not: 'TUSD' },
+                    eventId: { not: null } // Ensure we only get event-specific balances
+                },
+                _sum: {
+                    amount: true
+                }
+            });
 
-        let totalLiability = 0;
-        for (const event of events) {
-            totalLiability += await this.calculateEventLiability(event.id);
+            // Process results in memory to find max liability per event
+            const liabilityByEvent: Record<string, number> = {};
+
+            for (const agg of aggregations) {
+                if (!agg.eventId) continue;
+
+                const amount = agg._sum.amount ?
+                    (agg._sum.amount instanceof Prisma.Decimal ? agg._sum.amount.toNumber() : Number(agg._sum.amount))
+                    : 0;
+
+                // Update max for this event
+                if (amount > (liabilityByEvent[agg.eventId] || 0)) {
+                    liabilityByEvent[agg.eventId] = amount;
+                }
+            }
+
+            // Sum up liabilities
+            let totalLiability = 0;
+            for (const eventId in liabilityByEvent) {
+                totalLiability += liabilityByEvent[eventId];
+            }
+
+            return totalLiability;
+
+        } catch (err) {
+            console.error('[risk-manager] Global liability calculation failed:', err);
+            return 0;
         }
-
-        return totalLiability;
     }
 
     /**

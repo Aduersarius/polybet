@@ -534,6 +534,47 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                 }
                             </span>
                         </div>
+
+                        <div className="flex gap-2">
+                            {selectedTab === 'buy' ? (
+                                // Buy presets: USD amounts
+                                ['+1', '+10', '+50', '+100', 'Max'].map((val) => (
+                                    <button
+                                        key={val}
+                                        onClick={() => {
+                                            if (val === 'Max') {
+                                                setAmount('1000');
+                                            } else {
+                                                const increment = parseFloat(val.replace('+', ''));
+                                                setAmount((parseFloat(amount) || 0 + increment).toString());
+                                            }
+                                        }}
+                                        className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                    >
+                                        {val}
+                                    </button>
+                                ))
+                            ) : (
+                                // Sell presets: percentage of shares
+                                ['25%', '50%', 'ALL'].map((val) => (
+                                    <button
+                                        key={val}
+                                        onClick={() => {
+                                            if (val === 'ALL') {
+                                                setAmount(availableShares.toString());
+                                            } else {
+                                                const percentage = parseFloat(val.replace('%', '')) / 100;
+                                                setAmount((availableShares * percentage).toString());
+                                            }
+                                        }}
+                                        className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                        disabled={availableShares === 0}
+                                    >
+                                        {val}
+                                    </button>
+                                ))
+                            )}
+                        </div>
                         <div className="relative group">
                             <input
                                 type="number"

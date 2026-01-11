@@ -277,7 +277,7 @@ export async function GET(
 
                 return response;
             },
-            { ttl: 120, prefix: 'event' }
+            { ttl: 600, prefix: 'event' }
         );
 
         const queryTime = Date.now() - startTime;

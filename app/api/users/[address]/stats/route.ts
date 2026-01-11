@@ -48,166 +48,173 @@ export async function GET(
             });
         }
 
-        const userId = user.id;
+        // Cache user stats for 60 seconds to reduce DB load on complex aggregations
+        const { getOrSet } = await import('@/lib/cache');
+        const statsData = await getOrSet(
+            `user:stats:${user.id}`,
+            async () => {
+                const userId = user!.id; // Use non-null assertion as we checked above
 
-        // Get all market activities (bets and trades) for this user
-        const activityInclude = {
-            event: {
-                select: {
-                    status: true,
-                    result: true,
-                    type: true
+                // Get all market activities (bets and trades) for this user
+                const activityInclude = {
+                    event: {
+                        select: {
+                            status: true,
+                            result: true,
+                            type: true
+                        }
+                    }
+                } as const;
+
+                const allActivities = await prisma.marketActivity.findMany({
+                    where: {
+                        userId,
+                        type: { in: ['BET', 'TRADE'] }
+                    },
+                    include: activityInclude
+                });
+
+                // Calculate volume (total amount spent on bets/trades)
+                const totalVolume = allActivities.reduce((sum: number, activity: any) => {
+                    // Volume = amount * price (or just amount if price is null)
+                    return sum + (Number(activity.amount) * (activity.price ? Number(activity.price) : 1));
+                }, 0);
+
+                // Calculate bet count
+                const betCount = allActivities.length;
+
+                // Calculate profit/loss from resolved events
+                let totalProfit = 0;
+                const resolvedActivities = allActivities.filter((a: any) => a.event.status === 'RESOLVED');
+
+                for (const activity of resolvedActivities) {
+                    if (activity.event.type === 'BINARY') {
+                        // Binary event - check if option matches result
+                        if (activity.option === activity.event.result) {
+                            // Won bet - simplified payout calculation
+                            // In reality, this should use the actual payout from the AMM
+                            totalProfit += Number(activity.amount) * 0.95; // Approximate payout
+                        } else {
+                            // Lost bet
+                            totalProfit -= Number(activity.amount);
+                        }
+                    } else if (activity.event.type === 'MULTIPLE' && activity.outcomeId) {
+                        // Multiple outcome event - check if outcome matches result
+                        if (activity.outcomeId === activity.event.result) {
+                            // Won bet
+                            totalProfit += Number(activity.amount) * 0.95; // Approximate payout
+                        } else {
+                            // Lost bet
+                            totalProfit -= Number(activity.amount);
+                        }
+                    }
                 }
-            }
-        } as const;
 
-        const allActivities: Prisma.MarketActivityGetPayload<{ include: typeof activityInclude }>[] = await prisma.marketActivity.findMany({
-            where: {
-                userId,
-                type: { in: ['BET', 'TRADE'] }
+                // Calculate positions value (current value of open positions)
+                // Get user's balances for outcome tokens with event details
+                const positionBalanceSelect = {
+                    eventId: true,
+                    outcomeId: true,
+                    tokenSymbol: true,
+                    amount: true
+                } as const;
+
+                const positionBalances = await prisma.balance.findMany({
+                    where: {
+                        userId,
+                        eventId: { not: null },
+                        amount: { gt: 0 }
+                    },
+                    select: positionBalanceSelect
+                });
+
+                // Get all unique event IDs
+                const eventIds = [...new Set(positionBalances.map((b: any) => b.eventId).filter(Boolean))] as string[];
+
+                // Fetch all events and outcomes in bulk
+                const eventSelect = {
+                    id: true,
+                    type: true,
+                    qYes: true,
+                    qNo: true,
+                    liquidityParameter: true
+                } as const;
+
+                const outcomeSelect = {
+                    id: true,
+                    eventId: true,
+                    probability: true
+                } as const;
+
+                const [events, outcomes] = await Promise.all([
+                    prisma.event.findMany({
+                        where: {
+                            id: { in: eventIds },
+                            status: 'ACTIVE'
+                        },
+                        select: eventSelect
+                    }),
+                    prisma.outcome.findMany({
+                        where: {
+                            eventId: { in: eventIds }
+                        },
+                        select: outcomeSelect
+                    })
+                ]);
+
+                // Create maps for quick lookup
+                const eventMap: Map<string, any> = new Map(events.map((e: any) => [e.id, e]));
+                const outcomeMap: Map<string, any> = new Map(outcomes.map((o: any) => [o.id, o]));
+
+                let positionsValue = 0;
+
+                for (const balance of positionBalances) {
+                    if (!balance.eventId) continue;
+
+                    const event = eventMap.get(balance.eventId);
+                    if (!event) continue;
+
+                    let currentPrice = 0.5; // Default price
+
+                    if (balance.outcomeId) {
+                        // Multiple outcome - get probability from outcome
+                        const outcome = outcomeMap.get(balance.outcomeId);
+                        if (outcome) {
+                            currentPrice = outcome.probability || 0.5;
+                        }
+                    } else if (event.type === 'BINARY') {
+                        // Binary event - calculate from qYes/qNo
+                        const { calculateLMSROdds } = await import('@/lib/amm');
+                        const odds = calculateLMSROdds(
+                            event.qYes || 0,
+                            event.qNo || 0,
+                            event.liquidityParameter || 20000
+                        );
+                        // Use YES price if token is YES, NO price otherwise
+                        currentPrice = balance.tokenSymbol?.includes('YES') ? odds.yesPrice : odds.noPrice;
+                    }
+
+                    // Calculate current value of position
+                    const currentValue = balance.amount.toNumber() * currentPrice;
+                    positionsValue += currentValue;
+                }
+
+                return {
+                    volume: totalVolume,
+                    profit: totalProfit,
+                    positions: positionsValue,
+                    betCount: betCount
+                };
             },
-            include: activityInclude
-        });
-
-        // Calculate volume (total amount spent on bets/trades)
-        const totalVolume = allActivities.reduce((sum, activity) => {
-            // Volume = amount * price (or just amount if price is null)
-            return sum + (Number(activity.amount) * (activity.price ? Number(activity.price) : 1));
-        }, 0);
-
-        // Calculate bet count
-        const betCount = allActivities.length;
-
-        // Calculate profit/loss from resolved events
-        let totalProfit = 0;
-        const resolvedActivities = allActivities.filter(a => a.event.status === 'RESOLVED');
-
-        for (const activity of resolvedActivities) {
-            if (activity.event.type === 'BINARY') {
-                // Binary event - check if option matches result
-                if (activity.option === activity.event.result) {
-                    // Won bet - simplified payout calculation
-                    // In reality, this should use the actual payout from the AMM
-                    totalProfit += Number(activity.amount) * 0.95; // Approximate payout
-                } else {
-                    // Lost bet
-                    totalProfit -= Number(activity.amount);
-                }
-            } else if (activity.event.type === 'MULTIPLE' && activity.outcomeId) {
-                // Multiple outcome event - check if outcome matches result
-                if (activity.outcomeId === activity.event.result) {
-                    // Won bet
-                    totalProfit += Number(activity.amount) * 0.95; // Approximate payout
-                } else {
-                    // Lost bet
-                    totalProfit -= Number(activity.amount);
-                }
-            }
-        }
-
-        // Calculate positions value (current value of open positions)
-        // Get user's balances for outcome tokens with event details
-        const positionBalanceSelect = {
-            eventId: true,
-            outcomeId: true,
-            tokenSymbol: true,
-            amount: true
-        } as const;
-
-        const positionBalances: Prisma.BalanceGetPayload<{ select: typeof positionBalanceSelect }>[] = await prisma.balance.findMany({
-            where: {
-                userId,
-                eventId: { not: null },
-                amount: { gt: 0 }
-            },
-            select: positionBalanceSelect
-        });
-
-        // Get all unique event IDs
-        const eventIds = [...new Set(positionBalances.map(b => b.eventId).filter(Boolean))] as string[];
-
-        // Fetch all events and outcomes in bulk
-        const eventSelect = {
-            id: true,
-            type: true,
-            qYes: true,
-            qNo: true,
-            liquidityParameter: true
-        } as const;
-
-        const outcomeSelect = {
-            id: true,
-            eventId: true,
-            probability: true
-        } as const;
-
-        const [events, outcomes]: [
-            Prisma.EventGetPayload<{ select: typeof eventSelect }>[],
-            Prisma.OutcomeGetPayload<{ select: typeof outcomeSelect }>[]
-        ] = await Promise.all([
-            prisma.event.findMany({
-                where: {
-                    id: { in: eventIds },
-                    status: 'ACTIVE'
-                },
-                select: eventSelect
-            }),
-            prisma.outcome.findMany({
-                where: {
-                    eventId: { in: eventIds }
-                },
-                select: outcomeSelect
-            })
-        ]);
-
-        // Create maps for quick lookup
-        const eventMap = new Map(events.map(e => [e.id, e]));
-        const outcomeMap = new Map(outcomes.map(o => [o.id, o]));
-
-        let positionsValue = 0;
-
-        for (const balance of positionBalances) {
-            if (!balance.eventId) continue;
-
-            const event = eventMap.get(balance.eventId);
-            if (!event) continue;
-
-            let currentPrice = 0.5; // Default price
-
-            if (balance.outcomeId) {
-                // Multiple outcome - get probability from outcome
-                const outcome = outcomeMap.get(balance.outcomeId);
-                if (outcome) {
-                    currentPrice = outcome.probability || 0.5;
-                }
-            } else if (event.type === 'BINARY') {
-                // Binary event - calculate from qYes/qNo
-                const { calculateLMSROdds } = await import('@/lib/amm');
-                const odds = calculateLMSROdds(
-                    event.qYes || 0,
-                    event.qNo || 0,
-                    event.liquidityParameter || 20000
-                );
-                // Use YES price if token is YES, NO price otherwise
-                currentPrice = balance.tokenSymbol?.includes('YES') ? odds.yesPrice : odds.noPrice;
-            }
-
-            // Calculate current value of position
-            const currentValue = balance.amount.toNumber() * currentPrice;
-            positionsValue += currentValue;
-        }
+            { ttl: 300, prefix: 'user-stats' }
+        );
 
         return NextResponse.json({
             username: user.username,
             avatarUrl: user.avatarUrl,
             image: user.image, // Include image field from Better Auth
             joinedAt: user.createdAt,
-            stats: {
-                volume: totalVolume,
-                profit: totalProfit,
-                positions: positionsValue,
-                betCount: betCount
-            }
+            stats: statsData
         });
     } catch (error) {
         console.error('Error fetching user stats:', error);
