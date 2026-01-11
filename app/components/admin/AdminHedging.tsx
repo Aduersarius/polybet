@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Shield, TrendingUp, AlertTriangle, CheckCircle, XCircle, Clock, DollarSign, Target, Settings } from 'lucide-react';
+import { Shield, TrendingUp, AlertTriangle, CheckCircle, XCircle, Clock, DollarSign, Target, Settings, ExternalLink, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 type HedgeDashboardData = {
@@ -57,6 +57,39 @@ type HedgeDashboardData = {
   };
 };
 
+type PolymarketData = {
+  wallet: string | null;
+  openOrders: Array<{
+    id: string;
+    tokenId: string;
+    side: string;
+    price: string;
+    size: string;
+    filled: number;
+    status: string;
+    createdAt: string;
+  }>;
+  positions: Array<{
+    tokenId: string;
+    shares: number;
+    cost: number;
+    avgPrice: number;
+    side: string;
+    marketId?: string;
+  }>;
+  recentTrades: Array<{
+    id: string;
+    tokenId: string;
+    marketId?: string;
+    side: string;
+    price: string;
+    size: string;
+    status: string;
+    timestamp: string;
+  }>;
+  error?: string;
+};
+
 const formatCurrency = (value: number) =>
   `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -64,15 +97,21 @@ const formatNumber = (value: number) => value.toLocaleString();
 
 export function AdminHedging() {
   const [data, setData] = useState<HedgeDashboardData | null>(null);
+  const [polymarketData, setPolymarketData] = useState<PolymarketData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [polymarketLoading, setPolymarketLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('24h');
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadPolymarketData();
     // Refresh every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(() => {
+      loadData();
+      loadPolymarketData();
+    }, 30000);
     return () => clearInterval(interval);
   }, [period]);
 
@@ -88,6 +127,19 @@ export function AdminHedging() {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPolymarketData = async () => {
+    try {
+      setPolymarketLoading(true);
+      const res = await fetch('/api/admin/polymarket');
+      const json = await res.json();
+      setPolymarketData(json);
+    } catch (err) {
+      console.error('Failed to load Polymarket data:', err);
+    } finally {
+      setPolymarketLoading(false);
     }
   };
 
@@ -383,39 +435,153 @@ export function AdminHedging() {
             </Card>
           )}
 
-          {/* Recent Failures */}
-          {data.recentFailures.length > 0 && (
-            <Card className="border-0 bg-surface">
-              <CardHeader>
-                <CardTitle className="text-zinc-200 flex items-center gap-2">
-                  <XCircle className="h-5 w-5 text-red-400" />
-                  Recent Failures
-                </CardTitle>
-                <CardDescription>Debug failed hedges</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {data.recentFailures.map((failure) => (
-                    <div
-                      key={failure.id}
-                      className="p-3 rounded-lg bg-red-500/10 border border-red-500/20"
+
+
+          {/* Polymarket Positions & Trades */}
+          <Card className="border-0 bg-surface">
+            <CardHeader>
+              <CardTitle className="text-zinc-200 flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-purple-400" />
+                Polymarket Positions & Trades
+                {polymarketLoading && <span className="text-xs text-muted-foreground ml-2">(loading...)</span>}
+              </CardTitle>
+              <CardDescription>
+                {polymarketData?.wallet ? (
+                  <span className="flex items-center gap-2">
+                    EOA Wallet: <code className="bg-black/30 px-2 py-0.5 rounded text-xs">{polymarketData.wallet}</code>
+                    <a
+                      href={`https://polygonscan.com/address/${polymarketData.wallet}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="text-red-400 font-medium text-sm">{failure.reason}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Order: {failure.orderId.slice(0, 8)}... |
-                            Amount: {formatCurrency(failure.amount)} |
-                            {new Date(failure.createdAt).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </span>
+                ) : (
+                  'Live positions from Polymarket API'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {polymarketData?.error && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+                  {polymarketData.error}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+
+              {/* Open Positions */}
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-300 mb-3">Open Positions</h4>
+                {polymarketData?.positions && polymarketData.positions.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-2 text-muted-foreground font-medium">Token ID</th>
+                          <th className="text-left py-2 text-muted-foreground font-medium">Side</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Shares</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Avg Price</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Cost</th>
+                          <th className="text-center py-2 text-muted-foreground font-medium">Link</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {polymarketData.positions.map((pos, i) => (
+                          <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="py-2 font-mono text-xs text-zinc-400">
+                              {pos.tokenId.slice(0, 12)}...{pos.tokenId.slice(-8)}
+                            </td>
+                            <td className={`py-2 font-semibold ${pos.side === 'LONG' ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {pos.side}
+                            </td>
+                            <td className="py-2 text-right text-zinc-200">{pos.shares.toFixed(2)}</td>
+                            <td className="py-2 text-right text-zinc-200">${pos.avgPrice.toFixed(4)}</td>
+                            <td className="py-2 text-right text-zinc-200">${pos.cost.toFixed(4)}</td>
+                            <td className="py-2 text-center">
+                              <a
+                                href={pos.marketId?.startsWith('0x')
+                                  ? `https://polygonscan.com/token/0x4D97DCd97eC945f40cF65F87097ACe5EA0476045?a=${polymarketData?.wallet}#inventory`
+                                  : `https://polymarket.com/event/${pos.marketId}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80"
+                                title={pos.marketId?.startsWith('0x') ? "View on Polygonscan" : "View Event on Polymarket"}
+                              >
+                                <ExternalLink className="h-4 w-4 inline" />
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground text-sm">No open positions</div>
+                )}
+              </div>
+
+              {/* Recent Trades */}
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-300 mb-3">Recent Trades</h4>
+                {polymarketData?.recentTrades && polymarketData.recentTrades.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-2 text-muted-foreground font-medium">Time</th>
+                          <th className="text-left py-2 text-muted-foreground font-medium">Side</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Price</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Size</th>
+                          <th className="text-center py-2 text-muted-foreground font-medium">Status</th>
+                          <th className="text-center py-2 text-muted-foreground font-medium">Link</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {polymarketData.recentTrades.slice(0, 10).map((trade, i) => (
+                          <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="py-2 text-xs text-zinc-400">
+                              {trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'}
+                            </td>
+                            <td className={`py-2 font-semibold ${trade.side === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {trade.side}
+                            </td>
+                            <td className="py-2 text-right text-zinc-200">${parseFloat(trade.price).toFixed(4)}</td>
+                            <td className="py-2 text-right text-zinc-200">{parseFloat(trade.size).toFixed(2)}</td>
+                            <td className="py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded text-xs ${trade.status === 'CONFIRMED' || trade.status === 'MATCHED'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-yellow-500/20 text-yellow-400'
+                                }`}>
+                                {trade.status}
+                              </span>
+                            </td>
+                            <td className="py-2 text-center">
+                              <a
+                                href={trade.marketId?.startsWith('0x')
+                                  ? `https://clob.polymarket.com/book?token_id=${trade.tokenId}`
+                                  : `https://polymarket.com/event/${trade.marketId}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80"
+                                title={trade.marketId?.startsWith('0x') ? "View Orderbook" : "View Event on Polymarket"}
+                              >
+                                <ExternalLink className="h-4 w-4 inline" />
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground text-sm">No recent trades</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Setup Instructions (if not connected) */}
           {!data.systemHealth.polymarketConnected && (

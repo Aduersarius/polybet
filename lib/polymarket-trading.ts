@@ -136,6 +136,9 @@ export interface PolymarketOrderRequest {
   price: number; // Price in decimal (0.01 to 0.99)
   expiration?: number; // Unix timestamp, defaults to 30 days
   nonce?: number;
+  // Opt optimizations to skip fetching orderbook
+  tickSize?: string;
+  negRisk?: boolean;
 }
 
 export interface PolymarketOrder {
@@ -155,6 +158,8 @@ export interface OrderbookSnapshot {
   bids: Array<{ price: number; size: number }>;
   asks: Array<{ price: number; size: number }>;
   timestamp: number;
+  tickSize?: string;
+  negRisk?: boolean;
 }
 
 export interface LiquidityCheck {
@@ -163,6 +168,8 @@ export interface LiquidityCheck {
   bestPrice: number;
   estimatedSlippage: number;
   reason?: string;
+  tickSize?: string;
+  negRisk?: boolean;
 }
 
 class PolymarketTradingService {
@@ -175,14 +182,16 @@ class PolymarketTradingService {
   private wallet: Wallet | null = null;
   private chainId: number;
   private clobClient: ClobClient | null = null;
+  private credentialsReady: boolean = false;
+  private credentialsPromise: Promise<void> | null = null;
 
   constructor() {
     this.apiUrl = process.env.POLYMARKET_CLOB_API_URL || 'https://clob.polymarket.com';
-    this.apiKey = process.env.POLYMARKET_API_KEY || '';
-    this.apiSecret = process.env.POLYMARKET_API_SECRET || '';
-    this.passphrase = process.env.POLYMARKET_PASSPHRASE || '';
-    this.privateKey = process.env.POLYMARKET_PRIVATE_KEY || '';
-    this.funderAddress = process.env.POLYMARKET_FUNDER_ADDRESS || '';
+    this.apiKey = (process.env.POLYMARKET_API_KEY || '').trim();
+    this.apiSecret = (process.env.POLYMARKET_API_SECRET || '').trim();
+    this.passphrase = (process.env.POLYMARKET_PASSPHRASE || '').trim();
+    this.privateKey = (process.env.POLYMARKET_PRIVATE_KEY || '').trim();
+    this.funderAddress = (process.env.POLYMARKET_FUNDER_ADDRESS || '').trim();
     this.chainId = parseInt(process.env.POLYMARKET_CHAIN_ID || '137');
 
     if (this.privateKey && this.privateKey !== 'YOUR_PRIVATE_KEY_HERE') {
@@ -220,34 +229,149 @@ class PolymarketTradingService {
   }
 
   /**
-   * Initialize the Polymarket CLOB client using provided credentials
+   * Sanitize API secret (convert URL-safe Base64 to Standard)
+   */
+  private sanitizeSecret(secret: string): string {
+    if (!secret) return secret;
+
+    // 1. Remove all whitespace first
+    secret = secret.replace(/\s+/g, '');
+
+    // 2. Convert URL-safe base64 to standard base64
+    if (secret.includes('-') || secret.includes('_')) {
+      console.log('[Polymarket] Sanitizing API Secret (converting URL-safe Base64 to Standard)...');
+      secret = secret.replace(/-/g, '+').replace(/_/g, '/');
+    }
+
+    // 3. Remove any other invalid characters (keep only standard Base64 chars)
+    secret = secret.replace(/[^A-Za-z0-9+/=]/g, '');
+
+    // 4. Fix padding strictly
+    while (secret.length % 4) {
+      secret += '=';
+    }
+
+    return secret;
+  }
+
+  /**
+   * Initialize the Polymarket CLOB client
+   * First tries using provided API credentials from env, then falls back to deriving
    */
   private initializeClient() {
     if (!this.wallet) return;
 
+    // signatureType: 1 = magic/email/proxy, 0 = direct EOA.
+    // If we have a funder address (Proxy), we MUST use signatureType 1.
+    const signatureType = this.funderAddress ? 1 : 0;
+
+    console.log(`[Polymarket] Initializing CLOB client (Chain ID: ${this.chainId}, SigType: ${signatureType})`);
+
+    // Try to use provided credentials from env vars first
+    const hasProvidedCreds = this.apiKey && this.apiSecret && this.passphrase;
+
+    if (hasProvidedCreds) {
+      console.log('[Polymarket] Using provided API credentials from environment...');
+      const sanitizedSecret = this.sanitizeSecret(this.apiSecret);
+
+      try {
+        this.clobClient = new ClobClient(
+          this.apiUrl,
+          this.chainId,
+          this.wallet as any,
+          {
+            key: this.apiKey,
+            secret: sanitizedSecret,
+            passphrase: this.passphrase,
+          },
+          signatureType,
+          this.funderAddress || undefined
+        );
+
+        this.credentialsReady = true;
+        console.log('[Polymarket] ✓ CLOB Client initialized with provided credentials');
+        return;
+      } catch (error) {
+        console.error('[Polymarket] Failed to initialize with provided credentials:', error);
+        console.log('[Polymarket] Falling back to credential derivation...');
+      }
+    }
+
+    // Fall back to deriving credentials
     try {
-      const creds =
-        this.apiKey && this.apiSecret && this.passphrase
-          ? { key: this.apiKey, secret: this.apiSecret, passphrase: this.passphrase }
-          : undefined;
-
-      // signatureType: 1 = magic/email/proxy, 0 = direct EOA.
-      // If we have a funder address (Proxy), we MUST use signatureType 1.
-      const signatureType = this.funderAddress ? 1 : 0;
-
-      // Wallet is now wrapped with v5 compatibility
-      this.clobClient = new ClobClient(
+      const tempClient = new ClobClient(
         this.apiUrl,
         this.chainId,
         this.wallet as any,
-        creds,
+        undefined, // No creds yet
         signatureType,
         this.funderAddress || undefined
       );
+
+      this.clobClient = tempClient;
+      this.credentialsPromise = this.deriveAndUpgradeCredentials(signatureType);
+
+      console.log('[Polymarket] CLOB Client initialized (credentials being derived...)');
     } catch (error) {
       console.error('[Polymarket] Failed to initialize CLOB client:', error);
       this.clobClient = null;
     }
+  }
+
+  /**
+   * Derive API credentials and upgrade the CLOB client
+   */
+  private async deriveAndUpgradeCredentials(signatureType: number): Promise<void> {
+    if (!this.wallet || !this.clobClient) return;
+
+    try {
+      console.log('[Polymarket] Deriving API credentials from wallet...');
+
+      // createOrDeriveApiKey returns credentials tied to the SIGNER wallet
+      const derivedCreds = await this.clobClient.createOrDeriveApiKey();
+      const creds = derivedCreds as any;
+      const key = creds.apiKey || creds.key;
+
+      if (!creds || !key) {
+        console.error('[Polymarket] Failed to derive API credentials - empty response');
+        return;
+      }
+
+      console.log('[Polymarket] ✓ API credentials derived successfully');
+      console.log(`[Polymarket]   API Key: ${key.substring(0, 12)}...`);
+
+      // Create a new client with the derived credentials
+      this.clobClient = new ClobClient(
+        this.apiUrl,
+        this.chainId,
+        this.wallet as any,
+        {
+          key: key,
+          secret: creds.secret,
+          passphrase: creds.passphrase,
+        },
+        signatureType,
+        this.funderAddress || undefined
+      );
+
+      this.credentialsReady = true;
+      console.log('[Polymarket] ✓ CLOB Client upgraded with derived credentials');
+    } catch (error) {
+      console.error('[Polymarket] Failed to derive API credentials:', error);
+      // Keep the temp client - it may still work for some operations
+    }
+  }
+
+  /**
+   * Wait for credentials to be ready before trading
+   */
+  async ensureReady(): Promise<boolean> {
+    if (this.credentialsReady) return true;
+    if (this.credentialsPromise) {
+      await this.credentialsPromise;
+      return this.credentialsReady;
+    }
+    return false;
   }
 
   /**
@@ -280,6 +404,8 @@ class PolymarketTradingService {
             size: parseFloat(a.size),
           })) || [],
         timestamp: Date.now(),
+        tickSize: (ob as any).tick_size,
+        negRisk: ob.neg_risk
       };
     } catch (error) {
       console.error('[Polymarket] Failed to fetch orderbook:', error);
@@ -342,6 +468,8 @@ class PolymarketTradingService {
         reason: !canHedge
           ? `Insufficient liquidity or high slippage (${slippage.toFixed(0)}bps > ${maxSlippageBps}bps)`
           : undefined,
+        tickSize: orderbook.tickSize,
+        negRisk: orderbook.negRisk
       };
     } catch (error) {
       console.error('[Polymarket] Liquidity check failed:', error);
@@ -363,11 +491,27 @@ class PolymarketTradingService {
       throw new Error('Polymarket trading not enabled - missing credentials');
     }
 
+    // Wait for credentials to be ready
+    const ready = await this.ensureReady();
+    if (!ready) {
+      throw new Error('Polymarket credentials not ready - failed to derive API key');
+    }
+
     try {
-      // Fetch orderbook to derive tick size / neg risk
-      const ob = await this.clobClient.getOrderBook(request.tokenId);
-      const tickSize: TickSize | undefined = (ob as any).tick_size ?? undefined;
-      const negRisk = ob.neg_risk ?? false;
+      let tickSize: TickSize | undefined;
+      let negRisk = false;
+
+      // Use provided optimization params if active, otherwise fetch
+      if (request.tickSize !== undefined && request.negRisk !== undefined) {
+        tickSize = request.tickSize as TickSize;
+        negRisk = request.negRisk;
+      } else {
+        // Fetch orderbook to derive tick size / neg risk
+        console.log(`[Polymarket] Fetching orderbook for config (token: ${request.tokenId})`);
+        const ob = await this.clobClient.getOrderBook(request.tokenId);
+        tickSize = (ob as any).tick_size ?? undefined;
+        negRisk = ob.neg_risk ?? false;
+      }
 
       console.log(`[Polymarket] Placing order for token ${request.tokenId} (Price: ${request.price}, Size: ${request.size})`);
 
@@ -385,10 +529,26 @@ class PolymarketTradingService {
       );
 
       // Validate response - CLOB client may return empty/invalid response on 403/blocked requests
+      // Validate response - CLOB client may return empty/invalid response on 403/blocked requests
+      // IMPORTANT: Polymarket may return an ID but fail later, or return a response without explicit ID if blocked
       const orderId = orderResponse?.orderID || orderResponse?.id;
+
+      // If we don't get an order ID, check if it's because of a Cloudflare block or API error
       if (!orderId) {
-        console.error('[Polymarket] Invalid order response:', orderResponse);
-        throw new Error('Polymarket API rejected order - no order ID returned (possible Cloudflare block)');
+        const responseStr = JSON.stringify(orderResponse);
+        console.error('[Polymarket] Invalid order response:', responseStr);
+
+        // Check for specific error types
+        if (responseStr.includes('<!DOCTYPE html>')) {
+          throw new Error('Polymarket API rejected order - Cloudflare blocked request');
+        }
+
+        // Check for 401 Unauthorized / Invalid API Key
+        if (responseStr.includes('Unauthorized') || responseStr.includes('Invalid api key')) {
+          throw new Error('Polymarket API rejected order - Unauthorized (Invalid API Key/Secret/Passphrase)');
+        }
+
+        throw new Error(`Polymarket API rejected order - no order ID returned. Response: ${responseStr.substring(0, 200)}...`);
       }
 
       console.log(`[Polymarket] Order placed successfully: ${orderId}`);
@@ -449,6 +609,9 @@ class PolymarketTradingService {
       side,
       size,
       price: aggressivePrice,
+      // OPTIMIZATION: Pass already fetched tickSize/negRisk to avoid redundant API call
+      tickSize: (orderbook as any).tickSize,
+      negRisk: (orderbook as any).negRisk
     });
   }
 

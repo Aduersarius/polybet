@@ -7,30 +7,41 @@ export async function GET() {
     try {
         const { prisma } = await import('@/lib/prisma');
 
-        // Get all active events and their categories
-        const events = await prisma.event.findMany({
-            where: { status: 'ACTIVE' },
-            select: { categories: true }
-        });
+        const { getOrSet } = await import('@/lib/cache');
 
-        // Extract unique categories from the arrays
-        const categorySet = new Set<string>();
-        events.forEach((event: (typeof events)[number]) => {
-            event.categories.forEach((category: string) => {
-                categorySet.add(category);
-            });
-        });
+        // Cache category list for 24 hours (86400s) as it changes infrequently
+        const result = await getOrSet(
+            'categories:list',
+            async () => {
+                // Get all active events and their categories
+                const events = await prisma.event.findMany({
+                    where: { status: 'ACTIVE' },
+                    select: { categories: true }
+                });
 
-        // Convert to sorted array
-        const dbCategories = Array.from(categorySet).sort();
+                // Extract unique categories from the arrays
+                const categorySet = new Set<string>();
+                events.forEach((event: (typeof events)[number]) => {
+                    event.categories.forEach((category: string) => {
+                        categorySet.add(category);
+                    });
+                });
 
-        // Special categories that should be at the beginning
-        const specialCategories = ['ALL', 'TRENDING', 'NEW', 'FAVORITES'];
+                // Convert to sorted array
+                const dbCategories = Array.from(categorySet).sort();
 
-        // Combine special categories with database categories (remove duplicates)
-        const allCategories = [...specialCategories, ...dbCategories.filter(cat => !specialCategories.includes(cat))];
+                // Special categories that should be at the beginning
+                const specialCategories = ['ALL', 'TRENDING', 'NEW', 'FAVORITES'];
 
-        return NextResponse.json({ categories: allCategories });
+                // Combine special categories with database categories (remove duplicates)
+                const allCategories = [...specialCategories, ...dbCategories.filter(cat => !specialCategories.includes(cat))];
+
+                return { categories: allCategories };
+            },
+            { ttl: 86400, prefix: 'static' }
+        );
+
+        return NextResponse.json(result);
     } catch (error) {
         console.error('Failed to fetch categories:', error);
         return NextResponse.json(

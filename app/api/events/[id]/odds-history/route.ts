@@ -30,7 +30,7 @@ function normalizeTimestamps<T extends { timestamp: number }>(points: T[]): T[] 
   }));
 }
 
-const HISTORY_TTL_SECONDS = Math.max(parseInt(process.env.ODDS_HISTORY_TTL || '60', 10), 15);
+const HISTORY_TTL_SECONDS = Math.max(parseInt(process.env.ODDS_HISTORY_TTL || '300', 10), 15);
 const PERIOD_TO_MS: Record<string, number> = {
   '6h': 6 * 60 * 60 * 1000,
   '1d': 24 * 60 * 60 * 1000,

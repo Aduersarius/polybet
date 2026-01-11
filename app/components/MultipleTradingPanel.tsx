@@ -9,6 +9,7 @@ import { getUserFriendlyError } from '@/lib/error-messages';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/lib/auth-client';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Slider } from '@/components/ui/slider';
 
 interface Outcome {
     id: string;
@@ -40,6 +41,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     const [price, setPrice] = useState<string>('0');
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
+    const [balancePct, setBalancePct] = useState<number>(0);
 
     // Fetch user balances for all outcomes in this event
     const { data: balanceData } = useQuery({
@@ -49,12 +51,14 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
             if (!response.ok) return { balances: [] };
             return await response.json();
         },
-        enabled: !!eventId && selectedTab === 'sell'
+        enabled: !!eventId
     });
 
     const userBalances = balanceData?.balances?.filter((b: any) =>
         b.eventId === eventId && b.tokenSymbol !== 'TUSD'
     ) || [];
+
+    const stablecoinBalance = parseFloat(balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount || '0');
 
     // Auto-fill from trade intent (Order Book click)
     useEffect(() => {
@@ -431,48 +435,11 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                     }
                                 </span>
                             </div>
-                            <div className="relative group">
-                                <input
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
-                                    placeholder="0"
-                                />
-                                {selectedTab === 'buy' && (
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
-                                )}
-                            </div>
-
-                            {/* Payout Display */}
-                            {currentAmount > 0 && currentSelectedOutcome && (
-                                <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-400">
-                                            {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
-                                        </span>
-                                        <span className="text-white font-bold">
-                                            {selectedTab === 'buy'
-                                                ? `${potentialPayout.toFixed(2)} shares`
-                                                : `$${potentialPayout.toFixed(2)}`
-                                            }
-                                        </span>
-                                    </div>
-                                    {selectedTab === 'buy' && (
-                                        <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
-                                            <span>If {currentSelectedOutcome.name} wins:</span>
-                                            <span className="font-medium text-green-400">
-                                                ${(potentialPayout * currentSelectedOutcome.odds).toFixed(2)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
 
                             <div className="flex gap-2">
                                 {selectedTab === 'buy' ? (
                                     // Buy presets: USD amounts
-                                    ['+1', '+20', '+100', 'Max'].map((val) => (
+                                    ['+1', '+10', '+50', '+100', 'Max'].map((val) => (
                                         <button
                                             key={val}
                                             onClick={() => {
@@ -509,6 +476,76 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                     ))
                                 )}
                             </div>
+                            <div className="relative group">
+                                <input
+                                    type="number"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all text-lg"
+                                    placeholder="0"
+                                />
+                                {selectedTab === 'buy' && (
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                                )}
+                            </div>
+
+                            {/* Balance Slider */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center text-xs text-gray-400">
+                                    <span>Use balance</span>
+                                    <span className="text-gray-300">
+                                        {selectedTab === 'buy'
+                                            ? `$${stablecoinBalance.toFixed(2)} available`
+                                            : `${selectedOutcomeBalance.toFixed(2)} shares available`}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Slider
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={[balancePct]}
+                                        className="flex-1"
+                                        onValueChange={(value: number[]) => {
+                                            const pct = Math.max(0, Math.min(100, value?.[0] ?? 0));
+                                            setBalancePct(pct);
+                                            const base = selectedTab === 'buy' ? stablecoinBalance : selectedOutcomeBalance;
+                                            const nextAmount = base * (pct / 100);
+                                            setAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
+                                        }}
+                                    />
+                                    <span className="w-10 text-right text-xs text-gray-300">
+                                        {balancePct.toFixed(0)}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Payout Display */}
+                            {currentAmount > 0 && currentSelectedOutcome && (
+                                <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-400">
+                                            {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
+                                        </span>
+                                        <span className="text-white font-bold">
+                                            {selectedTab === 'buy'
+                                                ? `${potentialPayout.toFixed(2)} shares`
+                                                : `$${potentialPayout.toFixed(2)}`
+                                            }
+                                        </span>
+                                    </div>
+                                    {selectedTab === 'buy' && (
+                                        <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                                            <span>If {currentSelectedOutcome.name} wins:</span>
+                                            <span className="font-medium text-green-400">
+                                                ${(potentialPayout * currentSelectedOutcome.odds).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+
 
                             {/* Order Type Selection Removed (Moved Up) */}
 

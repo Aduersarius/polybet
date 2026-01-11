@@ -490,10 +490,10 @@ export async function GET(request: Request) {
             },
         };
 
-        // Cache the result for 5 minutes (skip for non-cacheable requests)
+        // Cache the result for 15 minutes (skip for non-cacheable requests)
         if (cacheKey && redis && (redis as any).status === 'ready') {
             try {
-                await redis.setex(cacheKey, 300, JSON.stringify(result));
+                await redis.setex(cacheKey, 900, JSON.stringify(result));
             } catch (e) {
                 // Cache write failed, non-critical
             }
@@ -607,6 +607,19 @@ export async function POST(request: Request) {
                 outcomes: true,
             },
         });
+
+        // Invalidate caches
+        try {
+            const { invalidate, invalidatePattern } = await import('@/lib/cache');
+            // Invalidate categories list in case new categories were added
+            await invalidate('categories:list', 'static');
+            // Invalidate "All Events" listing to show the new event
+            await invalidatePattern('events:ALL:*');
+            // Also invalidate NEW events
+            await invalidatePattern('events:NEW:*');
+        } catch (error) {
+            console.warn('Failed to invalidate event cache:', error);
+        }
 
         return NextResponse.json(event);
     } catch (error: any) {
