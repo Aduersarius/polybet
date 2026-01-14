@@ -32,6 +32,10 @@ export function Footer() {
                         <span className="text-gray-600">•</span>
                         <Link prefetch href="/affiliate/signup" className="hover:text-white transition-colors">Become a Partner</Link>
                         <span className="text-gray-600">•</span>
+                        <a href="https://docs.pariflow.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Documentation</a>
+                        <span className="text-gray-600">•</span>
+                        <a href="https://www.instagram.com/pariflow_official/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Instagram</a>
+                        <span className="text-gray-600">•</span>
                         <button
                             onClick={openFeedback}
                             className="hover:text-white transition-colors inline-flex items-center gap-1 group"

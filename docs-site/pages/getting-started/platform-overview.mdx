@@ -1,0 +1,137 @@
+---
+title: Platform Overview
+description: Introduction to Pariflow platform features
+---
+
+# Platform Overview
+
+Pariflow is a production-grade prediction market platform where users trade on future outcomes using a sophisticated hybrid trading system.
+
+## What is a Prediction Market?
+
+A prediction market is a platform where users can buy and sell shares in the outcome of future events. The price of shares represents the market's collective probability assessment of that outcome occurring.
+
+**Example:**
+- Event: "Bitcoin will reach $100,000 by 2025"
+- YES shares at $0.65 = 65% probability
+- NO shares at $0.35 = 35% probability
+
+## Key Features
+
+### Hybrid Trading System
+
+Pariflow combines the best of both worlds:
+
+- **AMM (Automated Market Maker)**: Provides instant liquidity at fair prices
+- **Order Book**: Enables price discovery and limit orders
+- **Smart Routing**: Automatically finds the best execution price
+
+### Real-time Updates
+
+- **Live Prices**: WebSocket-powered real-time price updates
+- **Order Book**: Live order book with instant updates
+- **Portfolio**: Real-time PnL tracking
+
+### Risk Management
+
+- **Automated Hedging**: System automatically hedges positions on Polymarket
+- **Order Splitting**: Large orders split to minimize slippage
+- **Exposure Monitoring**: Real-time risk exposure tracking
+
+### Sports Integration
+
+- **Live Sports Markets**: Real-time sports betting markets
+- **Multiple Sports**: Football, basketball, and more
+- **Live Updates**: Real-time score and odds updates
+
+## How It Works
+
+### 1. Browse Markets
+
+Users can browse available prediction markets organized by category:
+- Politics
+- Sports
+- Crypto
+- Entertainment
+- And more
+
+### 2. Place Trades
+
+Users can place two types of orders:
+
+**Market Orders:**
+- Execute immediately at current price
+- Best for quick execution
+- Slightly higher slippage
+
+**Limit Orders:**
+- Set your desired price
+- Wait for matching order
+- Better price control
+
+### 3. Manage Portfolio
+
+- View all active positions
+- Track PnL in real-time
+- Monitor market movements
+- Set up notifications
+
+### 4. Settlement
+
+When an event resolves:
+- Winning positions automatically settled
+- Funds credited to user balance
+- Can withdraw or reinvest
+
+## Trading Mechanics
+
+### AMM Pricing
+
+Uses LMSR (Logarithmic Market Scoring Rule) for fair pricing:
+
+```
+Price = 1 / (1 + e^((q_no - q_yes) / b))
+```
+
+Where:
+- `q_yes` = Total YES tokens bought
+- `q_no` = Total NO tokens bought
+- `b` = Liquidity parameter
+
+### Order Matching
+
+Orders are matched with priority:
+1. **Price Priority**: Best prices first
+2. **Time Priority**: Earlier orders first
+3. **AMM Fallback**: Unfilled amounts execute against AMM
+
+### Fees
+
+- **Trading Fees**: Small fee per trade (typically 2%)
+- **Withdrawal Fees**: Minimal blockchain fees
+- **No Deposit Fees**: Free deposits
+
+## Security
+
+- **Wallet Integration**: Connect with MetaMask, WalletConnect, etc.
+- **Non-Custodial**: Users control their funds
+- **Smart Contracts**: Secure on-chain transactions
+- **Audited**: Regular security audits
+
+## Getting Started
+
+1. **Connect Wallet**: Link your crypto wallet
+2. **Deposit Funds**: Add USDC or other supported tokens
+3. **Browse Markets**: Find events you're interested in
+4. **Place Trades**: Start trading!
+
+## Resources
+
+- [Quick Start Guide](/getting-started/quick-start)
+- [Trading Guide](/guides/hybrid-trading)
+- [API Documentation](/api/overview)
+- [FAQ](/guides/faq)
+
+---
+
+Ready to start? [Get Started](/getting-started/quick-start) or [Browse Markets](https://pariflow.com)

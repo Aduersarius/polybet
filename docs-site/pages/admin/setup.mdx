@@ -1,0 +1,183 @@
+---
+title: Setup & Configuration
+description: Complete setup guide for Pariflow administrators
+---
+
+# Setup & Configuration
+
+Complete guide for setting up and configuring the Pariflow platform.
+
+## Prerequisites
+
+- Node.js 18+ installed
+- PostgreSQL database
+- Redis server (optional but recommended)
+- Environment variables configured
+
+## Initial Setup
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment Variables
+
+Create a `.env` file in the root directory:
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/pariflow
+
+# Redis (optional)
+REDIS_URL=redis://localhost:6379
+
+# Next.js
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-key
+
+# Polymarket (for hedging)
+POLYMARKET_CLOB_API_URL=https://clob.polymarket.com
+POLYMARKET_API_KEY=your-api-key
+POLYMARKET_PRIVATE_KEY=0xYourPrivateKey
+POLYMARKET_CHAIN_ID=137
+```
+
+### 3. Database Setup
+
+```bash
+# Run migrations
+npx prisma migrate dev
+
+# Generate Prisma Client
+npx prisma generate
+
+# (Optional) Seed database
+npm run seed
+```
+
+### 4. Start Development Server
+
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:3000`
+
+## Configuration
+
+### Database Configuration
+
+Edit `prisma/schema.prisma` to configure database connection and models.
+
+### Redis Configuration
+
+Redis is used for:
+- Caching frequently accessed data
+- Pub/sub for real-time updates
+- Rate limiting
+
+Configure in `lib/redis.ts`:
+
+```typescript
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+```
+
+### WebSocket Configuration
+
+WebSocket server runs on port 3001 by default. Configure in `lib/ws-server.ts`:
+
+```typescript
+const WS_PORT = process.env.WEBSOCKET_PORT || 3001;
+```
+
+## Feature Setup
+
+### Enable Hedging
+
+See [Hedging System Guide](/admin/hedging) for complete hedging setup.
+
+### Enable Sports Integration
+
+1. Configure sports API credentials
+2. Set up WebSocket connection
+3. Enable sports markets in admin panel
+
+See [Sports Setup Guide](/admin/sports) for details.
+
+### Enable Telegram Bot
+
+1. Create Telegram bot via BotFather
+2. Configure webhook URL
+3. Set up notification handlers
+
+See [Telegram Bot Setup](/admin/telegram) for details.
+
+## Production Deployment
+
+### Vercel Deployment
+
+1. Connect repository to Vercel
+2. Configure environment variables
+3. Deploy
+
+### Custom Server
+
+1. Build application:
+   ```bash
+   npm run build
+   ```
+
+2. Start production server:
+   ```bash
+   npm start
+   ```
+
+3. Configure reverse proxy (nginx, etc.)
+
+## Monitoring
+
+### Health Checks
+
+Monitor system health at `/api/health`:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+### Logging
+
+- Application logs: Check server logs
+- Error tracking: Sentry integration
+- Analytics: Vercel Analytics
+
+## Troubleshooting
+
+### Database Connection Issues
+
+- Verify `DATABASE_URL` is correct
+- Check PostgreSQL is running
+- Verify network connectivity
+
+### Redis Connection Issues
+
+- Verify `REDIS_URL` is correct
+- Check Redis is running
+- System works without Redis (degraded mode)
+
+### Build Errors
+
+- Clear `.next` directory: `rm -rf .next`
+- Reinstall dependencies: `rm -rf node_modules && npm install`
+- Check Node.js version: `node --version`
+
+## Next Steps
+
+- [Hedging System Setup](/admin/hedging)
+- [Deployment Guide](/admin/deployment)
+- [Architecture Documentation](/architecture/overview)
+
+---
+
+For more details, see the [Quick Start Guide](/getting-started/quick-start) or contact support.

@@ -1,0 +1,99 @@
+---
+title: Authentication
+description: API authentication guide
+---
+
+# API Authentication
+
+All Pariflow APIs require authentication using API keys.
+
+## API Key Authentication
+
+### Getting an API Key
+
+1. Contact support to request API access
+2. Provide your use case and expected volume
+3. Receive your API key and credentials
+
+### Using API Keys
+
+Include your API key in the `X-API-Key` header:
+
+```bash
+curl -X GET https://api.pariflow.com/api/institutional/market-data/trades \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Content-Type: application/json"
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('https://api.pariflow.com/api/institutional/market-data/trades', {
+  headers: {
+    'X-API-Key': 'your-api-key-here',
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+## Permissions
+
+API keys have different permission levels:
+
+- **read**: Access market data APIs
+- **trade**: Execute trades
+- **admin**: Administrative access
+
+### Checking Permissions
+
+```bash
+curl -X GET https://api.pariflow.com/api/institutional/market-data/trades \
+  -H "X-API-Key: your-api-key-here"
+```
+
+If you receive a `403 Forbidden` response, your API key doesn't have the required permissions.
+
+## Security Best Practices
+
+1. **Keep Keys Secret**: Never commit API keys to version control
+2. **Use Environment Variables**: Store keys in `.env` files
+3. **Rotate Regularly**: Change keys periodically
+4. **Use HTTPS**: Always use HTTPS in production
+5. **Limit Permissions**: Request only necessary permissions
+
+## Error Responses
+
+### Invalid API Key
+
+```json
+{
+  "error": "Invalid API key",
+  "code": "INVALID_API_KEY"
+}
+```
+
+### Missing API Key
+
+```json
+{
+  "error": "API key required",
+  "code": "MISSING_API_KEY"
+}
+```
+
+### Insufficient Permissions
+
+```json
+{
+  "error": "Insufficient permissions",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+## Rate Limiting
+
+API keys are rate-limited based on your plan. See [API Overview](/api/overview) for rate limit details.
+
+---
+
+Next: [Institutional Market Data API](/api/institutional-market-data)

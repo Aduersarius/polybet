@@ -1,0 +1,107 @@
+---
+title: System Overview
+description: High-level architecture of the Pariflow platform
+---
+
+# System Overview
+
+Pariflow is a production-grade prediction market platform built with modern technologies and best practices.
+
+## Architecture Components
+
+### Frontend
+- **Next.js 16**: React framework with server-side rendering
+- **TypeScript**: Type-safe development
+- **Tailwind CSS**: Utility-first styling
+- **WebSocket Client**: Real-time updates
+
+### Backend
+- **Next.js API Routes**: Serverless API endpoints
+- **PostgreSQL**: Primary database (via Prisma ORM)
+- **Redis**: Caching and pub/sub for real-time updates
+- **WebSocket Server**: Real-time communication
+
+### Trading Engine
+- **Hybrid System**: AMM + Order Book
+- **LMSR Pricing**: Logarithmic Market Scoring Rule
+- **Order Matching**: Price-time priority
+- **Risk Management**: Automated hedging
+
+### External Integrations
+- **Polymarket**: Hedging and market data
+- **Blockchain**: Wallet connections and transactions
+- **Sports APIs**: Real-time sports data
+
+## Data Flow
+
+```
+User Browser
+    ↓
+Next.js Frontend
+    ↓
+API Routes (Next.js)
+    ↓
+┌─────────────────┐
+│  PostgreSQL     │ ← Primary data store
+│  Redis          │ ← Caching & pub/sub
+│  Trading Engine │ ← Order matching
+└─────────────────┘
+    ↓
+External APIs (Polymarket, Sports)
+```
+
+## Key Features
+
+### Hybrid Trading System
+- AMM provides instant liquidity
+- Order book enables price discovery
+- Smart routing matches orders optimally
+
+### Real-time Updates
+- WebSocket for live prices
+- Redis pub/sub for scalability
+- Event-driven architecture
+
+### Risk Management
+- Automated hedging with Polymarket
+- Order splitting for large trades
+- Exposure monitoring and alerts
+
+## Database Schema
+
+### Core Tables
+
+- **Event**: Market events and outcomes
+- **Order**: Limit orders in order book
+- **Trade**: Executed trades
+- **User**: User accounts and profiles
+- **Balance**: User token balances
+- **HedgePosition**: Hedging records
+
+See [Database Schema](/architecture/database) for detailed schema documentation.
+
+## Security
+
+- **API Authentication**: API key-based authentication
+- **CSRF Protection**: Cross-site request forgery protection
+- **Rate Limiting**: Per-endpoint rate limits
+- **Input Validation**: Zod schema validation
+- **SQL Injection Prevention**: Prisma ORM parameterized queries
+
+## Scalability
+
+- **Serverless Architecture**: Auto-scaling API routes
+- **Redis Pub/Sub**: Handles thousands of concurrent connections
+- **Database Indexing**: Optimized queries
+- **Caching**: Redis for frequently accessed data
+
+## Monitoring
+
+- **Health Checks**: `/api/health` endpoint
+- **Error Tracking**: Sentry integration
+- **Analytics**: Vercel Analytics
+- **Logging**: Structured logging
+
+---
+
+Next: [Database Schema](/architecture/database) or [Polymarket Integration](/architecture/polymarket-integration)
