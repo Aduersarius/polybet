@@ -49,6 +49,7 @@
     "**/*.spec.ts",
     "**/*.spec.tsx",
     "docs",
+    "docs-site",
     "scripts"
   ]
 }
