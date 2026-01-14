@@ -1,4 +1,4 @@
-
+import { prisma } from '@/lib/prisma';
 import { resolvePolymarketContext } from './resolver';
 import { getExecutionQuote, validateUserBalance } from './quote';
 import { executePolymarketOrder } from './executor';
