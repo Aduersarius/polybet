@@ -19,17 +19,33 @@ export default function manifest(): MetadataRoute.Manifest {
             {
                 src: '/favicon.ico',
                 type: 'image/x-icon',
+                sizes: 'any',
+            },
+            {
+                src: '/icon-trans-48.png',
+                type: 'image/png',
                 sizes: '48x48',
             },
             {
-                src: '/icon.png',
+                src: '/icon-trans-96.png',
                 type: 'image/png',
-                sizes: '512x512',
+                sizes: '96x96',
             },
             {
-                src: '/diamond_logo_nobg.png',
+                src: '/icon-trans-144.png',
                 type: 'image/png',
-                sizes: 'any',
+                sizes: '144x144',
+            },
+            {
+                src: '/icon-trans-192.png',
+                type: 'image/png',
+                sizes: '192x192',
+                purpose: 'maskable',
+            },
+            {
+                src: '/icon-trans-512.png',
+                type: 'image/png',
+                sizes: '512x512',
                 purpose: 'maskable',
             },
         ],

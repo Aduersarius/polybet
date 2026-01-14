@@ -14,7 +14,14 @@ export const metadata: Metadata = {
     title: "Pariflow | Real-Life Market Forecasting",
     description: "Bet on anything, pay with crypto.",
     icons: {
-        icon: '/favicon.ico',
+        icon: [
+            { url: '/favicon.ico', sizes: 'any' },
+            { url: '/icon-trans-48.png', type: 'image/png', sizes: '48x48' },
+            { url: '/icon-trans-96.png', type: 'image/png', sizes: '96x96' },
+            { url: '/icon-trans-144.png', type: 'image/png', sizes: '144x144' },
+            { url: '/icon-trans-192.png', type: 'image/png', sizes: '192x192' },
+            { url: '/icon-trans-512.png', type: 'image/png', sizes: '512x512' },
+        ],
     },
 };
 

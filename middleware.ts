@@ -82,6 +82,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
     matcher: [
         // Match all paths except static files and auth/telegram APIs
-        '/((?!_next/static|_next/image|favicon.ico|api/auth|api/telegram|api/health).*)',
+        '/((?!_next/static|_next/image|favicon.ico|icon-.*\\.png|api/auth|api/telegram|api/health).*)',
     ],
 };
