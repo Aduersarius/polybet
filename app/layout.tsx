@@ -27,6 +27,29 @@ export const metadata: Metadata = {
             { url: '/icon.png', sizes: '180x180', type: 'image/png' },
         ],
     },
+    openGraph: {
+        title: "Pariflow | Real-Life Market Forecasting",
+        description: "Bet on anything, pay with crypto. Trade on real-world events and profit from your predictions.",
+        url: "https://pariflow.com",
+        siteName: "Pariflow",
+        images: [
+            {
+                url: "https://pariflow.com/og-image.png",
+                width: 1200,
+                height: 630,
+                alt: "Pariflow - Prediction Market Platform",
+            },
+        ],
+        locale: "en_US",
+        type: "website",
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "Pariflow | Real-Life Market Forecasting",
+        description: "Bet on anything, pay with crypto. Trade on real-world events and profit from your predictions.",
+        images: ["https://pariflow.com/og-image.png"],
+        creator: "@pariflow",
+    },
 };
 
 export default function RootLayout({
