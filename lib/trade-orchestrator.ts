@@ -10,7 +10,7 @@ import { prisma } from './prisma';
 import { RiskManager } from './risk-manager';
 
 // Execution modules
-import { executePolymarketTrade, type PolymarketTradeResult } from './polymarket-hedging';
+import { executeVividPolymarketTrade } from './exchange/polymarket';
 // import { executeBBookTrade } from './bbook-amm'; // Future
 
 export interface TradeParams {
@@ -66,22 +66,30 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
     // 3. Currently ALL trades go to Polymarket (100%)
     // In the future, internal events can route to B-Book
     if (isPolymarketEvent) {
-        const result = await executePolymarketTrade({
+        const result = await executeVividPolymarketTrade({
             userId,
             eventId,
             side,
             option,
-            amount,
-            eventType: event.type as 'BINARY' | 'MULTIPLE',
+            amountInUsd: amount,
         });
 
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error,
+                totalFilled: 0,
+                averagePrice: 0,
+                executionModule: 'polymarket'
+            };
+        }
+
         return {
-            success: result.success,
+            success: true,
             orderId: result.orderId,
             totalFilled: result.fillSize,
             averagePrice: result.fillPrice,
             fees: result.fees,
-            error: result.error,
             executionModule: 'polymarket',
             trades: [{
                 price: result.fillPrice,

@@ -448,6 +448,7 @@ class PolymarketTradingService {
         if (remainingSize <= 0) break;
 
         const fillSize = Math.min(remainingSize, level.size);
+        console.log(`[Polymarket-Liquidity] Level: price=${level.price}, size=${level.size} | Filling ${fillSize}`);
         totalCost += fillSize * level.price;
         remainingSize -= fillSize;
       }

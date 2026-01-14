@@ -624,9 +624,11 @@ async function fetchTokensForMarket(polymarketId: string): Promise<{ tokens: str
 }
 
 export async function POST(request: NextRequest) {
+  let body: any;
   try {
     await requireAdminAuth(request);
-    const body = await request.json();
+    body = await request.json();
+    console.log('[Polymarket Intake] POST approve started', body.polymarketId);
     const {
       polymarketId,
       polymarketConditionId,
@@ -724,13 +726,6 @@ export async function POST(request: NextRequest) {
       // ignore if schema not migrated
     }
 
-    const mapping = targetId
-      ? await prisma.polymarketMarketMapping.update({
-        where: { id: targetId },
-        data,
-      })
-      : await prisma.polymarketMarketMapping.create({ data });
-
     // Ensure Event exists for this mapping and mirror Polymarket info
     // Reuse existing event by internalEventId or polymarketId to avoid unique constraint errors
     const existingEventById = await prisma.event.findUnique({
@@ -741,7 +736,7 @@ export async function POST(request: NextRequest) {
     });
 
     // If an event already exists for this polymarketId, align internalEventId to it
-    const effectiveEventId = existingEventByPoly?.id || existingEventById?.id || internalEventId;
+    const finalEffectiveEventId = existingEventByPoly?.id || existingEventById?.id || internalEventId;
 
     const creatorId = await getSystemCreatorId(prisma);
     const fallbackResolutionDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -809,7 +804,7 @@ export async function POST(request: NextRequest) {
       where: { polymarketId },
       update: baseEventData,
       create: {
-        id: effectiveEventId,
+        id: finalEffectiveEventId,
         ...baseEventData,
       },
     });
@@ -823,9 +818,19 @@ export async function POST(request: NextRequest) {
       dbEvent.type = type;
     }
 
+    // NOW create or update the mapping since the Event record definitely exists
+    // Ensure data.internalEventId matches the actual dbEvent.id
+    data.internalEventId = dbEvent.id;
+    const mapping = targetId
+      ? await prisma.polymarketMarketMapping.update({
+        where: { id: targetId },
+        data,
+      })
+      : await prisma.polymarketMarketMapping.create({ data });
+
     // Bust cached event responses (by id and polymarketId)
     try {
-      await invalidate(`evt:${effectiveEventId}`, 'event');
+      await invalidate(`evt:${finalEffectiveEventId}`, 'event');
       await invalidate(`poly:${polymarketId}`, 'event');
     } catch {
       // best-effort cache bust
@@ -852,13 +857,6 @@ export async function POST(request: NextRequest) {
       })();
     }
 
-    // Ensure mapping uses the actual event id
-    if (mapping.internalEventId !== dbEvent.id) {
-      await prisma.polymarketMarketMapping.update({
-        where: { id: mapping.id },
-        data: { internalEventId: dbEvent.id },
-      });
-    }
 
     // Trim low-probability outcomes for large Multiple events
     // Rule: If >= 4 outcomes, remove any with < 1% probability, but always keep at least 4 outcomes
@@ -1192,9 +1190,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, mapping });
   } catch (error) {
-    console.error('[Polymarket Intake] approve failed', error);
+    console.error('[Polymarket Intake] approve failed for', body?.polymarketId, error);
     return NextResponse.json(
-      { error: 'Failed to approve Polymarket mapping' },
+      { error: 'Failed to approve Polymarket mapping', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

@@ -9,6 +9,7 @@ import { polymarketTrading, estimatePolymarketFees } from './polymarket-trading'
 import { orderSplitter, type SplitOrderPlan, type OrderChunk } from './order-splitter';
 import { polymarketCircuit, CircuitOpenError } from './circuit-breaker';
 import { redis } from './redis';
+import { settleEventHedges } from './exchange/polymarket';
 
 export interface HedgeConfig {
   enabled: boolean;

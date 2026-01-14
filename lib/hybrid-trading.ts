@@ -6,7 +6,9 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { RiskManager } from './risk-manager';
-import { executeTrade, type TradeResult } from './trade-orchestrator';
+import { settleEventHedges } from './exchange/polymarket';
+import { HedgeManager } from './hedge-manager';
+import { executeTrade } from './trade-orchestrator';
 
 const PLATFORM_FEE = 0.02; // 2% commission on winnings
 const TREASURY_USER_ID = 'cminhk477000002s8jld69y1f'; // Using AMM bot/Treasury user for simplicity
