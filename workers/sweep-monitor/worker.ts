@@ -35,7 +35,7 @@ const DATABASE_URL = process.env.DATABASE_URL!;
 // Initialize Prisma with pg adapter (bulletproof pattern for Alpine/Prisma 7)
 const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined, // Allow self-signed for now since we have the fix
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
     max: 5,
 });
 

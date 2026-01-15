@@ -176,9 +176,11 @@ export function AdminPolymarketIntake() {
     // For binary YES/NO outcomes, try the opposite if exact match fails
     // This handles cases where token.outcome might be capitalized differently
     if (isBinaryOutcome) {
-      const byPartialName = tokens.find((t) =>
-        t.outcome && new RegExp(`^${normalizedName}$`, 'i').test(t.outcome.trim())
-      );
+      const byPartialName = tokens.find((t) => {
+        if (!t.outcome) return false;
+        const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`^${escapedName}$`, 'i').test(t.outcome.trim());
+      });
       if (byPartialName?.tokenId) return byPartialName.tokenId;
 
       // If still not found, DON'T fall back to index for binary markets

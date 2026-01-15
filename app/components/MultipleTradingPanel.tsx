@@ -466,7 +466,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                                 if (val === 'ALL') {
                                                     setAmount(selectedOutcomeBalance.toString());
                                                 } else {
-                                                    const percentage = parseFloat(val.replace('%', '')) / 100;
+                                                    const percentage = parseFloat(val.replaceAll('%', '')) / 100;
                                                     setAmount((selectedOutcomeBalance * percentage).toString());
                                                 }
                                             }}

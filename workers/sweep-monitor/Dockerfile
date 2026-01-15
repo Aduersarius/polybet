@@ -32,4 +32,7 @@ RUN npm prune --production
 ENV DATABASE_URL=""
 
 # Run the worker
+# Run as non-root user for security
+USER node
+
 CMD ["node", "dist/worker.js"]

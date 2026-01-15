@@ -198,7 +198,7 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
       }
     }
   } catch (e) {
-    console.warn(`Failed to parse market data for event ${event.id}:`, e);
+    console.warn('Failed to parse market data for event', event.id, ':', e);
   }
 
   // Parse team names from title
@@ -266,7 +266,7 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
 
   // Debug logging for event status
   if (title.includes('ENCE') || title.includes('HyperSpirit')) {
-    console.log(`[Sync DEBUG] ${title}:`, {
+    console.log('[Sync DEBUG]', title, ':', {
       polymarketLive: event.live,
       gameStatus,
       startDate: event.startDate,
@@ -333,7 +333,7 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
 
   // Debug logging for final decision
   if (title.includes('ENCE') || title.includes('HyperSpirit')) {
-    console.log(`[Sync DECISION] ${title}:`, {
+    console.log('[Sync DECISION]', title, ':', {
       live,
       eventType,
       now: now.toISOString(),
@@ -574,7 +574,7 @@ export async function POST(request: Request) {
               created++;
             }
           } catch (error) {
-            console.error(`[Sports Sync] Error processing event ${event.id}:`, error);
+            console.error('[Sports Sync] Error processing event', event.id, ':', error);
             errors++;
           }
         }

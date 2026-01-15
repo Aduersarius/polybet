@@ -49,7 +49,7 @@ export async function getOrSet<T>(
                 }
                 return JSON.parse(cached.toString()) as T;
             } catch (err) {
-                console.warn(`Failed to parse cached value for ${fullKey}, falling back to fetch`, err);
+                console.warn('Failed to parse cached value for', fullKey, ', falling back to fetch', err);
                 // Fall through to miss logic
             }
         }
@@ -69,7 +69,7 @@ export async function getOrSet<T>(
                     const compressed = gzipSync(Buffer.from(json));
                     await (redis as any).setex(fullKey, optimizedTtl, compressed);
                 } catch (err) {
-                    console.warn(`Failed to compress value for ${fullKey}:`, err);
+                    console.warn('Failed to compress value for', fullKey, ':', err);
                     await redis.setex(fullKey, optimizedTtl, json);
                 }
             } else {
@@ -93,7 +93,7 @@ export async function getOrSet<T>(
 
         // Log unexpected errors or all errors in production
         if (!isConnectionError || isProd) {
-            console.error(`Redis cache error for ${fullKey}:`, error);
+            console.error('Redis cache error for', fullKey, ':', error);
         }
 
         // On error, fall back to executing the function
@@ -121,7 +121,7 @@ export async function invalidate(key: string, prefix: string = ''): Promise<void
         const isProd = process.env.NODE_ENV === 'production';
 
         if (!isConnectionError || isProd) {
-            console.error(`Failed to invalidate cache ${fullKey}:`, error);
+            console.error('Failed to invalidate cache', fullKey, ':', error);
         }
     }
 }
@@ -149,7 +149,7 @@ export async function invalidatePattern(pattern: string): Promise<void> {
         const isProd = process.env.NODE_ENV === 'production';
 
         if (!isConnectionError || isProd) {
-            console.error(`Failed to invalidate pattern ${pattern}:`, error);
+            console.error('Failed to invalidate pattern', pattern, ':', error);
         }
     }
 }
@@ -215,7 +215,7 @@ export async function warmCache<T>(
             const result = await fetchFn(key);
             await getOrSet(key, () => Promise.resolve(result), options);
         } catch (error) {
-            console.error(`Failed to warm cache for ${key}:`, error);
+            console.error('Failed to warm cache for', key, ':', error);
         }
     });
 

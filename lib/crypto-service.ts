@@ -166,7 +166,7 @@ export class CryptoService {
                     const balance = await usdcNativeContract.balanceOf(addr.address);
                     return { addr, balance, tokenAddress: USDC_NATIVE_ADDRESS, symbol: 'USDC' };
                 } catch (error) {
-                    console.error(`Error checking USDC balance for ${addr.address}:`, error);
+                    console.error('Error checking USDC balance for', addr.address, ':', error);
                     return { addr, balance: 0n, tokenAddress: USDC_NATIVE_ADDRESS, symbol: 'USDC' };
                 }
             })(),
@@ -176,7 +176,7 @@ export class CryptoService {
                     const balance = await usdcBridgedContract.balanceOf(addr.address);
                     return { addr, balance, tokenAddress: USDC_BRIDGED_ADDRESS, symbol: 'USDC.e' };
                 } catch (error) {
-                    console.error(`Error checking USDC.e balance for ${addr.address}:`, error);
+                    console.error('Error checking USDC.e balance for', addr.address, ':', error);
                     return { addr, balance: 0n, tokenAddress: USDC_BRIDGED_ADDRESS, symbol: 'USDC.e' };
                 }
             })()
@@ -194,7 +194,7 @@ export class CryptoService {
                 try {
                     await this.sweepAndCredit(addr, balance, { tokenAddress });
                 } catch (error) {
-                    console.error(`Error sweeping and crediting ${symbol} from ${addr.address}:`, error);
+                    console.error('Error sweeping and crediting', symbol, 'from', addr.address, ':', error);
                 }
             }
         }
@@ -223,7 +223,7 @@ export class CryptoService {
                 this.provider.getFeeData()
             ]);
         } catch (error) {
-            console.error(`Error fetching balance and fee data for ${addr.address}:`, error);
+            console.error('Error fetching balance and fee data for', addr.address, ':', error);
             return; // Skip this address
         }
 
@@ -401,7 +401,7 @@ export class CryptoService {
             }
 
         } catch (error) {
-            console.error(`[DEPOSIT] Failed to process deposit for ${addr.address}:`, error);
+            console.error('[DEPOSIT] Failed to process deposit for', addr.address, ':', error);
         }
     }
 
@@ -500,7 +500,7 @@ export class CryptoService {
             // Return withdrawal ID for notification
             return withdrawalId;
         } catch (error) {
-            console.error('[WITHDRAWAL] Failed to create withdrawal request for user %s:', userId, error);
+            console.error('[WITHDRAWAL] Failed to create withdrawal request for user', userId, ':', error);
             throw error;
         }
     }
@@ -656,7 +656,7 @@ export class CryptoService {
                     updateAttempts++;
                     this.warn(`[WITHDRAWAL] DB update attempt ${updateAttempts} failed for ${withdrawalId}:`, updateErr);
                     if (updateAttempts >= maxAttempts) {
-                        console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for %s:', withdrawalId, updateErr);
+                        console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for', withdrawalId, ':', updateErr);
                         // At this point, transfer succeeded but DB update failed
                         // This is a critical error that needs manual intervention
                         throw new Error(`Transfer succeeded but database update failed for withdrawal ${withdrawalId} - manual intervention required`);
@@ -668,7 +668,7 @@ export class CryptoService {
 
             return tx.hash;
         } catch (error) {
-            console.error('[WITHDRAWAL] Withdrawal processing failed for %s:', withdrawalId, error);
+            console.error('[WITHDRAWAL] Withdrawal processing failed for', withdrawalId, ':', error);
 
             // Attempt to mark as failed and refund
             try {
@@ -712,11 +712,11 @@ export class CryptoService {
                         });
                         this.log(`[WITHDRAWAL] Successfully refunded ${refundAmount} USD to user ${withdrawal.userId}`);
                     } else {
-                        console.error('[WITHDRAWAL] No balance found to refund for user %s', withdrawal.userId);
+                        console.error('[WITHDRAWAL] No balance found to refund for user', withdrawal.userId);
                     }
                 });
             } catch (refundError) {
-                console.error('[WITHDRAWAL] CRITICAL: Failed to update withdrawal status and refund for %s. Manual intervention required:', withdrawalId, refundError);
+                console.error('[WITHDRAWAL] CRITICAL: Failed to update withdrawal status and refund for', withdrawalId, '. Manual intervention required:', refundError);
                 // If both transfer succeeded and refund failed, this is very bad
                 // The user has been debited but transfer may or may not have succeeded
                 throw new Error(`Withdrawal processing failed and rollback incomplete for ${withdrawalId} - manual intervention required`);

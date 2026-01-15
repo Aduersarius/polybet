@@ -565,7 +565,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                             if (val === 'ALL') {
                                                 setAmount(availableShares.toString());
                                             } else {
-                                                const percentage = parseFloat(val.replace('%', '')) / 100;
+                                                const percentage = parseFloat(val.replaceAll('%', '')) / 100;
                                                 setAmount((availableShares * percentage).toString());
                                             }
                                         }}

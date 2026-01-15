@@ -96,7 +96,9 @@ export function categorizeEvent(title: string, description: string): string[] {
       // Use word boundary regex for short keywords (<=4 chars) to avoid false matches
       // e.g., "nba" shouldn't match "Coinbase", "f1" shouldn't match "ref1"
       if (keywordLower.length <= 4) {
-        const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        // Escape special characters to prevent ReDoS/invalid regex
+        const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
         return regex.test(text);
       }
       // For longer keywords, substring matching is fine
