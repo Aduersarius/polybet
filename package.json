@@ -3,22 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/start-hybrid-platform.js",
-    "build": "next build && node scripts/maintenance/fix-client-reference-manifest.js && node scripts/maintenance/copy-geoip-data.js",
+    "dev": "next dev --turbo",
+    "build": "next build",
     "vercel-build": "npm run build",
     "start": "next start",
     "lint": "next lint",
     "analyze": "ANALYZE=true next build",
-    "postinstall": "prisma generate",
-    "seed": "tsx scripts/db/seed.ts",
-    "stress": "npx tsx scripts/test/stress-test.ts",
-    "orderbook-activity": "npx tsx scripts/test/generate-orderbook-activity.ts",
-    "simulate-bets": "npx tsx scripts/test/simulate-bets.ts",
-    "simulate-batch": "npx tsx scripts/test/simulate-batch.ts",
-    "simulate-app": "npx tsx scripts/test/simulate-app.ts",
-    "test-polymarket-candles": "npx tsx scripts/test/test-polymarket-5min-candles.ts",
-    "test-candles-quick": "npx tsx scripts/test/quick-candle-test.ts",
-    "get-test-tokens": "npx tsx scripts/maintenance/get-test-token-ids.ts"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -111,8 +102,5 @@
     "tsx": "^4.21.0",
     "typescript": "5.9.3",
     "why-is-node-running": "^2.2.0"
-  },
-  "prisma": {
-    "seed": "tsx scripts/db/seed.ts"
   }
 }

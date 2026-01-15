@@ -627,8 +627,6 @@ model HedgePosition {
   updatedAt          DateTime  @updatedAt
 
   userOrder     Order?       @relation(fields: [userOrderId], references: [id])
-  hedgeRecord   HedgeRecord? @relation(fields: [hedgeRecordId], references: [id])
-  hedgeRecordId String?
 
   @@index([status])
   @@index([createdAt])
@@ -778,7 +776,6 @@ model HedgeRecord {
   user           User            @relation(fields: [userId], references: [id])
   order          Order           @relation(fields: [userOrderId], references: [id])
   event          Event           @relation(fields: [eventId], references: [id])
-  hedgePositions HedgePosition[]
 
   @@index([userId])
   @@index([eventId])

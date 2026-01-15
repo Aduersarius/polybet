@@ -8,6 +8,7 @@ import { SettingsProvider } from "@/lib/settings-context";
 import { useClientTelemetry } from "@/hooks/use-client-telemetry";
 import { CustomTourProvider } from "@/contexts/CustomTourContext";
 import { SupportChatProvider } from "@/contexts/SupportChatContext";
+import { SupportChatWidget } from "./components/support/SupportChatWidget";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
@@ -22,11 +23,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
         <QueryClientProvider client={queryClient}>
             <SettingsProvider>
-        <CustomTourProvider>
-          <SupportChatProvider>
-            {children}
-          </SupportChatProvider>
-        </CustomTourProvider>
+                <CustomTourProvider>
+                    <SupportChatProvider>
+                        {children}
+                        <SupportChatWidget />
+                    </SupportChatProvider>
+                </CustomTourProvider>
             </SettingsProvider>
         </QueryClientProvider>
     );

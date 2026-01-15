@@ -1,23 +1,15 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-function AffiliateLoginPageContent() {
+export default function AffiliateLoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (searchParams.get('verified') === 'true') {
-      setSuccess('Email verified successfully! You can now login.');
-    }
-  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,12 +57,6 @@ function AffiliateLoginPageContent() {
             </h1>
             <p className="text-gray-400">Access your affiliate dashboard</p>
           </div>
-
-          {success && (
-            <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
-              {success}
-            </div>
-          )}
 
           {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
@@ -132,18 +118,6 @@ function AffiliateLoginPageContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function AffiliateLoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    }>
-      <AffiliateLoginPageContent />
-    </Suspense>
   );
 }
 

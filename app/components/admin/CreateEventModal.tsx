@@ -197,7 +197,7 @@ export function CreateEventModal({ isOpen, onClose, event, mode = 'admin' }: Cre
     };
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {isOpen && (
                 <>
                     <motion.div
@@ -205,216 +205,269 @@ export function CreateEventModal({ isOpen, onClose, event, mode = 'admin' }: Cre
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60]"
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-[60]"
                     />
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.98, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="fixed inset-0 flex items-center justify-center z-[70] p-4"
+                        exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="fixed inset-0 flex items-center justify-center z-[70] p-4 pointer-events-none"
                     >
-                        <div className="w-full max-w-3xl bg-surface-elevated border border-white/5 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                            <h2 className="text-2xl font-bold text-zinc-200 mb-6">
-                                {isUserMode ? 'Suggest an Event' : (isEditMode ? 'Edit Event' : 'Create New Event')}
-                            </h2>
-
-                            {isUserMode && showThankYou ? (
-                                <div className="space-y-4 text-center text-zinc-200">
-                                    <div className="text-4xl">🎉</div>
-                                    <p className="text-lg font-semibold">Thank you for your suggestion!</p>
-                                    <p className="text-sm text-zinc-300">
-                                        We&apos;ll review the event details and publish it if approved.
+                        <div className="w-full max-w-2xl bg-[var(--surface-elevated)] border border-white/10 rounded-2xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] flex flex-col max-h-[90vh] pointer-events-auto font-sans">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+                                <div>
+                                    <h2 className="text-xl font-bold text-white tracking-tight">
+                                        {isUserMode ? 'Suggest an Event' : (isEditMode ? 'Edit Event' : 'Create New Event')}
+                                    </h2>
+                                    <p className="text-xs text-zinc-500 mt-1">
+                                        {isUserMode ? 'Proposed events will be reviewed by our team' : 'Fill in the details to list a new market'}
                                     </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setShowThankYou(false); onClose(); }}
-                                        className="mt-4 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 transition-colors"
-                                    >
-                                        Close
-                                    </button>
                                 </div>
-                            ) : (
-                                <form onSubmit={handleSubmit} className="space-y-6">
-                                    {/* Image Upload */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Event Image</label>
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-32 h-20 rounded-lg bg-white/5 overflow-hidden border border-white/5">
-                                                {imageUrl ? (
-                                                    <img src={imageUrl} alt="Event" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-3xl">🖼️</div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleFileUpload}
-                                                    className="text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-zinc-200 hover:file:bg-primary/90 cursor-pointer"
-                                                />
-                                                {uploading && <p className="text-xs text-primary mt-1">Uploading...</p>}
-                                            </div>
+                                <button
+                                    onClick={onClose}
+                                    className="p-2 rounded-full hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                                {isUserMode && showThankYou ? (
+                                    <div className="py-12 flex flex-col items-center text-center space-y-6">
+                                        <div className="w-20 h-20 rounded-full bg-[var(--secondary)]/10 border border-[var(--secondary)]/20 flex items-center justify-center text-4xl shadow-lg shadow-[var(--secondary)]/5">
+                                            ✅
                                         </div>
-                                    </div>
-
-                                    {/* Title */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Title</label>
-                                        <input
-                                            type="text"
-                                            value={title}
-                                            onChange={(e) => setTitle(e.target.value)}
-                                            required
-                                            className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-3 text-zinc-200 focus:outline-none focus:border-primary transition-colors"
-                                            placeholder="e.g. Will Bitcoin hit $100k in 2024?"
-                                        />
-                                    </div>
-
-                                    {/* Description */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Description</label>
-                                        <textarea
-                                            value={description}
-                                            onChange={(e) => setDescription(e.target.value)}
-                                            required
-                                            className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-3 text-zinc-200 focus:outline-none focus:border-primary transition-colors h-28 resize-none"
-                                            placeholder="Detailed description of the event..."
-                                        />
-                                    </div>
-
-                                    {/* Categories - Multi-select */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">
-                                            Categories <span className="text-xs text-zinc-500">(Select one or more)</span>
-                                        </label>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {CATEGORIES.map(cat => (
-                                                <button
-                                                    key={cat}
-                                                    type="button"
-                                                    onClick={() => toggleCategory(cat)}
-                                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCategories.includes(cat)
-                                                        ? 'bg-primary text-zinc-200 border-2 border-primary'
-                                                        : 'bg-white/5 text-muted-foreground border-2 border-white/5 hover:bg-white/10 hover:text-zinc-200'
-                                                        }`}
-                                                >
-                                                    {cat}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Event Type */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Event Type</label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {EVENT_TYPES.map(type => (
-                                                <button
-                                                    key={type.value}
-                                                    type="button"
-                                                    onClick={() => setEventType(type.value)}
-                                                    className={`p-4 rounded-lg text-left transition-colors border-2 ${eventType === type.value
-                                                        ? 'bg-primary/20 border-primary text-zinc-200'
-                                                        : 'bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10 hover:text-zinc-200'
-                                                        }`}
-                                                >
-                                                    <div className="font-medium mb-1">{type.label}</div>
-                                                    <div className="text-xs opacity-70">{type.description}</div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Outcomes Editor - Show default YES/NO for Binary, custom for Multiple */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">
-                                            Outcomes {eventType === 'BINARY' && <span className="text-xs text-zinc-500">(Default: YES/NO)</span>}
-                                        </label>
                                         <div className="space-y-2">
-                                            {outcomes.map((outcome, index) => (
-                                                <div key={index} className="flex gap-2">
-                                                    <input
-                                                        type="text"
-                                                        value={outcome.name}
-                                                        onChange={(e) => updateOutcome(index, e.target.value)}
-                                                        disabled={eventType === 'BINARY'}
-                                                        placeholder={`Outcome ${index + 1}`}
-                                                        className={`flex-1 bg-white/5 border border-white/5 rounded-lg px-4 py-2 text-zinc-200 focus:outline-none focus:border-primary transition-colors ${eventType === 'BINARY' ? 'opacity-60 cursor-not-allowed' : ''
-                                                            }`}
-                                                    />
-                                                    {eventType === 'MULTIPLE' && outcomes.length > 2 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeOutcome(index)}
-                                                            className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
-                                                        >
-                                                            ✕
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {eventType === 'MULTIPLE' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={addOutcome}
-                                                    className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-sm text-muted-foreground hover:text-zinc-200 transition-colors"
-                                                >
-                                                    + Add Outcome
-                                                </button>
-                                            )}
+                                            <h3 className="text-2xl font-bold text-white">Suggestion Received!</h3>
+                                            <p className="text-zinc-400 max-w-sm">
+                                                Thank you for contributing. We&apos;ll review the event details and publish it if approved.
+                                            </p>
                                         </div>
-                                    </div>
-
-                                    {/* Resolution Date */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Resolution Date</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={resolutionDate}
-                                            onChange={(e) => setResolutionDate(e.target.value)}
-                                            required
-                                            className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-3 text-zinc-200 focus:outline-none focus:border-primary transition-colors [color-scheme:dark]"
-                                        />
-                                    </div>
-
-                                    {/* Save as Draft Toggle */}
-                                    {!isUserMode && (
-                                        <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/5">
-                                            <input
-                                                type="checkbox"
-                                                id="draft-mode"
-                                                checked={saveAsDraft}
-                                                onChange={(e) => setSaveAsDraft(e.target.checked)}
-                                                className="w-5 h-5 rounded border-white/20 bg-white/5 checked:bg-primary"
-                                            />
-                                            <label htmlFor="draft-mode" className="flex-1 cursor-pointer">
-                                                <div className="text-sm font-medium text-zinc-200">Save as Draft/Preview Mode</div>
-                                                <div className="text-xs text-muted-foreground">Event will be hidden from public until published</div>
-                                            </label>
-                                        </div>
-                                    )}
-
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-3 pt-4 border-t border-white/5">
                                         <button
                                             type="button"
-                                            onClick={onClose}
-                                            className="flex-1 px-4 py-3 rounded-lg font-medium text-muted-foreground hover:text-zinc-200 hover:bg-white/5 transition-colors"
+                                            onClick={() => { setShowThankYou(false); onClose(); }}
+                                            className="px-8 py-3 rounded-xl bg-white text-black font-bold hover:bg-zinc-200 transition-all active:scale-95"
                                         >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={createEventMutation.isPending || uploading}
-                                            className="flex-1 px-4 py-3 rounded-lg font-medium bg-primary hover:bg-primary/90 text-zinc-200 transition-colors disabled:opacity-50"
-                                        >
-                                            {createEventMutation.isPending
-                                                ? (isUserMode ? 'Submitting...' : (isEditMode ? 'Updating...' : 'Creating...'))
-                                                : (isUserMode ? 'Submit Suggestion' : (isEditMode ? 'Update Event' : (saveAsDraft ? 'Save as Draft' : 'Publish Event')))}
+                                            Got it
                                         </button>
                                     </div>
-                                </form>
+                                ) : (
+                                    <form onSubmit={handleSubmit} className="space-y-8 pb-4">
+                                        {/* Image Upload Section */}
+                                        <div className="space-y-4">
+                                            <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Visual Presentation</label>
+                                            <div className="flex items-center gap-6 p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                                                <div className="relative group w-24 h-24 rounded-xl bg-[var(--background)] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                                                    {imageUrl ? (
+                                                        <img src={imageUrl} alt="Event" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center gap-1 opacity-40">
+                                                            <span className="text-2xl">🖼️</span>
+                                                        </div>
+                                                    )}
+                                                    {uploading && (
+                                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={handleFileUpload}
+                                                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface)]/80 text-sm font-semibold text-white transition-colors border border-white/5"
+                                                        >
+                                                            {imageUrl ? 'Change Image' : 'Upload Image'}
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-[11px] text-zinc-500">
+                                                        Recommended: 16:9 aspect ratio, max 2MB.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Core Details */}
+                                        <div className="grid gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Market Title</label>
+                                                <input
+                                                    type="text"
+                                                    value={title}
+                                                    onChange={(e) => setTitle(e.target.value)}
+                                                    required
+                                                    className="w-full bg-[var(--background)]/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]/50 transition-all font-medium"
+                                                    placeholder="Will Bitcoin reach $100k by Jan 2026?"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Context & Rules</label>
+                                                <textarea
+                                                    value={description}
+                                                    onChange={(e) => setDescription(e.target.value)}
+                                                    required
+                                                    className="w-full bg-[var(--background)]/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]/50 transition-all h-32 resize-none text-sm leading-relaxed"
+                                                    placeholder="Describe the conditions for resolution. What determines the outcome?"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Categories Grid */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-end justify-between">
+                                                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Categories</label>
+                                                <span className="text-[10px] text-zinc-500 font-medium">Selected: {selectedCategories.length}</span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {CATEGORIES.map(cat => (
+                                                    <button
+                                                        key={cat}
+                                                        type="button"
+                                                        onClick={() => toggleCategory(cat)}
+                                                        className={`px-3 py-2.5 rounded-xl text-[11px] font-bold tracking-tight transition-all border ${selectedCategories.includes(cat)
+                                                            ? 'bg-[var(--primary)]/10 border-[var(--primary)]/50 text-[var(--primary)] shadow-[0_0_20px_rgba(59,130,246,0.1)]'
+                                                            : 'bg-[var(--background)]/50 text-zinc-500 border-white/5 hover:border-white/20 hover:text-zinc-300'
+                                                            }`}
+                                                    >
+                                                        {cat}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Configuration Row */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Market Type</label>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {EVENT_TYPES.map(type => (
+                                                        <button
+                                                            key={type.value}
+                                                            type="button"
+                                                            onClick={() => setEventType(type.value)}
+                                                            className={`p-3 rounded-xl text-left transition-all border-2 ${eventType === type.value
+                                                                ? 'bg-[var(--primary)]/5 border-[var(--primary)]/50 text-white'
+                                                                : 'bg-[var(--background)]/50 border-white/5 text-zinc-500 hover:border-white/10'
+                                                                }`}
+                                                        >
+                                                            <div className="text-sm font-bold flex items-center justify-between">
+                                                                {type.label}
+                                                                {eventType === type.value && <div className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] shadow-[0_0_8px_rgba(59,130,246,0.8)]" />}
+                                                            </div>
+                                                            <div className="text-[10px] opacity-60 mt-0.5 font-medium">{type.description}</div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Resolution Date</label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="datetime-local"
+                                                        value={resolutionDate}
+                                                        onChange={(e) => setResolutionDate(e.target.value)}
+                                                        required
+                                                        className="w-full bg-[var(--background)]/50 border border-white/10 rounded-xl px-4 py-8.5 text-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]/50 transition-all font-medium [color-scheme:dark]"
+                                                        style={{ height: '78px' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Outcomes Editor */}
+                                        <div className="space-y-4">
+                                            <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Outcomes</label>
+                                            <div className="space-y-2.5 p-4 rounded-xl bg-white/[0.01] border border-white/5">
+                                                {outcomes.map((outcome, index) => (
+                                                    <div key={index} className="flex gap-2">
+                                                        <div className="flex-1 relative group">
+                                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-600 tracking-widest">#{index + 1}</div>
+                                                            <input
+                                                                type="text"
+                                                                value={outcome.name}
+                                                                onChange={(e) => updateOutcome(index, e.target.value)}
+                                                                disabled={eventType === 'BINARY'}
+                                                                placeholder={`Enter outcome...`}
+                                                                className={`w-full bg-[var(--background)] border border-white/5 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[var(--primary)]/40 transition-all ${eventType === 'BINARY' ? 'opacity-40 grayscale pointer-events-none' : ''}`}
+                                                            />
+                                                        </div>
+                                                        {eventType === 'MULTIPLE' && outcomes.length > 2 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeOutcome(index)}
+                                                                className="px-3 py-2 bg-red-500/5 hover:bg-red-500/10 text-red-500/60 hover:text-red-400 rounded-lg border border-red-500/10 transition-colors"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {eventType === 'MULTIPLE' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={addOutcome}
+                                                        className="w-full py-2.5 border border-dashed border-white/10 rounded-lg text-[11px] font-bold text-zinc-500 hover:text-zinc-300 hover:border-white/20 transition-all uppercase tracking-widest"
+                                                    >
+                                                        + Add Alternative Outcome
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Draft Options (Admin Only) */}
+                                        {!isUserMode && (
+                                            <label className="flex items-center gap-4 p-4 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl cursor-pointer hover:bg-[var(--primary)]/10 transition-colors group">
+                                                <div className="relative flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="draft-mode"
+                                                        checked={saveAsDraft}
+                                                        onChange={(e) => setSaveAsDraft(e.target.checked)}
+                                                        className="peer sr-only"
+                                                    />
+                                                    <div className="w-10 h-6 bg-[var(--surface)] border border-white/10 rounded-full peer-checked:bg-[var(--primary)] transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4 shadow-inner" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-bold text-white">Draft/Preview Mode</div>
+                                                    <p className="text-[11px] text-zinc-500 font-medium">Market will be hidden from everyone except admins</p>
+                                                </div>
+                                            </label>
+                                        )}
+                                    </form>
+                                )}
+                            </div>
+
+                            {/* Footer Actions */}
+                            {!showThankYou && (
+                                <div className="p-6 bg-[var(--background)] border-t border-white/5 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="flex-1 px-4 py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest text-zinc-500 hover:text-white transition-colors border border-white/5 hover:bg-white/5"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        onClick={handleSubmit}
+                                        disabled={createEventMutation.isPending || uploading}
+                                        className="flex-[2] px-4 py-3.5 rounded-xl font-extrabold text-xs uppercase tracking-widest bg-white text-black hover:bg-zinc-200 transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-xl shadow-white/5"
+                                    >
+                                        {createEventMutation.isPending
+                                            ? 'Processing...'
+                                            : (isUserMode ? 'Submit Market Suggestion' : (isEditMode ? 'Update Market' : (saveAsDraft ? 'Save as Draft' : 'Launch Market')))}
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </motion.div>

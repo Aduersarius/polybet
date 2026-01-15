@@ -37,10 +37,7 @@ export default function AffiliateSignupPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        const errorMsg = data.message 
-          ? `${data.error}: ${data.message}` 
-          : data.error || 'Signup failed';
-        setError(errorMsg);
+        setError(data.error || 'Signup failed');
         return;
       }
 

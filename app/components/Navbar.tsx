@@ -39,7 +39,10 @@ function SupportLink() {
     const { openChat } = useSupportChat();
     return (
         <button
-            onClick={() => openChat()}
+            onClick={() => {
+                console.log('Support button clicked, opening chat...');
+                openChat();
+            }}
             className="block w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-emerald-500/10 rounded-xl transition-all duration-200 font-medium"
         >
             Support
