@@ -118,21 +118,26 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
                 price,
             });
         } else {
-            // Market order - use calculated shares and aggressive price
-            // Price aggressively for fast fill but reasonably close to market to save collateral
-            // levels[0] is always the best price (lowest Ask for BUY, highest Bid for SELL)
-            // We add 2% slippage tolerance to ensure fill (reduced from 5% to avoid high slippage warnings)
+            // Market order - use aggressive pricing
+            // Calculate aggressive price first
             const aggressivePrice = pmSide === 'BUY'
                 ? Math.min(0.99, (levels[0]?.price || 0.5) * 1.02)
                 : Math.max(0.01, (levels[0]?.price || 0.5) * 0.98);
+
+            // CRITICAL: Calculate shares based on aggressive price to ensure collateral >= $1
+            // If we calculate shares at current price but use aggressive price,
+            // collateral can drop below $1 (e.g., 4.76 shares @ $0.21 = $1, but @ $0.2142 = $0.9996)
+            const adjustedShares = amount / aggressivePrice;
+
+            console.log(`[DirectTrade] Market order: $${amount} @ $${aggressivePrice.toFixed(4)}/share = ${adjustedShares.toFixed(2)} shares (collateral: $${(adjustedShares * aggressivePrice).toFixed(4)})`);
 
             pmOrder = await polymarketTrading.placeOrder({
                 marketId: mapping.polymarketId,
                 conditionId: mapping.polymarketConditionId || mapping.polymarketId,
                 tokenId,
                 side: pmSide,
-                size: shares, // Pre-calculated shares
-                price: aggressivePrice, // Aggressive limit price
+                size: adjustedShares, // Calculate using aggressive price
+                price: aggressivePrice,
                 tickSize: orderbook.tickSize,
                 negRisk: orderbook.negRisk,
             });
@@ -189,6 +194,37 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
                 ourSpread: 0, // No spread charged on direct trading
             }
         });
+
+        // 8. Update user's Balance for trading panel
+        const tokenSymbol = `${option}_TOKEN`;
+        const sharesDelta = side === 'buy'
+            ? Number(pmOrder.filledSize || pmOrder.size)  // Add shares
+            : -Number(pmOrder.filledSize || pmOrder.size); // Remove shares
+
+        await prisma.balance.upsert({
+            where: {
+                userId_tokenSymbol_eventId_outcomeId: {
+                    userId,
+                    tokenSymbol,
+                    eventId,
+                    outcomeId: outcome?.id || null,
+                },
+            },
+            update: {
+                amount: {
+                    increment: sharesDelta,
+                },
+            },
+            create: {
+                userId,
+                tokenSymbol,
+                amount: Math.max(0, sharesDelta), // Can't have negative balance
+                eventId,
+                outcomeId: outcome?.id,
+            },
+        });
+
+        console.log(`[DirectTrade] Updated balance: ${side === 'buy' ? '+' : ''}${sharesDelta.toFixed(2)} shares of ${option}`);
 
         return {
             success: true,

@@ -59,7 +59,10 @@ interface PolymarketMapping {
  * 
  * This is the main entry point - replaces hedgeUserOrder() and hedgeManager.executeHedge()
  */
-export async function hedgeAndExecute(request: HedgeRequest): Promise<HedgeResult> {
+export async function hedgeAndExecute(
+    request: HedgeRequest,
+    options?: { skipUserTrade?: boolean }
+): Promise<HedgeResult> {
     const startTime = Date.now();
     console.log('[HedgeSimple] Starting hedge-and-execute:', request);
 
@@ -183,31 +186,63 @@ export async function hedgeAndExecute(request: HedgeRequest): Promise<HedgeResul
 
         // ========================================================================
         // STEP 6: Execute User's Trade (Now that we're hedged)
+        // PHASE 1: Skip if AMM already created the order
         // ========================================================================
-        const userTrade = await executeUserTrade({
-            userId: request.userId,
-            eventId: request.eventId,
-            option: request.option,
-            amount: request.amount,
-            price: userPrice,
-        });
+        let userTradeOrderId;
 
-        if (!userTrade.success) {
-            // User trade failed BUT we're hedged on Polymarket
-            // Log critical error - manual intervention may be needed
-            console.error('[HedgeSimple] CRITICAL: User trade failed but hedge succeeded!', {
-                polymarketOrderId: hedgeResult.orderId,
-                error: userTrade.error,
+        if (!options?.skipUserTrade) {
+            const userTrade = await executeUserTrade({
+                userId: request.userId,
+                eventId: request.eventId,
+                option: request.option,
+                amount: request.amount,
+                price: userPrice,
             });
 
-            // TODO: Implement rollback - close Polymarket position
-            // For now, just fail gracefully
-            return {
-                success: false,
-                error: 'Trade failed after hedge (contact support)',
-                errorCode: 'DATABASE',
-                polymarketOrderId: hedgeResult.orderId,
-            };
+            if (!userTrade.success) {
+                // User trade failed BUT we're hedged on Polymarket
+                // Log critical error - manual intervention may be needed
+                console.error('[HedgeSimple] CRITICAL: User trade failed but hedge succeeded!', {
+                    polymarketOrderId: hedgeResult.orderId,
+                    error: userTrade.error,
+                });
+
+                // TODO: Implement rollback - close Polymarket position
+                // For now, just fail gracefully
+                return {
+                    success: false,
+                    error: 'Trade failed after hedge (contact support)',
+                    errorCode: 'DATABASE',
+                    polymarketOrderId: hedgeResult.orderId,
+                };
+            }
+
+            userTradeOrderId = userTrade.orderId!;
+        } else {
+            console.log('[HedgeSimple] Skipping user trade creation (AMM already handled)');
+            // Need to find the existing order created by AMM
+            const existingOrder = await prisma.order.findFirst({
+                where: {
+                    userId: request.userId,
+                    eventId: request.eventId,
+                    option: request.option,
+                    status: 'filled',
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { id: true }
+            });
+
+            if (!existingOrder) {
+                console.error('[HedgeSimple] CRITICAL: Could not find AMM order to link hedge!');
+                return {
+                    success: false,
+                    error: 'Could not find order to link hedge',
+                    errorCode: 'DATABASE',
+                    polymarketOrderId: hedgeResult.orderId,
+                };
+            }
+
+            userTradeOrderId = existingOrder.id;
         }
 
         // ========================================================================
@@ -215,7 +250,7 @@ export async function hedgeAndExecute(request: HedgeRequest): Promise<HedgeResul
         // ========================================================================
         await recordHedge({
             userId: request.userId,
-            userOrderId: userTrade.orderId!,
+            userOrderId: userTradeOrderId,
             eventId: request.eventId,
             option: request.option,
             userAmount: request.amount,
@@ -236,7 +271,7 @@ export async function hedgeAndExecute(request: HedgeRequest): Promise<HedgeResul
 
         return {
             success: true,
-            userOrderId: userTrade.orderId,
+            userOrderId: userTradeOrderId,
             userPrice,
             userAmount: request.amount,
             polymarketPrice,
@@ -254,6 +289,12 @@ export async function hedgeAndExecute(request: HedgeRequest): Promise<HedgeResul
         };
     }
 }
+
+// ============================================================================
+// Export Close Hedge Function
+// ============================================================================
+
+export { closeHedgePosition } from './hedge-close';
 
 // ============================================================================
 // Helper Functions

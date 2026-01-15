@@ -88,6 +88,8 @@ type PolymarketData = {
     size: string;
     status: string;
     timestamp: string;
+    userId?: string;
+    username?: string;
   }>;
   error?: string;
 };
@@ -606,17 +608,9 @@ export function AdminHedging() {
                                   <>
                                     <button
                                       disabled={closingPosition === pos.tokenId}
-                                      onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.actualBalance, true)}
-                                      className="px-2 py-1 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 rounded text-xs transition-colors disabled:opacity-50"
-                                      title="Sell immediately at best bid (may get low price)"
-                                    >
-                                      {closingPosition === pos.tokenId ? 'Selling...' : 'Market Sell'}
-                                    </button>
-                                    <button
-                                      disabled={closingPosition === pos.tokenId}
                                       onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.actualBalance, false)}
                                       className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-xs transition-colors disabled:opacity-50"
-                                      title="Close position near market price"
+                                      title="Close position with limit order near market price"
                                     >
                                       {closingPosition === pos.tokenId ? 'Closing...' : 'Close'}
                                     </button>
@@ -646,6 +640,7 @@ export function AdminHedging() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-white/10">
+                          <th className="text-left py-2 text-muted-foreground font-medium">User</th>
                           <th className="text-left py-2 text-muted-foreground font-medium">Time</th>
                           <th className="text-left py-2 text-muted-foreground font-medium">Side</th>
                           <th className="text-right py-2 text-muted-foreground font-medium">Price</th>
@@ -657,6 +652,9 @@ export function AdminHedging() {
                       <tbody>
                         {polymarketData.recentTrades.slice(0, 10).map((trade, i) => (
                           <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="py-2 text-zinc-200 font-medium">
+                              {trade.username || 'Unknown'}
+                            </td>
                             <td className="py-2 text-xs text-zinc-400">
                               {trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'}
                             </td>

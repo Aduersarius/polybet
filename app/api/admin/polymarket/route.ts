@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Wallet, ethers } from 'ethers';
 import { polymarketTrading } from '@/lib/polymarket-trading';
+import { prisma } from '@/lib/prisma';
 
 // Prevent static generation
 export const dynamic = 'force-dynamic';
@@ -172,6 +173,51 @@ export async function GET(request: NextRequest) {
             console.error('Error fetching trade market slugs', e);
         }
 
+        // Enrich trades with user data from HedgeRecords
+        const tradeToUser = new Map<string, { userId: string; username: string }>();
+
+        // Enrich trades with username data
+
+        // Check what format is in HedgeRecord
+        const sampleHedge = await prisma.hedgeRecord.findFirst({
+            where: { polymarketOrderId: { not: null } },
+            select: { polymarketOrderId: true },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        for (const trade of trades.slice(0, 20)) {
+            const tokenId = trade.asset_id || trade.token_id;
+            if (!tokenId) continue;
+
+            // Get trade timestamp
+            const tradeTime = trade.match_time
+                ? new Date(trade.match_time * 1000)
+                : (trade.timestamp ? new Date(parseInt(trade.timestamp)) : null);
+
+            if (!tradeTime) continue;
+
+            // Match by tokenId + timestamp (±30 seconds)
+            const hedgeRecord = await prisma.hedgeRecord.findFirst({
+                where: {
+                    polymarketTokenId: tokenId,
+                    createdAt: {
+                        gte: new Date(tradeTime.getTime() - 30000),
+                        lte: new Date(tradeTime.getTime() + 30000),
+                    },
+                },
+                include: { user: { select: { id: true, username: true } } },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            if (hedgeRecord?.user) {
+                tradeToUser.set(trade.id, {
+                    userId: hedgeRecord.user.id,
+                    username: hedgeRecord.user.username,
+                });
+            }
+        }
+
+
         return NextResponse.json({
             wallet: walletAddress,
             openOrders: openOrders.map(o => ({
@@ -185,20 +231,25 @@ export async function GET(request: NextRequest) {
                 createdAt: o.created || o.timestamp,
             })),
             positions: openPositions,
-            recentTrades: trades.slice(0, 20).map(t => ({
-                id: t.id,
-                tokenId: t.asset_id || t.token_id,
-                marketId: (t as any).slug || t.market_id || t.market,
-                side: t.side,
-                price: t.price,
-                size: t.size,
-                status: t.status,
-                timestamp: t.match_time
-                    ? new Date(t.match_time * 1000).toISOString()
-                    : (t.timestamp
-                        ? (typeof t.timestamp === 'string' && t.timestamp.length > 10 ? new Date(parseInt(t.timestamp)).toISOString() : new Date(parseInt(t.timestamp) * 1000).toISOString())
-                        : new Date().toISOString()),
-            })),
+            recentTrades: trades.slice(0, 20).map(t => {
+                const userData = tradeToUser.get(t.id);
+                return {
+                    id: t.id,
+                    tokenId: t.asset_id || t.token_id,
+                    marketId: (t as any).slug || t.market_id || t.market,
+                    side: t.side,
+                    price: t.price,
+                    size: t.size,
+                    status: t.status,
+                    timestamp: t.match_time
+                        ? new Date(t.match_time * 1000).toISOString()
+                        : (t.timestamp
+                            ? (typeof t.timestamp === 'string' && t.timestamp.length > 10 ? new Date(parseInt(t.timestamp)).toISOString() : new Date(parseInt(t.timestamp) * 1000).toISOString())
+                            : new Date().toISOString()),
+                    userId: userData?.userId,
+                    username: userData?.username || 'Unknown',
+                };
+            }),
         });
     } catch (error) {
         console.error('[Polymarket API] Error:', error);

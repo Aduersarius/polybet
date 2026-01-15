@@ -12,6 +12,8 @@ import { createErrorResponse, createClientErrorResponse } from '@/lib/error-hand
 import { validateString, validateNumber, validateEventId, validateUUID } from '@/lib/validation';
 import { trackTrade, trackApiLatency, trackError, startTimer } from '@/lib/sentry-metrics';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { polymarketCircuit } from '@/lib/circuit-breaker';
+import { hedgeAndExecute } from '@/lib/hedge-simple';
 
 // MVP Safety Limits
 const MAX_BET_AMOUNT = 1000; // $1000 max per bet for MVP
@@ -92,6 +94,18 @@ export async function POST(request: Request) {
                 where: { eventId, name: { equals: option, mode: 'insensitive' } },
                 select: { id: true, polymarketOutcomeId: true },
             });
+        }
+
+        // PHASE 1: Circuit Breaker Pre-Check
+        // Prevent bets on Polymarket events if hedging is unavailable
+        if (eventMeta.source === 'POLYMARKET') {
+            if (!polymarketCircuit.isAllowed()) {
+                trackError('hedging', 'circuit_breaker_open');
+                return createClientErrorResponse(
+                    'Polymarket trading temporarily unavailable. Please try again in a few moments.',
+                    503
+                );
+            }
         }
 
         // Helper for query timeout protection
@@ -213,27 +227,95 @@ export async function POST(request: Request) {
 
         const { newBet, tokensReceived, newOdds, orderRecord } = result;
 
-        // 5. Trigger hedging for Polymarket-backed events (fire-and-forget)
+        // PHASE 1: Smart Position-Aware Hedging
+        // Detect if user is closing existing position → close hedge
+        // Or opening new position → create new hedge
         if (eventMeta.source === 'POLYMARKET' && orderRecord?.id) {
-            (async () => {
-                try {
-                    const { hedgeAndExecute } = await import('@/lib/hedge-simple');
+            try {
+                // Check user's net position BEFORE this bet
+                const userPositions = await prisma.order.groupBy({
+                    by: ['option'],
+                    where: {
+                        userId: targetUserId,
+                        eventId,
+                        status: 'filled',
+                        id: { not: orderRecord.id }, // Exclude current order
+                    },
+                    _sum: {
+                        amountFilled: true,
+                    },
+                });
+
+                const yesPosition = userPositions.find(p => p.option === 'YES')?._sum.amountFilled || 0;
+                const noPosition = userPositions.find(p => p.option === 'NO')?._sum.amountFilled || 0;
+                const netYesPosition = yesPosition - noPosition;
+
+                console.log(`[Hedging] User position before bet: YES=${netYesPosition.toFixed(2)}, current bet: ${option} $${numericAmount}`);
+
+                // Determine if this closes an existing position
+                const isClosing = (
+                    (option === 'NO' && netYesPosition > 0) || // Selling YES by buying NO
+                    (option === 'YES' && netYesPosition < 0)    // Selling NO by buying YES
+                );
+
+                if (isClosing) {
+                    // User is closing their position - close the hedge on Polymarket
+                    console.log('[Hedging] 🔄 Position close detected - closing existing hedge');
+
+                    const { closeHedgePosition } = await import('@/lib/hedge-simple');
+                    const closeResult = await closeHedgePosition({
+                        userId: targetUserId,
+                        eventId,
+                        option: option as 'YES' | 'NO',
+                        amount: numericAmount,
+                        userOrderId: orderRecord.id,
+                    });
+
+                    if (!closeResult.success) {
+                        console.error('[Hedging] Failed to close hedge:', closeResult.error);
+                        trackError('hedging', 'hedge_close_failed');
+                        // Don't fail the user's trade - they closed their position successfully
+                        // The hedge close failure is our problem to handle manually
+                    } else {
+                        console.log(`[Hedging] ✅ Hedge closed - P/L: $${closeResult.realizedPnL?.toFixed(4)}`);
+                    }
+                } else {
+                    // User is opening new position - normal hedge
+                    console.log('[Hedging] 📈 New position detected - opening hedge');
+
                     const hedgeResult = await hedgeAndExecute({
                         userId: targetUserId,
                         eventId,
                         option: option as 'YES' | 'NO',
                         amount: numericAmount,
+                    }, {
+                        skipUserTrade: true  // AMM already created the order
                     });
 
                     if (!hedgeResult.success) {
-                        console.error('[Hedging] Failed:', hedgeResult.error, hedgeResult.errorCode);
-                    } else {
-                        console.log(`[Hedging] Success - Profit: $${hedgeResult.netProfit?.toFixed(4)}, PM Order: ${hedgeResult.polymarketOrderId}`);
+                        console.error('[Hedging] CRITICAL: Hedge failed after AMM committed:', {
+                            orderId: orderRecord.id,
+                            error: hedgeResult.error,
+                            errorCode: hedgeResult.errorCode
+                        });
+                        trackError('hedging', 'hedge_failed_after_commit');
+
+                        return createClientErrorResponse(
+                            'Unable to complete bet placement. Please contact support if amount was deducted.',
+                            503
+                        );
                     }
-                } catch (err) {
-                    console.error('[Hedging] Exception:', err);
+
+                    console.log(`[Hedging] ✅ Hedge opened - Profit: $${hedgeResult.netProfit?.toFixed(4)}, PM Order: ${hedgeResult.polymarketOrderId}`);
                 }
-            })();
+            } catch (err) {
+                console.error('[Hedging] CRITICAL Exception:', err);
+                trackError('hedging', 'hedge_exception');
+                return createClientErrorResponse(
+                    'Unable to complete bet placement. Please contact support if amount was deducted.',
+                    503
+                );
+            }
         }
 
         // 4. Publish to Pusher for Real-time Updates (non-blocking)
