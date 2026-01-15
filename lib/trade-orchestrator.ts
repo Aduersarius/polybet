@@ -104,17 +104,51 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
 
         console.log(`[DirectTrade] Converting $${amount} @ $${currentPrice.toFixed(4)}/share = ${shares.toFixed(2)} shares`);
 
-        // 5. Place order on Polymarket with SHARES, not USD
+        // 5. For SELL orders, verify user has enough shares and get exact amount
+        let sharesToTrade = shares;
+        if (side === 'sell') {
+            const tokenSymbol = `${option}_TOKEN`;
+            const userBalance = await prisma.balance.findFirst({
+                where: {
+                    userId,
+                    tokenSymbol,
+                    eventId,
+                },
+                select: { amount: true },
+            });
+
+            const availableShares = userBalance?.amount ? Number(userBalance.amount) : 0;
+
+            if (availableShares <= 0) {
+                return {
+                    success: false,
+                    error: 'You don\'t own any shares to sell',
+                    totalFilled: 0,
+                    averagePrice: 0,
+                    executionModule: 'polymarket',
+                };
+            }
+
+            // Calculate how many shares the USD amount represents
+            const requestedShares = amount / currentPrice;
+
+            // Use the minimum of what they want to sell and what they have
+            sharesToTrade = Math.min(requestedShares, availableShares);
+
+            console.log(`[DirectTrade] User has ${availableShares.toFixed(2)} shares, selling ${sharesToTrade.toFixed(2)}`);
+        }
+
+        // 6. Place order on Polymarket with SHARES, not USD
         let pmOrder;
         if (price) {
             // Limit order - use user's specified price
-            const limitShares = amount / price;
+            const limitShares = side === 'sell' ? sharesToTrade : amount / price;
             pmOrder = await polymarketTrading.placeOrder({
                 marketId: mapping.polymarketId,
                 conditionId: mapping.polymarketConditionId || mapping.polymarketId,
                 tokenId,
                 side: pmSide,
-                size: limitShares, // Convert USD to shares
+                size: limitShares,
                 price,
             });
         } else {
@@ -124,19 +158,18 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
                 ? Math.min(0.99, (levels[0]?.price || 0.5) * 1.02)
                 : Math.max(0.01, (levels[0]?.price || 0.5) * 0.98);
 
-            // CRITICAL: Calculate shares based on aggressive price to ensure collateral >= $1
-            // If we calculate shares at current price but use aggressive price,
-            // collateral can drop below $1 (e.g., 4.76 shares @ $0.21 = $1, but @ $0.2142 = $0.9996)
-            const adjustedShares = amount / aggressivePrice;
+            // For BUY: Calculate shares to ensure collateral >= $1
+            // For SELL: Use exact shares from user's balance
+            const adjustedShares = side === 'sell' ? sharesToTrade : amount / aggressivePrice;
 
-            console.log(`[DirectTrade] Market order: $${amount} @ $${aggressivePrice.toFixed(4)}/share = ${adjustedShares.toFixed(2)} shares (collateral: $${(adjustedShares * aggressivePrice).toFixed(4)})`);
+            console.log(`[DirectTrade] Market order: ${pmSide} ${adjustedShares.toFixed(2)} shares @ $${aggressivePrice.toFixed(4)} (value: $${(adjustedShares * aggressivePrice).toFixed(4)})`);
 
             pmOrder = await polymarketTrading.placeOrder({
                 marketId: mapping.polymarketId,
                 conditionId: mapping.polymarketConditionId || mapping.polymarketId,
                 tokenId,
                 side: pmSide,
-                size: adjustedShares, // Calculate using aggressive price
+                size: adjustedShares,
                 price: aggressivePrice,
                 tickSize: orderbook.tickSize,
                 negRisk: orderbook.negRisk,
@@ -145,7 +178,22 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
 
         console.log(`[DirectTrade] ✅ PM Order: ${pmOrder.orderId} - ${pmOrder.size} shares @ $${pmOrder.price}`);
 
-        // 6. Create internal order record
+        // 6. Apply platform markup (brokerage fee)
+        const PLATFORM_MARKUP = 0.03; // 3% markup on PM price
+        const pmExecutionPrice = Number(pmOrder.price);
+        const userPrice = side === 'buy'
+            ? pmExecutionPrice * (1 + PLATFORM_MARKUP)  // User pays MORE when buying
+            : pmExecutionPrice * (1 - PLATFORM_MARKUP); // User gets LESS when selling
+
+        const userCost = Number(pmOrder.filledSize || pmOrder.size) * userPrice;
+        const pmCost = Number(pmOrder.filledSize || pmOrder.size) * pmExecutionPrice;
+        const platformProfit = side === 'buy'
+            ? userCost - pmCost  // We charge more than we paid
+            : pmCost - userCost; // We paid more than we gave user
+
+        console.log(`[DirectTrade] 💰 Markup: User ${side === 'buy' ? 'pays' : 'receives'} $${userCost.toFixed(4)} vs PM $${pmCost.toFixed(4)} = Profit: $${platformProfit.toFixed(4)}`);
+
+        // 7. Create internal order record
         const outcome = await prisma.outcome.findFirst({
             where: { eventId, name: { equals: option, mode: 'insensitive' } },
         });
@@ -157,41 +205,35 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
                 outcomeId: outcome?.id ?? null,
                 option,
                 side,
-                price: pmOrder.price,
-                amount: amount, // Original USD amount
-                amountFilled: pmOrder.filledSize || pmOrder.size, // Shares filled
+                price: userPrice, // User sees marked-up price
+                amount: userCost, // User pays marked-up amount
+                amountFilled: pmOrder.filledSize || pmOrder.size,
                 status: 'filled',
                 orderType: price ? 'limit' : 'market',
             },
         });
 
-        // 7. Create Hedge Record (for Dashboard visibility)
-        const costBasis = Number(pmOrder.size) * Number(pmOrder.price);
-        // For Direct Trades, "profit" is essentially the slippage difference (positive or negative)
-        // User paid 'amount', we paid 'costBasis'
-        const tradeProfit = amount - costBasis;
-
+        // 8. Create Hedge Record (track profitability)
         await prisma.hedgeRecord.create({
             data: {
                 userId,
                 userOrderId: internalOrder.id,
                 eventId,
                 option: option as 'YES' | 'NO',
-                userAmount: amount, // Revenue (what user paid/committed)
-                userPrice: Number(pmOrder.price), // User gets same price as PM
+                userAmount: userCost, // What user actually paid (with markup)
+                userPrice: userPrice, // Price user saw (with markup)
 
                 polymarketMarketId: mapping.polymarketId,
-                // polymarketOrderType not in schema, removing
                 polymarketOrderId: pmOrder.orderId,
                 polymarketSide: pmSide,
-                polymarketPrice: Number(pmOrder.price),
-                polymarketAmount: Number(pmOrder.size), // Shares
+                polymarketPrice: pmExecutionPrice,
+                polymarketAmount: Number(pmOrder.size),
                 polymarketTokenId: tokenId,
 
                 status: 'hedged',
-                polymarketFees: 0, // Assume 0 or update later
-                netProfit: tradeProfit,
-                ourSpread: 0, // No spread charged on direct trading
+                polymarketFees: 0, // PM fees not tracked yet
+                netProfit: platformProfit, // Our 3% markup profit
+                ourSpread: PLATFORM_MARKUP * 100, // 3% in basis points
             }
         });
 
@@ -230,11 +272,11 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
             success: true,
             orderId: internalOrder.id,
             totalFilled: pmOrder.size,
-            averagePrice: pmOrder.price,
-            fees: 0, // PM fees handled separately
+            averagePrice: userPrice, // User sees marked-up price
+            fees: 0,
             executionModule: 'polymarket',
             trades: [{
-                price: pmOrder.price,
+                price: userPrice, // User sees marked-up price
                 amount: pmOrder.size,
                 makerUserId: 'POLYMARKET',
                 isAmmTrade: false

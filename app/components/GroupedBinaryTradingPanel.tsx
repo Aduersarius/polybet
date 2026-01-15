@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { calculateLMSROdds } from '@/lib/amm';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Search, ChevronRight, ChevronLeft, TrendingUp, TrendingDown, Info, AlertCircle } from 'lucide-react';
+import { DepositModal } from '@/components/wallet/DepositModal';
 
 interface Outcome {
     id: string;
@@ -60,6 +61,7 @@ export function GroupedBinaryTradingPanel({
     const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
     const [searchQuery, setSearchQuery] = useState('');
     const [hotOutcomes, setHotOutcomes] = useState<Outcome[]>([]);
+    const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
     const queryClient = useQueryClient();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -440,26 +442,35 @@ export function GroupedBinaryTradingPanel({
                             </div>
                         )}
 
-                        {/* Trade Button */}
-                        <button
-                            onClick={() => tradeMutation.mutate()}
-                            disabled={tradeMutation.isPending || !amount || parseFloat(amount) <= 0}
-                            className={cn(
-                                "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
-                                selectedTab === 'buy'
-                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
-                                    : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500"
-                            )}
-                        >
-                            {tradeMutation.isPending ? (
-                                <div className="flex items-center justify-center gap-2">
-                                    <LoadingSpinner className="w-5 h-5 text-white" />
-                                    <span>Executing...</span>
-                                </div>
-                            ) : (
-                                <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
-                            )}
-                        </button>
+                        {/* Trade Button or Deposit Button */}
+                        {currentBalance < 1 && selectedTab === 'buy' ? (
+                            <button
+                                onClick={() => setIsDepositModalOpen(true)}
+                                className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500"
+                            >
+                                Deposit Funds
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => tradeMutation.mutate()}
+                                disabled={tradeMutation.isPending || !amount || parseFloat(amount) <= 0}
+                                className={cn(
+                                    "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                                    selectedTab === 'buy'
+                                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
+                                        : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500"
+                                )}
+                            >
+                                {tradeMutation.isPending ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <LoadingSpinner className="w-5 h-5 text-white" />
+                                        <span>Executing...</span>
+                                    </div>
+                                ) : (
+                                    <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
+                                )}
+                            </button>
+                        )}
                         {/* Terms of Use Footer */}
                         <p className="text-xs text-center text-gray-500 pb-2">
                             By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.
@@ -477,6 +488,12 @@ export function GroupedBinaryTradingPanel({
                     </div>
                 )}
             </div>
+
+            {/* Deposit Modal */}
+            <DepositModal
+                isOpen={isDepositModalOpen}
+                onClose={() => setIsDepositModalOpen(false)}
+            />
         </div>
     );
 }

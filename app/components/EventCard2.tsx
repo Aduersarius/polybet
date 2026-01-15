@@ -828,14 +828,16 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
         ? 'YES' // Always buy YES for specific outcome in multiple choice
         : selectedOption; // YES/NO for binary/grouped
 
-      const response = await fetch('/api/bets', {
+      const response = await fetch('/api/hybrid-trading', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           eventId: event.id,
+          side: 'buy', // Event cards only support buying
           option: optionValue,
           amount: amountNum,
           outcomeId: selectedOutcomeId,
+          orderType: 'market', // Quick bets are always market orders
         }),
       });
 

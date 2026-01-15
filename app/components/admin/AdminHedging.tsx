@@ -608,7 +608,7 @@ export function AdminHedging() {
                                   <>
                                     <button
                                       disabled={closingPosition === pos.tokenId}
-                                      onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.actualBalance, false)}
+                                      onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.actualBalance || 0, false)}
                                       className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-xs transition-colors disabled:opacity-50"
                                       title="Close position with limit order near market price"
                                     >

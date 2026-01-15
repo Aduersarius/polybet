@@ -18,6 +18,7 @@ import { getUserFriendlyError, getBalanceError, getMinimumBetError, getMaximumBe
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { HelpBanner } from '@/components/ui/HelpBanner';
 import { getOutcomeColor } from '@/lib/colors';
+import { DepositModal } from '@/components/wallet/DepositModal';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -55,6 +56,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [amountInputFocused, setAmountInputFocused] = useState(false);
     const [priceInputFocused, setPriceInputFocused] = useState(false);
+    const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
     const { settings, formatCurrency, formatOdds } = useSettings();
 
@@ -682,31 +684,40 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
                 </div>
 
-                {/* Trade Button */}
-                <button
-                    onClick={handleTrade}
-                    disabled={
-                        isLoading ||
-                        !amount ||
-                        parseFloat(amount) <= 0 ||
-                        (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
-                    }
-                    className={cn(
-                        "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed",
-                        selectedTab === 'buy'
-                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
-                            : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500 shadow-red-500/20"
-                    )}
-                >
-                    {isLoading ? (
-                        <div className="flex items-center justify-center gap-2">
-                            <LoadingSpinner className="w-5 h-5 text-white" />
-                            <span>Processing...</span>
-                        </div>
-                    ) : (
-                        <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
-                    )}
-                </button>
+                {/* Trade Button or Deposit Button */}
+                {stablecoinBalance < 1 && selectedTab === 'buy' ? (
+                    <button
+                        onClick={() => setIsDepositModalOpen(true)}
+                        className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500"
+                    >
+                        Deposit Funds
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleTrade}
+                        disabled={
+                            isLoading ||
+                            !amount ||
+                            parseFloat(amount) <= 0 ||
+                            (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
+                        }
+                        className={cn(
+                            "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed",
+                            selectedTab === 'buy'
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
+                                : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500 shadow-red-500/20"
+                        )}
+                    >
+                        {isLoading ? (
+                            <div className="flex items-center justify-center gap-2">
+                                <LoadingSpinner className="w-5 h-5 text-white" />
+                                <span>Processing...</span>
+                            </div>
+                        ) : (
+                            <span>{selectedTab === 'buy' ? 'Buy' : 'Sell'} {selectedOption} Tokens</span>
+                        )}
+                    </button>
+                )}
 
                 {/* Trade Success Feedback moved to toast notifications */}
 
@@ -792,6 +803,12 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Deposit Modal */}
+            <DepositModal
+                isOpen={isDepositModalOpen}
+                onClose={() => setIsDepositModalOpen(false)}
+            />
         </div>
     );
 }

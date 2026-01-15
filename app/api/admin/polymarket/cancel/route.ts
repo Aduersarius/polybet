@@ -82,13 +82,13 @@ export async function DELETE(request: NextRequest) {
         const results = [];
         for (const order of tokenOrders) {
             try {
-                const orderId = order.id || order.orderID;
+                const orderId = (order as any).id || (order as any).orderID;
                 console.log(`[Admin Polymarket API] Cancelling order: ${orderId}`);
                 await client.cancelOrder({ orderID: orderId });
                 results.push({ orderId, success: true });
             } catch (e: any) {
                 console.error(`[Admin Polymarket API] Failed to cancel order:`, e);
-                results.push({ orderId: order.id || order.orderID, success: false, error: e.message });
+                results.push({ orderId: (order as any).id || (order as any).orderID, success: false, error: e.message });
             }
         }
 

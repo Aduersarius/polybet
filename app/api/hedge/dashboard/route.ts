@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     });
 
     const totalUnhedged = unhedgedOrders.reduce(
-      (sum, o) => sum + (Number(o.amount) * Number(o.price)),
+      (sum: number, o: any) => sum + (Number(o.amount) * Number(o.price)),
       0
     );
 

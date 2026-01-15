@@ -319,7 +319,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            orderId: resp?.orderId || resp?.id,
+            orderId: resp?.orderId || (resp as any)?.id,
             result: resp
         });
     } catch (error) {

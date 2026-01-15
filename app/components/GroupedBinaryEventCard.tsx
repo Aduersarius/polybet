@@ -8,6 +8,7 @@ import { getCategoryColorClasses, getCategoryColor, muteColor, darkenColor } fro
 import { Slider } from '@/components/ui/slider';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import { DepositModal } from '@/components/wallet/DepositModal';
 
 interface DbEvent {
     id: string;
@@ -83,6 +84,7 @@ export function GroupedBinaryEventCard({
     const [buyAmount, setBuyAmount] = useState<string>('10');
     const [userBalance, setUserBalance] = useState<number>(0);
     const [balancePct, setBalancePct] = useState<number>(0);
+    const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     // Countdown state (EventCard2 copy)
@@ -625,32 +627,50 @@ export function GroupedBinaryEventCard({
                             </div>
                         </div>
 
-                        {/* Buy Button */}
-                        <button
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBuy(); }}
-                            disabled={isLoading || amountNum <= 0}
-                            className="flex-1 min-h-[48px] disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-0.5"
-                            style={{ backgroundColor: buyButtonColor }}
-                            onMouseEnter={(e) => {
-                                if (!isLoading && amountNum > 0) {
-                                    e.currentTarget.style.backgroundColor = darkenColor(buyButtonColor, 0.1);
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (!isLoading && amountNum > 0) {
-                                    e.currentTarget.style.backgroundColor = buyButtonColor;
-                                }
-                            }}
-                        >
-                            <span className="text-sm font-bold">Buy {selectedOption}</span>
-                            <span className="text-[11px] font-normal text-white/90">
-                                To win ${winAmount.toFixed(2)}
-                            </span>
-                        </button>
+                        {/* Buy Button or Deposit Button */}
+                        {userBalance < 1 ? (
+                            <button
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsDepositModalOpen(true); }}
+                                className="flex-1 min-h-[48px] text-white font-bold py-2.5 px-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-0.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500"
+                            >
+                                <span className="text-sm font-bold">Deposit Funds</span>
+                                <span className="text-[11px] font-normal text-white/90">
+                                    Add funds to start trading
+                                </span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBuy(); }}
+                                disabled={isLoading || amountNum <= 0}
+                                className="flex-1 min-h-[48px] disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-0.5"
+                                style={{ backgroundColor: buyButtonColor }}
+                                onMouseEnter={(e) => {
+                                    if (!isLoading && amountNum > 0) {
+                                        e.currentTarget.style.backgroundColor = darkenColor(buyButtonColor, 0.1);
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isLoading && amountNum > 0) {
+                                        e.currentTarget.style.backgroundColor = buyButtonColor;
+                                    }
+                                }}
+                            >
+                                <span className="text-sm font-bold">Buy {selectedOption}</span>
+                                <span className="text-[11px] font-normal text-white/90">
+                                    To win ${winAmount.toFixed(2)}
+                                </span>
+                            </button>
+                        )}
 
                     </div>
                 </motion.div>
             </motion.div>
+
+            {/* Deposit Modal */}
+            <DepositModal
+                isOpen={isDepositModalOpen}
+                onClose={() => setIsDepositModalOpen(false)}
+            />
         </div>
     );
 }

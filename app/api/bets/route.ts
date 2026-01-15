@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         // Prevent bets on Polymarket events if hedging is unavailable
         if (eventMeta.source === 'POLYMARKET') {
             if (!polymarketCircuit.isAllowed()) {
-                trackError('hedging', 'circuit_breaker_open');
+                trackError('trading', 'circuit_breaker_open');
                 return createClientErrorResponse(
                     'Polymarket trading temporarily unavailable. Please try again in a few moments.',
                     503
@@ -246,8 +246,8 @@ export async function POST(request: Request) {
                     },
                 });
 
-                const yesPosition = userPositions.find(p => p.option === 'YES')?._sum.amountFilled || 0;
-                const noPosition = userPositions.find(p => p.option === 'NO')?._sum.amountFilled || 0;
+                const yesPosition = userPositions.find((p: any) => p.option === 'YES')?._sum.amountFilled || 0;
+                const noPosition = userPositions.find((p: any) => p.option === 'NO')?._sum.amountFilled || 0;
                 const netYesPosition = yesPosition - noPosition;
 
                 console.log(`[Hedging] User position before bet: YES=${netYesPosition.toFixed(2)}, current bet: ${option} $${numericAmount}`);
@@ -273,7 +273,7 @@ export async function POST(request: Request) {
 
                     if (!closeResult.success) {
                         console.error('[Hedging] Failed to close hedge:', closeResult.error);
-                        trackError('hedging', 'hedge_close_failed');
+                        trackError('trading', 'hedge_close_failed');
                         // Don't fail the user's trade - they closed their position successfully
                         // The hedge close failure is our problem to handle manually
                     } else {
@@ -298,7 +298,7 @@ export async function POST(request: Request) {
                             error: hedgeResult.error,
                             errorCode: hedgeResult.errorCode
                         });
-                        trackError('hedging', 'hedge_failed_after_commit');
+                        trackError('trading', 'hedge_failed_after_commit');
 
                         return createClientErrorResponse(
                             'Unable to complete bet placement. Please contact support if amount was deducted.',
@@ -310,7 +310,7 @@ export async function POST(request: Request) {
                 }
             } catch (err) {
                 console.error('[Hedging] CRITICAL Exception:', err);
-                trackError('hedging', 'hedge_exception');
+                trackError('trading', 'hedge_exception');
                 return createClientErrorResponse(
                     'Unable to complete bet placement. Please contact support if amount was deducted.',
                     503

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/lib/auth-client';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Slider } from '@/components/ui/slider';
+import { DepositModal } from '@/components/wallet/DepositModal';
 
 interface Outcome {
     id: string;
@@ -42,6 +43,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     const [isLoading, setIsLoading] = useState(false);
     const [lastTrade, setLastTrade] = useState<{ tokens: number, price: number, orderType?: string, orderAmount?: number, orderPrice?: number, orderId?: string } | null>(null);
     const [balancePct, setBalancePct] = useState<number>(0);
+    const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
     // Fetch user balances for all outcomes in this event
     const { data: balanceData } = useQuery({
@@ -576,36 +578,45 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                             )}
                         </div>
 
-                        {/* Trade Button */}
-                        <button
-                            onClick={handleTrade}
-                            disabled={
-                                isLoading ||
-                                !amount ||
-                                parseFloat(amount) <= 0 ||
-                                parseFloat(amount) > MAX_BET_AMOUNT ||
-                                !selectedOutcomeId ||
-                                (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
-                            }
-                            className={cn(
-                                "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
-                                selectedTab === 'buy'
-                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
-                                    : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500"
-                            )}
-                        >
-                            {isLoading
-                                ? (
-                                    <div className="flex items-center justify-center gap-2">
-                                        <LoadingSpinner className="w-5 h-5 text-white" />
-                                        <span>Processing...</span>
-                                    </div>
-                                )
-                                : parseFloat(amount) > MAX_BET_AMOUNT
-                                    ? `Max bet: $${MAX_BET_AMOUNT.toLocaleString()}`
-                                    : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} Tokens`
-                            }
-                        </button>
+                        {/* Trade Button or Deposit Button */}
+                        {stablecoinBalance < 1 && selectedTab === 'buy' ? (
+                            <button
+                                onClick={() => setIsDepositModalOpen(true)}
+                                className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500"
+                            >
+                                Deposit Funds
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleTrade}
+                                disabled={
+                                    isLoading ||
+                                    !amount ||
+                                    parseFloat(amount) <= 0 ||
+                                    parseFloat(amount) > MAX_BET_AMOUNT ||
+                                    !selectedOutcomeId ||
+                                    (orderType === 'limit' && (!price || parseFloat(price) <= 0 || parseFloat(price) >= 1))
+                                }
+                                className={cn(
+                                    "w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                                    selectedTab === 'buy'
+                                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
+                                        : "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500"
+                                )}
+                            >
+                                {isLoading
+                                    ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <LoadingSpinner className="w-5 h-5 text-white" />
+                                            <span>Processing...</span>
+                                        </div>
+                                    )
+                                    : parseFloat(amount) > MAX_BET_AMOUNT
+                                        ? `Max bet: $${MAX_BET_AMOUNT.toLocaleString()}`
+                                        : `${selectedTab === 'buy' ? 'Buy' : 'Sell'} Tokens`
+                                }
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -653,6 +664,12 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                     By trading, you agree to the <a href="#" className="underline hover:text-gray-400">Terms of Use</a>.
                 </p>
             </div>
+
+            {/* Deposit Modal */}
+            <DepositModal
+                isOpen={isDepositModalOpen}
+                onClose={() => setIsDepositModalOpen(false)}
+            />
         </div>
     );
 }
