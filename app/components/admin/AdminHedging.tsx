@@ -76,6 +76,8 @@ type PolymarketData = {
     avgPrice: number;
     side: string;
     marketId?: string;
+    actualBalance?: number | null;
+    hasDiscrepancy?: boolean;
   }>;
   recentTrades: Array<{
     id: string;
@@ -104,6 +106,7 @@ export function AdminHedging() {
   const [period, setPeriod] = useState('24h');
   const [updating, setUpdating] = useState(false);
   const [closingPosition, setClosingPosition] = useState<string | null>(null);
+  const [cancellingOrders, setCancellingOrders] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -165,8 +168,13 @@ export function AdminHedging() {
     }
   };
 
-  const handleClosePosition = async (tokenId: string, side: string, amount: number) => {
-    if (!window.confirm(`Are you sure you want to close this ${side} position (${amount} shares)? This will place a market-equivalent order to liquidate the position.`)) {
+  const handleClosePosition = async (tokenId: string, side: string, amount: number, marketSell: boolean = false) => {
+    const action = marketSell ? 'market sell' : 'close';
+    const warning = marketSell
+      ? `Market sell ${amount} shares at BEST AVAILABLE PRICE? You may get significantly less than expected.`
+      : `Close this ${side} position (${amount} shares)? This will place a limit order near market price.`;
+
+    if (!window.confirm(warning)) {
       return;
     }
 
@@ -175,20 +183,45 @@ export function AdminHedging() {
       const res = await fetch('/api/admin/polymarket', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokenId, side, amount }),
+        body: JSON.stringify({ tokenId, side, amount, marketSell }),
       });
 
       const result = await res.json();
 
-      if (!res.ok) throw new Error(result.error || 'Failed to close position');
+      if (!res.ok) throw new Error(result.error || `Failed to ${action} position`);
 
-      alert(`✅ Close order placed successfully: ${result.orderId}`);
+      alert(`✅ ${marketSell ? 'Market sell' : 'Close'} order placed: ${result.orderId}`);
       // Reload data to show updated state
       loadPolymarketData();
     } catch (err) {
       alert(`❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setClosingPosition(null);
+    }
+  };
+
+  const handleCancelOrders = async (tokenId: string) => {
+    if (!window.confirm(`Cancel all open orders for this token? This will free up any locked shares.`)) {
+      return;
+    }
+
+    try {
+      setCancellingOrders(tokenId);
+      const res = await fetch(`/api/admin/polymarket/cancel?tokenId=${encodeURIComponent(tokenId)}`, {
+        method: 'DELETE',
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.error || 'Failed to cancel orders');
+
+      alert(`✅ Cancelled ${result.cancelledCount} orders successfully`);
+      // Reload data to show updated state
+      loadPolymarketData();
+    } catch (err) {
+      alert(`❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setCancellingOrders(null);
     }
   };
 
@@ -524,7 +557,25 @@ export function AdminHedging() {
                             <td className={`py-2 font-semibold ${pos.side === 'LONG' ? 'text-emerald-400' : 'text-red-400'}`}>
                               {pos.side}
                             </td>
-                            <td className="py-2 text-right text-zinc-200">{pos.shares.toFixed(2)}</td>
+                            <td className="py-2 text-right">
+                              <div className="flex flex-col items-end">
+                                {pos.actualBalance !== undefined && pos.actualBalance !== null ? (
+                                  <>
+                                    <span className={pos.hasDiscrepancy ? 'text-orange-400 font-semibold' : 'text-zinc-200'}>
+                                      {pos.actualBalance.toFixed(2)}
+                                      {pos.hasDiscrepancy && ' ⚠️'}
+                                    </span>
+                                    {pos.hasDiscrepancy && (
+                                      <span className="text-xs text-zinc-500" title="Calculated from trades">
+                                        (calc: {pos.shares.toFixed(2)})
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-zinc-200">{pos.shares.toFixed(2)}</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="py-2 text-right text-zinc-200">${pos.avgPrice.toFixed(4)}</td>
                             <td className="py-2 text-right text-zinc-200">${pos.cost.toFixed(4)}</td>
                             <td className="py-2 text-center">
@@ -542,13 +593,40 @@ export function AdminHedging() {
                               </a>
                             </td>
                             <td className="py-2 text-right">
-                              <button
-                                disabled={closingPosition === pos.tokenId}
-                                onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.shares)}
-                                className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-xs transition-colors disabled:opacity-50"
-                              >
-                                {closingPosition === pos.tokenId ? 'Closing...' : 'Close'}
-                              </button>
+                              <div className="flex gap-1 justify-end">
+                                <button
+                                  disabled={cancellingOrders === pos.tokenId}
+                                  onClick={() => handleCancelOrders(pos.tokenId)}
+                                  className="px-2 py-1 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded text-xs transition-colors disabled:opacity-50"
+                                  title="Cancel all open orders for this token"
+                                >
+                                  {cancellingOrders === pos.tokenId ? 'Cancelling...' : 'Cancel Orders'}
+                                </button>
+                                {(pos.actualBalance !== undefined && pos.actualBalance !== null && pos.actualBalance > 0) ? (
+                                  <>
+                                    <button
+                                      disabled={closingPosition === pos.tokenId}
+                                      onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.actualBalance, true)}
+                                      className="px-2 py-1 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 rounded text-xs transition-colors disabled:opacity-50"
+                                      title="Sell immediately at best bid (may get low price)"
+                                    >
+                                      {closingPosition === pos.tokenId ? 'Selling...' : 'Market Sell'}
+                                    </button>
+                                    <button
+                                      disabled={closingPosition === pos.tokenId}
+                                      onClick={() => handleClosePosition(pos.tokenId, pos.side, pos.actualBalance, false)}
+                                      className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-xs transition-colors disabled:opacity-50"
+                                      title="Close position near market price"
+                                    >
+                                      {closingPosition === pos.tokenId ? 'Closing...' : 'Close'}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-zinc-500 italic px-2 py-1">
+                                    {pos.actualBalance === 0 ? 'No balance (phantom)' : 'Loading...'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

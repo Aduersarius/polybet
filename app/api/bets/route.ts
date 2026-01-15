@@ -217,18 +217,21 @@ export async function POST(request: Request) {
         if (eventMeta.source === 'POLYMARKET' && orderRecord?.id) {
             (async () => {
                 try {
-                    const { hedgeUserOrder } = await import('@/lib/hedging/per-order');
-                    await hedgeUserOrder({
-                        orderId: orderRecord.id,
+                    const { hedgeAndExecute } = await import('@/lib/hedge-simple');
+                    const hedgeResult = await hedgeAndExecute({
+                        userId: targetUserId,
                         eventId,
                         option: option as 'YES' | 'NO',
                         amount: numericAmount,
-                        price: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
-                        userId: targetUserId,
-                        polymarketOutcomeId: matchedOutcome?.polymarketOutcomeId || undefined,
                     });
+
+                    if (!hedgeResult.success) {
+                        console.error('[Hedging] Failed:', hedgeResult.error, hedgeResult.errorCode);
+                    } else {
+                        console.log(`[Hedging] Success - Profit: $${hedgeResult.netProfit?.toFixed(4)}, PM Order: ${hedgeResult.polymarketOrderId}`);
+                    }
                 } catch (err) {
-                    console.error('[Hedging] Failed to trigger per-order hedge', err);
+                    console.error('[Hedging] Exception:', err);
                 }
             })();
         }

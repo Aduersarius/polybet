@@ -7,10 +7,12 @@ export interface ExecutionResult {
     fillPrice: number;
     fillSize: number;
     fees: number;
+    filled: boolean;
+    status: string;
 }
 
 /**
- * Executes the actual order on Polymarket CLOB
+ * Executes the actual order on Polymarket CLOB and waits for fill
  */
 export async function executePolymarketOrder(
     marketId: string,
@@ -35,13 +37,34 @@ export async function executePolymarketOrder(
             throw new Error('Polymarket execution failed: No orderId returned');
         }
 
-        const fees = (quote.shares * quote.price) * 0.0002; // Estimate 0.02% fee if not provided
+        console.log(`[Vivid-Executor] ✅ Order placed: ${order.orderId.slice(0, 16)}... - Monitoring fill status...`);
+
+        // Wait up to 10 seconds for order to fill
+        const fillResult = await polymarketTrading.waitForOrderFill(order.orderId, 10000, 1000);
+
+        console.log(
+            `[Vivid-Executor] Fill Status: ${fillResult.status} | ` +
+            `Filled: ${fillResult.filledSize.toFixed(2)}/${quote.shares.toFixed(2)} shares ` +
+            `(${((fillResult.filledSize / quote.shares) * 100).toFixed(0)}%)`
+        );
+
+        if (!fillResult.filled && fillResult.status === 'TIMEOUT') {
+            console.warn(
+                `[Vivid-Executor] ⚠️ Limit order NOT filled within 10s. ` +
+                `Order is OPEN at price ${quote.price.toFixed(4)} waiting for counterparty. ` +
+                `This is NORMAL for limit orders in illiquid markets.`
+            );
+        }
+
+        const fees = (fillResult.filledSize * fillResult.avgPrice) * 0.0002; // Use actual fill price
 
         return {
             orderId: order.orderId,
-            fillPrice: order.price || quote.price,
-            fillSize: order.size || quote.shares,
-            fees
+            fillPrice: fillResult.avgPrice || quote.price,
+            fillSize: fillResult.filledSize,
+            fees,
+            filled: fillResult.filled,
+            status: fillResult.status
         };
     } catch (error: any) {
         // Normalize error messages (Bulletproof)

@@ -1,83 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Wallet } from 'ethers';
-import { ClobClient } from '@polymarket/clob-client';
+import { Wallet, ethers } from 'ethers';
+import { polymarketTrading } from '@/lib/polymarket-trading';
 
-// Function to wrap wallet for ethers v6 compatibility
-function wrapWalletForV5Compat(wallet: Wallet): Wallet {
-    const wrappedWallet = wallet as any;
-    if (!wrappedWallet._signTypedData && wrappedWallet.signTypedData) {
-        wrappedWallet._signTypedData = function (
-            domain: any,
-            types: any,
-            value: any
-        ): Promise<string> {
-            return this.signTypedData(domain, types, value);
-        };
-    }
-    return wrappedWallet as Wallet;
-}
-
-function getClobClient() {
-    const privateKey = process.env.POLYMARKET_PRIVATE_KEY;
-    const apiKey = process.env.POLYMARKET_API_KEY;
-    const apiSecret = process.env.POLYMARKET_API_SECRET;
-    const passphrase = process.env.POLYMARKET_PASSPHRASE;
-    const funderAddress = process.env.POLYMARKET_FUNDER_ADDRESS;
-
-    if (!privateKey || !apiKey || !apiSecret || !passphrase) {
-        throw new Error('Polymarket credentials not configured');
-    }
-
-    const rawWallet = new Wallet(privateKey);
-    const wallet = wrapWalletForV5Compat(rawWallet);
-
-    // Sanitize secret
-    let sanitizedSecret = apiSecret.replace(/-/g, '+').replace(/_/g, '/');
-    while (sanitizedSecret.length % 4) {
-        sanitizedSecret += '=';
-    }
-
-    const signatureType = funderAddress ? 1 : 0;
-
-    return new ClobClient(
-        process.env.POLYMARKET_CLOB_API_URL || 'https://clob.polymarket.com',
-        parseInt(process.env.POLYMARKET_CHAIN_ID || '137'),
-        wallet as any,
-        {
-            key: apiKey,
-            secret: sanitizedSecret,
-            passphrase: passphrase,
-        },
-        signatureType,
-        funderAddress || undefined,
-        undefined,
-        true // useServerTime
-    );
-}
+// Prevent static generation
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        const client = getClobClient();
-        const walletAddress = (await (client as any).orderBuilder?.resolveSigner?.()?.getAddress?.())
-            || process.env.POLYMARKET_PRIVATE_KEY?.slice(0, 10) + '...';
+        // Use the shared service which handles auto-derivation
+        await polymarketTrading.ensureReady();
 
-        // Fetch open orders
-        let openOrders: any[] = [];
+        // Access private wallet address if available (for display only)
+        let walletAddress = 'Loading...';
         try {
-            openOrders = await client.getOpenOrders() || [];
-        } catch (e) {
-            console.error('[Polymarket API] Failed to get open orders:', e);
-        }
+            if (process.env.POLYMARKET_PRIVATE_KEY) {
+                const wallet = new Wallet(process.env.POLYMARKET_PRIVATE_KEY);
+                walletAddress = wallet.address;
+            } else if (process.env.POLYMARKET_FUNDER_ADDRESS) {
+                walletAddress = process.env.POLYMARKET_FUNDER_ADDRESS;
+            }
+        } catch (e) { }
 
-        // Fetch trades
-        let trades: any[] = [];
-        try {
-            trades = await client.getTrades() || [];
-        } catch (e) {
-            console.error('[Polymarket API] Failed to get trades:', e);
-        }
+        // Fetch open orders via service
+        const openOrders = await polymarketTrading.getOpenOrders();
 
-        // Calculate positions from trades
+        // Fetch trades via service
+        const trades = await polymarketTrading.getTrades();
+
+        // Calculate positions from FILLED trades only (not pending orders)
         const positions: {
             [tokenId: string]: {
                 shares: number;
@@ -90,6 +40,11 @@ export async function GET(request: NextRequest) {
         } = {};
 
         for (const trade of trades) {
+            // Skip non-filled trades - trades with match_time have actually filled
+            if (!trade.match_time) {
+                continue;
+            }
+
             const tokenId = trade.asset_id || trade.token_id;
             if (!tokenId) continue;
 
@@ -119,21 +74,65 @@ export async function GET(request: NextRequest) {
         // Calculate avg price and filter out closed positions
         const openPositions = Object.values(positions)
             .filter(p => Math.abs(p.shares) > 0.001)
-            .map(p => ({
-                ...p,
-                avgPrice: p.shares !== 0 ? p.cost / p.shares : 0,
-                side: p.shares > 0 ? 'LONG' : 'SHORT',
-                shares: Math.abs(p.shares),
-            }));
+            .map(p => {
+                const isLong = p.shares > 0;
+                return {
+                    ...p,
+                    avgPrice: p.shares !== 0 ? p.cost / p.shares : 0,
+                    side: isLong ? 'LONG' : 'SHORT',
+                    shares: Math.abs(p.shares),
+                };
+            });
+
+        // Fetch ACTUAL on-chain balances from Polygon blockchain
+        if (process.env.POLYMARKET_PRIVATE_KEY) {
+            console.log('[Admin Polymarket API] Fetching on-chain balances for positions...');
+            const hedgeWallet = new Wallet(process.env.POLYMARKET_PRIVATE_KEY);
+
+            // Conditional Tokens Framework contract on Polygon
+            const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+            const CTF_ABI = [
+                'function balanceOf(address account, uint256 id) view returns (uint256)'
+            ];
+
+            // Create provider for Polygon
+            const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
+            const ctfContract = new ethers.Contract(CTF_ADDRESS, CTF_ABI, provider);
+
+            // Fetch real balances for each position
+            for (const pos of openPositions) {
+                try {
+                    const balance = await ctfContract.balanceOf(hedgeWallet.address, pos.tokenId);
+                    // FIX: Convert from raw units (6 decimals) to actual shares
+                    const actualShares = parseFloat(ethers.formatUnits(balance, 6));
+                    (pos as any).actualBalance = actualShares;
+
+                    // Flag discrepancies between calculated and actual
+                    const diff = Math.abs(actualShares - pos.shares);
+                    if (diff > 0.01) {
+                        console.warn(`[Admin Polymarket API] ⚠️ Balance mismatch for ${pos.tokenId.slice(-8)}: calculated=${pos.shares.toFixed(2)}, actual=${actualShares.toFixed(2)}`);
+                        (pos as any).hasDiscrepancy = true;
+
+                        // FIX: Correct the side based on actual balance
+                        if (actualShares > 0 && pos.side === 'SHORT') {
+                            console.warn(`[Admin Polymarket API] ⚠️ Correcting side from SHORT to LONG for ${pos.tokenId.slice(-8)}`);
+                            (pos as any).side = 'LONG';
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[Admin Polymarket API] Failed to fetch balance for ${pos.tokenId}:`, e);
+                    (pos as any).actualBalance = null;
+                }
+            }
+        }
 
         // Fetch market slugs for open positions
         try {
             await Promise.all(openPositions.map(async (pos) => {
                 if (pos.marketId) {
                     try {
-                        const market = await client.getMarket(pos.marketId);
+                        const market = await polymarketTrading.getMarket(pos.marketId);
                         if (market && (market as any).market_slug) {
-                            // Used 'any' cast because the type definition might not include slug depending on version
                             pos.marketId = (market as any).market_slug;
                         }
                     } catch (e) {
@@ -153,7 +152,7 @@ export async function GET(request: NextRequest) {
             await Promise.all(Array.from(tradeMarkets).map(async (marketId: any) => {
                 if (!marketId) return;
                 try {
-                    const market = await client.getMarket(marketId);
+                    const market = await polymarketTrading.getMarket(marketId);
                     if (market && (market as any).market_slug) {
                         marketSlugMap.set(marketId, (market as any).market_slug);
                     }
@@ -166,22 +165,15 @@ export async function GET(request: NextRequest) {
             trades.forEach(t => {
                 const mid = t.market_id || t.market;
                 if (mid && marketSlugMap.has(mid)) {
-                    t.slug = marketSlugMap.get(mid);
+                    (t as any).slug = marketSlugMap.get(mid);
                 }
             });
         } catch (e) {
             console.error('Error fetching trade market slugs', e);
         }
 
-        // Get wallet address
-        let wallet = 'Unknown';
-        try {
-            const rawWallet = new Wallet(process.env.POLYMARKET_PRIVATE_KEY!);
-            wallet = rawWallet.address;
-        } catch { }
-
         return NextResponse.json({
-            wallet,
+            wallet: walletAddress,
             openOrders: openOrders.map(o => ({
                 id: o.id || o.orderID,
                 tokenId: o.asset_id || o.token_id,
@@ -196,7 +188,7 @@ export async function GET(request: NextRequest) {
             recentTrades: trades.slice(0, 20).map(t => ({
                 id: t.id,
                 tokenId: t.asset_id || t.token_id,
-                marketId: t.slug || t.market_id || t.market, // Use slug if available
+                marketId: (t as any).slug || t.market_id || t.market,
                 side: t.side,
                 price: t.price,
                 size: t.size,
@@ -225,56 +217,58 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const { tokenId, side, amount } = await request.json();
+        const { tokenId, side, amount, marketSell } = await request.json();
 
         if (!tokenId || !side || !amount) {
             return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
         }
 
-        console.log(`[Admin Polymarket API] Closing position: ${side} ${amount} shares of ${tokenId}`);
+        console.log(`[Admin Polymarket API] ${marketSell ? 'Market selling' : 'Closing'} position: ${side} ${amount} shares of ${tokenId}`);
 
-        const client = getClobClient();
+        await polymarketTrading.ensureReady();
 
-        // To close a LONG position, we SELL. To close a SHORT position, we BUY.
         const orderSide = (side === 'LONG' || side === 'buy' || side === 'BUY') ? 'SELL' : 'BUY';
 
-        // Fetch orderbook to get current market price and tick size
-        const orderbook = await client.getOrderBook(tokenId);
+        let resp;
+        if (marketSell) {
+            // For Market Sell/Buy, use our optimized method which handles orderbook + aggressive pricing
+            resp = await polymarketTrading.placeMarketOrder(
+                '0', // marketId not strictly needed for placeMarketOrder as it resolves from token
+                '0', // conditionId
+                tokenId,
+                orderSide as 'BUY' | 'SELL',
+                parseFloat(amount)
+            );
+        } else {
+            // Limit close - fetch orderbook to price appropriately
+            const orderbook = await polymarketTrading.getOrderbook(tokenId);
 
-        // Find the best price to execute 
-        let price = orderSide === 'BUY' ? 0.99 : 0.01;
+            let price = orderSide === 'BUY' ? 0.99 : 0.01;
 
-        if (orderSide === 'SELL' && orderbook.bids.length > 0) {
-            // Sort bids by price descending to find the best (highest) bid
-            const sortedBids = [...orderbook.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
-            price = parseFloat(sortedBids[0].price);
-            // Slightly lower to ensure immediate fill (market-equivalent)
-            price = Math.max(0.01, price - 0.01);
-        } else if (orderSide === 'BUY' && orderbook.asks.length > 0) {
-            // Sort asks by price ascending to find the best (lowest) ask
-            const sortedAsks = [...orderbook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-            price = parseFloat(sortedAsks[0].price);
-            // Slightly higher to ensure immediate fill
-            price = Math.min(0.99, price + 0.01);
+            if (orderSide === 'SELL' && orderbook.bids.length > 0) {
+                // Sell at best bid - 1 cent to ensure fill
+                price = Math.max(0.01, orderbook.bids[0].price - 0.01);
+            } else if (orderSide === 'BUY' && orderbook.asks.length > 0) {
+                // Buy at best ask + 1 cent
+                price = Math.min(0.99, orderbook.asks[0].price + 0.01);
+            }
+
+            resp = await polymarketTrading.placeOrder({
+                tokenId,
+                side: orderSide as 'BUY' | 'SELL',
+                size: parseFloat(amount),
+                price: price,
+                // Pass these if available to save calls
+                marketId: '0',
+                conditionId: '0'
+            });
         }
-
-        console.log(`[Admin Polymarket API] Using execution price: ${price} for ${orderSide}`);
-
-        const resp = await client.createAndPostOrder({
-            tokenID: tokenId,
-            price: price,
-            side: orderSide as any,
-            size: amount,
-        }, {
-            tickSize: (orderbook as any).tick_size,
-            negRisk: orderbook.neg_risk
-        });
 
         console.log(`[Admin Polymarket API] Close order placed:`, resp);
 
         return NextResponse.json({
             success: true,
-            orderId: resp?.orderID || resp?.id,
+            orderId: resp?.orderId || resp?.id,
             result: resp
         });
     } catch (error) {

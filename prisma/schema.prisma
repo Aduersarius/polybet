@@ -77,21 +77,22 @@ model User {
   ledgerEntries        LedgerEntry[]
   eventSuggestions     EventSuggestion[]
   telemetryEvents      TelemetryEvent[]
-  
+  hedgeRecords         HedgeRecord[]
+
   // Support System Relations
-  supportRole          String?              // null | "agent" | "admin" | "support_manager"
-  ticketsCreated       SupportTicket[]      @relation("TicketUser")
-  ticketsAssigned      SupportTicket[]      @relation("TicketAgent")
-  supportMessages      SupportMessage[]     @relation("SupportMessageUser")
-  supportNotes         SupportNote[]        @relation("NoteAgent")
-  attachmentsUploaded  SupportAttachment[]  @relation("AttachmentUploader")
-  auditLogs            SupportAuditLog[]    @relation("AuditUser")
-  telegramLink         TelegramUser?        @relation("LinkedTelegramUser")
-  
+  supportRole         String? // null | "agent" | "admin" | "support_manager"
+  ticketsCreated      SupportTicket[]     @relation("TicketUser")
+  ticketsAssigned     SupportTicket[]     @relation("TicketAgent")
+  supportMessages     SupportMessage[]    @relation("SupportMessageUser")
+  supportNotes        SupportNote[]       @relation("NoteAgent")
+  attachmentsUploaded SupportAttachment[] @relation("AttachmentUploader")
+  auditLogs           SupportAuditLog[]   @relation("AuditUser")
+  telegramLink        TelegramUser?       @relation("LinkedTelegramUser")
+
   // Affiliate referral tracking
-  referredBy           String?              // Affiliate ID who referred this user
-  referralDate         DateTime?             // When user clicked affiliate link
-  referralRecord       Referral?
+  referredBy     String? // Affiliate ID who referred this user
+  referralDate   DateTime? // When user clicked affiliate link
+  referralRecord Referral?
 
   @@index([address])
   @@index([lastVisitedAt])
@@ -154,11 +155,12 @@ model Event {
   marketActivity     MarketActivity[]
   orders             Order[]
   favorites          UserFavorite[]
-  creator            User                      @relation(fields: [creatorId], references: [id])
-  polyOrders         PolyOrder[]               @relation("PolyOrderEvent")
-  polyPositions      PolyPosition[]            @relation("PolyPositionEvent")
+  creator            User                     @relation(fields: [creatorId], references: [id])
+  polyOrders         PolyOrder[]              @relation("PolyOrderEvent")
+  polyPositions      PolyPosition[]           @relation("PolyPositionEvent")
   oddsHistory        OddsHistory[]
-  polymarketMapping  PolymarketMarketMapping?  @relation("PolymarketMapping")
+  polymarketMapping  PolymarketMarketMapping? @relation("PolymarketMapping")
+  hedgeRecords       HedgeRecord[]
 
   // Sports-specific metadata
   league     String? // "NFL", "NBA", "CSGO", "Dota 2"
@@ -329,7 +331,7 @@ model Notification {
   isRead     Boolean  @default(false)
   userId     String
   createdAt  DateTime @default(now())
-  metadata   Json?    // Rich context: {eventTitle, amount, price, outcome, side, etc.}
+  metadata   Json? // Rich context: {eventTitle, amount, price, outcome, side, etc.}
   user       User     @relation(fields: [userId], references: [id])
 
   @@index([userId, isRead])
@@ -368,6 +370,7 @@ model Order {
   batch          BatchOrder?      @relation(fields: [batchId], references: [id])
   hedgePosition  HedgePosition?
   polyOrder      PolyOrder?       @relation("PolyOrderOrder")
+  hedgeRecord    HedgeRecord?
 
   @@index([eventId, side])
   @@index([userId])
@@ -521,7 +524,7 @@ model Deposit {
   fromAddress String
   toAddress   String
   retryCount  Int?     @default(0) // Track sweep retries
-  metadata    Json?    // Store error logs, retry schedules, etc.
+  metadata    Json? // Store error logs, retry schedules, etc.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id])
@@ -623,7 +626,9 @@ model HedgePosition {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  userOrder Order? @relation(fields: [userOrderId], references: [id])
+  userOrder     Order?       @relation(fields: [userOrderId], references: [id])
+  hedgeRecord   HedgeRecord? @relation(fields: [hedgeRecordId], references: [id])
+  hedgeRecordId String?
 
   @@index([status])
   @@index([createdAt])
@@ -650,7 +655,7 @@ model PolymarketMarketMapping {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  event                 Event     @relation("PolymarketMapping", fields: [internalEventId], references: [id])
+  event Event @relation("PolymarketMapping", fields: [internalEventId], references: [id])
 
   @@index([polymarketId])
   @@index([internalEventId])
@@ -739,42 +744,84 @@ model HedgeConfig {
   @@index([key])
 }
 
+// New simplified hedge tracking (replaces PolyOrder + PolyPosition + HedgePosition)
+model HedgeRecord {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // User trade info
+  userId      String
+  userOrderId String @unique
+  eventId     String
+  option      String // YES/NO
+  userAmount  Float // What user paid ($)
+  userPrice   Float // Price user got (0-1)
+
+  // Polymarket hedge info
+  polymarketOrderId  String?
+  polymarketMarketId String
+  polymarketTokenId  String
+  polymarketSide     String // BUY/SELL
+  polymarketAmount   Float // Shares hedged
+  polymarketPrice    Float // PM fill price
+  polymarketFees     Float // Estimated fees
+
+  // Economics
+  ourSpread Float // Markup we added
+  netProfit Float // Spread - fees
+
+  // Status
+  status String // pending, hedged, failed
+  error  String?
+
+  // Relations
+  user           User            @relation(fields: [userId], references: [id])
+  order          Order           @relation(fields: [userOrderId], references: [id])
+  event          Event           @relation(fields: [eventId], references: [id])
+  hedgePositions HedgePosition[]
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 // ============================================
 // SUPPORT TICKETING SYSTEM
 // ============================================
 
 // Support Ticket
 model SupportTicket {
-  id            String   @id @default(cuid())
-  ticketNumber  String   @unique // Human-readable: TICK-2024-0001
-  userId        String
-  assignedToId  String?  // Support agent
-  
+  id           String  @id @default(cuid())
+  ticketNumber String  @unique // Human-readable: TICK-2024-0001
+  userId       String
+  assignedToId String? // Support agent
+
   // Ticket metadata
-  status        String   @default("open") // open | pending | resolved | closed
-  priority      String   @default("medium") // low | medium | high | critical
-  category      String   // deposit | withdrawal | dispute | bug | kyc | general
-  subject       String
-  
+  status   String @default("open") // open | pending | resolved | closed
+  priority String @default("medium") // low | medium | high | critical
+  category String // deposit | withdrawal | dispute | bug | kyc | general
+  subject  String
+
   // Source tracking
-  source        String   // web | telegram
+  source         String // web | telegram
   telegramChatId String? // If created via Telegram
-  
+
   // Timestamps
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   firstResponseAt DateTime? // SLA tracking
-  resolvedAt    DateTime?
-  closedAt      DateTime?
-  
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+
   // Relations
-  user          User     @relation("TicketUser", fields: [userId], references: [id])
-  assignedTo    User?    @relation("TicketAgent", fields: [assignedToId], references: [id])
-  messages      SupportMessage[]
-  attachments   SupportAttachment[]
-  notes         SupportNote[]
-  auditLogs     SupportAuditLog[]
-  
+  user        User                @relation("TicketUser", fields: [userId], references: [id])
+  assignedTo  User?               @relation("TicketAgent", fields: [assignedToId], references: [id])
+  messages    SupportMessage[]
+  attachments SupportAttachment[]
+  notes       SupportNote[]
+  auditLogs   SupportAuditLog[]
+
   @@index([userId])
   @@index([assignedToId])
   @@index([status])
@@ -787,49 +834,49 @@ model SupportTicket {
 
 // Support Messages (immutable)
 model SupportMessage {
-  id           String   @id @default(cuid())
-  ticketId     String
-  userId       String
-  content      String   @db.Text
-  isInternal   Boolean  @default(false) // False = visible to user
-  createdAt    DateTime @default(now())
-  
+  id         String   @id @default(cuid())
+  ticketId   String
+  userId     String
+  content    String   @db.Text
+  isInternal Boolean  @default(false) // False = visible to user
+  createdAt  DateTime @default(now())
+
   // Message metadata
-  source       String   // web | telegram | agent
+  source            String // web | telegram | agent
   telegramMessageId Int? // For Telegram sync
-  
+
   // Relations
-  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
-  user         User     @relation("SupportMessageUser", fields: [userId], references: [id])
-  attachments  SupportAttachment[]
-  
+  ticket      SupportTicket       @relation(fields: [ticketId], references: [id])
+  user        User                @relation("SupportMessageUser", fields: [userId], references: [id])
+  attachments SupportAttachment[]
+
   @@index([ticketId, createdAt])
   @@index([userId])
 }
 
 // File Attachments
 model SupportAttachment {
-  id           String   @id @default(cuid())
-  ticketId     String
-  messageId    String?  // Optional: can be attached to ticket or message
-  
+  id        String  @id @default(cuid())
+  ticketId  String
+  messageId String? // Optional: can be attached to ticket or message
+
   // File metadata
-  fileName     String
-  fileSize     Int      // bytes
-  mimeType     String
-  url          String   // Vercel Blob URL
-  
+  fileName String
+  fileSize Int // bytes
+  mimeType String
+  url      String // Vercel Blob URL
+
   // Security
-  uploadedBy   String
-  uploadedAt   DateTime @default(now())
-  isScanned    Boolean  @default(false)
-  scanStatus   String?  // clean | malware | error
-  
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+  isScanned  Boolean  @default(false)
+  scanStatus String? // clean | malware | error
+
   // Relations
-  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
-  message      SupportMessage? @relation(fields: [messageId], references: [id])
-  uploader     User     @relation("AttachmentUploader", fields: [uploadedBy], references: [id])
-  
+  ticket   SupportTicket   @relation(fields: [ticketId], references: [id])
+  message  SupportMessage? @relation(fields: [messageId], references: [id])
+  uploader User            @relation("AttachmentUploader", fields: [uploadedBy], references: [id])
+
   @@index([ticketId])
   @@index([messageId])
   @@index([uploadedBy])
@@ -837,36 +884,36 @@ model SupportAttachment {
 
 // Internal Notes (support team only)
 model SupportNote {
-  id           String   @id @default(cuid())
-  ticketId     String
-  agentId      String
-  content      String   @db.Text
-  createdAt    DateTime @default(now())
-  
-  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
-  agent        User     @relation("NoteAgent", fields: [agentId], references: [id])
-  
+  id        String   @id @default(cuid())
+  ticketId  String
+  agentId   String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id])
+  agent  User          @relation("NoteAgent", fields: [agentId], references: [id])
+
   @@index([ticketId, createdAt])
 }
 
 // Audit Log (immutable)
 model SupportAuditLog {
-  id           String   @id @default(cuid())
-  ticketId     String
-  userId       String   // Who performed the action
-  action       String   // created | assigned | status_changed | priority_changed | etc.
-  
+  id       String @id @default(cuid())
+  ticketId String
+  userId   String // Who performed the action
+  action   String // created | assigned | status_changed | priority_changed | etc.
+
   // Change tracking
-  fieldName    String?  // What changed (status, priority, etc.)
-  oldValue     String?
-  newValue     String?
-  metadata     Json?    // Additional context
-  
-  createdAt    DateTime @default(now())
-  
-  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
-  user         User     @relation("AuditUser", fields: [userId], references: [id])
-  
+  fieldName String? // What changed (status, priority, etc.)
+  oldValue  String?
+  newValue  String?
+  metadata  Json? // Additional context
+
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id])
+  user   User          @relation("AuditUser", fields: [userId], references: [id])
+
   @@index([ticketId, createdAt])
   @@index([userId])
   @@index([action])
@@ -874,37 +921,37 @@ model SupportAuditLog {
 
 // Telegram User Linking
 model TelegramUser {
-  id           String   @id @default(cuid())
-  telegramId   String   @unique // Telegram user ID
-  chatId       String   @unique // Telegram chat ID
-  username     String?
-  firstName    String?
-  lastName     String?
-  
+  id         String  @id @default(cuid())
+  telegramId String  @unique // Telegram user ID
+  chatId     String  @unique // Telegram chat ID
+  username   String?
+  firstName  String?
+  lastName   String?
+
   // Linking status
-  userId       String?  @unique // NULL = unverified temporary user
-  isVerified   Boolean  @default(false)
-  linkCode     String?  @unique // 6-digit code for account linking
+  userId         String?   @unique // NULL = unverified temporary user
+  isVerified     Boolean   @default(false)
+  linkCode       String?   @unique // 6-digit code for account linking
   linkCodeExpiry DateTime? // Expiry time for link code
-  
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   lastActiveAt DateTime @default(now())
-  
-  user         User?    @relation("LinkedTelegramUser", fields: [userId], references: [id])
-  
+
+  user User? @relation("LinkedTelegramUser", fields: [userId], references: [id])
+
   @@index([telegramId])
   @@index([userId])
 }
 
 // Rate Limiting
 model SupportRateLimit {
-  id           String   @id @default(cuid())
-  userId       String
-  action       String   // ticket_create | message_send
-  count        Int      @default(0)
-  windowStart  DateTime @default(now())
-  
+  id          String   @id @default(cuid())
+  userId      String
+  action      String // ticket_create | message_send
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
   @@unique([userId, action, windowStart])
   @@index([userId, action])
 }
@@ -914,91 +961,91 @@ model SupportRateLimit {
 // ============================================
 
 model Affiliate {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  password          String   // Hashed password
-  name              String
-  companyName       String?
-  website           String?
-  
+  id          String  @id @default(cuid())
+  email       String  @unique
+  password    String // Hashed password
+  name        String
+  companyName String?
+  website     String?
+
   // Tracking identifiers
-  referralCode      String   @unique // e.g., "JOHN2024"
-  
+  referralCode String @unique // e.g., "JOHN2024"
+
   // Statistics (counts only - no money amounts)
-  totalReferrals    Int      @default(0)
-  activeReferrals   Int      @default(0) // Users who deposited
-  totalDeposits     Int      @default(0) // Count of deposits
-  
+  totalReferrals  Int @default(0)
+  activeReferrals Int @default(0) // Users who deposited
+  totalDeposits   Int @default(0) // Count of deposits
+
   // Status
-  isActive          Boolean  @default(true)
-  emailVerified     Boolean  @default(false)
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  lastLoginAt       DateTime?
-  
+  isActive      Boolean @default(true)
+  emailVerified Boolean @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   // Relations
-  referrals         Referral[]
-  promoCodes        PromoCode[]
-  
+  referrals  Referral[]
+  promoCodes PromoCode[]
+
   @@index([referralCode])
   @@index([email])
   @@index([isActive])
 }
 
 model PromoCode {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   affiliateId String
-  code        String   @unique // e.g., "SAVE20"
+  code        String  @unique // e.g., "SAVE20"
   description String?
-  
-  usageCount  Int      @default(0)
-  maxUses     Int?     // Null = unlimited
-  
-  isActive    Boolean  @default(true)
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  
-  affiliate   Affiliate @relation(fields: [affiliateId], references: [id])
-  referrals   Referral[]
-  
+
+  usageCount Int  @default(0)
+  maxUses    Int? // Null = unlimited
+
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  affiliate Affiliate  @relation(fields: [affiliateId], references: [id])
+  referrals Referral[]
+
   @@index([code])
   @@index([affiliateId])
 }
 
 model Referral {
-  id              String   @id @default(cuid())
-  affiliateId     String
-  userId          String   @unique // The referred user
-  promoCodeId     String?  // If promo code was used
-  
+  id          String  @id @default(cuid())
+  affiliateId String
+  userId      String  @unique // The referred user
+  promoCodeId String? // If promo code was used
+
   // Tracking metadata
-  referralSource  String?  // "URL" or "PROMO_CODE"
-  utmSource       String?
-  utmMedium       String?
-  utmCampaign     String?
-  ipAddress       String?
-  userAgent       String?
-  
+  referralSource String? // "URL" or "PROMO_CODE"
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  ipAddress      String?
+  userAgent      String?
+
   // Conversion tracking
-  signupDate      DateTime @default(now())
+  signupDate       DateTime  @default(now())
   firstDepositDate DateTime?
-  
+
   // Counts (visible to affiliate)
-  depositCount    Int      @default(0) // Number of deposits made
-  
+  depositCount Int @default(0) // Number of deposits made
+
   // Revenue tracking (ADMIN ONLY - not shown to affiliate)
-  totalDepositAmount Decimal  @default(0.0) // Total $ deposited
-  totalVolume       Decimal  @default(0.0) // Total trading volume
-  totalRevenue      Decimal  @default(0.0) // Platform profit from this user
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  affiliate       Affiliate @relation(fields: [affiliateId], references: [id])
-  user            User      @relation(fields: [userId], references: [id])
-  promoCode       PromoCode? @relation(fields: [promoCodeId], references: [id])
-  
+  totalDepositAmount Decimal @default(0.0) // Total $ deposited
+  totalVolume        Decimal @default(0.0) // Total trading volume
+  totalRevenue       Decimal @default(0.0) // Platform profit from this user
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  affiliate Affiliate  @relation(fields: [affiliateId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+  promoCode PromoCode? @relation(fields: [promoCodeId], references: [id])
+
   @@unique([affiliateId, userId])
   @@index([affiliateId])
   @@index([userId])

@@ -19,17 +19,19 @@ export interface HedgeConfig {
   maxPositionSize: number; // Max size for single hedge
   hedgeTimeoutMs: number; // Time to wait for hedge before failing
   retryAttempts: number; // Number of retry attempts
+  minProfitThreshold: number; // Minimum USD profit required per trade (economic viability check)
 }
 
 // Default configuration
 const DEFAULT_CONFIG: HedgeConfig = {
   enabled: true, // Enabled by default
-  minSpreadBps: 200, // 2% minimum spread
+  minSpreadBps: 400, // 4% minimum spread (covers 2.5% fees + 1.5% profit margin)
   maxSlippageBps: 100, // 1% max slippage
   maxUnhedgedExposure: 10000, // $10k max unhedged
   maxPositionSize: 1000, // $1k max single position
   hedgeTimeoutMs: 5000, // 5 seconds
   retryAttempts: 3,
+  minProfitThreshold: 0.00, // $0.00 allows break-even trades (spread should handle profitability)
 };
 
 export class HedgeManager {
@@ -255,34 +257,45 @@ export class HedgeManager {
       };
     }
 
-    // Check minimum order size (Polymarket constraint)
-    // Most markets have a strict $1 minimum value
-    const value = params.size * params.price;
-    if (value < 1.1) { // Safety check for dust, using $1.1 to avoid rounding issues hitting $1.0 limit
-      return {
-        feasible: false,
-        reason: `Order value ($${value.toFixed(4)}) too small for hedging (min $1.10)`
-      };
-    }
-    // Hardcoded safety min size from Polymarket docs (usually 5 USDC or shares)
-    // Actually it's often 5 shares or value... let's check config later. 
-    // User error was "Size (1) lower than minimum: 5".
-    // Assuming 5 is shares if price is low, or currency if high? 
-    // Usually it's min proxy amount.
-    // Let's enforce min size 5 to be safe if that's what API said.
+    // Check minimum order size (Polymarket API constraint from actual error)
+    // Error was: "Size (1) lower than minimum: 5"
     if (params.size < 5) {
       return {
         feasible: false,
-        reason: `Order size (${params.size}) lower than minimum (5)`
+        reason: `Order size (${params.size} shares) below Polymarket minimum (5 shares)`
       };
     }
 
-    // Check position size limits (in USD value, not share count)
-    const positionValueUsd = params.size * params.price;
-    if (positionValueUsd > this.config.maxPositionSize) {
+    // ECONOMIC VIABILITY CHECK - Prevent unprofitable trades
+    // Calculate this BEFORE expensive DB/API operations to fail fast
+    const orderValue = params.size * params.price;
+
+    // Quick spread estimate (will be refined later with volatility data)
+    const estimatedSpreadBps = this.config.minSpreadBps; // Use minimum spread for conservative estimate
+    const estimatedSpreadValue = (estimatedSpreadBps / 10000) * orderValue;
+
+    // Estimate fees
+    const estimatedFees = estimatePolymarketFees(params.size, params.price);
+
+    // Calculate net profit
+    const estimatedNetProfit = estimatedSpreadValue - estimatedFees;
+
+    // Reject if unprofitable
+    if (estimatedNetProfit < this.config.minProfitThreshold) {
       return {
         feasible: false,
-        reason: `Position value $${positionValueUsd.toFixed(2)} exceeds maximum $${this.config.maxPositionSize}`,
+        reason: `Order unprofitable: estimated profit $${estimatedNetProfit.toFixed(4)} < minimum $${this.config.minProfitThreshold.toFixed(2)} ` +
+          `(spread: $${estimatedSpreadValue.toFixed(4)}, fees: $${estimatedFees.toFixed(4)}, value: $${orderValue.toFixed(2)})`
+      };
+    }
+
+    console.log(`[HedgeManager] Economic viability check passed: profit $${estimatedNetProfit.toFixed(4)} >= threshold $${this.config.minProfitThreshold.toFixed(2)}`);
+
+    // Check position size limits (in USD value, not share count)
+    if (orderValue > this.config.maxPositionSize) {
+      return {
+        feasible: false,
+        reason: `Position value $${orderValue.toFixed(2)} exceeds maximum $${this.config.maxPositionSize}`,
       };
     }
 
@@ -320,7 +333,7 @@ export class HedgeManager {
       };
     }
 
-    // Calculate spread (for logging purposes)
+    // Calculate actual spread with volatility for final validation
     const spreadStart = Date.now();
     const spreadBps = await this.calculateSpread({
       eventId: params.eventId,
@@ -328,14 +341,11 @@ export class HedgeManager {
     });
     console.log(`[HedgeManager] Spread calc took ${Date.now() - spreadStart}ms`);
 
-    // Estimate fees (for logging purposes)
-    const estimatedFees = estimatePolymarketFees(params.size, params.price);
-    const spreadValue = (spreadBps / 10000) * params.size * params.price;
+    const spreadValue = (spreadBps / 10000) * orderValue;
+    const actualNetProfit = spreadValue - estimatedFees;
 
-    // Log economics but don't block - hedging is for risk management, not profit on small trades
-    if (spreadValue < estimatedFees) {
-      console.log(`[HEDGE] Warning: Spread ($${spreadValue.toFixed(4)}) < fees ($${estimatedFees.toFixed(4)}) - hedging anyway for risk management`);
-    }
+    // Log final economics
+    console.log(`[HedgeManager] Final economics: spread $${spreadValue.toFixed(4)} (${spreadBps}bps), fees $${estimatedFees.toFixed(4)}, net profit $${actualNetProfit.toFixed(4)}`);
 
     // Check Polymarket liquidity using the correct token ID
     // OPTIMIZATION: First try Redis cache (populated by realtime worker) to avoid API latency

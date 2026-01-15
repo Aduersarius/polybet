@@ -397,18 +397,60 @@ class PolymarketTradingService {
           ob.bids?.map((b: any) => ({
             price: parseFloat(b.price),
             size: parseFloat(b.size),
-          })) || [],
+          })).sort((a, b) => b.price - a.price) || [], // Sort Bids DESC (Best/High first)
         asks:
           ob.asks?.map((a: any) => ({
             price: parseFloat(a.price),
             size: parseFloat(a.size),
-          })) || [],
+          })).sort((a, b) => a.price - b.price) || [], // Sort Asks ASC (Best/Low first)
         timestamp: Date.now(),
         tickSize: (ob as any).tick_size,
         negRisk: ob.neg_risk
       };
     } catch (error) {
       console.error('[Polymarket] Failed to fetch orderbook:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get YES and NO token IDs for a binary market using condition ID
+   */
+  async getMarketTokens(conditionId: string): Promise<{
+    yesTokenId: string;
+    noTokenId: string;
+  }> {
+    if (!this.clobClient) {
+      throw new Error('Polymarket trading not initialized');
+    }
+
+    try {
+      const market = await this.clobClient.getMarket(conditionId);
+      const tokens = (market as any).tokens || [];
+
+      if (tokens.length !== 2) {
+        throw new Error(`Expected 2 tokens for binary market, got ${tokens.length}`);
+      }
+
+      // Tokens are typically ordered [YES, NO] but let's check the outcome field
+      const yesToken = tokens.find((t: any) => t.outcome?.toUpperCase() === 'YES');
+      const noToken = tokens.find((t: any) => t.outcome?.toUpperCase() === 'NO');
+
+      if (!yesToken || !noToken) {
+        // Fallback: assume first is YES, second is NO
+        console.warn('[Polymarket] Could not determine YES/NO from outcome field, using order');
+        return {
+          yesTokenId: tokens[0].token_id,
+          noTokenId: tokens[1].token_id
+        };
+      }
+
+      return {
+        yesTokenId: yesToken.token_id,
+        noTokenId: noToken.token_id
+      };
+    } catch (error) {
+      console.error('[Polymarket] Failed to fetch market tokens:', error);
       throw error;
     }
   }
@@ -458,6 +500,8 @@ class PolymarketTradingService {
 
       // Calculate slippage in basis points
       const slippage = Math.abs((avgPrice - bestPrice) / bestPrice) * 10000;
+
+      console.log(`[Polymarket-Liquidity] Summary: Top-of-book=${bestPrice}, Avg execution=${avgPrice.toFixed(4)}, Slippage=${slippage.toFixed(0)}bps`);
 
       const canHedge = filledSize >= size * 0.95 && slippage <= maxSlippageBps;
 
@@ -785,6 +829,51 @@ class PolymarketTradingService {
       status: 'TIMEOUT',
       remainingSize: 0,
     };
+  }
+  /**
+   * Get market details
+   */
+  async getMarket(marketId: string): Promise<any> {
+    if (!this.clobClient) return null;
+    try {
+      await this.ensureReady();
+      return await this.clobClient.getMarket(marketId);
+    } catch (error) {
+      console.error('[Polymarket] Failed to get market:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all open orders
+   */
+  async getOpenOrders(): Promise<any[]> {
+    if (!this.clobClient) return [];
+    try {
+      await this.ensureReady();
+      // Use "any" cast because the SDK types might be restrictive/outdated
+      const response = await (this.clobClient as any).getOpenOrders({ next_cursor: '' });
+      // Depending on SDK version, it returns array directly or {data: [], next_cursor}
+      return Array.isArray(response) ? response : (response?.data || []);
+    } catch (error) {
+      console.error('[Polymarket] Failed to get open orders:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get recent trades
+   */
+  async getTrades(): Promise<any[]> {
+    if (!this.clobClient) return [];
+    try {
+      await this.ensureReady();
+      const response = await (this.clobClient as any).getTrades({ next_cursor: '' });
+      return Array.isArray(response) ? response : (response?.data || []);
+    } catch (error) {
+      console.error('[Polymarket] Failed to get trades:', error);
+      return [];
+    }
   }
 }
 

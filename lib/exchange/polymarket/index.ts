@@ -34,23 +34,26 @@ export async function executeVividPolymarketTrade(req: TradeRequest) {
         const platformProb = outcome?.probability ? (outcome.probability instanceof Object ? (outcome.probability as any).toNumber() : outcome.probability) : null;
         console.log(`[Vivid-Pipeline] ⚖️ Platform Prob: ${platformProb || 'N/A'}`);
 
-        // 2. Assess Price & Thresholds (Quote)
+        // 2. Assess Price & Thresholds (Quote) - Use platform probability for pricing
         const quote = await getExecutionQuote(
             market.tokenId,
             req.side.toUpperCase() as 'BUY' | 'SELL',
-            req.amountInUsd
+            req.amountInUsd,
+            platformProb || undefined // Use platform probability for limit order pricing
         );
         console.log(`[Vivid-Pipeline] 📊 Quote Ready: ${quote.shares.toFixed(4)} shares @ ${quote.price}`);
 
         // 3. Risk & Balance Validation (Safety)
+        // For Polymarket trades, we use the execution quote price for both current and predicted
+        // since there's no internal price impact (we're taking liquidity from Polymarket orderbook)
         const riskCheck = await RiskManager.validateTrade(
             req.userId,
             req.eventId,
             req.amountInUsd,
             req.side,
             req.option,
-            platformProb || quote.price, // Use platform price for slippage check if available, else fall back
-            quote.price // Market orders have same predicted price
+            quote.price, // Current market price from Polymarket
+            quote.price  // Predicted price is the same (market order, no slippage on Polymarket side)
         );
 
         if (!riskCheck.allowed) {
