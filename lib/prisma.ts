@@ -9,7 +9,7 @@ import path from 'path';
 process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
 
 // Prisma Client Singleton - v3 (force reload for new models)
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const globalForPrisma = global as unknown as { prisma: PrismaClient; pool: Pool };
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -32,10 +32,11 @@ const getSSLConfig = () => {
     return isProd ? { rejectUnauthorized: true } : { rejectUnauthorized: false }; // nosemgrep
 };
 
-const pool = new Pool({
+// Use existing pool if available, otherwise create new one
+const pool = globalForPrisma.pool || new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: getSSLConfig(),
-    max: isProd ? 20 : 10,
+    max: isProd ? 20 : 10, // Reduced max connections in dev
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     // Prevent stale connections
@@ -44,6 +45,8 @@ const pool = new Pool({
     keepAliveInitialDelayMillis: 10_000,
     statement_timeout: 30_000, // 30s query timeout
 });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool;
 
 function createPrismaClient() {
     // Prefer the pg adapter pool, but fall back to default client if middleware is unavailable.
