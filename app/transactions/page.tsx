@@ -170,7 +170,7 @@ export default function TransactionsPage() {
     <div className="min-h-screen bg-[var(--background)] text-white font-sans flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-4xl mx-auto px-4 pt-24 pb-8 w-full">
+      <main className="flex-1 max-w-4xl mx-auto px-4 pb-8 w-full" style={{ paddingTop: 'calc(var(--navbar-height) + 1.5rem)' }}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

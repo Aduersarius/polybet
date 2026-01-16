@@ -85,8 +85,10 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // Scripts: self + Vercel analytics + Sentry
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-scripts.com https://*.sentry.io",
+              // Scripts: self + Vercel analytics + Sentry + blob for workers
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-scripts.com https://*.sentry.io blob:",
+              // Workers: self + blob
+              "worker-src 'self' blob:",
               // Styles: self + inline (required for styled-components/emotion) + Google Fonts
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Images: self + https + data URIs + blobs (for file uploads)

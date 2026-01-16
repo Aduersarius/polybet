@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import { MultipleTradingPanelModal } from './MultipleTradingPanelModal';
@@ -999,10 +1000,13 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
               <div className="flex items-start gap-2.5">
                 <div className="flex-shrink-0 relative">
                   {event.imageUrl ? (
-                    <img
+                    <Image
                       src={event.imageUrl}
                       alt={event.title}
+                      width={48}
+                      height={48}
                       className="w-12 h-12 sm:w-12 sm:h-12 rounded-lg object-cover border border-blue-400/20 group-hover:border-blue-400/40 transition-all duration-300 shadow-md"
+                      priority={index !== undefined && index < 6}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                         (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
@@ -1994,13 +1998,15 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             {/* Header - Compact */}
             <div className="flex items-center gap-2 flex-shrink-0 pr-8">
               {event.imageUrl ? (
-                <img
+                <Image
                   src={event.imageUrl}
                   alt={event.title}
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-lg object-cover border border-blue-400/20 flex-shrink-0"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/30 flex items-center justify-center text-xs font-bold text-blue-300 flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/20 flex items-center justify-center text-xs font-bold text-blue-300 flex-shrink-0">
                   {event.categories && event.categories.length > 0
                     ? event.categories[0][0]
                     : event.category

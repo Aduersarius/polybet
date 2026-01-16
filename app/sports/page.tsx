@@ -204,7 +204,8 @@ export default function SportsPage() {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="fixed top-20 right-4 z-50 bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/30 text-yellow-300 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+            className="fixed right-4 z-50 bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/30 text-yellow-300 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+            style={{ top: 'calc(var(--navbar-height) + 1rem)' }}
           >
             <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
             <span className="text-sm font-medium">Reconnecting...</span>
@@ -217,7 +218,8 @@ export default function SportsPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="fixed top-20 right-4 z-50 bg-green-500/20 backdrop-blur-sm border border-green-500/30 text-green-300 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+            className="fixed right-4 z-50 bg-green-500/20 backdrop-blur-sm border border-green-500/30 text-green-300 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+            style={{ top: 'calc(var(--navbar-height) + 1rem)' }}
           >
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
             <span className="text-sm font-medium">Live • &lt;500ms</span>
@@ -228,17 +230,21 @@ export default function SportsPage() {
           {/* Mobile Sidebar Toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="fixed top-20 left-4 z-50 lg:hidden bg-[#22303f] p-2 rounded-lg border border-white/10"
+            className="fixed left-4 z-50 lg:hidden bg-[#22303f] p-2 rounded-lg border border-white/10"
+            style={{ top: 'calc(var(--navbar-height) + 1rem)' }}
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
           {/* Sidebar - Desktop always visible, Mobile toggleable */}
-          <div className={`
-            fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] z-40 lg:z-0
-            transform transition-transform duration-300 lg:transform-none
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          `}>
+          <div
+            className={`
+              fixed lg:sticky left-0 h-[calc(100vh-4rem)] z-40 lg:z-0
+              transform transition-transform duration-300 lg:transform-none
+              ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            `}
+            style={{ top: 'var(--navbar-height)' }}
+          >
             <SportsSidebar
               selectedCategory={selectedSport}
               onSelectCategory={(sport) => {
@@ -250,12 +256,14 @@ export default function SportsPage() {
           </div>
 
           {/* Mobile overlay */}
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
+          {
+            sidebarOpen && (
+              <div
+                className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )
+          }
 
           {/* Main Content */}
           <div className="flex-1 min-w-0 px-4 sm:px-6 py-8">
@@ -301,14 +309,14 @@ export default function SportsPage() {
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </div >
+      </div >
 
       {/* Footer */}
-      <Footer />
+      < Footer />
 
       {/* Sliding Trading Sidebar */}
-      <SportsTradingSidebar />
-    </SportsTradingProvider>
+      < SportsTradingSidebar />
+    </SportsTradingProvider >
   );
 }

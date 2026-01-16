@@ -566,7 +566,7 @@ function SettingsPageContent() {
         <div className="min-h-screen text-white relative z-10 flex flex-col">
             <Navbar />
 
-            <main className="max-w-5xl mx-auto px-4 pb-8 pt-2 w-full flex-1" style={{ paddingTop: 'var(--navbar-height)' }}>
+            <main className="max-w-5xl mx-auto px-4 pb-8 pt-2 w-full flex-1" style={{ paddingTop: 'calc(var(--navbar-height) + 1.5rem)' }}>
                 {/* Header */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}

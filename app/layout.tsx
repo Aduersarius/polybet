@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { DeferredScripts } from "./components/DeferredScripts";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -30,6 +31,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={outfit.variable}>
+      <head>
+        {/* Resource hints for critical domains */}
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        <link rel="dns-prefetch" href="https://vercel.live" />
+        <link rel="dns-prefetch" href="https://vitals.vercel-insights.com" />
+      </head>
       <body>
         <Providers>
           <div className="min-h-screen flex flex-col bg-transparent text-white relative z-10 overflow-x-hidden">
@@ -39,6 +47,7 @@ export default function RootLayout({
           </div>
           <Analytics />
           <SpeedInsights />
+          <DeferredScripts />
         </Providers>
       </body>
     </html>

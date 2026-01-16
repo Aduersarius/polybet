@@ -260,7 +260,7 @@ export default function EventPage() {
                         >
                             <div className="h-full flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] lg:items-stretch">
                                 {/* Left Column - Scrollable */}
-                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 lg:pr-2 space-y-6 order-1 no-scrollbar pt-[calc(var(--navbar-height)+0.5rem)]">
+                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 lg:pr-2 space-y-6 order-1 no-scrollbar pt-[calc(var(--navbar-height)+1.5rem)]">
                                     <div className="space-y-6 pt-4">
                                         {/* Header Section - With Image on Right */}
                                         <div className="relative">
@@ -456,7 +456,7 @@ export default function EventPage() {
                                 </div>
 
                                 {/* Right Column - Scrollable */}
-                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar pt-[calc(var(--navbar-height)+0.5rem)]">
+                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar pt-[calc(var(--navbar-height)+1.5rem)]">
                                     <div className="space-y-6 trading-panel pb-6 pt-4">
                                         {liveEvent.type === 'GROUPED_BINARY' ? (
                                             <GroupedBinaryTradingPanel

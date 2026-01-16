@@ -265,15 +265,21 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                 </div >
 
                 {/* Bottom Row: Categories - Full Width */}
-                {
-                    onCategoryChange && (
-                        <CategoryBar
-                            selectedCategory={selectedCategory}
-                            onCategoryChange={onCategoryChange}
-                            categories={categories}
-                        />
-                    )
-                }
+                {!isAdminPage && (
+                    <CategoryBar
+                        selectedCategory={selectedCategory}
+                        onCategoryChange={(category: string) => {
+                            // Handle category change with router navigation
+                            if (onCategoryChange) {
+                                onCategoryChange(category);
+                            } else {
+                                // Fallback: use router to navigate
+                                router.push(`/?category=${category}`);
+                            }
+                        }}
+                        categories={categories}
+                    />
+                )}
 
                 {/* Admin Navigation Row */}
                 {
