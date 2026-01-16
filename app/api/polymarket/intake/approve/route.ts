@@ -33,7 +33,7 @@ Return ONLY the category names, comma-separated.`;
       .filter((s: string) => s.length > 0 && ALLOWED_CATEGORIES.includes(s))
       .slice(0, 2);
 
-    console.log(`[LLM] Categorized "${title}" ->`, categories);
+    console.log('[LLM] Categorized "%s" ->', title, categories);
     return categories;
   } catch (err) {
     console.warn("[LLM] Categorization failed", err);
@@ -183,8 +183,11 @@ async function fetchOrderbookMid(tokenId: string): Promise<number | undefined> {
     // VALIDATION: Check spread is reasonable (wide spreads like 0.01/0.99 produce garbage 50% mid)
     const spread = (bestAsk as number) - (bestBid as number);
     if (spread > MAX_ALLOWED_SPREAD) {
-      console.warn(`[Polymarket] orderbook spread too wide (${(spread * 100).toFixed(1)}% > ${MAX_ALLOWED_SPREAD * 100}%), skipping`, { tokenId });
-      return undefined;
+      console.warn('[Polymarket] orderbook spread too wide (%s% > %s%), skipping',
+        (spread * 100).toFixed(1),
+        MAX_ALLOWED_SPREAD * 100,
+        { tokenId }
+      ); return undefined;
     }
 
     const mid = ((bestBid as number) + (bestAsk as number)) / 2;
@@ -769,7 +772,21 @@ export async function POST(request: NextRequest) {
     }
 
     const status = resolutionDate.getTime() < Date.now() ? 'CLOSED' : 'ACTIVE';
-    const imageUrl = eventData?.image || eventData?.imageUrl || null;
+    let imageUrl = eventData?.image || eventData?.imageUrl || null;
+
+    // Upload to Vercel Blob if it's a remote URL to avoid hotlinking dependency
+    if (imageUrl && !imageUrl.includes('blob.vercel-storage.com')) {
+      try {
+        const { uploadEventImageToBlob } = await import('@/lib/event-image-blob');
+        const blobUrl = await uploadEventImageToBlob(imageUrl, internalEventId);
+        if (blobUrl) {
+          imageUrl = blobUrl;
+          console.log(`[Polymarket Intake] Uploaded image to Vercel Blob: ${blobUrl}`);
+        }
+      } catch (uploadErr) {
+        console.warn('[Polymarket Intake] Failed to upload image to blob, falling back to original URL', uploadErr);
+      }
+    }
 
     // Polymarket's "description" field actually contains resolution rules
     // We store it in the `rules` column and generate a short description via LLM

@@ -581,7 +581,7 @@ export async function POST(request: Request) {
 
         const duration = Date.now() - start;
 
-        console.log(`[Sports Sync] Completed in ${duration}ms:`, {
+        console.log('[Sports Sync] Completed in %dms:', duration, {
           created,
           updated,
           errors,

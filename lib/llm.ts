@@ -116,7 +116,7 @@ export async function callLLM(
 
                 if (!res.ok) {
                     const errorText = await res.text().catch(() => 'Unknown error');
-                    console.warn(`[LLM] API request failed: ${res.status} ${res.statusText}`, errorText);
+                    console.warn('[LLM] API request failed: %s %s', res.status, res.statusText, errorText);
 
                     // Track error in Sentry
                     span.setStatus({ code: 2, message: `HTTP ${res.status}` }); // Error status

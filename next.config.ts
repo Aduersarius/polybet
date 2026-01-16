@@ -56,6 +56,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.public.blob.vercel-storage.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'polymarket-upload.s3.us-east-2.amazonaws.com',
+      },
     ],
   },
   // Security headers

@@ -648,7 +648,7 @@ export class HedgeManager {
         };
       } catch (hedgeError: any) {
         lastError = hedgeError;
-        console.error(`[HedgeManager] Hedge attempt ${attempt}/${maxRetries} failed:`, hedgeError.message);
+        console.error('[HedgeManager] Hedge attempt %d/%d failed:', attempt, maxRetries, hedgeError.message);
 
         // If circuit breaker is open, don't retry - fail fast
         if (hedgeError instanceof CircuitOpenError) {
@@ -781,7 +781,7 @@ export class HedgeManager {
         }
 
       } catch (chunkError: any) {
-        console.error(`[HedgeManager] Chunk ${chunk.chunkIndex + 1} failed:`, chunkError.message);
+        console.error('[HedgeManager] Chunk %d failed:', chunk.chunkIndex + 1, chunkError.message);
         chunk.error = chunkError.message;
         lastError = chunkError.message;
 

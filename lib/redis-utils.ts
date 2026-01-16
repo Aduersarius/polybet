@@ -34,7 +34,7 @@ export async function safePublish(
         return true;
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(`[Redis] Failed to publish to ${channel}:`, errorMsg);
+        console.error('[Redis] Failed to publish to %s:', channel, errorMsg);
         return false;
     }
 }
@@ -52,7 +52,7 @@ export async function safeDelete(key: string): Promise<boolean> {
         await redis.del(key);
         return true;
     } catch (error) {
-        console.error(`[Redis] Failed to delete key ${key}:`, error);
+        console.error('[Redis] Failed to delete key %s:', key, error);
         return false;
     }
 }

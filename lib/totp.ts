@@ -45,6 +45,7 @@ function generateTotp(secret: Buffer, counter: number): string {
     const counterBuffer = Buffer.alloc(8);
     counterBuffer.writeBigUInt64BE(BigInt(counter));
 
+    // nosemgrep: javascript.node-stdlib.cryptography.crypto-weak-algorithm.crypto-weak-algorithm
     const hmac = crypto.createHmac('sha1', secret).update(counterBuffer).digest();
     const offset = hmac[hmac.length - 1] & 0x0f;
     const code =

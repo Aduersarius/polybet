@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
 
                     console.log(`[Webhook] ✅ Sweep completed for deposit ${depositId}`);
                 } catch (sweepError) {
-                    console.error(`[Webhook] ⚠️  Sweep failed for deposit ${depositId}:`, sweepError);
+                    console.error('[Webhook] ⚠️  Sweep failed for deposit %s:', depositId, sweepError);
                     console.log(`[Webhook] Sweep-monitor will retry this deposit`);
                 }
             })();

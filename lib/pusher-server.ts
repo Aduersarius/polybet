@@ -33,6 +33,6 @@ export async function triggerUserUpdate(userId: string, type: string, payload: a
     try {
         await pusher.trigger(`user-${userId}`, type, payload);
     } catch (error) {
-        console.error(`[Pusher] Error triggering user update for ${userId}:`, error);
+        console.error('[Pusher] Error triggering user update for %s:', userId, error);
     }
 }

@@ -88,7 +88,7 @@ export async function POST(request: Request) {
               oddsSource: hybrid.source
             };
           } catch (error) {
-            console.error(`Error calculating odds for event ${event.id}:`, error);
+            console.error('[WS Publisher] Error calculating odds for event %s:', event.id, error);
             return event;
           }
         })

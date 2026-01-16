@@ -11,10 +11,10 @@ function calculateMid(bids: any[], asks: any[]): number | null {
   if (!bids || !asks || bids.length === 0 || asks.length === 0) {
     return null;
   }
-  
+
   const bestBid = parseFloat(bids[0]?.price || bids[0]?.[0] || 0);
   const bestAsk = parseFloat(asks[0]?.price || asks[0]?.[0] || 0);
-  
+
   if (bestBid > 0 && bestAsk > 0) {
     return (bestBid + bestAsk) / 2;
   } else if (bestAsk > 0) {
@@ -22,7 +22,7 @@ function calculateMid(bids: any[], asks: any[]): number | null {
   } else if (bestBid > 0) {
     return bestBid;
   }
-  
+
   return null;
 }
 
@@ -38,21 +38,21 @@ async function fetchTokenOrderbook(tokenId: string) {
         'Accept': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
-      console.error(`[Sports Orderbook] Failed to fetch orderbook for token ${tokenId}:`, response.statusText);
+      console.error('[Sports Orderbook] Failed to fetch orderbook for token %s:', tokenId, response.statusText);
       return null;
     }
-    
+
     const data = await response.json();
-    
+
     return {
       bids: data.bids || [],
       asks: data.asks || [],
       mid: calculateMid(data.bids || [], data.asks || []),
     };
   } catch (error) {
-    console.error(`[Sports Orderbook] Error fetching orderbook for token ${tokenId}:`, error);
+    console.error('[Sports Orderbook] Error fetching orderbook for token %s:', tokenId, error);
     return null;
   }
 }
@@ -65,14 +65,14 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get('eventId');
-    
+
     if (!eventId) {
       return NextResponse.json(
         { error: 'eventId parameter is required' },
         { status: 400 }
       );
     }
-    
+
     // 1. Get event from database with Polymarket mapping
     const event = await prisma.event.findUnique({
       where: { id: eventId },
@@ -81,18 +81,18 @@ export async function GET(request: Request) {
         outcomes: true,
       },
     });
-    
+
     if (!event) {
       return NextResponse.json(
         { error: 'Event not found' },
         { status: 404 }
       );
     }
-    
+
     // 2. Check if event has Polymarket mapping
     if (!event.polymarketMapping) {
       return NextResponse.json(
-        { 
+        {
           error: 'No Polymarket mapping found for this event',
           fallback: {
             yes: { bids: [], asks: [], mid: event.yesOdds || 0.5 },
@@ -102,12 +102,12 @@ export async function GET(request: Request) {
         { status: 200 }
       );
     }
-    
+
     const { yesTokenId, noTokenId } = event.polymarketMapping;
-    
+
     if (!yesTokenId || !noTokenId) {
       return NextResponse.json(
-        { 
+        {
           error: 'Token IDs not found in Polymarket mapping',
           fallback: {
             yes: { bids: [], asks: [], mid: event.yesOdds || 0.5 },
@@ -117,13 +117,13 @@ export async function GET(request: Request) {
         { status: 200 }
       );
     }
-    
+
     // 3. Fetch orderbooks from Polymarket
     const [yesBook, noBook] = await Promise.all([
       fetchTokenOrderbook(yesTokenId),
       fetchTokenOrderbook(noTokenId),
     ]);
-    
+
     // 4. Return formatted orderbook data
     return NextResponse.json({
       eventId: event.id,
@@ -139,7 +139,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('[Sports Orderbook] Error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch orderbook',
         details: error instanceof Error ? error.message : 'Unknown error'
       },

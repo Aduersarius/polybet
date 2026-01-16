@@ -403,10 +403,10 @@ export async function POST(request: Request) {
                         error: errorMsg,
                     });
 
-                    console.error(`[Resolution Sync] Failed to resolve ${event.title}:`, errorMsg);
+                    console.error('[Resolution Sync] Failed to resolve %s:', event.title, errorMsg);
                 }
             } catch (mappingError) {
-                console.error(`[Resolution Sync] Error processing mapping ${mapping.id}:`, mappingError);
+                console.error('[Resolution Sync] Error processing mapping %s:', mapping.id, mappingError);
             }
         }
 

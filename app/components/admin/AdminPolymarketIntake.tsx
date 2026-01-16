@@ -445,7 +445,7 @@ export function AdminPolymarketIntake() {
           console.error(`[Bulk Approve] Failed for ${item.polymarketId}`);
         }
       } catch (err) {
-        console.error(`[Bulk Approve] Error for ${item.polymarketId}:`, err);
+        console.error('[Bulk Approve] Error for %s:', item.polymarketId, err);
       }
     }
 

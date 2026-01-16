@@ -45,14 +45,14 @@ export function CustomTourTooltip({
     retryCountRef.current = 0;
     setIsVisible(false);
     setTargetFound(false);
-    
+
     const calculatePosition = () => {
       const targetElement = document.querySelector(target);
-      
+
       if (!targetElement) {
         retryCountRef.current += 1;
-        console.log(`⏳ Target not found (attempt ${retryCountRef.current}/10):`, target);
-        
+        console.log('⏳ Target not found (attempt %d/10):', retryCountRef.current, target);
+
         // Retry up to 10 times with 300ms delay
         if (retryCountRef.current < 10) {
           setTimeout(calculatePosition, 300);
@@ -114,11 +114,11 @@ export function CustomTourTooltip({
 
     // Start calculating position
     const timer = setTimeout(calculatePosition, 100);
-    
+
     const handleResize = () => {
       if (targetFound) calculatePosition();
     };
-    
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleResize);
 
@@ -148,7 +148,7 @@ export function CustomTourTooltip({
       {/* Backdrop overlay */}
       <div
         className="fixed inset-0 bg-black/70 z-[9998] pointer-events-none transition-opacity duration-300"
-        style={{ 
+        style={{
           backdropFilter: 'blur(2px)',
           opacity: targetFound ? 1 : 0,
         }}
@@ -191,63 +191,63 @@ export function CustomTourTooltip({
             minWidth: '320px',
           }}
         >
-        {/* Close button */}
-        <button
-          onClick={onSkip}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        {/* Content */}
-        <div className="p-6">
-          {/* Progress */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-400 font-medium">
-              {currentStep + 1} / {totalSteps}
-            </span>
-          </div>
-
-          {/* Title */}
-          <h3 className="text-lg font-bold text-white mb-3">{title}</h3>
+          {/* Close button */}
+          <button
+            onClick={onSkip}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
 
           {/* Content */}
-          <div className="text-sm text-gray-300 mb-6">{content}</div>
+          <div className="p-6">
+            {/* Progress */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs text-gray-400 font-medium">
+                {currentStep + 1} / {totalSteps}
+              </span>
+            </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={onSkip}
-              className="text-sm text-gray-400 hover:text-white transition-colors"
-            >
-              Skip tour
-            </button>
+            {/* Title */}
+            <h3 className="text-lg font-bold text-white mb-3">{title}</h3>
 
-            <div className="flex gap-2">
-              {showPrev && (
-                <button
-                  onClick={onPrev}
-                  className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-                >
-                  Back
-                </button>
-              )}
+            {/* Content */}
+            <div className="text-sm text-gray-300 mb-6">{content}</div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between">
               <button
-                onClick={onNext}
-                className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                onClick={onSkip}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
               >
-                {currentStep === totalSteps - 1 ? 'Finish' : 'Next'}
+                Skip tour
               </button>
+
+              <div className="flex gap-2">
+                {showPrev && (
+                  <button
+                    onClick={onPrev}
+                    className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+                  >
+                    Back
+                  </button>
+                )}
+                <button
+                  onClick={onNext}
+                  className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {currentStep === totalSteps - 1 ? 'Finish' : 'Next'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* Loading state */}
