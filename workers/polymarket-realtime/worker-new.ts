@@ -34,10 +34,8 @@ if (REDIS_URL) {
     redis = new Redis(REDIS_URL, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => Math.min(times * 100, 3000),
-        // Only disable TLS verification in development, never in production
-        tls: REDIS_URL.startsWith('rediss://')
-            ? { rejectUnauthorized: process.env.NODE_ENV === 'production' }
-            : undefined,
+        // Use default TLS verification (true) for rediss:// connections
+        tls: REDIS_URL.startsWith('rediss://') ? {} : undefined,
     });
     redis.on('error', (err) => console.error('[Redis] Error:', err.message));
 }

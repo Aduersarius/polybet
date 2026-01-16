@@ -71,13 +71,13 @@ export async function GET(request: NextRequest) {
         );
 
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Search "${query}": ${events.length} results in ${queryTime}ms`);
+        console.log('✅ Search:', query, ':', events.length, 'results in', queryTime, 'ms');
 
         return NextResponse.json({ events });
 
     } catch (error) {
         const errorTime = Date.now() - startTime;
-        console.error(`❌ Search failed after ${errorTime}ms:`, error);
+        console.error('❌ Search failed after', errorTime, 'ms:', error);
 
         let statusCode = 500;
         let errorMessage = 'Failed to search events';

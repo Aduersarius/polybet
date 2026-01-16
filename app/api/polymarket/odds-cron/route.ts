@@ -74,7 +74,7 @@ async function fetchTokenPrice(tokenId: string): Promise<number | null> {
 
         return null;
     } catch (error) {
-        console.warn(`[Odds Cron] Failed to fetch price for token ${tokenId}:`, error);
+        console.warn('[Odds Cron] Failed to fetch price for token', tokenId, ':', error);
         return null;
     }
 }
@@ -101,7 +101,7 @@ async function fetchMarketPrices(polymarketId: string): Promise<MarketData | nul
 
         return null;
     } catch (error) {
-        console.warn(`[Odds Cron] Failed to fetch market ${polymarketId}:`, error);
+        console.warn('[Odds Cron] Failed to fetch market', polymarketId, ':', error);
         return null;
     }
 }
@@ -193,7 +193,7 @@ export async function POST(request: Request) {
             });
         }
 
-        console.log(`[Odds Cron] Processing ${activeMappings.length} active mappings`);
+        console.log('[Odds Cron] Processing', activeMappings.length, 'active mappings');
 
         const bucketTs = Math.floor(Date.now() / BUCKET_MS) * BUCKET_MS;
         const historyBatch: any[] = [];
@@ -377,7 +377,7 @@ export async function POST(request: Request) {
                     }
                 }
             } catch (mappingError) {
-                console.warn(`[Odds Cron] Error processing mapping ${mapping.id}:`, mappingError);
+                console.warn('[Odds Cron] Error processing mapping', mapping.id, ':', mappingError);
             }
         }
 
@@ -389,7 +389,7 @@ export async function POST(request: Request) {
                     skipDuplicates: true,
                 });
                 historyRows = result.count;
-                console.log(`[Odds Cron] Stored ${historyRows} odds history rows`);
+                console.log('[Odds Cron] Stored', historyRows, 'odds history rows');
 
                 // Trigger background refresh of the hourly materialized view
                 // This is fire-and-forget, runs after response is sent
@@ -402,7 +402,7 @@ export async function POST(request: Request) {
             }
         }
 
-        console.log(`[Odds Cron] Updated ${updates.length} outcomes across ${activeMappings.length} events`);
+        console.log('[Odds Cron] Updated', updates.length, 'outcomes across', activeMappings.length, 'events');
 
         return NextResponse.json({
             updated: updates.length,

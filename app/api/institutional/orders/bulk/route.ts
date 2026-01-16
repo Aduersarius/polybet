@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
         });
 
       } catch (error) {
-        console.error(`Order ${index} failed:`, error);
+        console.error('Order', index, 'failed:', error);
         results.push({
           index,
           success: false,
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
     });
 
     const totalTime = Date.now() - startTime;
-    console.log(`✅ Bulk order batch ${batch.id} completed in ${totalTime}ms: ${successfulOrders}/${orders.length} successful`);
+    console.log('✅ Bulk order batch', batch.id, 'completed in', totalTime, 'ms:', successfulOrders, '/', orders.length, 'successful');
 
     return NextResponse.json({
       batchId: batch.id,
@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     const errorTime = Date.now() - startTime;
-    console.error(`❌ Bulk order failed after ${errorTime}ms:`, error);
+    console.error('❌ Bulk order failed after', errorTime, 'ms:', error);
 
     if (error instanceof Response) {
       return error; // Already formatted error response

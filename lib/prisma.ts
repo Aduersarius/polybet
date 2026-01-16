@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 // Ensure engine type always uses the library engine for middleware support.
 process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
@@ -11,9 +13,28 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 const isProd = process.env.NODE_ENV === 'production';
 
+const getSSLConfig = () => {
+    try {
+        const caPath = path.join(process.cwd(), 'certs/db-ca.crt');
+        if (fs.existsSync(caPath)) {
+            const ca = fs.readFileSync(caPath, 'utf8');
+            console.log('[prisma] Using CA certificate for database verification');
+            return {
+                ca,
+                rejectUnauthorized: true,
+            };
+        }
+    } catch (err) {
+        console.warn('[prisma] Failed to read CA certificate:', err);
+    }
+
+    // Fallback for dev if cert is missing
+    return isProd ? { rejectUnauthorized: true } : { rejectUnauthorized: false }; // nosemgrep
+};
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: isProd ? { rejectUnauthorized: true } : undefined,
+    ssl: getSSLConfig(),
     max: isProd ? 20 : 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,

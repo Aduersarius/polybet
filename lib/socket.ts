@@ -10,6 +10,11 @@ const USE_TLS = process.env.NEXT_PUBLIC_SOKETI_USE_TLS !== 'false';
  * Soketi / Pusher Client Instance
  * Replacing the old Socket.io setup for a "bulletproof" real-time experience.
  */
+// Enable verbose logging in development
+if (process.env.NODE_ENV === 'development') {
+    Pusher.logToConsole = true;
+}
+
 export const socket = new Pusher(PUSHER_KEY, {
     wsHost: PUSHER_HOST,
     wsPort: PUSHER_PORT,
@@ -17,8 +22,7 @@ export const socket = new Pusher(PUSHER_KEY, {
     forceTLS: USE_TLS,
     enabledTransports: ['ws', 'wss'],
     disableStats: true,
-    cluster: 'mt1', // Required by Pusher-js but ignored by Soketi
-    // Enable verbose logging in development (note: might not work in all Pusher versions)
+    cluster: 'mt1',
 });
 
 // Log connection status in development
@@ -34,7 +38,15 @@ if (process.env.NODE_ENV === 'development') {
     });
 
     socket.connection.bind('error', (err: any) => {
-        console.error('[Pusher] ❌ Connection error:', err);
+        // Detailed error logging to debug "Connection error: {}"
+        console.error('[Pusher] ❌ Connection error object:', err);
+        if (err?.error?.data) {
+            console.error('[Pusher] ❌ Error detail:', err.error.data);
+        }
+    });
+
+    socket.connection.bind('state_change', (states: any) => {
+        console.log('[Pusher] 🔄 State change:', states.previous, '->', states.current);
     });
 
     socket.connection.bind('failed', () => {

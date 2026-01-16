@@ -85,7 +85,7 @@ if (proxyUrl) {
 
         // If this is a proxy error and we haven't retried yet
         if (isPolymarket && isProxyError && !config._proxyRetried && httpsAgent) {
-          console.warn(`[Polymarket] ⚠️ Proxy failed (${status} ${statusText}), falling back to direct connection`);
+          console.warn('[Polymarket] ⚠️ Proxy failed (', status || '', statusText || '', '), falling back to direct connection');
 
           // Mark proxy as disabled temporarily
           proxyDisabled = true;
@@ -265,7 +265,7 @@ class PolymarketTradingService {
     // If we have a funder address (Proxy), we MUST use signatureType 1.
     const signatureType = this.funderAddress ? 1 : 0;
 
-    console.log(`[Polymarket] Initializing CLOB client (Chain ID: ${this.chainId}, SigType: ${signatureType})`);
+    console.log('[Polymarket] Initializing CLOB client (Chain ID:', this.chainId, ', SigType:', signatureType, ')');
 
     // Try to use provided credentials from env vars first
     const hasProvidedCreds = this.apiKey && this.apiSecret && this.passphrase;
@@ -338,7 +338,7 @@ class PolymarketTradingService {
       }
 
       console.log('[Polymarket] ✓ API credentials derived successfully');
-      console.log(`[Polymarket]   API Key: ${key.substring(0, 12)}...`);
+      console.log('[Polymarket]   API Key:', key.substring(0, 12), '...');
 
       // Create a new client with the derived credentials
       this.clobClient = new ClobClient(
@@ -490,7 +490,7 @@ class PolymarketTradingService {
         if (remainingSize <= 0) break;
 
         const fillSize = Math.min(remainingSize, level.size);
-        console.log(`[Polymarket-Liquidity] Level: price=${level.price}, size=${level.size} | Filling ${fillSize}`);
+        console.log('[Polymarket-Liquidity] Level: price=', level.price, ', size=', level.size, '| Filling', fillSize);
         totalCost += fillSize * level.price;
         remainingSize -= fillSize;
       }
@@ -501,7 +501,7 @@ class PolymarketTradingService {
       // Calculate slippage in basis points
       const slippage = Math.abs((avgPrice - bestPrice) / bestPrice) * 10000;
 
-      console.log(`[Polymarket-Liquidity] Summary: Top-of-book=${bestPrice}, Avg execution=${avgPrice.toFixed(4)}, Slippage=${slippage.toFixed(0)}bps`);
+      console.log('[Polymarket-Liquidity] Summary: Top-of-book=', bestPrice, ', Avg execution=', avgPrice.toFixed(4), ', Slippage=', slippage.toFixed(0), 'bps');
 
       const canHedge = filledSize >= size * 0.95 && slippage <= maxSlippageBps;
 
@@ -552,13 +552,13 @@ class PolymarketTradingService {
         negRisk = request.negRisk;
       } else {
         // Fetch orderbook to derive tick size / neg risk
-        console.log(`[Polymarket] Fetching orderbook for config (token: ${request.tokenId})`);
+        console.log('[Polymarket] Fetching orderbook for config (token:', request.tokenId, ')');
         const ob = await this.clobClient.getOrderBook(request.tokenId);
         tickSize = (ob as any).tick_size ?? undefined;
         negRisk = ob.neg_risk ?? false;
       }
 
-      console.log(`[Polymarket] Placing order for token ${request.tokenId} (Price: ${request.price}, Size: ${request.size})`);
+      console.log('[Polymarket] Placing order for token', request.tokenId, '(Price:', request.price, ', Size:', request.size, ')');
 
       const orderResponse = await this.clobClient.createAndPostOrder(
         {
@@ -601,7 +601,7 @@ class PolymarketTradingService {
         throw new Error(`Polymarket API rejected order - no order ID returned. Response: ${responseStr.substring(0, 200)}...`);
       }
 
-      console.log(`[Polymarket] Order placed successfully: ${orderId}`);
+      console.log('[Polymarket] Order placed successfully:', orderId);
 
       return {
         orderId,
@@ -618,7 +618,7 @@ class PolymarketTradingService {
     } catch (error: any) {
       // detailed error logging for proxy debugging
       if (error.response) {
-        console.error(`[Polymarket] Order failed with status ${error.response.status}:`, error.response.statusText);
+        console.error('[Polymarket] Order failed with status', error.response.status, ':', error.response.statusText);
         if (error.response.status === 403) {
           console.error('[Polymarket] 🚫 CLOUDFLARE BLOCK DETECTED - Try changing Proxy Country (Non-US)');
         }
@@ -795,7 +795,7 @@ class PolymarketTradingService {
 
         // Check if partially filled (more than 50%)
         if (order.filledSize > order.size * 0.5) {
-          console.log(`[Polymarket] Order ${orderId} partially filled: ${order.filledSize}/${order.size}`);
+          console.log('[Polymarket] Order', orderId, 'partially filled:', order.filledSize, '/', order.size);
         }
 
         // Still open, continue polling

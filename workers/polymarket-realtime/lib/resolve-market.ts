@@ -3,14 +3,31 @@
  * Extracted from hybrid-trading.ts for standalone use
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import fs from 'fs';
+import path from 'path';
 import Decimal from 'decimal.js';
+
+const getSSLConfig = () => {
+    try {
+        const caPath = path.join(process.cwd(), 'certs/db-ca.crt');
+        if (fs.existsSync(caPath)) {
+            return {
+                ca: fs.readFileSync(caPath, 'utf8'),
+                rejectUnauthorized: true,
+            };
+        }
+    } catch (err) {
+        console.warn('[resolveMarket] Failed to read CA certificate:', err);
+    }
+    return process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : { rejectUnauthorized: false }; // nosemgrep
+};
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
+    ssl: getSSLConfig(),
     max: 5,
 });
 

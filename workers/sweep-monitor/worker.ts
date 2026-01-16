@@ -14,6 +14,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import Pusher from 'pusher';
+import fs from 'fs';
+import path from 'path';
 
 // Environment validation
 const requiredEnvVars = [
@@ -25,7 +27,7 @@ const requiredEnvVars = [
 
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
-        console.error(`❌ Missing required environment variable: ${envVar}`);
+        console.error('❌ Missing required environment variable:', envVar);
         process.exit(1);
     }
 }
@@ -33,9 +35,24 @@ for (const envVar of requiredEnvVars) {
 const DATABASE_URL = process.env.DATABASE_URL!;
 
 // Initialize Prisma with pg adapter (bulletproof pattern for Alpine/Prisma 7)
+const getSSLConfig = () => {
+    try {
+        const caPath = path.join(process.cwd(), 'certs/db-ca.crt');
+        if (fs.existsSync(caPath)) {
+            return {
+                ca: fs.readFileSync(caPath, 'utf8'),
+                rejectUnauthorized: true,
+            };
+        }
+    } catch (err) {
+        console.warn('[Worker] Failed to read CA certificate:', err);
+    }
+    return process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : { rejectUnauthorized: false }; // nosemgrep
+};
+
 const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
+    ssl: getSSLConfig(),
     max: 5,
 });
 
@@ -78,7 +95,7 @@ async function triggerUserUpdate(userId: string, type: string, payload: any) {
     try {
         await pusher.trigger(`user-${userId}`, type, payload);
     } catch (error) {
-        console.error(`[Pusher] Error triggering user update for ${userId}:`, error);
+        console.error('[Pusher] Error triggering user update for', userId, ':', error);
     }
 }
 

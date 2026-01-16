@@ -34,10 +34,12 @@ function EventCardsSkeleton() {
 export default async function Home({
   searchParams
 }: {
-  searchParams: { category?: string }
+  searchParams: Promise<{ category?: string }>
 }) {
+  const params = await searchParams;
+  const category = params.category || 'ALL';
+
   // Fetch initial events on server
-  const category = searchParams.category || 'ALL';
   const { events: initialEvents } = await getInitialEvents({
     category,
     limit: 20,
@@ -67,4 +69,3 @@ export default async function Home({
     </main>
   );
 }
-

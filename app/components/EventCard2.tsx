@@ -283,6 +283,7 @@ HoveredTextDisplay.displayName = 'HoveredTextDisplay';
 export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTradeClick, onCategoryClick, index = 0 }: EventCard2Props) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isCountdownHovered, setIsCountdownHovered] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [fullTimeRemaining, setFullTimeRemaining] = useState<string>('');
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -508,6 +509,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
 
   // Initial width measurement on mount
   useEffect(() => {
+    setHasMounted(true);
     if (countdownShortRef.current && countdownWidth === 'auto') {
       const width = countdownShortRef.current.offsetWidth;
       setCountdownWidth(width);
@@ -1129,10 +1131,10 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                   {/* Hidden spans to measure widths */}
                   <div className="absolute opacity-0 pointer-events-none" style={{ visibility: 'hidden' }}>
                     <span ref={countdownShortRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
-                      {getTimeRemaining(new Date(event.resolutionDate))}
+                      {hasMounted ? getTimeRemaining(new Date(event.resolutionDate)) : '--'}
                     </span>
                     <span ref={countdownFullRef} className="text-[10px] font-mono font-bold px-2 py-0 h-5 whitespace-nowrap inline-flex items-center">
-                      {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
+                      {hasMounted ? (fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))) : '--'}
                     </span>
                   </div>
 
@@ -1156,7 +1158,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                           transition={{ duration: 0.15, ease: "easeOut" }}
                           className="inline-block"
                         >
-                          {getTimeRemaining(new Date(event.resolutionDate))}
+                          {hasMounted ? getTimeRemaining(new Date(event.resolutionDate)) : '--'}
                         </motion.span>
                       ) : (
                         <motion.span
@@ -1167,7 +1169,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                           transition={{ duration: 0.15, ease: "easeOut" }}
                           className="inline-block whitespace-nowrap"
                         >
-                          {fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))}
+                          {hasMounted ? (fullTimeRemaining || getFullTimeRemaining(new Date(event.resolutionDate))) : '--'}
                         </motion.span>
                       )}
                     </AnimatePresence>

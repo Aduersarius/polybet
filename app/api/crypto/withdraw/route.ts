@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
                     // Update to APPROVED happens immediately inside approveWithdrawal update
                     await service.approveWithdrawal(withdrawalId, 'SYSTEM');
                 } catch (error) {
-                    console.error(`[AUTO-APPROVE] Failed for withdrawal ${withdrawalId}:`, error);
+                    console.error('[AUTO-APPROVE] Failed for withdrawal:', withdrawalId, error);
                 } finally {
                     // Notify admins via Telegram (non-blocking)
                     try {

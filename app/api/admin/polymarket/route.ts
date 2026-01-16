@@ -111,17 +111,17 @@ export async function GET(request: NextRequest) {
                     // Flag discrepancies between calculated and actual
                     const diff = Math.abs(actualShares - pos.shares);
                     if (diff > 0.01) {
-                        console.warn(`[Admin Polymarket API] ⚠️ Balance mismatch for ${pos.tokenId.slice(-8)}: calculated=${pos.shares.toFixed(2)}, actual=${actualShares.toFixed(2)}`);
+                        console.warn('[Admin Polymarket API] ⚠️ Balance mismatch for', pos.tokenId.slice(-8), ': calculated=', pos.shares.toFixed(2), ', actual=', actualShares.toFixed(2));
                         (pos as any).hasDiscrepancy = true;
 
                         // FIX: Correct the side based on actual balance
                         if (actualShares > 0 && pos.side === 'SHORT') {
-                            console.warn(`[Admin Polymarket API] ⚠️ Correcting side from SHORT to LONG for ${pos.tokenId.slice(-8)}`);
+                            console.warn('[Admin Polymarket API] ⚠️ Correcting side from SHORT to LONG for', pos.tokenId.slice(-8));
                             (pos as any).side = 'LONG';
                         }
                     }
                 } catch (e) {
-                    console.error(`[Admin Polymarket API] Failed to fetch balance for ${pos.tokenId}:`, e);
+                    console.error('[Admin Polymarket API] Failed to fetch balance for', pos.tokenId, ':', e);
                     (pos as any).actualBalance = null;
                 }
             }
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
         }
 
-        console.log(`[Admin Polymarket API] ${marketSell ? 'Market selling' : 'Closing'} position: ${side} ${amount} shares of ${tokenId}`);
+        console.log('[Admin Polymarket API]', marketSell ? 'Market selling' : 'Closing', 'position:', side, amount, 'shares of', tokenId);
 
         await polymarketTrading.ensureReady();
 

@@ -81,6 +81,21 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
   }
 ];
 
+// Pre-compile word-boundary regexes for short keywords to avoid ReDoS from repeated compilation
+// and improve performance during categorization.
+const WORD_BOUNDARY_REGEX_CACHE = new Map<string, RegExp>();
+
+CATEGORY_DEFINITIONS.forEach(category => {
+  category.keywords.forEach(keyword => {
+    const keywordLower = keyword.toLowerCase();
+    if (keywordLower.length <= 4) {
+      // Escape special characters to prevent ReDoS/invalid regex
+      const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      WORD_BOUNDARY_REGEX_CACHE.set(keywordLower, new RegExp(`\\b${escapedKeyword}\\b`, 'i')); // nosemgrep
+    }
+  });
+});
+
 /**
  * Categorize an event based on its title and description using keyword matching
  * Uses word boundary matching to prevent false positives (e.g., "Coinbase" matching "nba")
@@ -93,14 +108,14 @@ export function categorizeEvent(title: string, description: string): string[] {
     // Check if any keywords match using word boundaries
     const hasKeywordMatch = category.keywords.some(keyword => {
       const keywordLower = keyword.toLowerCase();
-      // Use word boundary regex for short keywords (<=4 chars) to avoid false matches
+
+      // Use cached word boundary regex for short keywords (<=4 chars) to avoid false matches
       // e.g., "nba" shouldn't match "Coinbase", "f1" shouldn't match "ref1"
       if (keywordLower.length <= 4) {
-        // Escape special characters to prevent ReDoS/invalid regex
-        const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
-        return regex.test(text);
+        const regex = WORD_BOUNDARY_REGEX_CACHE.get(keywordLower);
+        return regex ? regex.test(text) : false;
       }
+
       // For longer keywords, substring matching is fine
       return text.includes(keywordLower);
     });

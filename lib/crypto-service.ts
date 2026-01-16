@@ -190,7 +190,7 @@ export class CryptoService {
             const minDeposit = ethers.parseUnits('0.5', 6); // USDC has 6 decimals
 
             if (balance > minDeposit) {
-                this.log(`Found balance ${ethers.formatUnits(balance, 6)} ${symbol} at ${addr.address}`);
+                this.log('Found balance', ethers.formatUnits(balance, 6), symbol, 'at', addr.address);
                 try {
                     await this.sweepAndCredit(addr, balance, { tokenAddress });
                 } catch (error) {
@@ -237,7 +237,7 @@ export class CryptoService {
         const requiredMatic = gasCost * BigInt(2);
 
         if (maticBalance < requiredMatic) {
-            this.log(`Top-up needed for ${addr.address}. Has ${ethers.formatEther(maticBalance)}, needs ${ethers.formatEther(requiredMatic)}`);
+            this.log('Top-up needed for', addr.address, '. Has', ethers.formatEther(maticBalance), ', needs', ethers.formatEther(requiredMatic));
 
             // Send MATIC from Master
             try {
@@ -247,7 +247,7 @@ export class CryptoService {
                     gasLimit: BigInt(21000)
                 });
                 await tx.wait();
-                this.log(`Topped up gas. Hash: ${tx.hash}`);
+                this.log('Topped up gas. Hash:', tx.hash);
             } catch (e) {
                 console.error('Failed to top up gas:', e);
                 return;
@@ -256,11 +256,11 @@ export class CryptoService {
 
         // 2. Sweep Tokens
         try {
-            this.log(`[DEPOSIT] Starting token sweep for user ${addr.userId}, address ${addr.address}, balance: ${ethers.formatUnits(tokenBalance, 6)} USDC`);
+            this.log('[DEPOSIT] Starting token sweep for user', addr.userId, ', address', addr.address, ', balance:', ethers.formatUnits(tokenBalance, 6), 'USDC');
             const tx = await usdcContract.transfer(MASTER_WALLET_ADDRESS, tokenBalance);
-            this.log(`[DEPOSIT] Sweep transaction sent. Hash: ${tx.hash}`);
+            this.log('[DEPOSIT] Sweep transaction sent. Hash:', tx.hash);
             await tx.wait();
-            this.log(`[DEPOSIT] Sweep transaction confirmed for ${addr.address}`);
+            this.log('[DEPOSIT] Sweep transaction confirmed for', addr.address);
 
             // 3. Credit User
             // USDC is pegged to USD. We take a 1% fee for conversion/service.
@@ -268,7 +268,7 @@ export class CryptoService {
             const fee = rawUsdAmount * 0.01; // 1% fee
             const usdAmount = rawUsdAmount - fee;
 
-            this.log(`[DEPOSIT] Processing deposit: raw ${rawUsdAmount} USDC, fee ${fee}, crediting ${usdAmount} USD`);
+            this.log('[DEPOSIT] Processing deposit: raw', rawUsdAmount, 'USDC, fee', fee, ', crediting', usdAmount, 'USD');
 
             let dbTransactionSuccess = false;
             try {
@@ -284,7 +284,7 @@ export class CryptoService {
                                 updatedAt: new Date()
                             }
                         });
-                        this.log(`[DEPOSIT] Sweep-only mode: Updated deposit ${options.depositId} to COMPLETED`);
+                        this.log('[DEPOSIT] Sweep-only mode: Updated deposit', options.depositId, 'to COMPLETED');
                     } else {
                         // LEGACY / POLLING MODE
                         // Create record and credit user
@@ -378,20 +378,20 @@ export class CryptoService {
                     }
                 });
                 dbTransactionSuccess = true;
-                this.log(`[DEPOSIT] Successfully credited user ${addr.userId} with $${usdAmount}`);
+                this.log('[DEPOSIT] Successfully credited user', addr.userId, 'with $', usdAmount);
             } catch (dbError) {
-                console.error(`[DEPOSIT] Database transaction failed for user ${addr.userId}, attempting rollback:`, dbError);
+                console.error('[DEPOSIT] Database transaction failed for user', addr.userId, ', attempting rollback:', dbError);
 
                 // Rollback: Refund tokens back to user wallet
                 try {
                     const masterWallet = this.hotNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
                     const refundContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, masterWallet);
                     const refundTx = await refundContract.transfer(addr.address, tokenBalance);
-                    this.log(`[DEPOSIT] Refund transaction sent. Hash: ${refundTx.hash}`);
+                    this.log('[DEPOSIT] Refund transaction sent. Hash:', refundTx.hash);
                     await refundTx.wait();
-                    this.log(`[DEPOSIT] Successfully refunded ${ethers.formatUnits(tokenBalance, 6)} USDC to ${addr.address}`);
+                    this.log('[DEPOSIT] Successfully refunded', ethers.formatUnits(tokenBalance, 6), 'USDC to', addr.address);
                 } catch (refundError) {
-                    console.error(`[DEPOSIT] CRITICAL: Failed to refund tokens to ${addr.address}. Manual intervention required:`, refundError);
+                    console.error('[DEPOSIT] CRITICAL: Failed to refund tokens to', addr.address, '. Manual intervention required:', refundError);
                     // At this point, tokens are swept but user not credited and refund failed
                     // This needs manual intervention
                     throw new Error(`Deposit sweep succeeded but database failed and refund failed for address ${addr.address}`);
@@ -406,7 +406,7 @@ export class CryptoService {
     }
 
     async requestWithdrawal(userId: string, amount: number, address: string, currency: string = 'USDC', idempotencyKey?: string): Promise<string> {
-        this.log(`[WITHDRAWAL] Requesting withdrawal for user ${userId}: ${amount} ${currency} to ${address}${idempotencyKey ? ` (idempotencyKey: ${idempotencyKey})` : ''}`);
+        this.log('[WITHDRAWAL] Requesting withdrawal for user', userId, ':', amount, currency, 'to', address, idempotencyKey ? ' (idempotencyKey: ' + idempotencyKey + ')' : '');
 
         // Check for existing idempotencyKey to prevent duplicates
         if (idempotencyKey) {
@@ -414,7 +414,7 @@ export class CryptoService {
                 where: { idempotencyKey }
             });
             if (existingWithdrawal) {
-                throw new Error(`Withdrawal request with idempotencyKey ${idempotencyKey} already exists`);
+                throw new Error('Withdrawal request with idempotencyKey ' + idempotencyKey + ' already exists');
             }
         }
 
@@ -495,7 +495,7 @@ export class CryptoService {
                 return withdrawalRecord.id;
             });
 
-            this.log(`[WITHDRAWAL] Successfully created withdrawal request for user ${userId}`);
+            this.log('[WITHDRAWAL] Successfully created withdrawal request for user', userId);
 
             // Return withdrawal ID for notification
             return withdrawalId;
@@ -506,7 +506,7 @@ export class CryptoService {
     }
 
     async approveWithdrawal(withdrawalId: string, adminId: string) {
-        this.log(`[WITHDRAWAL] Starting approval for withdrawal ${withdrawalId} by admin ${adminId}`);
+        this.log('[WITHDRAWAL] Starting approval for withdrawal', withdrawalId, 'by admin', adminId);
 
         const withdrawal = await prisma.withdrawal.findUnique({
             where: { id: withdrawalId },
@@ -516,14 +516,14 @@ export class CryptoService {
 
         if (!withdrawal || (!isRetryApproved && withdrawal.status !== 'PENDING')) {
             const errorMsg = `Invalid withdrawal request: ${withdrawalId} - status: ${withdrawal?.status || 'not found'}`;
-            console.error(`[WITHDRAWAL] ${errorMsg}`);
+            console.error('[WITHDRAWAL]', errorMsg);
             throw new Error(errorMsg);
         }
 
         // Idempotency check: ensure withdrawal hasn't been processed before (txHash set)
         if (withdrawal.txHash) {
             const errorMsg = `Withdrawal already processed: ${withdrawalId}`;
-            console.error(`[WITHDRAWAL] ${errorMsg}`);
+            console.error('[WITHDRAWAL]', errorMsg);
             throw new Error(errorMsg);
         }
 
@@ -564,12 +564,12 @@ export class CryptoService {
                 }
             });
         } else {
-            this.warn(`[WITHDRAWAL] Resuming previously approved withdrawal without txHash ${withdrawalId}`);
+            this.warn('[WITHDRAWAL] Resuming previously approved withdrawal without txHash', withdrawalId);
         }
 
         // Convert USD amount to USDC (6 decimals)
         const amountUnits = ethers.parseUnits(withdrawal.amount.toFixed(6), 6);
-        this.log(`[WITHDRAWAL] Processing withdrawal of ${withdrawal.amount} USD (${ethers.formatUnits(amountUnits, 6)} USDC) to ${withdrawal.toAddress}`);
+        this.log('[WITHDRAWAL] Processing withdrawal of', withdrawal.amount, 'USD (', ethers.formatUnits(amountUnits, 6), 'USDC) to', withdrawal.toAddress);
 
         // Use Hot Wallet (Index 0)
         const hotWallet = this.hotNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
@@ -579,14 +579,14 @@ export class CryptoService {
         try {
             const tx = await usdcContract.transfer(withdrawal.toAddress, amountUnits);
             transferTxHash = tx.hash;
-            this.log(`[WITHDRAWAL] Transfer transaction sent. Hash: ${tx.hash}`);
+            this.log('[WITHDRAWAL] Transfer transaction sent. Hash:', tx.hash);
 
             // Wait for transaction confirmation and verify
             const receipt = await tx.wait();
             if (receipt.status !== 1) {
                 throw new Error(`Blockchain transaction failed with status ${receipt.status}`);
             }
-            this.log(`[WITHDRAWAL] Transfer transaction confirmed for withdrawal ${withdrawalId}`);
+            this.log('[WITHDRAWAL] Transfer transaction confirmed for withdrawal', withdrawalId);
 
             // Update database with retry logic for robustness
             let updateAttempts = 0;
@@ -650,11 +650,11 @@ export class CryptoService {
                         console.error('[WITHDRAWAL] Failed to publish Pusher update:', pusherErr);
                     }
 
-                    this.log(`[WITHDRAWAL] Successfully completed withdrawal ${withdrawalId}`);
+                    this.log('[WITHDRAWAL] Successfully completed withdrawal', withdrawalId);
                     return tx.hash; // Done
                 } catch (updateErr) {
                     updateAttempts++;
-                    this.warn(`[WITHDRAWAL] DB update attempt ${updateAttempts} failed for ${withdrawalId}:`, updateErr);
+                    this.warn('[WITHDRAWAL] DB update attempt', updateAttempts, 'failed for', withdrawalId, ':', updateErr);
                     if (updateAttempts >= maxAttempts) {
                         console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for', withdrawalId, ':', updateErr);
                         // At this point, transfer succeeded but DB update failed
@@ -710,7 +710,7 @@ export class CryptoService {
                             referenceId: withdrawalId,
                             metadata: { txHash: transferTxHash }
                         });
-                        this.log(`[WITHDRAWAL] Successfully refunded ${refundAmount} USD to user ${withdrawal.userId}`);
+                        this.log('[WITHDRAWAL] Successfully refunded', refundAmount, 'USD to user', withdrawal.userId);
                     } else {
                         console.error('[WITHDRAWAL] No balance found to refund for user', withdrawal.userId);
                     }

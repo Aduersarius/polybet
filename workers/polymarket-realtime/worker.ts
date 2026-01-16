@@ -13,6 +13,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import Pusher from 'pusher';
+import fs from 'fs';
+import path from 'path';
 
 interface PolymarketWSMessage {
     event_type: 'market' | 'book' | 'tick_size' | 'last_trade_price' | 'user';
@@ -40,9 +42,24 @@ if (!DATABASE_URL) {
 }
 
 // Initialize Prisma with pg adapter (Prisma 7 pattern)
+const getSSLConfig = () => {
+    try {
+        const caPath = path.join(process.cwd(), 'certs/db-ca.crt');
+        if (fs.existsSync(caPath)) {
+            return {
+                ca: fs.readFileSync(caPath, 'utf8'),
+                rejectUnauthorized: true,
+            };
+        }
+    } catch (err) {
+        console.warn('[Worker] Failed to read CA certificate:', err);
+    }
+    return process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : { rejectUnauthorized: false }; // nosemgrep
+};
+
 const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
+    ssl: getSSLConfig(),
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
@@ -58,10 +75,8 @@ if (REDIS_URL) {
     redis = new Redis(REDIS_URL, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => Math.min(times * 100, 3000),
-        // Only disable TLS verification in development, never in production
-        tls: REDIS_URL.startsWith('rediss://')
-            ? { rejectUnauthorized: process.env.NODE_ENV === 'production' }
-            : undefined,
+        // Use default TLS verification (true) for rediss:// connections
+        tls: REDIS_URL.startsWith('rediss://') ? {} : undefined,
     });
     redis.on('error', (err) => console.error('[Redis] Error:', err.message));
 }
@@ -1114,11 +1129,11 @@ async function runHedgeReconciliation(): Promise<void> {
                     failed++;
                 }
             } catch (updateErr) {
-                console.error(`[HedgeReconcile] Failed to update ${hedge.id}:`, updateErr);
+                console.error('[HedgeReconcile] Failed to update', hedge.id, ':', updateErr);
             }
         }
 
-        console.log(`[HedgeReconcile] Done: ${fixed} fixed, ${failed} failed, ${Date.now() - start}ms`);
+        console.log('[HedgeReconcile] Done:', fixed, 'fixed,', failed, 'failed,', Date.now() - start, 'ms');
     } catch (err) {
         console.error('[HedgeReconcile] Error:', err);
     }
@@ -1232,7 +1247,7 @@ async function runResolutionSync(): Promise<void> {
             if (!winningOutcomeId) continue;
 
             try {
-                console.log(`[Resolution] Resolving ${event.title} -> ${winningOutcomeName}`);
+                console.log('[Resolution] Resolving', event.title, '->', winningOutcomeName);
                 await resolveMarket(event.id, winningOutcomeId);
 
                 await prisma.polymarketMarketMapping.update({
@@ -1243,12 +1258,12 @@ async function runResolutionSync(): Promise<void> {
                 resolved++;
             } catch (err: any) {
                 if (!err.message?.includes('already resolved')) {
-                    console.error(`[Resolution] Failed ${event.title}:`, err.message);
+                    console.error('[Resolution] Failed', event.title, ':', err.message);
                 }
             }
         }
 
-        console.log(`[Resolution] Done: ${resolved} resolved, ${Date.now() - start}ms`);
+        console.log('[Resolution] Done:', resolved, 'resolved,', Date.now() - start, 'ms');
     } catch (err) {
         console.error('[Resolution] Error:', err);
     }
@@ -1322,7 +1337,7 @@ async function main(): Promise<void> {
 
     // Heartbeat log
     setInterval(() => {
-        console.log(`[Worker] Heartbeat: ${subscriptionTokenIds.length} subscriptions, ${lastPrices.size} cached prices. Last 30s: ${stats.messages} msgs, ${stats.updates} updates, ${stats.errors} errors`);
+        console.log('[Worker] Heartbeat:', subscriptionTokenIds.length, 'subscriptions,', lastPrices.size, 'cached prices. Last 30s:', stats.messages, 'msgs,', stats.updates, 'updates,', stats.errors, 'errors');
         // Reset stats
         stats = { messages: 0, updates: 0, errors: 0 };
     }, HEARTBEAT_INTERVAL_MS);

@@ -173,20 +173,15 @@ export function AdminPolymarketIntake() {
       : undefined;
     if (byName?.tokenId) return byName.tokenId;
 
-    // For binary YES/NO outcomes, try the opposite if exact match fails
-    // This handles cases where token.outcome might be capitalized differently
+    // For binary YES/NO outcomes, if exact match fails, report it
     if (isBinaryOutcome) {
-      const byPartialName = tokens.find((t) => {
-        if (!t.outcome) return false;
-        const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return new RegExp(`^${escapedName}$`, 'i').test(t.outcome.trim());
-      });
-      if (byPartialName?.tokenId) return byPartialName.tokenId;
-
       // If still not found, DON'T fall back to index for binary markets
       // as this causes the YES/NO swap
-      console.warn(`[Polymarket] Could not match token for outcome "${name}" by name, tokens:`,
-        tokens.map(t => ({ outcome: t.outcome, tokenId: t.tokenId?.slice(0, 10) + '...' })));
+      console.warn('[Polymarket] Could not match token for outcome by name.', {
+        name,
+        normalizedName,
+        tokens: tokens.map(t => ({ outcome: t.outcome, tokenId: t.tokenId?.slice(0, 10) + '...' }))
+      });
     }
 
     // Only use index fallback for non-binary outcomes (multi-choice markets)

@@ -396,11 +396,11 @@ export async function resolveMarket(eventId: string, winningOutcomeId: string) {
         const hedgeResult = await hedgeManager.settleEventHedges(eventId, winningOutcomeId);
 
         if (hedgeResult.settledCount > 0) {
-            console.log(`[Resolution] Settled ${hedgeResult.settledCount} hedges with total PnL: $${hedgeResult.totalPnl.toFixed(2)}`);
+            console.log('[Resolution] Settled', hedgeResult.settledCount, 'hedges with total PnL: $', hedgeResult.totalPnl.toFixed(2));
         }
 
         if (hedgeResult.errors.length > 0) {
-            console.warn(`[Resolution] ${hedgeResult.errors.length} hedge settlement errors:`, hedgeResult.errors);
+            console.warn('[Resolution]', hedgeResult.errors.length, 'hedge settlement errors:', hedgeResult.errors);
         }
     } catch (hedgeError) {
         // Log but don't fail resolution if hedge settlement fails

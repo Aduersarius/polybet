@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 :root {
   /* 2026 Design - Warm, Professional, Human-Centered */
@@ -9,16 +9,25 @@
    * When updating colors, update both this file AND lib/colors/tokens.ts
    * TODO: Consider generating this file from tokens.ts to ensure sync
    */
-  --background: #111827; /* gray-900 */
-  --surface: #1f2937; /* gray-800 - Event cards and elevated surfaces */
-  --surface-elevated: #232736; /* Higher elevation for modals/dialogs - lighter navy */
-  --primary: #3b82f6; /* Must match colorTokens.primary[500] - Vibrant trust blue */
-  --secondary: #10b981; /* Must match colorTokens.secondary[500] */
-  --accent: #8b5cf6; /* Must match colorTokens.accent[500] */
+  --background: #111827;
+  /* gray-900 */
+  --surface: #1f2937;
+  /* gray-800 - Event cards and elevated surfaces */
+  --surface-elevated: #232736;
+  /* Higher elevation for modals/dialogs - lighter navy */
+  --primary: #3b82f6;
+  /* Must match colorTokens.primary[500] - Vibrant trust blue */
+  --secondary: #10b981;
+  /* Must match colorTokens.secondary[500] */
+  --accent: #8b5cf6;
+  /* Must match colorTokens.accent[500] */
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 17, 24, 39; /* RGB values for gray-900 (#111827) */
-  --background-end-rgb: 17, 24, 39; /* RGB values for gray-900 (#111827) */
-  --navbar-height: 110px; /* Height of fixed navbar (72px main + ~38px category bar) */
+  --background-start-rgb: 17, 24, 39;
+  /* RGB values for gray-900 (#111827) */
+  --background-end-rgb: 17, 24, 39;
+  /* RGB values for gray-900 (#111827) */
+  --navbar-height: 110px;
+  /* Height of fixed navbar (72px main + ~38px category bar) */
 
   /* Shadcn Chart Colors - Modern */
   --chart-1: 217 91% 60%;
@@ -26,7 +35,7 @@
   --chart-3: 43 96% 56%;
   --chart-4: 262 83% 58%;
   --chart-5: 338 78% 56%;
-  
+
   --error: #ef4444;
   --success: #10b981;
   --warning: #f59e0b;
@@ -48,36 +57,47 @@ body {
   color: var(--on-background);
   background: var(--background);
   font-family: var(--font-sans), sans-serif;
-  font-weight: 200; /* Even thinner default font weight */
+  font-weight: 200;
+  /* Even thinner default font weight */
   overflow-x: hidden;
   min-height: 100vh;
   max-width: 100vw;
 }
 
 /* Make headings and bold text thinner */
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 300; /* Thinner headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 300;
+  /* Thinner headings */
 }
 
 /* Override common font-weight classes to be even thinner */
 .font-medium {
-  font-weight: 300 !important; /* Was 500, now very thin */
+  font-weight: 300 !important;
+  /* Was 500, now very thin */
 }
 
 .font-semibold {
-  font-weight: 400 !important; /* Was 600, now thinner */
+  font-weight: 400 !important;
+  /* Was 600, now thinner */
 }
 
 .font-bold {
-  font-weight: 500 !important; /* Was 700, now much thinner */
+  font-weight: 500 !important;
+  /* Was 700, now much thinner */
 }
 
 .font-black {
-  font-weight: 800 !important; /* Keep black weight heavy for titles */
+  font-weight: 800 !important;
+  /* Keep black weight heavy for titles */
 }
 
 /* Ensure all direct page content is above particles background */
-body > div:not([class*="fixed"]) {
+body>div:not([class*="fixed"]) {
   position: relative;
   z-index: 1;
 }
@@ -87,17 +107,17 @@ body > div:not([class*="fixed"]) {
   background: color-mix(in srgb, var(--surface) 60%, transparent);
   backdrop-filter: blur(12px);
   border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 
-              0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .material-card:hover {
   box-shadow: 0 8px 32px color-mix(in srgb, var(--primary) 15%, transparent),
-              0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
-              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
@@ -106,7 +126,8 @@ body > div:not([class*="fixed"]) {
   background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 90%, black) 100%);
   color: var(--on-primary);
   border-radius: 10px;
-  font-weight: 300; /* Even thinner button text */
+  font-weight: 300;
+  /* Even thinner button text */
   letter-spacing: 0.3px;
   padding: 12px 24px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -226,10 +247,13 @@ input[type="number"] {
 
 /* Hide scrollbar for mobile category navigation */
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
+  display: none;
+  /* Chrome, Safari and Opera */
 }

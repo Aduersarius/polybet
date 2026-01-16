@@ -32,21 +32,7 @@ export async function GET(request: Request) {
 
     // ... (rest of the code remains the same until where clause construction)
 
-    // #region agent log
-    // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({
-    //         sessionId: 'debug-session',
-    //         runId: 'pre-fix',
-    //         hypothesisId: 'H1',
-    //         location: 'app/api/events/route.ts:17',
-    //         message: 'incoming params',
-    //         data: { category, timeHorizon, sortBy, limit, offset, source },
-    //         timestamp: Date.now(),
-    //     })
-    // }).catch(() => {});
-    // #endregion
+
 
     // Handle special categories
     // Normalize category name to match category-filters.ts format (e.g., 'SPORTS' -> 'Sports')
@@ -265,24 +251,7 @@ export async function GET(request: Request) {
 
         // Get events with bets
 
-        // #region agent log
-        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         sessionId: 'debug-session',
-        //         runId: 'pre-fix',
-        //         hypothesisId: 'H2',
-        //         location: 'app/api/events/route.ts:108',
-        //         message: 'select fields and where prior to findMany',
-        //         data: {
-        //             whereHasSource: !!source,
-        //             selectFields: ['id','title','description','categories','resolutionDate','imageUrl','createdAt','qYes','qNo','liquidityParameter','type','source','polymarketId','externalVolume','externalBetCount','outcomes'],
-        //         },
-        //         timestamp: Date.now(),
-        //     })
-        // }).catch(() => {});
-        // #endregion
+
 
         const events = await prisma.event.findMany({
             where: {
@@ -324,27 +293,7 @@ export async function GET(request: Request) {
         const hasMore = events.length > limit;
         const pagedEvents = hasMore ? events.slice(0, limit) : events;
 
-        // #region agent log
-        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         sessionId: 'debug-session',
-        //         runId: 'pre-fix',
-        //         hypothesisId: 'H-api-findMany',
-        //         location: 'app/api/events/route.ts:findMany',
-        //         message: 'findMany results',
-        //         data: {
-        //             effectiveCategory: effectiveCategory || 'ALL',
-        //             whereKeys: Object.keys(where || {}),
-        //             count: events.length,
-        //             sampleId: events[0]?.id,
-        //             sourceFilter: source || null
-        //         },
-        //         timestamp: Date.now(),
-        //     })
-        // }).catch(() => { });
-        // #endregion
+
 
         // Get aggregations for volume and betCount
         const eventIds = pagedEvents.map((e: (typeof pagedEvents)[number]) => e.id);
@@ -362,24 +311,7 @@ export async function GET(request: Request) {
             })
             : [];
 
-        // #region agent log
-        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         sessionId: 'debug-session',
-        //         runId: 'pre-fix',
-        //         hypothesisId: 'H-api-activity',
-        //         location: 'app/api/events/route.ts:activity',
-        //         message: 'activity stats',
-        //         data: {
-        //             eventIdsCount: eventIds.length,
-        //             activitiesCount: activities.length
-        //         },
-        //         timestamp: Date.now(),
-        //     })
-        // }).catch(() => { });
-        // #endregion
+
 
         const volumeMap = new Map<string, number>();
         const betCountMap = new Map<string, number>();
@@ -397,7 +329,7 @@ export async function GET(request: Request) {
 
         const queryTime = Date.now() - startTime;
 
-        console.log(`✅ Events API: ${events.length} events in ${queryTime}ms`, {
+        console.log('✅ Events API:', events.length, 'events in', queryTime, 'ms', {
             whereClause: where,
             category: effectiveCategory,
             timeHorizon,
@@ -501,24 +433,10 @@ export async function GET(request: Request) {
 
         return NextResponse.json(result);
     } catch (error) {
-        // #region agent log
-        // fetch('http://127.0.0.1:7242/ingest/069f0f82-8b75-45af-86d9-78499faddb6a', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         sessionId: 'debug-session',
-        //         runId: 'pre-fix',
-        //         hypothesisId: 'H3',
-        //         location: 'app/api/events/route.ts:307',
-        //         message: 'catch block error',
-        //         data: { error: error instanceof Error ? error.message : String(error) },
-        //         timestamp: Date.now(),
-        //     })
-        // }).catch(() => {});
-        // #endregion
+
 
         const errorTime = Date.now() - startTime;
-        console.error(`❌ Events API failed after ${errorTime}ms:`, error);
+        console.error('❌ Events API failed after', errorTime, 'ms:', error);
 
         if (error instanceof Error && error.message === 'Database query timeout') {
             return NextResponse.json({

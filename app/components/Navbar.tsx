@@ -212,7 +212,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                     Settings
                                                 </Link>
                                                 <Link href="/faq" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-purple-500/10 rounded-xl transition-all duration-200 font-medium">
-                                                    Help & FAQ
+                                                    Help &amp; FAQ
                                                 </Link>
                                                 <SupportLink />
                                                 <button
