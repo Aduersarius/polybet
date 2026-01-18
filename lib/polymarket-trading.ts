@@ -878,8 +878,14 @@ class PolymarketTradingService {
 }
 
 
-// Export singleton instance
-export const polymarketTrading = new PolymarketTradingService();
+// Singleton pattern for dev mode persistence
+const globalForPolymarket = global as unknown as { polymarketTrading: PolymarketTradingService };
+
+export const polymarketTrading = globalForPolymarket.polymarketTrading || new PolymarketTradingService();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPolymarket.polymarketTrading = polymarketTrading;
+}
 
 // Helper function to estimate fees
 export function estimatePolymarketFees(size: number, price: number): number {

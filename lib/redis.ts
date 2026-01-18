@@ -2,7 +2,7 @@ import Redis from 'ioredis';
 
 // Use the REDIS_URL from env, or default to localhost (for VPS)
 // For Vercel, you MUST set REDIS_URL in .env to point to your VPS (e.g. redis://:password@188.137.178.118:6379)
-const globalForRedis = global as unknown as { redis: Redis | null };
+const globalForRedis = global as unknown as { redis: Redis | null; isReady?: boolean };
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -209,7 +209,10 @@ function getRedisInstance(): Redis | null {
         });
 
         redisInstance.on('ready', () => {
-            console.log('🟢 Redis connected and authenticated successfully');
+            if (!globalForRedis.isReady) {
+                console.log('🟢 Redis connected and authenticated successfully');
+                globalForRedis.isReady = true;
+            }
         });
 
         // Attempt connection

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "./TradingPanelModal";
 import { MultipleTradingPanelModal } from "./MultipleTradingPanelModal";
-import { EventCard2 } from "./EventCard2";
+import { EventCard2 } from "./EventCard";
 import { MobileCTABanner } from "./MobileCTABanner";
 import { SignupModal } from "./auth/SignupModal";
 import { LoginModal } from "./auth/LoginModal";

@@ -2,7 +2,7 @@
 import { Navbar } from '@/app/components/Navbar';
 import { CompactEventPanel } from '@/app/components/CompactEventPanel';
 import { EventChat } from '@/app/components/EventChat';
-import { OddsChartV2 } from '@/app/components/charts/OddsChartV2';
+import { OddsChartV2 } from '@/app/components/charts/OddsChart';
 import { OrderBook } from '@/app/components/OrderBook';
 import { SuggestedEvents } from '@/app/components/SuggestedEvents';
 import { TradingPanel } from '@/app/components/TradingPanel';

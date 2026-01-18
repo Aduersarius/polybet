@@ -34,6 +34,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.doppler.yaml
 
 # vercel
 .vercel
@@ -51,3 +52,7 @@ workers/polymarket-realtime/node_modules/
 # Security & Maintenance
 /scripts/
 /docs/
+
+# AI Assistant / Agent directories
+.agent/
+.gemini/

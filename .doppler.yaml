@@ -1,0 +1,5 @@
+# This file is used by the Doppler CLI to configure the project
+# It should be committed to git
+setup:
+  project: pariflow
+  config: dev

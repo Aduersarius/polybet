@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "doppler run -- next dev",
+    "dev:local": "next dev",
+    "build": "doppler run -- next build",
+    "build:local": "next build",
     "vercel-build": "npm run build",
-    "start": "next start",
-    "lint": "next lint",
-    "analyze": "ANALYZE=true next build",
+    "start": "doppler run -- next start",
+    "start:local": "next start",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "analyze": "ANALYZE=true doppler run -- next build",
     "postinstall": "prisma generate"
   },
   "dependencies": {

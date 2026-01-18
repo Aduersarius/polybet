@@ -4,14 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useSportsTrading } from '@/contexts/SportsTradingContext';
 import { OrderBook } from '@/app/components/OrderBook';
-import { OddsChartV2 } from '@/app/components/charts/OddsChartV2';
+import { OddsChartV2 } from '@/app/components/charts/OddsChart';
 import { TradingPanel } from '@/app/components/TradingPanel';
 
 export function SportsTradingSidebar() {
   const { selectedEvent, isSidebarOpen, closeEvent } = useSportsTrading();
-  
+
   if (!selectedEvent) return null;
-  
+
   return (
     <AnimatePresence>
       {isSidebarOpen && (
@@ -24,7 +24,7 @@ export function SportsTradingSidebar() {
             onClick={closeEvent}
             className="fixed inset-0 bg-black/50 z-40"
           />
-          
+
           {/* Sidebar */}
           <motion.div
             initial={{ x: '100%' }}
@@ -63,7 +63,7 @@ export function SportsTradingSidebar() {
                   <X className="w-5 h-5 text-white/70" />
                 </button>
               </div>
-              
+
               {/* Tabs */}
               <div className="flex gap-2">
                 <button className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium border border-blue-500/30">
@@ -74,7 +74,7 @@ export function SportsTradingSidebar() {
                 </button>
               </div>
             </div>
-            
+
             {/* Scrollable content */}
             <div className="overflow-y-auto h-[calc(100vh-140px)] p-4 space-y-6">
               {/* Order Book */}
@@ -82,20 +82,20 @@ export function SportsTradingSidebar() {
                 <h3 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">
                   Order Book
                 </h3>
-                <OrderBook 
-                  eventId={selectedEvent.id} 
+                <OrderBook
+                  eventId={selectedEvent.id}
                   dataSource="polymarket"
                   selectedOption="YES"
                   visualMode={true}
                 />
               </div>
-              
+
               {/* Odds Chart */}
               <div>
                 <h3 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">
                   Odds History
                 </h3>
-                <OddsChartV2 
+                <OddsChartV2
                   eventId={selectedEvent.id}
                   eventType={selectedEvent.type === 'MULTIPLE' ? 'MULTIPLE' : 'BINARY'}
                   outcomes={selectedEvent.outcomes || (selectedEvent.yesOdds && selectedEvent.noOdds ? [
@@ -105,13 +105,13 @@ export function SportsTradingSidebar() {
                   currentYesPrice={selectedEvent.yesOdds}
                 />
               </div>
-              
+
               {/* Trading Panel */}
               <div>
                 <h3 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">
                   Place Your Bet
                 </h3>
-                <TradingPanel 
+                <TradingPanel
                   eventId={selectedEvent.id}
                   variant="modal"
                   eventData={selectedEvent}
