@@ -5,66 +5,57 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypt
 import fs from 'fs';
 import path from 'path';
 
-// Ensure engine type always uses the library engine for middleware support.
-process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
-
-// Prisma Client Singleton - v3 (force reload for new models)
+// Prisma Client Singleton - v4 (Prisma 7 Adapter Edition)
 const globalForPrisma = global as unknown as { prisma: PrismaClient; pool: Pool };
 
 const isProd = process.env.NODE_ENV === 'production';
 
-const getSSLConfig = () => {
-    try {
-        const caPath = path.join(process.cwd(), 'certs/db-ca.crt');
-        if (fs.existsSync(caPath)) {
-            const ca = fs.readFileSync(caPath, 'utf8');
-            console.log('[prisma] Using CA certificate for database verification');
-            return {
-                ca,
-                rejectUnauthorized: true,
-            };
-        }
-    } catch (err) {
-        console.warn('[prisma] Failed to read CA certificate:', err);
+function createPrismaClient() {
+    console.log('[prisma] Instantiating PrismaClient with PrismaPg Adapter (Prisma 7)...');
+
+    let dbUrl = process.env.DATABASE_URL || '';
+    if (dbUrl && !dbUrl.includes('pgbouncer=true')) {
+        dbUrl += dbUrl.includes('?') ? '&pgbouncer=true' : '?pgbouncer=true';
     }
 
-    // Fallback for dev if cert is missing
-    return isProd ? { rejectUnauthorized: true } : { rejectUnauthorized: false }; // nosemgrep
-};
+    const caPath = path.join(process.cwd(), 'certs', 'db-ca.crt');
+    if (!fs.existsSync(caPath)) {
+        throw new Error(`[prisma] CRITICAL: CA certificate not found at ${caPath}. Database connection cannot be established securely.`);
+    }
 
-// Use existing pool if available, otherwise create new one
-const pool = globalForPrisma.pool || new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: getSSLConfig(),
-    // SERVERLESS CONFIGURATION
-    // In Vercel, each lambda is isolated.
-    // Since we use PgCat, we can safely allow multiple connections per lambda 
-    // to enable parallel queries (Promise.all) without overwhelming Postgres.
-    max: isProd ? 3 : 10,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000, // Fail fast if no connection
-    // Prevent stale connections
-    allowExitOnIdle: false,
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10_000,
-    statement_timeout: 10_000, // 10s query timeout to fail fast
-});
+    const sslConfig = {
+        ca: fs.readFileSync(caPath).toString(),
+        rejectUnauthorized: true
+    };
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool;
-
-function createPrismaClient() {
-    // Prefer the pg adapter pool, but fall back to default client if middleware is unavailable.
-    const candidate = new PrismaClient({
-        // Keep logs minimal to avoid noisy prisma:query output in dev.
-        log: isProd ? ['error'] : ['error', 'warn'],
-        adapter: new PrismaPg(pool),
+    const pool = new Pool({
+        connectionString: dbUrl,
+        max: isProd ? 10 : 2, // Keep it low for dev/PgCat stability
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+        ssl: sslConfig,
     });
+
+    // Handle pool errors to prevent process crash
+    pool.on('error', (err) => {
+        console.error('[prisma] Unexpected error on idle client', err);
+    });
+
+    const adapter = new PrismaPg(pool);
+    const candidate = new PrismaClient({
+        adapter,
+        log: isProd ? ['error'] : ['error', 'warn'],
+    });
+
+    globalForPrisma.pool = pool;
     return candidate;
 }
 
 const basePrisma = globalForPrisma.prisma || createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma;
+if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = basePrisma;
+}
 
 const SESSION_HASH_SECRET = (() => {
     const secret =

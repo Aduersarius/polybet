@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
     // Enable client trace metadata for Sentry
     clientTraceMetadata: ['baggage', 'sentry-trace'],
   },
+  // Force Prisma to be external to avoid bundling the wrong engine (WASM vs Native)
+  serverExternalPackages: ['@prisma/client', '.prisma/client'],
   // Ensure geoip-lite data files are traced into the serverless output
   outputFileTracingIncludes: {
     '*': ['node_modules/geoip-lite/data/**'],

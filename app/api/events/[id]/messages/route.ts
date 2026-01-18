@@ -230,7 +230,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                             data: {
                                 userId: parentMsg.userId,
                                 type: 'REPLY',
-                                message: `${user.username} replied to your message`,
+                                message: `${user.name || 'Someone'} replied to your message`,
                                 resourceId: id
                             }
                         });
