@@ -25,8 +25,6 @@ const nextConfig: NextConfig = {
       'lucide-react',
       'date-fns',
     ],
-    // Enable client trace metadata for Sentry
-    clientTraceMetadata: ['baggage', 'sentry-trace'],
   },
   // Force Prisma to be external to avoid bundling the wrong engine (WASM vs Native)
   serverExternalPackages: ['@prisma/client', '.prisma/client'],
@@ -91,8 +89,8 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // Scripts: self + Vercel analytics + Sentry + blob for workers
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-scripts.com https://*.sentry.io blob:",
+              // Scripts: self + Vercel analytics + blob for workers
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-scripts.com blob:",
               // Workers: self + blob
               "worker-src 'self' blob:",
               // Styles: self + inline (required for styled-components/emotion) + Google Fonts
@@ -101,8 +99,8 @@ const nextConfig: NextConfig = {
               "img-src 'self' https: data: blob:",
               // Fonts: self + Google Fonts
               "font-src 'self' https://fonts.gstatic.com data:",
-              // Connect: self + https APIs + WebSockets + Sentry
-              "connect-src 'self' https: wss: https://*.sentry.io",
+              // Connect: self + https APIs + WebSockets + OTel (SigNoz)
+              "connect-src 'self' https: wss: http://212.69.87.149:4318",
               // Media: self + https
               "media-src 'self' https: blob:",
               // Object: none (blocks plugins like Flash)
