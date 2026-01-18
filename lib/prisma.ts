@@ -36,14 +36,18 @@ const getSSLConfig = () => {
 const pool = globalForPrisma.pool || new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: getSSLConfig(),
-    max: isProd ? 20 : 10, // Reduced max connections in dev
+    // SERVERLESS CONFIGURATION
+    // In Vercel, each lambda is isolated.
+    // Since we use PgCat, we can safely allow multiple connections per lambda 
+    // to enable parallel queries (Promise.all) without overwhelming Postgres.
+    max: isProd ? 3 : 10,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000, // Fail fast if no connection
     // Prevent stale connections
     allowExitOnIdle: false,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
-    statement_timeout: 30_000, // 30s query timeout
+    statement_timeout: 10_000, // 10s query timeout to fail fast
 });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool;

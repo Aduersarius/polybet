@@ -27,9 +27,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS "OddsHistoryHourly_unique_idx"
 ON "OddsHistoryHourly" ("eventId", "outcomeId", "bucketTime");
 
 -- Create optimized indexes on the main OddsHistory table
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "OddsHistory_eventId_timestamp_outcomeId_opt_idx" 
+CREATE INDEX IF NOT EXISTS "OddsHistory_eventId_timestamp_outcomeId_opt_idx" 
 ON "OddsHistory" ("eventId", "timestamp", "outcomeId");
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "OddsHistory_eventId_timestamp_covering_idx" 
+CREATE INDEX IF NOT EXISTS "OddsHistory_eventId_timestamp_covering_idx" 
 ON "OddsHistory" ("eventId", "timestamp" ASC)
 INCLUDE ("outcomeId", "price", "probability");

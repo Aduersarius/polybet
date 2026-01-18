@@ -238,7 +238,7 @@ model Outcome {
 }
 
 model OddsHistory {
-  id                String   @id @default(cuid())
+  id                String   @default(cuid())
   eventId           String
   outcomeId         String
   polymarketTokenId String?
@@ -251,9 +251,8 @@ model OddsHistory {
   event   Event   @relation(fields: [eventId], references: [id])
   outcome Outcome @relation(fields: [outcomeId], references: [id])
 
+  @@id([id, timestamp])
   @@unique([eventId, outcomeId, timestamp])
-  @@index([polymarketTokenId, timestamp])
-  @@index([eventId, outcomeId, timestamp])
 }
 
 model MarketActivity {
