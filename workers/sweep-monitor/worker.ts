@@ -75,7 +75,7 @@ const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL!;
 const MASTER_WALLET_ADDRESS = process.env.MASTER_WALLET_ADDRESS!;
 const MNEMONIC = process.env.CRYPTO_MASTER_MNEMONIC!;
 const CHECK_INTERVAL_MS = parseInt(process.env.SWEEP_CHECK_INTERVAL_MS || '30000');
-const MAX_RETRIES = parseInt(process.env.SWEEP_MAX_RETRIES || '3');
+const MAX_RETRIES = parseInt(process.env.SWEEP_MAX_RETRIES || '50');
 const RETRY_DELAY_MS = parseInt(process.env.SWEEP_RETRY_DELAY_MS || '5000');
 
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
