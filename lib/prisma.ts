@@ -8,12 +8,15 @@ import path from 'path';
 import { dbQueryCounter, dbQueryHistogram } from './metrics';
 
 // Prisma Client Singleton - v4 (Prisma 7 Adapter Edition)
-const globalForPrisma = global as unknown as { prisma: PrismaClient; pool: Pool };
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient; pool: Pool; hasLogged: boolean };
 
 const isProd = process.env.NODE_ENV === 'production';
 
 function createPrismaClient() {
-    console.log('[prisma] Instantiating PrismaClient with PrismaPg Adapter (Prisma 7)...');
+    if (!isProd && !globalForPrisma.hasLogged) {
+        console.log('[prisma] 🔧 Initializing PrismaClient instance...');
+        globalForPrisma.hasLogged = true;
+    }
 
     let dbUrl = process.env.DATABASE_URL || '';
     if (dbUrl && !dbUrl.includes('pgbouncer=true')) {
@@ -55,7 +58,8 @@ function createPrismaClient() {
 
 const basePrisma = globalForPrisma.prisma || createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') {
+// Always preserve the singleton if we are in development or if it doesn't exist yet
+if (!isProd || !globalForPrisma.prisma) {
     globalForPrisma.prisma = basePrisma;
 }
 

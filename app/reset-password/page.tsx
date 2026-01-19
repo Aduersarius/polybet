@@ -62,9 +62,8 @@ function ResetPasswordForm() {
         setErrorMessage('');
 
         try {
-            // BetterAuth handles the token automatically via the query param ?token=...
-            // which should be present in the URL when this page is loaded
-            const { error } = await email.resetPassword(password);
+            // Pass the token explicitly to the resetPassword function
+            const { error } = await email.resetPassword(password, token);
 
             if (error) {
                 setErrorMessage(error.message || 'Failed to reset password. The link may have expired.');

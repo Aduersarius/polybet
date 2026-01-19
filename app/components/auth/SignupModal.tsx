@@ -45,31 +45,14 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         setLoading(true);
 
         try {
-            // Use Better Auth's fetch API directly
-            const response = await fetch('/api/auth/sign-up/email', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email,
-                    password,
-                    name: email.split('@')[0] // Use email local part as default name
-                }),
+            const { data, error: authError } = await authClient.signUp.email({
+                email,
+                password,
+                name: email.split('@')[0]
             });
 
-            // Check if response has content
-            const text = await response.text();
-            let result;
-
-            try {
-                result = text ? JSON.parse(text) : {};
-            } catch {
-                result = {};
-            }
-
-            if (!response.ok) {
-                setError(result.message || result.error || 'Signup failed. Please try again.');
+            if (authError) {
+                setError(authError.message || 'Signup failed. Please try again.');
             } else {
                 // Success - link to affiliate if applicable (non-blocking)
                 try {

@@ -55,15 +55,20 @@ export const trustedOrigins = (() => {
 // Initialize Resend (only if API key is available)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-// Debug log (dev only)
-if (!isProduction) {
-    console.log('Auth Config:', {
-        isProduction,
-        baseUrl,
-        hasGoogleCreds: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-        hasResend: !!process.env.RESEND_API_KEY,
-    });
+// Debug log (dev only) - Lazy logged once
+let hasLoggedConfig = false;
+function logAuthConfig() {
+    if (!isProduction && !hasLoggedConfig) {
+        console.log('Auth Config:', {
+            isProduction,
+            baseUrl,
+            hasGoogleCreds: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+            hasResend: !!process.env.RESEND_API_KEY,
+        });
+        hasLoggedConfig = true;
+    }
 }
+logAuthConfig();
 
 // Email template for verification
 const LOGO_URL = 'https://jnlgh0ps99hx76my.public.blob.vercel-storage.com/diamond_logo_nobg.png';
@@ -220,7 +225,7 @@ export const auth = betterAuth({
         max: 100,
         customRules: {
             // Password reset: 3 requests per 15 minutes (900 seconds)
-            "/forget-password": {
+            "/request-password-reset": {
                 window: 900,
                 max: 3,
             },
