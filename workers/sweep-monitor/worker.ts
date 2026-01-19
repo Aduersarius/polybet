@@ -307,15 +307,45 @@ async function sweepDeposit(deposit: any) {
             amount: ethers.formatUnits(balance, 6)
         });
 
-        // Update deposit status
-        await prisma.deposit.update({
-            where: { id: deposit.id },
-            data: {
-                status: 'COMPLETED',
-                txHash: sweepTx.hash,
-                updatedAt: new Date()
+        // Update deposit status AND Credit Balance (Atomic Transaction)
+        const rawAmount = parseFloat(ethers.formatUnits(balance, 6));
+        const fee = rawAmount * 0.01; // 1% Fee (matching sweepChainDeposit logic)
+        const finalAmount = rawAmount - fee;
+
+        await prisma.$transaction(async (txPrisma) => {
+            // 1. Mark Deposit Completed
+            await txPrisma.deposit.update({
+                where: { id: deposit.id },
+                data: {
+                    status: 'COMPLETED',
+                    txHash: sweepTx.hash,
+                    updatedAt: new Date()
+                }
+            });
+
+            // 2. Credit User Balance
+            const userBalance = await txPrisma.balance.findFirst({
+                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null }
+            });
+
+            if (userBalance) {
+                await txPrisma.balance.update({
+                    where: { id: userBalance.id },
+                    data: { amount: { increment: finalAmount } }
+                });
+            } else {
+                await txPrisma.balance.create({
+                    data: {
+                        userId: depositAddress.userId,
+                        tokenSymbol: 'TUSD',
+                        amount: finalAmount,
+                        locked: 0
+                    }
+                });
             }
         });
+
+        log('INFO', `✅ User ${depositAddress.userId} credited with $${finalAmount}`);
 
         // Publish via Pusher (Soketi) for Frontend
         await triggerUserUpdate(depositAddress.userId, 'transaction-update', {
@@ -416,30 +446,197 @@ function getHealthStatus() {
 }
 
 /**
+ * Check for actual on-chain balances (Polling Mode)
+ * This handles cases where webhooks miss or aren't used.
+ */
+async function checkChainDeposits() {
+    log('INFO', '🔍 Scanning blockchain for deposits...');
+
+    try {
+        // 1. Pagination Loop to check ALL addresses
+        let skip = 0;
+        const BATCH_SIZE = 50;
+        let totalScanned = 0;
+
+        while (true) {
+            const depositAddresses = await prisma.depositAddress.findMany({
+                where: { currency: 'USDC' },
+                orderBy: { userId: 'asc' }, // Ensure stable pagination
+                take: BATCH_SIZE,
+                skip: skip
+            });
+
+            if (depositAddresses.length === 0) break;
+
+            // 2. Scan Batch
+            const promises = depositAddresses.map(async (addr) => {
+                try {
+                    const tokenContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, provider);
+                    const balance = await tokenContract.balanceOf(addr.address);
+                    const minDeposit = ethers.parseUnits('0.5', 6);
+
+                    if (balance > minDeposit) {
+                        log('INFO', '💰 FOUND DEPOSIT ON CHAIN!', {
+                            address: addr.address,
+                            balance: ethers.formatUnits(balance, 6),
+                            userId: addr.userId
+                        });
+                        await sweepChainDeposit(addr, balance);
+                    }
+                } catch (err) {
+                    console.error(`Failed to scan address ${addr.address}`, err);
+                }
+            });
+
+            // Run batch in parallel
+            await Promise.all(promises);
+
+            totalScanned += depositAddresses.length;
+            skip += BATCH_SIZE;
+
+            // Small delay to be nice to RPC
+            await new Promise(r => setTimeout(r, 100));
+        }
+
+        if (totalScanned > 0) {
+            log('INFO', `Scanned ${totalScanned} addresses.`);
+        } else {
+            // Silence this log to avoid noise if 0 addresses
+            // log('INFO', 'No deposit addresses to scan');
+        }
+
+    } catch (error: any) {
+        log('ERROR', 'Failed to scan chain deposits', { error: error.message });
+    }
+}
+
+async function sweepChainDeposit(depositAddress: any, balance: bigint) {
+    try {
+        log('INFO', `⚡ Initiating sweep for detected funds`, {
+            address: depositAddress.address,
+            amount: ethers.formatUnits(balance, 6)
+        });
+
+        const path = `m/44'/60'/0'/0/${depositAddress.derivationIndex}`;
+        const userWallet = masterNode.derivePath(path).connect(provider);
+
+        // Gas check logic...
+        const maticBalance = await provider.getBalance(depositAddress.address);
+        const feeData = await provider.getFeeData();
+        const gasLimit = 100000n;
+        const gasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
+        const requiredMatic = gasLimit * gasPrice * 2n;
+
+        if (maticBalance < requiredMatic) {
+            log('INFO', 'Needs gas top-up', { address: depositAddress.address });
+            const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
+            const topup = await masterWallet.sendTransaction({
+                to: depositAddress.address,
+                value: requiredMatic - maticBalance,
+                gasLimit: 21000n
+            });
+            await topup.wait();
+            log('INFO', 'Gas topped up');
+        }
+
+        // Sweep
+        const tokenContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, userWallet);
+        const tx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance);
+        await tx.wait();
+
+        log('INFO', `✅ ON-CHAIN SWEEP SUCCESS: ${tx.hash}`);
+
+        // Credit User in DB
+        const rawAmount = parseFloat(ethers.formatUnits(balance, 6));
+        const fee = rawAmount * 0.01; // 1%
+        const finalAmount = rawAmount - fee;
+
+        await prisma.$transaction(async (txPrisma) => {
+            // Create Deposit Record
+            await txPrisma.deposit.create({
+                data: {
+                    userId: depositAddress.userId,
+                    amount: finalAmount,
+                    currency: 'USDC',
+                    txHash: tx.hash,
+                    status: 'COMPLETED',
+                    fromAddress: depositAddress.address,
+                    toAddress: MASTER_WALLET_ADDRESS
+                }
+            });
+
+            // Credit Balance (simplified version of crypto-service logic)
+            // Check if Balance row exists...
+            const userBalance = await txPrisma.balance.findFirst({
+                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null }
+            });
+
+            if (userBalance) {
+                await txPrisma.balance.update({
+                    where: { id: userBalance.id },
+                    data: { amount: { increment: finalAmount } }
+                });
+            } else {
+                await txPrisma.balance.create({
+                    data: {
+                        userId: depositAddress.userId,
+                        tokenSymbol: 'TUSD',
+                        amount: finalAmount,
+                        locked: 0
+                    }
+                });
+            }
+        });
+
+        log('INFO', `✅ User ${depositAddress.userId} credited with $${finalAmount}`);
+
+        // Notify via Pusher
+        await triggerUserUpdate(depositAddress.userId, 'user-update', {
+            type: 'DEPOSIT_SUCCESS',
+            payload: { message: `Deposit of $${finalAmount} confirmed!` }
+        });
+
+    } catch (e: any) {
+        log('ERROR', 'Chain sweep failed', { error: e.message });
+    }
+}
+
+/**
  * Main worker loop
  */
 async function main() {
+    // Configuration
+    const FAST_INTERVAL_MS = CHECK_INTERVAL_MS; // 10s (Webhooks/DB Pending)
+    const SLOW_INTERVAL_MS = 5 * 60 * 1000;     // 5m (Blockchain Polling/Catch-all)
+
     log('INFO', '🚀 Sweep Monitor Worker Starting (Production Mode)...', {
-        checkInterval: CHECK_INTERVAL_MS,
+        fastInterval: FAST_INTERVAL_MS,
+        slowInterval: SLOW_INTERVAL_MS,
         maxRetries: MAX_RETRIES,
         masterWallet: MASTER_WALLET_ADDRESS
     });
 
-    // Run initial check
+    // Run initial checks immediately
     await checkPendingSweeps();
+    checkChainDeposits(); // Run async without awaiting to not block start
 
-    // Schedule periodic checks
+    // 1. Fast Loop (DB Pending)
     setInterval(async () => {
         await checkPendingSweeps();
-    }, CHECK_INTERVAL_MS);
+    }, FAST_INTERVAL_MS);
 
-    // Log health status periodically
+    // 2. Slow Loop (Blockchain Polling)
+    setInterval(async () => {
+        await checkChainDeposits();
+    }, SLOW_INTERVAL_MS);
+
+    // 3. Health Check
     setInterval(() => {
         const health = getHealthStatus();
         log('INFO', 'Health check', health);
     }, 60000); //  Every minute
 
-    log('INFO', '✅ Worker running');
+    log('INFO', '✅ Worker running with Dual-Loop Strategy');
 }
 
 // Graceful shutdown
