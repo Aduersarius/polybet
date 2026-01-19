@@ -268,8 +268,8 @@ async function sweepDeposit(deposit: any) {
         const maticBalance = await provider.getBalance(depositAddress.address);
         const feeData = await provider.getFeeData();
         const gasLimit = 100000n;
-        const gasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
-        const requiredMatic = gasLimit * gasPrice * 2n; // 2x buffer
+        const gasPrice = (feeData.gasPrice! * 150n) / 100n; // 1.5x Multiplier
+        const requiredMatic = gasLimit * gasPrice;
 
         if (maticBalance < requiredMatic) {
             log('INFO', 'Topping up gas', {
@@ -280,10 +280,14 @@ async function sweepDeposit(deposit: any) {
 
             const topupTx = await masterWallet.sendTransaction({
                 to: depositAddress.address,
-                value: requiredMatic - maticBalance,
-                gasLimit: 21000n
+                value: requiredMatic * 2n,
+                gasPrice: gasPrice
             });
-            await topupTx.wait();
+
+            await Promise.race([
+                topupTx.wait(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup timeout')), 30000))
+            ]);
 
             log('INFO', 'Gas topped up', {
                 depositId: deposit.id,
@@ -298,8 +302,14 @@ async function sweepDeposit(deposit: any) {
             currency: deposit.currency
         });
 
-        const sweepTx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance);
-        await sweepTx.wait();
+        const sweepTx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance, {
+            gasPrice: gasPrice
+        });
+
+        await Promise.race([
+            sweepTx.wait(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep timeout')), 30000))
+        ]);
 
         log('INFO', '✅ Sweep completed successfully', {
             depositId: deposit.id,
@@ -523,26 +533,42 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
         // Gas check logic...
         const maticBalance = await provider.getBalance(depositAddress.address);
         const feeData = await provider.getFeeData();
+
+        // Use a multiplier for Polygon to avoid stuck transactions
+        const gasPrice = (feeData.gasPrice! * 150n) / 100n; // 1.5x Multiplier
         const gasLimit = 100000n;
-        const gasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
-        const requiredMatic = gasLimit * gasPrice * 2n;
+        const requiredMatic = gasLimit * gasPrice;
 
         if (maticBalance < requiredMatic) {
             log('INFO', 'Needs gas top-up', { address: depositAddress.address });
             const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
+
             const topup = await masterWallet.sendTransaction({
                 to: depositAddress.address,
-                value: requiredMatic - maticBalance,
-                gasLimit: 21000n
+                value: requiredMatic * 2n, // Send a bit extra for safety
+                gasPrice: gasPrice
             });
-            await topup.wait();
+
+            // Wait with a timeout
+            await Promise.race([
+                topup.wait(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup timeout')), 30000))
+            ]);
+
             log('INFO', 'Gas topped up');
         }
 
         // Sweep
+        const sweepGasPrice = (feeData.gasPrice! * 150n) / 100n;
         const tokenContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, userWallet);
-        const tx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance);
-        await tx.wait();
+        const tx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance, {
+            gasPrice: sweepGasPrice
+        });
+
+        await Promise.race([
+            tx.wait(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep timeout')), 30000))
+        ]);
 
         log('INFO', `✅ ON-CHAIN SWEEP SUCCESS: ${tx.hash}`);
 
