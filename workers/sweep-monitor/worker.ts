@@ -534,40 +534,51 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
         const maticBalance = await provider.getBalance(depositAddress.address);
         const feeData = await provider.getFeeData();
 
-        // Use a multiplier for Polygon to avoid stuck transactions
-        const gasPrice = (feeData.gasPrice! * 150n) / 100n; // 1.5x Multiplier
+        // Use EIP-1559 fees for Polygon reliability
+        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas || ethers.parseUnits('35', 'gwei');
+        const maxFeePerGas = (feeData.maxFeePerGas || ethers.parseUnits('100', 'gwei')) * 2n; // 2x buffer
         const gasLimit = 100000n;
-        const requiredMatic = gasLimit * gasPrice;
+        const requiredMatic = gasLimit * maxFeePerGas;
 
         if (maticBalance < requiredMatic) {
-            log('INFO', 'Needs gas top-up', { address: depositAddress.address });
+            log('INFO', 'Needs gas top-up', {
+                address: depositAddress.address,
+                balance: ethers.formatEther(maticBalance),
+                required: ethers.formatEther(requiredMatic)
+            });
+
             const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
 
             const topup = await masterWallet.sendTransaction({
                 to: depositAddress.address,
-                value: requiredMatic * 2n, // Send a bit extra for safety
-                gasPrice: gasPrice
+                value: requiredMatic * 2n,
+                maxFeePerGas,
+                maxPriorityFeePerGas
             });
+
+            log('INFO', `🚀 Top-up TX Sent: ${topup.hash}. Waiting for confirmation...`);
 
             // Wait with a timeout
             await Promise.race([
                 topup.wait(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup timeout')), 30000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup confirmation timeout (30s)')), 30000))
             ]);
 
-            log('INFO', 'Gas topped up');
+            log('INFO', '✅ Gas topped up and confirmed');
         }
 
-        // Sweep
-        const sweepGasPrice = (feeData.gasPrice! * 150n) / 100n;
+        // Sweep tokens
         const tokenContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, userWallet);
         const tx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance, {
-            gasPrice: sweepGasPrice
+            maxFeePerGas,
+            maxPriorityFeePerGas
         });
+
+        log('INFO', `🚀 Sweep TX Sent: ${tx.hash}. Waiting for confirmation...`);
 
         await Promise.race([
             tx.wait(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep timeout')), 30000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep confirmation timeout (30s)')), 30000))
         ]);
 
         log('INFO', `✅ ON-CHAIN SWEEP SUCCESS: ${tx.hash}`);
