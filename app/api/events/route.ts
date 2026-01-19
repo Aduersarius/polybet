@@ -5,6 +5,7 @@ import { assertSameOrigin } from '@/lib/csrf';
 import { calculateDisplayVolume } from '@/lib/volume-scaler';
 import { getOrSet } from '@/lib/cache';
 import { redis } from '@/lib/redis';
+import { eventRequestsCounter, eventSearchCounter } from '@/lib/metrics';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,16 @@ export async function GET(request: Request) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const source = searchParams.get('source'); // optional source filter (e.g., POLYMARKET)
     const searchQuery = searchParams.get('search')?.trim();
+
+    // Custom Metrics
+    eventRequestsCounter.add(1, {
+        category: category || 'ALL',
+        source: source || 'internal',
+    });
+
+    if (searchQuery) {
+        eventSearchCounter.add(1);
+    }
 
     // Generate cache key from query params (skip caching for user-specific/search queries)
     const isCacheable = category !== 'FAVORITES' && !searchQuery;

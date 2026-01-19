@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: signoz-host-monitor
+    restart: always
+    command: ["--config=/etc/otel/config.yaml"] # Changed path to avoid mounting file as dir
+    volumes:
+    volumes:
+      # --- COOLIFY CONFIGURATION ---
+      # 1. Do NOT uncomment the line below if using Coolify UI "Storages"
+      # 2. Instead, go to Service -> Storages -> Add File
+      # 3. Network/Volume Name: (leave default)
+      # 4. Mount Path: /etc/otel/config.yaml
+      # 5. Content: Paste the content of otel-collector-config.yaml here
+      # - ./otel-collector-config.yaml:/etc/otel/config.yaml 
+      
+      - /:/hostfs:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+    network_mode: "host"
+    environment:
+      - HOST_PROC=/hostfs/proc
+      - HOST_SYS=/hostfs/sys
+      - HOST_ETC=/hostfs/etc
+      - HOST_VAR=/hostfs/var
+      - HOST_RUN=/hostfs/run
+      - HOST_DEV=/hostfs/dev

@@ -3,7 +3,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypto';
 import fs from 'fs';
+
 import path from 'path';
+import { dbQueryCounter, dbQueryHistogram } from './metrics';
 
 // Prisma Client Singleton - v4 (Prisma 7 Adapter Edition)
 const globalForPrisma = global as unknown as { prisma: PrismaClient; pool: Pool };
@@ -136,10 +138,36 @@ function decryptField(value: string | null | undefined): string | null | undefin
     return decrypted.toString('utf8');
 }
 
-// Prisma extensions to hash session tokens and encrypt/decrypt TwoFactor secrets.
-const prismaWithExtensions =
+// 1. Metrics Extension - wraps all operations
+const prismaWithMetrics =
     typeof (basePrisma as any).$extends === 'function'
         ? (basePrisma as any).$extends({
+            query: {
+                $allModels: {
+                    $allOperations: async ({ model, operation, args, query }: any) => {
+                        const start = performance.now();
+                        try {
+                            const result = await query(args);
+                            const duration = performance.now() - start;
+                            dbQueryCounter.add(1, { model, operation, status: 'success' });
+                            dbQueryHistogram.record(duration, { model, operation, status: 'success' });
+                            return result;
+                        } catch (error) {
+                            const duration = performance.now() - start;
+                            dbQueryCounter.add(1, { model, operation, status: 'failure' });
+                            dbQueryHistogram.record(duration, { model, operation, status: 'failure' });
+                            throw error;
+                        }
+                    },
+                },
+            },
+        })
+        : basePrisma;
+
+// 2. Auth Extension - handles session hashing
+const prismaWithExtensions =
+    typeof (prismaWithMetrics as any).$extends === 'function'
+        ? (prismaWithMetrics as any).$extends({
             query: {
                 Session: {
                     create: async ({ args, query }: any) => {
@@ -171,10 +199,8 @@ const prismaWithExtensions =
                     },
                 },
                 // TwoFactor model is managed by Better Auth - it handles encryption internally
-                // Do NOT apply custom encryption here as it causes double-encryption conflicts
-                // Better Auth uses BETTER_AUTH_SECRET for its own encryption
             },
         })
-        : basePrisma;
+        : prismaWithMetrics;
 
 export const prisma = prismaWithExtensions;

@@ -11,7 +11,7 @@
  * - OPEN: Service unavailable, requests fail immediately
  * - HALF_OPEN: Testing if service recovered, allow single request
  */
-
+import { registerCircuitBreakerGauge } from './metrics';
 export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
 export interface CircuitBreakerConfig {
@@ -39,6 +39,17 @@ export class CircuitBreaker {
     constructor(name: string = 'polymarket', config: Partial<CircuitBreakerConfig> = {}) {
         this.name = name;
         this.config = { ...DEFAULT_CONFIG, ...config };
+
+        // Register this instance with the metrics gauge if it's the main polymarket one
+        // (We check the name to avoid registering multiple callbacks if multiple instances are created)
+        if (name === 'polymarket') {
+            registerCircuitBreakerGauge((result) => {
+                let stateValue = 0;
+                if (this.state === 'OPEN') stateValue = 1;
+                if (this.state === 'HALF_OPEN') stateValue = 2;
+                result.observe(stateValue, { name: this.name });
+            });
+        }
     }
 
     /**

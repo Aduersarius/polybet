@@ -10,6 +10,7 @@ import { orderSplitter, type SplitOrderPlan, type OrderChunk } from './order-spl
 import { polymarketCircuit, CircuitOpenError } from './circuit-breaker';
 import { redis } from './redis';
 import { settleEventHedges } from './exchange/polymarket';
+import { trackHedgeEvent, hedgeSplitCounter, trackError } from '@/lib/metrics';
 
 export interface HedgeConfig {
   enabled: boolean;
@@ -188,7 +189,18 @@ export class HedgeManager {
     const liquidityAdjustment = (1 - liquidityScore) * 50;
     spreadBps += liquidityAdjustment;
 
-    return Math.min(1000, Math.max(this.config.minSpreadBps, spreadBps));
+    // Final clamp
+    spreadBps = Math.min(1000, Math.max(this.config.minSpreadBps, spreadBps));
+
+    trackHedgeEvent('calculate_spread', 'success', Date.now() - start, {
+      eventId,
+      size,
+      volatility: volatility.toFixed(4),
+      liquidityScore: liquidityScore.toFixed(4),
+      resultBps: spreadBps
+    });
+
+    return spreadBps;
   }
 
   /**
@@ -226,6 +238,9 @@ export class HedgeManager {
       maxAcceptablePrice: Math.max(0.01, Math.min(0.99, maxAcceptablePrice)),
     };
   }
+
+
+
 
   /**
    * Check if hedging is feasible for an order
@@ -460,6 +475,9 @@ export class HedgeManager {
       total: 0,
     };
 
+    // OTel tracking start
+    const opStart = performance.now();
+
     try {
       // Get Polymarket mapping
       const mappingStart = Date.now();
@@ -515,7 +533,7 @@ export class HedgeManager {
 
       if (!shouldSplit) {
         // Small order - execute normally
-        return await this.executeSingleHedge({
+        const result = await this.executeSingleHedge({
           userOrderId,
           mapping: mappingWithTokenId,
           size,
@@ -526,10 +544,13 @@ export class HedgeManager {
           polymarketTickSize,
           polymarketNegRisk
         });
+        trackHedgeEvent('execute_single', result.success ? 'success' : 'failure', performance.now() - opStart);
+        return result;
       }
 
       // Large order - split and execute incrementally
-      return await this.executeSplitHedge({
+      hedgeSplitCounter.add(1);
+      const result = await this.executeSplitHedge({
         userOrderId,
         eventId,
         mapping: mappingWithTokenId,
@@ -539,8 +560,13 @@ export class HedgeManager {
         side,
         spreadBps,
       });
+
+      trackHedgeEvent('execute_split', result.success ? 'success' : 'failure', performance.now() - opStart);
+      return result;
     } catch (error: any) {
       console.error('[HedgeManager] Hedge execution failed:', error);
+      trackError(error, { context: 'hedge-execution', userOrderId });
+      trackHedgeEvent('execute', 'failure', performance.now() - opStart, { error: error.message });
       return {
         success: false,
         error: error.message,
@@ -583,6 +609,7 @@ export class HedgeManager {
     let lastError: any;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const attemptStart = Date.now();
       try {
         // Check circuit breaker before attempting
         if (!polymarketCircuit.isAllowed()) {
@@ -620,6 +647,7 @@ export class HedgeManager {
         });
 
         console.log(`[HedgeManager] Successfully hedged order ${userOrderId} on attempt ${attempt}`);
+        trackHedgeEvent('execute_single_attempt', 'success', Date.now() - attemptStart, { attempt, userOrderId });
 
         // Track affiliate referral trade stats (non-blocking)
         if (netProfit > 0) {
@@ -648,7 +676,9 @@ export class HedgeManager {
         };
       } catch (hedgeError: any) {
         lastError = hedgeError;
+        const attemptDuration = Date.now() - attemptStart;
         console.error('[HedgeManager] Hedge attempt %d/%d failed:', attempt, maxRetries, hedgeError.message);
+        trackHedgeEvent('execute_single_attempt', 'failure', attemptDuration, { attempt, error: hedgeError.message });
 
         // If circuit breaker is open, don't retry - fail fast
         if (hedgeError instanceof CircuitOpenError) {

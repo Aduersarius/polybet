@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { redisCommandCounter, redisDurationHistogram } from './metrics';
 
 // Use the REDIS_URL from env, or default to localhost (for VPS)
 // For Vercel, you MUST set REDIS_URL in .env to point to your VPS (e.g. redis://:password@188.137.178.118:6379)
@@ -253,7 +254,26 @@ export const redis = new Proxy({} as Redis, {
             return undefined;
         }
         const value = (instance as any)[prop];
-        return typeof value === 'function' ? value.bind(instance) : value;
+        if (typeof value === 'function') {
+            const originalMethod = value.bind(instance);
+            return async (...args: any[]) => {
+                const start = performance.now();
+                const cmd = String(prop);
+                try {
+                    const result = await originalMethod(...args);
+                    const duration = performance.now() - start;
+                    redisCommandCounter.add(1, { command: cmd, status: 'success' });
+                    redisDurationHistogram.record(duration, { command: cmd, status: 'success' });
+                    return result;
+                } catch (error) {
+                    const duration = performance.now() - start;
+                    redisCommandCounter.add(1, { command: cmd, status: 'failure' });
+                    redisDurationHistogram.record(duration, { command: cmd, status: 'failure' });
+                    throw error;
+                }
+            };
+        }
+        return value;
     }
 });
 

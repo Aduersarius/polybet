@@ -1,15 +1,13 @@
-export const runtime = 'nodejs';
-import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { trackError } from '@/lib/metrics';
 import { isEsports, detectLeague, detectSport, parseTeams, normalizeGameStatus } from '@/lib/sports-classifier';
 import { scaleVolumeForStorage } from '@/lib/volume-scaler';
 import type { PolymarketSportsEvent } from '@/types/sports';
 
-// Sentry Cron Monitor slug (must match Sentry dashboard)
-const CRON_MONITOR_SLUG = 'sports-sync-cron';
-
 const POLYMARKET_SPORTS_URL = 'https://gamma-api.polymarket.com/events';
+
+
 
 /**
  * Classify event as live, upcoming, or long-term future
@@ -386,239 +384,220 @@ function normalizeEvent(event: PolymarketSportsEvent): NormalizedSportsEvent | n
  * Monitored by Sentry Crons
  */
 export async function POST(request: Request) {
-  // Wrap entire handler with Sentry cron monitoring
-  return Sentry.withMonitor(
-    CRON_MONITOR_SLUG,
-    async () => {
-      try {
-        const start = Date.now();
+  try {
+    const start = Date.now();
 
-        // STEP 1: Clean up stale events BEFORE syncing new data
-        // Remove events that appear to be live but started >3 hours ago (likely finished or have wrong dates)
-        const now = new Date();
-        const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    // STEP 1: Clean up stale events BEFORE syncing new data
+    // Remove events that appear to be live but started >3 hours ago (likely finished or have wrong dates)
+    const now = new Date();
+    const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
-        const staleLiveEvents = await prisma.event.deleteMany({
-          where: {
-            source: 'POLYMARKET',
-            live: true,
-            startTime: {
-              lt: threeHoursAgo,
-            },
-            OR: [
-              { gameStatus: null },
-              { gameStatus: { notIn: ['finished', 'cancelled'] } },
-            ],
-          },
-        });
-
-        if (staleLiveEvents.count > 0) {
-          console.log(`[Sports Sync] Cleaned up ${staleLiveEvents.count} stale live events (started >3h ago)`);
-        }
-
-        // Fetch sports events from Polymarket
-        console.log('[Sports Sync] Fetching events from Polymarket...');
-        const polymarketEvents = await fetchPolymarketSports(500);
-        console.log(`[Sports Sync] Fetched ${polymarketEvents.length} raw events`);
-
-        // Normalize events
-        const normalized = polymarketEvents
-          .map(event => normalizeEvent(event))
-          .filter((e): e is NormalizedSportsEvent => e !== null);
-
-        console.log(`[Sports Sync] Normalized ${normalized.length} events`);
-
-        // Filter out non-sports predictions (celebrity gossip, political predictions, etc.)
-        const filtered = normalized.filter(event => {
-          // Must have team vs team format OR be a recognized sport/league
-          const hasMatchup = event.teamA && event.teamB;
-          const hasLeague = event.league && event.league !== 'Unknown';
-          const isRecognizedSport = event.isEsports || (event.sport && event.sport !== 'other');
-
-          // Exclude generic predictions (questions, celebrity gossip, non-sports)
-          const lowerTitle = event.title.toLowerCase();
-          const isGenericPrediction =
-            event.title.includes('?') ||
-            lowerTitle.includes('will ') ||
-            lowerTitle.includes('engaged') ||
-            lowerTitle.includes('in jail') ||
-            lowerTitle.includes('announce') ||
-            lowerTitle.includes('retire from') ||
-            lowerTitle.includes('signed by') ||
-            lowerTitle.includes('traded to') ||
-            (!hasMatchup && !hasLeague); // No matchup and no league = likely not sports
-
-          const isValidSportsEvent = (hasMatchup || (hasLeague && isRecognizedSport)) && !isGenericPrediction;
-
-          if (!isValidSportsEvent) {
-            console.log(`[Sync] Filtering out: ${event.title.substring(0, 60)}`);
-          }
-
-          return isValidSportsEvent;
-        });
-
-        console.log(`[Sports Sync] After filtering: ${filtered.length} events (Esports: ${filtered.filter(e => e.isEsports).length}, Traditional: ${filtered.filter(e => !e.isEsports).length})`);
-
-        // Get system creator ID
-        const systemUser = await prisma.user.findFirst({
-          where: { isAdmin: true },
-          select: { id: true },
-        });
-
-        if (!systemUser) {
-          console.error('[Sports Sync] No admin user found for event creation');
-          return NextResponse.json(
-            { error: 'No system user found' },
-            { status: 500 }
-          );
-        }
-
-        const creatorId = systemUser.id;
-
-        // Upsert events to database
-        let created = 0;
-        let updated = 0;
-        let errors = 0;
-
-        for (const event of filtered) {
-          try {
-            // Check if event exists
-            const existing = await prisma.event.findUnique({
-              where: { polymarketId: event.polymarketId },
-            });
-
-            if (existing) {
-              // Update existing event
-              await prisma.event.update({
-                where: { id: existing.id },
-                data: {
-                  title: event.title,
-                  description: event.description,
-                  categories: event.categories,
-                  imageUrl: event.imageUrl,
-                  resolutionDate: event.resolutionDate,
-                  externalVolume: scaleVolumeForStorage(event.volume),
-
-                  // Update odds
-                  yesOdds: event.yesOdds,
-                  noOdds: event.noOdds,
-
-                  // Update sports fields
-                  league: event.league,
-                  sport: event.sport,
-                  teamA: event.teamA,
-                  teamB: event.teamB,
-                  score: event.score,
-                  period: event.period,
-                  elapsed: event.elapsed,
-                  live: event.live,
-                  gameStatus: event.gameStatus,
-                  startTime: event.startTime,
-                  isEsports: event.isEsports,
-                  eventType: event.eventType,
-
-                  updatedAt: new Date(),
-                },
-              });
-
-              // Update token IDs for WebSocket subscriptions
-              if (event.yesTokenId || event.noTokenId) {
-                await prisma.polymarketMarketMapping.upsert({
-                  where: {
-                    eventId: existing.id,
-                  },
-                  create: {
-                    eventId: existing.id,
-                    yesTokenId: event.yesTokenId || '',
-                    noTokenId: event.noTokenId || '',
-                  },
-                  update: {
-                    yesTokenId: event.yesTokenId || '',
-                    noTokenId: event.noTokenId || '',
-                  },
-                });
-              }
-
-              updated++;
-            } else {
-              // Create new event
-              const { category, volume, betCount, yesTokenId, noTokenId, clobTokenIds, ...eventData } = event; // Remove fields that don't match schema
-              const newEvent = await prisma.event.create({
-                data: {
-                  ...eventData,
-                  externalVolume: scaleVolumeForStorage(volume),
-                  externalBetCount: betCount,
-                  creatorId,
-                  status: 'ACTIVE',
-                },
-              });
-
-              // Store token IDs for WebSocket subscriptions
-              if (yesTokenId || noTokenId) {
-                await prisma.polymarketMarketMapping.upsert({
-                  where: {
-                    eventId: newEvent.id,
-                  },
-                  create: {
-                    eventId: newEvent.id,
-                    yesTokenId: yesTokenId || '',
-                    noTokenId: noTokenId || '',
-                  },
-                  update: {
-                    yesTokenId: yesTokenId || '',
-                    noTokenId: noTokenId || '',
-                  },
-                });
-              }
-
-              created++;
-            }
-          } catch (error) {
-            console.error('[Sports Sync] Error processing event', event.id, ':', error);
-            errors++;
-          }
-        }
-
-        const duration = Date.now() - start;
-
-        console.log('[Sports Sync] Completed in %dms:', duration, {
-          created,
-          updated,
-          errors,
-          total: normalized.length,
-        });
-
-        return NextResponse.json({
-          success: true,
-          created,
-          updated,
-          errors,
-          total: normalized.length,
-          duration,
-        });
-      } catch (error) {
-        console.error('[Sports Sync] Fatal error:', error);
-        Sentry.captureException(error);
-        return NextResponse.json(
-          { error: 'Sync failed', details: error instanceof Error ? error.message : 'Unknown error' },
-          { status: 500 }
-        );
-      }
-    },
-    {
-      // Monitor configuration - matches vercel.json schedule (daily at 2am)
-      schedule: {
-        type: 'crontab',
-        value: '0 2 * * *',
+    const staleLiveEvents = await prisma.event.deleteMany({
+      where: {
+        source: 'POLYMARKET',
+        live: true,
+        startTime: {
+          lt: threeHoursAgo,
+        },
+        OR: [
+          { gameStatus: null },
+          { gameStatus: { notIn: ['finished', 'cancelled'] } },
+        ],
       },
-      // Timezone for the schedule
-      timezone: 'UTC',
-      // Maximum expected runtime (10 minutes)
-      maxRuntime: 600,
-      // Checkin margin (how much early/late is acceptable)
-      checkinMargin: 5,
+    });
+
+    if (staleLiveEvents.count > 0) {
+      console.log(`[Sports Sync] Cleaned up ${staleLiveEvents.count} stale live events (started >3h ago)`);
     }
-  );
+
+    // Fetch sports events from Polymarket
+    console.log('[Sports Sync] Fetching events from Polymarket...');
+    const polymarketEvents = await fetchPolymarketSports(500);
+    console.log(`[Sports Sync] Fetched ${polymarketEvents.length} raw events`);
+
+    // Normalize events
+    const normalized = polymarketEvents
+      .map(event => normalizeEvent(event))
+      .filter((e): e is NormalizedSportsEvent => e !== null);
+
+    console.log(`[Sports Sync] Normalized ${normalized.length} events`);
+
+    // Filter out non-sports predictions (celebrity gossip, political predictions, etc.)
+    const filtered = normalized.filter(event => {
+      // Must have team vs team format OR be a recognized sport/league
+      const hasMatchup = event.teamA && event.teamB;
+      const hasLeague = event.league && event.league !== 'Unknown';
+      const isRecognizedSport = event.isEsports || (event.sport && event.sport !== 'other');
+
+      // Exclude generic predictions (questions, celebrity gossip, non-sports)
+      const lowerTitle = event.title.toLowerCase();
+      const isGenericPrediction =
+        event.title.includes('?') ||
+        lowerTitle.includes('will ') ||
+        lowerTitle.includes('engaged') ||
+        lowerTitle.includes('in jail') ||
+        lowerTitle.includes('announce') ||
+        lowerTitle.includes('retire from') ||
+        lowerTitle.includes('signed by') ||
+        lowerTitle.includes('traded to') ||
+        (!hasMatchup && !hasLeague); // No matchup and no league = likely not sports
+
+      const isValidSportsEvent = (hasMatchup || (hasLeague && isRecognizedSport)) && !isGenericPrediction;
+
+      if (!isValidSportsEvent) {
+        console.log(`[Sync] Filtering out: ${event.title.substring(0, 60)}`);
+      }
+
+      return isValidSportsEvent;
+    });
+
+    console.log(`[Sports Sync] After filtering: ${filtered.length} events (Esports: ${filtered.filter(e => e.isEsports).length}, Traditional: ${filtered.filter(e => !e.isEsports).length})`);
+
+    // Get system creator ID
+    const systemUser = await prisma.user.findFirst({
+      where: { isAdmin: true },
+      select: { id: true },
+    });
+
+    if (!systemUser) {
+      console.error('[Sports Sync] No admin user found for event creation');
+      return NextResponse.json(
+        { error: 'No system user found' },
+        { status: 500 }
+      );
+    }
+
+    const creatorId = systemUser.id;
+
+    // Upsert events to database
+    let created = 0;
+    let updated = 0;
+    let errors = 0;
+
+    for (const event of filtered) {
+      try {
+        // Check if event exists
+        const existing = await prisma.event.findUnique({
+          where: { polymarketId: event.polymarketId },
+        });
+
+        if (existing) {
+          // Update existing event
+          await prisma.event.update({
+            where: { id: existing.id },
+            data: {
+              title: event.title,
+              description: event.description,
+              categories: event.categories,
+              imageUrl: event.imageUrl,
+              resolutionDate: event.resolutionDate,
+              externalVolume: scaleVolumeForStorage(event.volume),
+
+              // Update odds
+              yesOdds: event.yesOdds,
+              noOdds: event.noOdds,
+
+              // Update sports fields
+              league: event.league,
+              sport: event.sport,
+              teamA: event.teamA,
+              teamB: event.teamB,
+              score: event.score,
+              period: event.period,
+              elapsed: event.elapsed,
+              live: event.live,
+              gameStatus: event.gameStatus,
+              startTime: event.startTime,
+              isEsports: event.isEsports,
+              eventType: event.eventType,
+
+              updatedAt: new Date(),
+            },
+          });
+
+          // Update token IDs for WebSocket subscriptions
+          if (event.yesTokenId || event.noTokenId) {
+            await prisma.polymarketMarketMapping.upsert({
+              where: {
+                eventId: existing.id,
+              },
+              create: {
+                eventId: existing.id,
+                yesTokenId: event.yesTokenId || '',
+                noTokenId: event.noTokenId || '',
+              },
+              update: {
+                yesTokenId: event.yesTokenId || '',
+                noTokenId: event.noTokenId || '',
+              },
+            });
+          }
+
+          updated++;
+        } else {
+          // Create new event
+          const { category, volume, betCount, yesTokenId, noTokenId, clobTokenIds, ...eventData } = event; // Remove fields that don't match schema
+          const newEvent = await prisma.event.create({
+            data: {
+              ...eventData,
+              externalVolume: scaleVolumeForStorage(volume),
+              externalBetCount: betCount,
+              creatorId,
+              status: 'ACTIVE',
+            },
+          });
+
+          // Store token IDs for WebSocket subscriptions
+          if (yesTokenId || noTokenId) {
+            await prisma.polymarketMarketMapping.upsert({
+              where: {
+                eventId: newEvent.id,
+              },
+              create: {
+                eventId: newEvent.id,
+                yesTokenId: yesTokenId || '',
+                noTokenId: noTokenId || '',
+              },
+              update: {
+                yesTokenId: yesTokenId || '',
+                noTokenId: noTokenId || '',
+              },
+            });
+          }
+
+          created++;
+        }
+      } catch (error) {
+        console.error('[Sports Sync] Error processing event', event.id, ':', error);
+        errors++;
+      }
+    }
+
+    const duration = Date.now() - start;
+
+    console.log('[Sports Sync] Completed in %dms:', duration, {
+      created,
+      updated,
+      errors,
+      total: normalized.length,
+    });
+
+    return NextResponse.json({
+      success: true,
+      created,
+      updated,
+      errors,
+      total: normalized.length,
+      duration,
+    });
+  } catch (error) {
+    console.error('[Sports Sync] Fatal error:', error);
+    trackError(error, { context: 'sports-sync-cron' });
+    return NextResponse.json(
+      { error: 'Sync failed', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
 }
 
 /**

@@ -11,6 +11,7 @@ import { Wallet } from 'ethers';
 import { ClobClient, Side as ClobSide, OrderType, TickSize } from '@polymarket/clob-client';
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { trackExternalApi, trackError } from './metrics';
 
 // Configure proxy for axios using HttpsProxyAgent with fallback support
 const proxyUrl = process.env.POLYMARKET_PROXY_URL;
@@ -385,6 +386,7 @@ class PolymarketTradingService {
    * Get current orderbook depth for a market
    */
   async getOrderbook(marketId: string): Promise<OrderbookSnapshot> {
+    const start = Date.now();
     if (!this.clobClient) {
       throw new Error('Polymarket trading not initialized');
     }
@@ -392,7 +394,7 @@ class PolymarketTradingService {
     try {
       const ob = await this.clobClient.getOrderBook(marketId);
 
-      return {
+      const result = {
         bids:
           ob.bids?.map((b: any) => ({
             price: parseFloat(b.price),
@@ -407,8 +409,12 @@ class PolymarketTradingService {
         tickSize: (ob as any).tick_size,
         negRisk: ob.neg_risk
       };
-    } catch (error) {
+      trackExternalApi('polymarket', 'get_orderbook', Date.now() - start, true);
+      return result;
+    } catch (error: any) {
       console.error('[Polymarket] Failed to fetch orderbook:', error);
+      trackExternalApi('polymarket', 'get_orderbook', Date.now() - start, false);
+      trackError(error, { context: 'polymarket-orderbook', marketId });
       throw error;
     }
   }
@@ -532,6 +538,7 @@ class PolymarketTradingService {
    * Place a limit order on Polymarket
    */
   async placeOrder(request: PolymarketOrderRequest): Promise<PolymarketOrder> {
+    const start = Date.now();
     if (!this.clobClient || !this.wallet) {
       throw new Error('Polymarket trading not enabled - missing credentials');
     }
@@ -603,7 +610,7 @@ class PolymarketTradingService {
 
       console.log('[Polymarket] Order placed successfully:', orderId);
 
-      return {
+      const result: PolymarketOrder = {
         orderId,
         marketId: request.marketId,
         side: request.side,
@@ -615,6 +622,8 @@ class PolymarketTradingService {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
+      trackExternalApi('polymarket', 'place_order', Date.now() - start, true);
+      return result;
     } catch (error: any) {
       // detailed error logging for proxy debugging
       if (error.response) {
@@ -624,6 +633,8 @@ class PolymarketTradingService {
         }
       }
       console.error('[Polymarket] Failed to place order:', error);
+      trackExternalApi('polymarket', 'place_order', Date.now() - start, false);
+      trackError(error, { context: 'polymarket-place-order', marketId: request.marketId });
       throw error;
     }
   }
@@ -686,6 +697,7 @@ class PolymarketTradingService {
    * Get order status
    */
   async getOrderStatus(orderId: string): Promise<PolymarketOrder | null> {
+    const start = Date.now();
     if (!this.clobClient) return null;
 
     try {
@@ -705,7 +717,7 @@ class PolymarketTradingService {
         return 'OPEN';
       })();
 
-      return {
+      const result: PolymarketOrder = {
         orderId: data.id,
         marketId: data.market,
         side: normalizedSide,
@@ -717,8 +729,13 @@ class PolymarketTradingService {
         createdAt,
         updatedAt,
       };
-    } catch (error) {
+
+      trackExternalApi('polymarket', 'get_order_status', Date.now() - start, true);
+      return result;
+    } catch (error: any) {
       console.error('[Polymarket] Failed to get order status:', error);
+      trackExternalApi('polymarket', 'get_order_status', Date.now() - start, false);
+      trackError(error, { context: 'polymarket-status', orderId });
       return null;
     }
   }

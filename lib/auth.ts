@@ -6,6 +6,7 @@ import { symmetricDecrypt } from "better-auth/crypto";
 import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
 import { logger } from "./logger";
+import { trackAuthEvent, trackError } from "./metrics";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl =
@@ -339,9 +340,13 @@ export const auth = betterAuth({
                             }
                         });
                         logger.info(`[AUTH] Generated gradient avatar for user: ${seed}`);
+                        trackAuthEvent('login', 'success', 'email'); // better-auth mostly uses email or social
                     } catch (error) {
                         logger.error(`[AUTH] Failed to auto-generate avatar:`, error);
+                        trackError(error, { context: 'auth-avatar-gen' });
                     }
+                } else {
+                    trackAuthEvent('login', 'success', 'session_refresh');
                 }
             }
         }
@@ -467,8 +472,10 @@ export async function verifyUserTotp(userId: string, code: string, _request?: Re
         // This ensures we use the exact same algorithm as what generated the QR code
         const { createOTP } = await import('@better-auth/utils/otp');
         const isValid = await createOTP(decryptedSecret).verify(sanitizedCode, { window: 1 });
+        trackAuthEvent('2fa', isValid ? 'success' : 'failure');
         return isValid;
     } catch (error) {
+        trackError(error, { context: '2fa-verify', userId });
         logger.error('[2FA] Error verifying TOTP:', error);
         return false;
     }

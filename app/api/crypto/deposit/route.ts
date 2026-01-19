@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCryptoService } from '@/lib/crypto-service';
 import { auth } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
-import { trackError, trackApiLatency } from '@/lib/sentry-metrics';
+import { trackError, trackApiLatency } from '@/lib/metrics';
 
 export async function GET(req: NextRequest) {
     const startTime = Date.now();

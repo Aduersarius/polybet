@@ -10,7 +10,7 @@ import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { validateString, validateNumber, validateEventId, validateUUID } from '@/lib/validation';
-import { trackTrade, trackApiLatency, trackError, startTimer } from '@/lib/sentry-metrics';
+import { trackTrade, trackApiLatency, trackError } from '@/lib/metrics';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { polymarketCircuit } from '@/lib/circuit-breaker';
 import { hedgeAndExecute } from '@/lib/hedge-simple';

@@ -5,7 +5,7 @@ import { auth, verifyUserTotp } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { trackTransaction, trackError, trackApiLatency } from '@/lib/sentry-metrics';
+import { trackTransaction, trackError, trackApiLatency } from '@/lib/metrics';
 
 const ALLOWED_TOKENS = ['USDC'];
 

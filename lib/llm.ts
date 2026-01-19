@@ -9,8 +9,8 @@
  * - Easy model swapping
  */
 
-import * as Sentry from '@sentry/nextjs';
-import { trackExternalApi } from './sentry-metrics';
+import { trace, Span, SpanStatusCode } from '@opentelemetry/api';
+import { trackExternalApi, trackError } from '@/lib/metrics';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'xiaomi/mimo-v2-flash:free';
@@ -45,19 +45,6 @@ export interface LLMResponse {
     durationMs?: number;
 }
 
-/**
- * Call OpenRouter LLM API with Sentry monitoring.
- * 
- * @param messages - Array of messages for the conversation
- * @param options - Optional configuration
- * @returns The assistant's response content, or empty string on failure
- * @throws Never throws - returns empty string on any error
- * 
- * @example
- * const response = await callLLM([
- *   { role: 'user', content: 'Classify this event: Will Bitcoin hit $100k?' }
- * ], { operation: 'categorize' });
- */
 export async function callLLM(
     messages: LLMMessage[],
     options: LLMCallOptions = {}
@@ -78,131 +65,97 @@ export async function callLLM(
         operation = 'llm_call',
     } = options;
 
-    // Create a Sentry span for this LLM call
-    return Sentry.startSpan(
-        {
-            name: `LLM: ${operation}`,
-            op: 'ai.call',
-            attributes: {
-                'ai.model': model,
-                'ai.operation': operation,
-                'ai.provider': 'openrouter',
-                'ai.messages_count': messages.length,
-                // Capture first 200 chars of the prompt for debugging (configurable)
-                'ai.prompt_preview': messages[messages.length - 1]?.content?.substring(0, 200) || '',
-            },
-        },
-        async (span) => {
-            try {
-                const body: Record<string, unknown> = {
-                    model,
-                    messages,
-                };
+    const tracer = trace.getTracer('pariflow-app');
 
-                if (maxTokens !== undefined) body.max_tokens = maxTokens;
-                if (temperature !== undefined) body.temperature = temperature;
+    return tracer.startActiveSpan(`LLM: ${operation}`, {
+        attributes: {
+            'ai.model': model,
+            'ai.operation': operation,
+            'ai.provider': 'openrouter',
+            'ai.messages_count': messages.length,
+            'ai.prompt_preview': messages[messages.length - 1]?.content?.substring(0, 200) || '',
+        }
+    }, async (span: Span) => {
+        try {
+            const body: Record<string, unknown> = {
+                model,
+                messages,
+            };
 
-                const res = await fetch(OPENROUTER_API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json',
-                        'HTTP-Referer': referer,
-                    },
-                    body: JSON.stringify(body),
-                });
+            if (maxTokens !== undefined) body.max_tokens = maxTokens;
+            if (temperature !== undefined) body.temperature = temperature;
 
-                const durationMs = performance.now() - startTime;
+            const res = await fetch(OPENROUTER_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': referer,
+                },
+                body: JSON.stringify(body),
+            });
 
-                if (!res.ok) {
-                    const errorText = await res.text().catch(() => 'Unknown error');
-                    console.warn('[LLM] API request failed: %s %s', res.status, res.statusText, errorText);
+            const durationMs = performance.now() - startTime;
 
-                    // Track error in Sentry
-                    span.setStatus({ code: 2, message: `HTTP ${res.status}` }); // Error status
-                    span.setAttribute('ai.error', errorText.substring(0, 500));
-                    trackExternalApi('openrouter', operation, durationMs, false);
+            if (!res.ok) {
+                const errorText = await res.text().catch(() => 'Unknown error');
+                console.warn('[LLM] API request failed: %s %s', res.status, res.statusText, errorText);
 
-                    // Capture as exception for visibility
-                    Sentry.captureException(new Error(`OpenRouter API error: ${res.status}`), {
-                        extra: {
-                            model,
-                            operation,
-                            statusCode: res.status,
-                            errorText: errorText.substring(0, 1000),
-                        },
-                    });
-
-                    return { content: '', model, durationMs };
-                }
-
-                const json = await res.json();
-                const content = json.choices?.[0]?.message?.content ?? '';
-                const usage = json.usage
-                    ? {
-                        promptTokens: json.usage.prompt_tokens ?? 0,
-                        completionTokens: json.usage.completion_tokens ?? 0,
-                        totalTokens: json.usage.total_tokens ?? 0,
-                    }
-                    : undefined;
-
-                // Set successful span attributes
-                span.setStatus({ code: 1 }); // OK status
-                span.setAttribute('ai.response_length', content.length);
-                if (usage) {
-                    span.setAttribute('ai.prompt_tokens', usage.promptTokens);
-                    span.setAttribute('ai.completion_tokens', usage.completionTokens);
-                    span.setAttribute('ai.total_tokens', usage.totalTokens);
-                }
-
-                // Track success metrics
-                trackExternalApi('openrouter', operation, durationMs, true);
-
-                // Track token usage as distribution metric
-                if (usage) {
-                    Sentry.metrics.distribution('llm.tokens_used', usage.totalTokens, {
-                        attributes: { model, operation },
-                    });
-                    Sentry.metrics.distribution('llm.prompt_tokens', usage.promptTokens, {
-                        attributes: { model },
-                    });
-                    Sentry.metrics.distribution('llm.completion_tokens', usage.completionTokens, {
-                        attributes: { model },
-                    });
-                }
-
-                // Track latency
-                Sentry.metrics.distribution('llm.latency', durationMs, {
-                    unit: 'millisecond',
-                    attributes: { model, operation },
-                });
-
-                return {
-                    content: typeof content === 'string' ? content : '',
-                    model: json.model ?? model,
-                    usage,
-                    durationMs,
-                };
-            } catch (err) {
-                const durationMs = performance.now() - startTime;
-                console.error('[LLM] API call failed:', err);
-
-                // Capture exception with context
-                span.setStatus({ code: 2, message: 'Exception' });
-                Sentry.captureException(err, {
-                    extra: {
-                        model,
-                        operation,
-                        messageCount: messages.length,
-                    },
-                });
+                span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${res.status}` });
+                span.setAttribute('ai.error', errorText.substring(0, 500));
 
                 trackExternalApi('openrouter', operation, durationMs, false);
+                trackError(new Error(`OpenRouter API error: ${res.status}`), {
+                    model,
+                    operation,
+                    statusCode: res.status,
+                    errorText: errorText.substring(0, 1000)
+                });
 
                 return { content: '', model, durationMs };
             }
+
+            const json = await res.json();
+            const content = json.choices?.[0]?.message?.content ?? '';
+            const usage = json.usage
+                ? {
+                    promptTokens: json.usage.prompt_tokens ?? 0,
+                    completionTokens: json.usage.completion_tokens ?? 0,
+                    totalTokens: json.usage.total_tokens ?? 0,
+                }
+                : undefined;
+
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.setAttribute('ai.response_length', content.length);
+            if (usage) {
+                span.setAttribute('ai.prompt_tokens', usage.promptTokens);
+                span.setAttribute('ai.completion_tokens', usage.completionTokens);
+                span.setAttribute('ai.total_tokens', usage.totalTokens);
+            }
+
+            trackExternalApi('openrouter', operation, durationMs, true);
+
+            return {
+                content: typeof content === 'string' ? content : '',
+                model: json.model ?? model,
+                usage,
+                durationMs,
+            };
+        } catch (err) {
+            const durationMs = performance.now() - startTime;
+            console.error('[LLM] API call failed:', err);
+
+            span.setStatus({ code: SpanStatusCode.ERROR, message: 'Exception' });
+            span.recordException(err as Error);
+
+            trackError(err, { model, operation, messageCount: messages.length });
+            trackExternalApi('openrouter', operation, durationMs, false);
+
+            return { content: '', model, durationMs };
+        } finally {
+            span.end();
         }
-    );
+    });
 }
 
 /**

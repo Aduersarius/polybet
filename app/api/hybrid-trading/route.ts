@@ -13,7 +13,7 @@ import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { validateString, validateNumber, validateUUID, validateEventId } from '@/lib/validation';
 import { checkRateLimit } from '@/lib/rate-limiter';
-import { trackTrade, trackApiLatency, trackError } from '@/lib/sentry-metrics';
+import { trackTrade, trackApiLatency, trackError } from '@/lib/metrics';
 
 // MVP Safety Limits
 const MAX_TRADE_AMOUNT = 1000; // $1000 max per trade for MVP
