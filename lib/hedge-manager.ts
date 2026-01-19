@@ -11,6 +11,7 @@ import { polymarketCircuit, CircuitOpenError } from './circuit-breaker';
 import { redis } from './redis';
 import { settleEventHedges } from './exchange/polymarket';
 import { trackHedgeEvent, hedgeSplitCounter, trackError } from '@/lib/metrics';
+import { withSpan, addSpanEvent } from '@/lib/tracing';
 
 export interface HedgeConfig {
   enabled: boolean;
@@ -464,115 +465,125 @@ export class HedgeManager {
       orderPlace: number;
     };
   }> {
-    const { userOrderId, eventId, size, userPrice, side, option, polymarketTickSize, polymarketNegRisk } = params;
+    return withSpan('HedgeManager.executeHedge', async (span) => {
+      const { userOrderId, eventId, size, userPrice, side, option, polymarketTickSize, polymarketNegRisk } = params;
 
-    // Timing metrics for observability
-    const timings = {
-      start: Date.now(),
-      mappingLookup: 0,
-      spreadCalc: 0,
-      orderPlace: 0,
-      total: 0,
-    };
+      // Add trace attributes
+      span.setAttribute('hedge.eventId', eventId);
+      span.setAttribute('hedge.option', option);
+      span.setAttribute('hedge.size', size);
+      span.setAttribute('hedge.userPrice', userPrice);
+      span.setAttribute('hedge.side', side);
 
-    // OTel tracking start
-    const opStart = performance.now();
+      // Timing metrics for observability
+      const timings = {
+        start: Date.now(),
+        mappingLookup: 0,
+        spreadCalc: 0,
+        orderPlace: 0,
+        total: 0,
+      };
 
-    try {
-      // Get Polymarket mapping
-      const mappingStart = Date.now();
-      const mapping = await prisma.polymarketMarketMapping.findUnique({
-        where: { internalEventId: eventId },
-      });
-      timings.mappingLookup = Date.now() - mappingStart;
+      // OTel tracking start
+      const opStart = performance.now();
 
-      if (!mapping) {
-        throw new Error('No Polymarket market mapping found');
-      }
+      try {
+        // Get Polymarket mapping
+        const mappingStart = Date.now();
+        const mapping = await prisma.polymarketMarketMapping.findUnique({
+          where: { internalEventId: eventId },
+        });
+        timings.mappingLookup = Date.now() - mappingStart;
 
-      // Validate mapping before proceeding
-      const validation = this.validateMapping(mapping);
-      if (!validation.valid) {
-        throw new Error(`Invalid mapping: ${validation.error}`);
-      }
+        if (!mapping) {
+          throw new Error('No Polymarket market mapping found');
+        }
 
-      // Find the correct token ID for the option (YES/NO)
-      let tokenId = mapping.polymarketTokenId;
-      if (mapping.outcomeMapping) {
-        const outcomeData = (mapping.outcomeMapping as any)?.outcomes;
-        if (Array.isArray(outcomeData)) {
-          const targetOutcome = outcomeData.find((o: any) =>
-            o.name?.toUpperCase() === option.toUpperCase() || o.internalId === option
-          );
-          if (targetOutcome?.polymarketId) {
-            tokenId = targetOutcome.polymarketId;
+        // Validate mapping before proceeding
+        const validation = this.validateMapping(mapping);
+        if (!validation.valid) {
+          throw new Error(`Invalid mapping: ${validation.error}`);
+        }
+
+        // Find the correct token ID for the option (YES/NO)
+        let tokenId = mapping.polymarketTokenId;
+        if (mapping.outcomeMapping) {
+          const outcomeData = (mapping.outcomeMapping as any)?.outcomes;
+          if (Array.isArray(outcomeData)) {
+            const targetOutcome = outcomeData.find((o: any) =>
+              o.name?.toUpperCase() === option.toUpperCase() || o.internalId === option
+            );
+            if (targetOutcome?.polymarketId) {
+              tokenId = targetOutcome.polymarketId;
+            }
           }
         }
-      }
 
-      if (!tokenId) {
-        throw new Error(`No Polymarket token ID found for outcome ${option}`);
-      }
+        if (!tokenId) {
+          throw new Error(`No Polymarket token ID found for outcome ${option}`);
+        }
 
-      // Add token ID to mapping for downstream use
-      const mappingWithTokenId = { ...mapping, resolvedTokenId: tokenId };
+        // Add token ID to mapping for downstream use
+        const mappingWithTokenId = { ...mapping, resolvedTokenId: tokenId };
 
-      // Calculate spread and hedge price
-      const spreadStart = Date.now();
-      const spreadBps = await this.calculateSpread({ eventId, size });
-      timings.spreadCalc = Date.now() - spreadStart;
+        // Calculate spread and hedge price
+        const spreadStart = Date.now();
+        const spreadBps = await this.calculateSpread({ eventId, size });
+        timings.spreadCalc = Date.now() - spreadStart;
 
-      const { hedgePrice } = this.calculateHedgePrices({
-        userPrice,
-        side,
-        spreadBps,
-      });
+        const { hedgePrice } = this.calculateHedgePrices({
+          userPrice,
+          side,
+          spreadBps,
+        });
 
-      // Check if order should be split
-      const shouldSplit = orderSplitter.shouldSplit(size);
+        // Check if order should be split
+        const shouldSplit = orderSplitter.shouldSplit(size);
 
-      if (!shouldSplit) {
-        // Small order - execute normally
-        const result = await this.executeSingleHedge({
+        if (!shouldSplit) {
+          // Small order - execute normally
+          const result = await this.executeSingleHedge({
+            userOrderId,
+            mapping: mappingWithTokenId,
+            size,
+            userPrice,
+            hedgePrice,
+            side,
+            spreadBps,
+            polymarketTickSize,
+            polymarketNegRisk
+          });
+          trackHedgeEvent('execute_single', result.success ? 'success' : 'failure', performance.now() - opStart);
+          return result;
+        }
+
+        // Large order - split and execute incrementally
+        hedgeSplitCounter.add(1);
+        const result = await this.executeSplitHedge({
           userOrderId,
+          eventId,
           mapping: mappingWithTokenId,
           size,
           userPrice,
           hedgePrice,
           side,
           spreadBps,
-          polymarketTickSize,
-          polymarketNegRisk
         });
-        trackHedgeEvent('execute_single', result.success ? 'success' : 'failure', performance.now() - opStart);
+
+        trackHedgeEvent('execute_split', result.success ? 'success' : 'failure', performance.now() - opStart);
         return result;
+      } catch (error: any) {
+        console.error('[HedgeManager] Hedge execution failed:', error);
+        trackError(error, { context: 'hedge-execution', userOrderId });
+        trackHedgeEvent('execute', 'failure', performance.now() - opStart, { error: error.message });
+        return {
+          success: false,
+          error: error.message,
+        };
       }
-
-      // Large order - split and execute incrementally
-      hedgeSplitCounter.add(1);
-      const result = await this.executeSplitHedge({
-        userOrderId,
-        eventId,
-        mapping: mappingWithTokenId,
-        size,
-        userPrice,
-        hedgePrice,
-        side,
-        spreadBps,
-      });
-
-      trackHedgeEvent('execute_split', result.success ? 'success' : 'failure', performance.now() - opStart);
-      return result;
-    } catch (error: any) {
-      console.error('[HedgeManager] Hedge execution failed:', error);
-      trackError(error, { context: 'hedge-execution', userOrderId });
-      trackHedgeEvent('execute', 'failure', performance.now() - opStart, { error: error.message });
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    }, { operation: 'executeHedge' }); // Close withSpan wrapper
   }
+
 
   /**
    * Execute a single hedge (no splitting)

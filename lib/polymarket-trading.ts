@@ -12,6 +12,7 @@ import { ClobClient, Side as ClobSide, OrderType, TickSize } from '@polymarket/c
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { trackExternalApi, trackError } from './metrics';
+import { withSpan } from './tracing';
 
 // Configure proxy for axios using HttpsProxyAgent with fallback support
 const proxyUrl = process.env.POLYMARKET_PROXY_URL;
