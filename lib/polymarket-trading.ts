@@ -192,7 +192,7 @@ class PolymarketTradingService {
     this.apiKey = (process.env.POLYMARKET_API_KEY || '').trim();
     this.apiSecret = (process.env.POLYMARKET_API_SECRET || '').trim();
     this.passphrase = (process.env.POLYMARKET_PASSPHRASE || '').trim();
-    this.privateKey = (process.env.POLYMARKET_PRIVATE_KEY || '').trim();
+    this.privateKey = (process.env.MASTER_WALLET_PRIVATE_KEY || '').trim();
     this.funderAddress = (process.env.POLYMARKET_FUNDER_ADDRESS || '').trim();
     this.chainId = parseInt(process.env.POLYMARKET_CHAIN_ID || '137');
 

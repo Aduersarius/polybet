@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
         // Access private wallet address if available (for display only)
         let walletAddress = 'Loading...';
         try {
-            if (process.env.POLYMARKET_PRIVATE_KEY) {
-                const wallet = new Wallet(process.env.POLYMARKET_PRIVATE_KEY);
+            if (process.env.MASTER_WALLET_PRIVATE_KEY) {
+                const wallet = new Wallet(process.env.MASTER_WALLET_PRIVATE_KEY);
                 walletAddress = wallet.address;
             } else if (process.env.POLYMARKET_FUNDER_ADDRESS) {
                 walletAddress = process.env.POLYMARKET_FUNDER_ADDRESS;
@@ -86,9 +86,9 @@ export async function GET(request: NextRequest) {
             });
 
         // Fetch ACTUAL on-chain balances from Polygon blockchain
-        if (process.env.POLYMARKET_PRIVATE_KEY) {
+        if (process.env.MASTER_WALLET_PRIVATE_KEY) {
             console.log('[Admin Polymarket API] Fetching on-chain balances for positions...');
-            const hedgeWallet = new Wallet(process.env.POLYMARKET_PRIVATE_KEY);
+            const hedgeWallet = new Wallet(process.env.MASTER_WALLET_PRIVATE_KEY);
 
             // Conditional Tokens Framework contract on Polygon
             const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';

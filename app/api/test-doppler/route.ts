@@ -4,7 +4,7 @@ export async function GET() {
     // Test that Doppler secrets are loaded
     const secrets = {
         database_url: process.env.DATABASE_URL ? '✅ Loaded' : '❌ Missing',
-        polymarket_key: process.env.POLYMARKET_PRIVATE_KEY ? '✅ Loaded' : '❌ Missing',
+        polymarket_key: process.env.MASTER_WALLET_PRIVATE_KEY ? '✅ Loaded' : '❌ Missing',
         better_auth: process.env.BETTER_AUTH_SECRET ? '✅ Loaded' : '❌ Missing',
         redis_url: process.env.REDIS_URL ? '✅ Loaded' : '❌ Missing',
     };

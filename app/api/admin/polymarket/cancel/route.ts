@@ -18,7 +18,7 @@ function wrapWalletForV5Compat(wallet: Wallet): Wallet {
 }
 
 function getClobClient() {
-    const privateKey = process.env.POLYMARKET_PRIVATE_KEY;
+    const privateKey = process.env.MASTER_WALLET_PRIVATE_KEY;
     const apiKey = process.env.POLYMARKET_API_KEY;
     const apiSecret = process.env.POLYMARKET_API_SECRET;
     const passphrase = process.env.POLYMARKET_PASSPHRASE;

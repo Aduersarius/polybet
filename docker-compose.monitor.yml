@@ -5,6 +5,11 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: signoz-host-monitor
     restart: always
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     command: ["--config=/etc/otel/config.yaml"] # Changed path to avoid mounting file as dir
     volumes:
     volumes:

@@ -717,7 +717,7 @@ export function AdminHedging() {
                       <pre className="mt-2 p-2 bg-black/50 rounded text-xs overflow-x-auto">
                         {`POLYMARKET_CLOB_API_URL=https://clob.polymarket.com
 POLYMARKET_API_KEY=your_key_here
-POLYMARKET_PRIVATE_KEY=your_private_key_here
+MASTER_WALLET_PRIVATE_KEY=your_private_key_here
 POLYMARKET_CHAIN_ID=137`}
                       </pre>
                     </li>
