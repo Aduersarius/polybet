@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -19,6 +19,7 @@ import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { HelpBanner } from '@/components/ui/HelpBanner';
 import { getOutcomeColor } from '@/lib/colors';
 import { DepositModal } from '@/components/wallet/DepositModal';
+import { SuccessConfetti, useSuccessConfetti } from '@/components/ui/SuccessConfetti';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -57,6 +58,10 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const [amountInputFocused, setAmountInputFocused] = useState(false);
     const [priceInputFocused, setPriceInputFocused] = useState(false);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+
+    // Success animation
+    const tradeButtonRef = useRef<HTMLButtonElement>(null);
+    const { isActive: showConfetti, originX, originY, trigger: triggerConfetti, onComplete: onConfettiComplete } = useSuccessConfetti();
 
     const { settings, formatCurrency, formatOdds } = useSettings();
 
@@ -332,6 +337,9 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 title: 'Trade successful',
                 description: `${selectedTab === 'buy' ? 'Bought' : 'Sold'} ${result.totalFilled.toFixed(2)} ${selectedOption} tokens`,
             });
+
+            // Trigger success confetti animation from the trade button
+            triggerConfetti(tradeButtonRef);
 
             return result;
         },
@@ -694,6 +702,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                     </button>
                 ) : (
                     <button
+                        ref={tradeButtonRef}
                         onClick={handleTrade}
                         disabled={
                             isLoading ||
@@ -808,6 +817,15 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
             <DepositModal
                 isOpen={isDepositModalOpen}
                 onClose={() => setIsDepositModalOpen(false)}
+            />
+
+            {/* Success Confetti Animation */}
+            <SuccessConfetti
+                isActive={showConfetti}
+                originX={originX}
+                originY={originY}
+                onComplete={onConfettiComplete}
+                duration={1200}
             />
         </div>
     );
