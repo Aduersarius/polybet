@@ -561,7 +561,7 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
             // Wait with a timeout
             await Promise.race([
                 topup.wait(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup confirmation timeout (30s)')), 30000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup confirmation timeout (120s)')), 120000))
             ]);
 
             log('INFO', '✅ Gas topped up and confirmed');
@@ -578,7 +578,7 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
 
         await Promise.race([
             tx.wait(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep confirmation timeout (30s)')), 30000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep confirmation timeout (120s)')), 120000))
         ]);
 
         log('INFO', `✅ ON-CHAIN SWEEP SUCCESS: ${tx.hash}`);
