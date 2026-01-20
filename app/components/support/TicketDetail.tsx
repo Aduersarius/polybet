@@ -5,6 +5,7 @@ import { X, Send, ArrowLeft, Clock, User, Paperclip, Download, FileText, Image a
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { FileUpload } from './FileUpload';
+import { sanitizeUrl } from '@/lib/utils';
 
 interface Attachment {
   id: string;
@@ -97,7 +98,7 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
       const response = await fetch(`/api/support/tickets/${ticketId}`, {
         credentials: 'include',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch ticket');
       }
@@ -113,7 +114,7 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newMessage.trim()) return;
 
     setSending(true);
@@ -227,7 +228,7 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
             {ticket.messages.map((message, index) => {
               const isAgent = message.source === 'agent';
               const isCurrentUser = message.user.id === ticket.user.id;
-              
+
               return (
                 <div
                   key={message.id}
@@ -256,32 +257,32 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
                     </div>
                     <div className={`p-3 rounded-xl ${isAgent ? 'bg-emerald-500/10 border border-emerald-500/20' : isCurrentUser ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-white/5 border border-white/10'}`}>
                       <p className="text-white/90 text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                      
+
                       {/* Attachments */}
                       {message.attachments && message.attachments.length > 0 && (
                         <div className="mt-3 space-y-2">
                           {message.attachments.map((attachment) => {
                             const Icon = getFileIcon(attachment.mimeType);
                             const isImage = attachment.mimeType.startsWith('image/');
-                            
+
                             return (
                               <div key={attachment.id}>
                                 {isImage ? (
                                   <a
-                                    href={attachment.url}
+                                    href={sanitizeUrl(attachment.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="block rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
                                   >
                                     <img
-                                      src={attachment.url}
+                                      src={sanitizeUrl(attachment.url)}
                                       alt={attachment.fileName}
                                       className="max-w-full h-auto max-h-64 object-contain"
                                     />
                                   </a>
                                 ) : (
                                   <a
-                                    href={attachment.url}
+                                    href={sanitizeUrl(attachment.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
@@ -320,7 +321,7 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
                     {error}
                   </div>
                 )}
-                
+
                 <div className="flex gap-3 mb-2">
                   <input
                     type="text"

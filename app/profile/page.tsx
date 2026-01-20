@@ -13,6 +13,7 @@ import { TrendingUp, TrendingDown, Trophy, Activity, Wallet, BarChart3, Clock, L
 import EditProfileModal from '@/app/components/EditProfileModal';
 import { Button } from '@/components/ui/button';
 import PnLChart from '@/app/components/PnLChart';
+import { sanitizeUrl } from '@/lib/utils';
 
 interface UserStats {
     totalBets?: number;
@@ -290,7 +291,7 @@ function ProfileContent() {
                                 <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-blue-500 p-0.5 shadow-lg group-hover/avatar:shadow-2xl transition-all duration-300">
                                     <div className="w-full h-full rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border-2 border-[#1e1e1e]">
                                         {displayUser?.image ? (
-                                            <img src={displayUser.image} alt={displayUser.name || 'User'} className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />
+                                            <img src={sanitizeUrl(displayUser.image)} alt={displayUser.name || 'User'} className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />
                                         ) : (
                                             <span className="text-4xl font-bold text-gray-400">
                                                 {(displayUser?.name?.charAt(0) || displayUser?.email?.charAt(0) || '?').toUpperCase()}

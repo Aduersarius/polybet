@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Shield, TrendingUp, AlertTriangle, CheckCircle, XCircle, Clock, DollarSign, Target, Settings, ExternalLink, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { sanitizeUrl } from '@/lib/utils';
 
 type HedgeDashboardData = {
   summary: {
@@ -513,7 +514,7 @@ export function AdminHedging() {
                   <span className="flex items-center gap-2">
                     EOA Wallet: <code className="bg-black/30 px-2 py-0.5 rounded text-xs">{polymarketData.wallet}</code>
                     <a
-                      href={`https://polygonscan.com/address/${polymarketData.wallet}`}
+                      href={sanitizeUrl(`https://polygonscan.com/address/${polymarketData.wallet}`)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline"
@@ -582,10 +583,9 @@ export function AdminHedging() {
                             <td className="py-2 text-right text-zinc-200">${pos.cost.toFixed(4)}</td>
                             <td className="py-2 text-center">
                               <a
-                                href={pos.marketId?.startsWith('0x')
+                                href={sanitizeUrl(pos.marketId?.startsWith('0x')
                                   ? `https://polygonscan.com/token/0x4D97DCd97eC945f40cF65F87097ACe5EA0476045?a=${polymarketData?.wallet}#inventory`
-                                  : `https://polymarket.com/event/${pos.marketId}`
-                                }
+                                  : `https://polymarket.com/event/${pos.marketId}`)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:text-primary/80"
@@ -673,10 +673,9 @@ export function AdminHedging() {
                             </td>
                             <td className="py-2 text-center">
                               <a
-                                href={trade.marketId?.startsWith('0x')
+                                href={sanitizeUrl(trade.marketId?.startsWith('0x')
                                   ? `https://clob.polymarket.com/book?token_id=${trade.tokenId}`
-                                  : `https://polymarket.com/event/${trade.marketId}`
-                                }
+                                  : `https://polymarket.com/event/${trade.marketId}`)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:text-primary/80"

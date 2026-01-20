@@ -7,10 +7,10 @@ import { prisma } from './prisma';
 import { logger } from './logger';
 
 const isProduction = process.env.NODE_ENV === 'production';
-const API_KEY_SALT = process.env.API_KEY_SALT || (isProduction ? undefined : 'dev-salt-change-in-production');
+const API_KEY_SALT = process.env.API_KEY_SALT;
 
-if (isProduction && !API_KEY_SALT) {
-  logger.warn('[API-KEY] API_KEY_SALT not set in production - using default (INSECURE)');
+if (!API_KEY_SALT) {
+  logger.warn('[API-KEY] API_KEY_SALT not set - API key operations will fail');
 }
 
 /**
@@ -28,7 +28,7 @@ export function hashApiKey(apiKey: string): string {
   if (!API_KEY_SALT) {
     throw new Error('API_KEY_SALT must be set in production');
   }
-  
+
   return crypto.pbkdf2Sync(apiKey, API_KEY_SALT, 100000, 32, 'sha256').toString('hex');
 }
 

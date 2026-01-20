@@ -51,7 +51,7 @@ export async function requireApiKeyAuth(request: NextRequest): Promise<ApiAuthRe
   // Hash the provided key for comparison using PBKDF2 (more secure than SHA-256 for passwords/keys)
   // Using PBKDF2 with SHA-256, 100,000 iterations, and salt from env
   // This is more secure than simple SHA-256 hashing
-  const salt = process.env.API_KEY_SALT || (isProduction ? undefined : 'dev-salt-change-in-production');
+  const salt = process.env.API_KEY_SALT;
   if (!salt) {
     logger.error('[API-AUTH] API_KEY_SALT not configured');
     throw new Response(JSON.stringify({ error: 'Server configuration error' }), {
@@ -101,7 +101,7 @@ export async function requireApiKeyAuth(request: NextRequest): Promise<ApiAuthRe
   // Update last used timestamp and usage count
   await prisma.apiKey.update({
     where: { id: apiKeyRecord.id },
-    data: { 
+    data: {
       lastUsedAt: new Date(),
       // Increment usage count if field exists
       ...((apiKeyRecord as any).usageCount !== undefined && {
@@ -160,11 +160,11 @@ export async function checkInstitutionalRateLimit(
 
     return count <= limit;
   } catch (error: any) {
-    const isConnectionError = error?.message?.includes('Connection is closed') || 
-                              error?.message?.includes('connect') ||
-                              error?.message?.includes('ECONNREFUSED');
+    const isConnectionError = error?.message?.includes('Connection is closed') ||
+      error?.message?.includes('connect') ||
+      error?.message?.includes('ECONNREFUSED');
     const isProd = process.env.NODE_ENV === 'production';
-    
+
     if (!isConnectionError || isProd) {
       logger.error('Institutional rate limit check failed, blocking by default:', error);
     }

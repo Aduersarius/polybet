@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { sanitizeUrl } from '@/lib/utils';
 
 interface UserAvatarProps {
     src: string | null;
@@ -21,7 +22,7 @@ export function UserAvatar({ src, alt, fallback, className = "w-8 h-8", fallback
     if (src && !error) {
         return (
             <img
-                src={src}
+                src={sanitizeUrl(src)}
                 alt={alt}
                 className={`${className} object-cover`}
                 onError={() => setError(true)}

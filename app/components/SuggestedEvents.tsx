@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { sanitizeUrl } from '@/lib/utils';
 
 interface SuggestedEventsProps {
     category: string;
@@ -62,7 +63,7 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
                         >
                             <div className="w-12 h-12 rounded bg-gray-800 shrink-0 overflow-hidden">
                                 {event.imageUrl ? (
-                                    <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover" />
+                                    <img src={sanitizeUrl(event.imageUrl)} alt={event.title} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
                                         {event.categories && event.categories.length > 0 ? event.categories[0][0] : '?'}

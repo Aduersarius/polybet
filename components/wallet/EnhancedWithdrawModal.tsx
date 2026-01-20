@@ -3,7 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X, Wallet as WalletIcon, ChevronDown, Check, AlertCircle, Info, Shield, TrendingUp, ExternalLink } from 'lucide-react';
 import { USDCIcon, USDTIcon, PolygonIcon, EthereumIcon, BNBIcon, ArbitrumIcon } from '@/components/ui/CryptoIcons';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import { sanitizeUrl } from '@/lib/utils';
 import { getUserFriendlyError } from '@/lib/error-messages';
 import Link from 'next/link';
 
@@ -16,34 +19,34 @@ interface EnhancedWithdrawModalProps {
 type CryptoNetwork = 'polygon-usdc' | 'ethereum-usdt' | 'bsc-usdt' | 'arbitrum-usdc';
 
 const cryptoNetworks = [
-    { 
-        id: 'polygon-usdc', 
-        name: 'USDC', 
-        chain: 'Polygon', 
+    {
+        id: 'polygon-usdc',
+        name: 'USDC',
+        chain: 'Polygon',
         token: 'USDC',
         CoinIcon: USDCIcon,
         ChainIcon: PolygonIcon
     },
-    { 
-        id: 'ethereum-usdt', 
-        name: 'USDT', 
-        chain: 'Ethereum', 
+    {
+        id: 'ethereum-usdt',
+        name: 'USDT',
+        chain: 'Ethereum',
         token: 'USDT',
         CoinIcon: USDTIcon,
         ChainIcon: EthereumIcon
     },
-    { 
-        id: 'bsc-usdt', 
-        name: 'USDT', 
-        chain: 'BSC', 
+    {
+        id: 'bsc-usdt',
+        name: 'USDT',
+        chain: 'BSC',
         token: 'USDT',
         CoinIcon: USDTIcon,
         ChainIcon: BNBIcon
     },
-    { 
-        id: 'arbitrum-usdc', 
-        name: 'USDC', 
-        chain: 'Arbitrum', 
+    {
+        id: 'arbitrum-usdc',
+        name: 'USDC',
+        chain: 'Arbitrum',
         token: 'USDC',
         CoinIcon: USDCIcon,
         ChainIcon: ArbitrumIcon
@@ -88,7 +91,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
             const res = await fetch('/api/crypto/can-withdraw', {
                 credentials: 'include',
             });
-            
+
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 setCanWithdraw(false);
@@ -99,11 +102,11 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                 setIsEmailVerified(errorData.reason !== 'Email must be verified to withdraw');
                 return;
             }
-            
+
             const data = await res.json();
             setCanWithdraw(data.canWithdraw || false);
             setWithdrawReason(data.reason || '');
-            
+
             if (data.balance !== undefined) {
                 const balanceValue = typeof data.balance === 'string' ? parseFloat(data.balance) : Number(data.balance);
                 setBalance(balanceValue);
@@ -111,7 +114,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
             } else {
                 setHasSufficientBalance(false);
             }
-            
+
             if (data.limits) {
                 setLimits({
                     maxSingle: data.limits.single || 0,
@@ -209,8 +212,8 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ 
-                    amount: numAmount, 
+                body: JSON.stringify({
+                    amount: numAmount,
                     address,
                     token,
                     totpCode,
@@ -251,7 +254,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
         if (isOpen) {
             fetchBalance();
             checkEligibility();
-            
+
             const interval = setInterval(() => {
                 if (!canWithdraw) {
                     checkEligibility();
@@ -266,28 +269,28 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
     const selectedNetworkData = cryptoNetworks.find(n => n.id === selectedNetwork);
 
     const checklistItems = [
-        { 
-            id: 'emailVerified', 
-            label: 'Verify your email address', 
-            completed: isEmailVerified, 
-            link: '/settings' 
+        {
+            id: 'emailVerified',
+            label: 'Verify your email address',
+            completed: isEmailVerified,
+            link: '/settings'
         },
-        { 
-            id: '2fa', 
-            label: 'Enable Two-Factor Authentication (2FA)', 
-            completed: is2FAEnabled, 
-            link: '/settings' 
+        {
+            id: '2fa',
+            label: 'Enable Two-Factor Authentication (2FA)',
+            completed: is2FAEnabled,
+            link: '/settings'
         },
-        { 
-            id: 'firstBet', 
-            label: 'Place at least one bet or trade', 
-            completed: hasPlacedBet, 
-            link: '/' 
+        {
+            id: 'firstBet',
+            label: 'Place at least one bet or trade',
+            completed: hasPlacedBet,
+            link: '/'
         },
-        { 
-            id: 'sufficientBalance', 
-            label: 'Have sufficient balance', 
-            completed: hasSufficientBalance, 
+        {
+            id: 'sufficientBalance',
+            label: 'Have sufficient balance',
+            completed: hasSufficientBalance,
             link: null
         },
     ].filter(item => !item.completed);
@@ -298,7 +301,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                 <div className="relative p-5 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
                     {/* Subtle gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
-                    
+
                     {/* Header */}
                     <div className="relative flex items-center justify-between mb-4 pb-4 border-b border-white/10">
                         <div className="flex-1">
@@ -328,7 +331,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                                 <h3 className="text-xl font-bold text-white mb-2 text-center">Withdrawal Not Available</h3>
                                 <p className="text-sm text-white/80 text-center mb-4 px-2 leading-relaxed">{withdrawReason || 'Unable to withdraw at this time'}</p>
                             </div>
-                            
+
                             {/* Requirements Checklist */}
                             {checklistItems.length > 0 && (
                                 <div className="space-y-3">
@@ -336,17 +339,15 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                                     {checklistItems.map((item) => (
                                         <div
                                             key={item.id}
-                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                                                item.completed
+                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${item.completed
                                                     ? 'bg-emerald-500/20 border-emerald-500/40'
                                                     : 'bg-white/5 border-white/10'
-                                            }`}
+                                                }`}
                                         >
-                                            <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                                                item.completed
+                                            <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${item.completed
                                                     ? 'bg-emerald-500 text-white'
                                                     : 'bg-white/10 border border-white/20'
-                                            }`}>
+                                                }`}>
                                                 {item.completed && <Check className="w-3 h-3" />}
                                             </div>
                                             <div className="flex-1 min-w-0">
@@ -356,7 +357,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                                             </div>
                                             {item.link && !item.completed && (
                                                 <Link
-                                                    href={item.link}
+                                                    href={sanitizeUrl(item.link)}
                                                     onClick={() => onClose()}
                                                     className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 text-xs font-medium transition-all"
                                                 >
@@ -377,7 +378,7 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                                     ))}
                                 </div>
                             )}
-                            
+
                             {/* Quick Actions */}
                             <div className="flex flex-col gap-2 pt-4 border-t border-white/10">
                                 {!is2FAEnabled && (

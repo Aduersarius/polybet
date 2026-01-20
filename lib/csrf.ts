@@ -1,11 +1,11 @@
 import { trustedOrigins } from './auth';
-import { randomBytes, createHmac } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 
 const prod = process.env.NODE_ENV === 'production';
 const allowedOrigins = new Set(trustedOrigins);
 
-// CSRF token secret (should be in env, fallback for dev)
-const CSRF_SECRET = process.env.CSRF_SECRET || (prod ? undefined : 'dev-csrf-secret-change-in-production');
+// CSRF token secret (MUST be in env in production)
+const CSRF_SECRET = process.env.CSRF_SECRET;
 
 function originFromUrl(url: string | null): string | null {
     if (!url) return null;
@@ -61,11 +61,11 @@ export function generateCsrfToken(): string {
     const token = randomBytes(32).toString('hex');
     const timestamp = Date.now().toString();
     const data = `${token}:${timestamp}`;
-    
+
     const hmac = createHmac('sha256', CSRF_SECRET);
     hmac.update(data);
     const signature = hmac.digest('hex');
-    
+
     return `${data}:${signature}`;
 }
 
@@ -86,7 +86,7 @@ export function validateCsrfToken(token: string, maxAgeMs: number = 3600000): bo
         }
 
         const [tokenPart, timestamp, signature] = parts;
-        
+
         // Check token age
         const tokenAge = Date.now() - parseInt(timestamp, 10);
         if (tokenAge > maxAgeMs || tokenAge < 0) {
@@ -98,18 +98,16 @@ export function validateCsrfToken(token: string, maxAgeMs: number = 3600000): bo
         const hmac = createHmac('sha256', CSRF_SECRET);
         hmac.update(data);
         const expectedSignature = hmac.digest('hex');
-        
+
         // Constant-time comparison to prevent timing attacks
-        if (signature.length !== expectedSignature.length) {
+        const signatureBuffer = Buffer.from(signature, 'hex');
+        const expectedSignatureBuffer = Buffer.from(expectedSignature, 'hex');
+
+        if (signatureBuffer.length !== expectedSignatureBuffer.length) {
             return false;
         }
-        
-        let result = 0;
-        for (let i = 0; i < signature.length; i++) {
-            result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
-        }
-        
-        return result === 0;
+
+        return timingSafeEqual(signatureBuffer, expectedSignatureBuffer);
     } catch {
         return false;
     }

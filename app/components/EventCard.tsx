@@ -12,6 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { calculateLMSROdds } from '@/lib/amm';
 import { toast } from '@/components/ui/use-toast';
+import { sanitizeUrl } from '@/lib/utils';
 
 interface DbEvent {
   id: string;
@@ -1003,7 +1004,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
                 <div className="flex-shrink-0 relative">
                   {event.imageUrl ? (
                     <Image
-                      src={event.imageUrl}
+                      src={sanitizeUrl(event.imageUrl)}
                       alt={event.title}
                       width={48}
                       height={48}
@@ -2001,7 +2002,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             <div className="flex items-center gap-2 flex-shrink-0 pr-8">
               {event.imageUrl ? (
                 <Image
-                  src={event.imageUrl}
+                  src={sanitizeUrl(event.imageUrl)}
                   alt={event.title}
                   width={32}
                   height={32}

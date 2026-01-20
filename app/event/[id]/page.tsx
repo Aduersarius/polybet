@@ -14,6 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+import { sanitizeUrl } from '@/lib/utils';
 
 /**
  * Helper to check if an event has multiple outcomes.
@@ -302,7 +303,7 @@ export default function EventPage() {
                                                 <div className="shrink-0 lg:absolute lg:top-0 lg:right-0">
                                                     <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg overflow-hidden border border-white/10 shadow-lg">
                                                         <img
-                                                            src={liveEvent.imageUrl || getCategoryImage(liveEvent.categories)}
+                                                            src={sanitizeUrl(liveEvent.imageUrl || getCategoryImage(liveEvent.categories))}
                                                             alt={liveEvent.title}
                                                             className="w-full h-full object-cover"
                                                         />

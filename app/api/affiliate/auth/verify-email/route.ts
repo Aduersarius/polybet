@@ -15,11 +15,16 @@ export async function GET(req: NextRequest) {
     }
 
     // Verify and decode the JWT token
-    const secret = process.env.AFFILIATE_JWT_SECRET || process.env.JWT_SECRET || 'super-secret-affiliate-key';
+    const secret = process.env.AFFILIATE_JWT_SECRET || process.env.BETTER_AUTH_SECRET || process.env.JWT_SECRET || "";
+
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('AFFILIATE_JWT_SECRET or BETTER_AUTH_SECRET must be set in production');
+    }
+
     let decoded: { affiliateId: string; email: string };
-    
+
     try {
-      decoded = jwt.verify(token, secret) as { affiliateId: string; email: string };
+      decoded = jwt.verify(token, secret) as unknown as { affiliateId: string; email: string };
     } catch (jwtError) {
       return NextResponse.json(
         { error: 'Invalid or expired verification token' },

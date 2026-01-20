@@ -103,10 +103,15 @@ export async function POST(req: NextRequest) {
 
     if (resend) {
       try {
-        // Generate verification token
+        const jwtSecret = process.env.AFFILIATE_JWT_SECRET || process.env.BETTER_AUTH_SECRET || process.env.JWT_SECRET;
+
+        if (!jwtSecret && process.env.NODE_ENV === 'production') {
+          throw new Error('JWT secret not configured');
+        }
+
         const verificationToken = jwt.sign(
           { affiliateId: affiliate.id, email: affiliate.email },
-          process.env.AFFILIATE_JWT_SECRET || process.env.JWT_SECRET || 'super-secret-affiliate-key',
+          jwtSecret || "dev-secret-key",
           { expiresIn: '7d' }
         );
 

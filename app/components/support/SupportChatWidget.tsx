@@ -8,6 +8,7 @@ import { useSession } from '@/lib/auth-client';
 import { useSupportChat } from '@/contexts/SupportChatContext';
 import { FileUpload } from './FileUpload';
 import { toast } from '@/components/ui/use-toast';
+import { sanitizeUrl } from '@/lib/utils';
 
 type View = 'list' | 'create' | 'chat';
 
@@ -876,7 +877,7 @@ export function SupportChatWidget() {
                                 {message.attachments.map((attachment) => (
                                   <a
                                     key={attachment.id}
-                                    href={attachment.url}
+                                    href={sanitizeUrl(attachment.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 p-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-xs"

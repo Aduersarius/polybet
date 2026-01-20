@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, AlertCircle, Wallet as WalletIcon, Check, X, Shield, Mail, TrendingUp, DollarSign, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { getUserFriendlyError } from '@/lib/error-messages';
+import { sanitizeUrl } from '@/lib/utils';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { Navbar } from '@/app/components/Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -326,7 +327,7 @@ export default function WithdrawPage() {
                                                 <p className="text-xs text-zinc-500 mb-2">{item.description}</p>
                                                 {!isMet && item.action && (
                                                     <Link
-                                                        href={item.action}
+                                                        href={sanitizeUrl(item.action)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
                                                     >
                                                         {item.actionLabel}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Camera, Save, User, Mail, FileText } from 'lucide-react';
 import { FileTrigger } from '@/components/ui/file-trigger';
 import { Button } from '@/components/ui/button';
+import { sanitizeUrl } from '@/lib/utils';
 
 import { TextField } from '@/components/ui/text-field';
 import { Input } from '@/components/ui/input';
@@ -147,7 +148,7 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
                         <div className="relative group">
                             <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-3xl font-bold text-white overflow-hidden border-2 border-white/20 shadow-lg">
                                 {avatarPreview ? (
-                                    <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                                    <img src={sanitizeUrl(avatarPreview)} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : (
                                     user?.name?.charAt(0)?.toUpperCase() || '?'
                                 )}

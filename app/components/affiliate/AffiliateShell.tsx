@@ -55,7 +55,7 @@ export function AffiliateShell({ children, affiliateInfo }: AffiliateShellProps)
   }, [sidebarOpen, mounted]);
 
   const handleLogout = () => {
-    document.cookie = 'affiliate_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
+    document.cookie = 'affiliate_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure';
     router.push('/affiliate/login');
   };
 

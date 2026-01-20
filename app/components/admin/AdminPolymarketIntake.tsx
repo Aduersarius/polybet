@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sanitizeUrl } from '@/lib/utils';
 import { Pagination } from './Pagination';
 
 type IntakeItem = {
@@ -711,14 +712,14 @@ export function AdminPolymarketIntake() {
                   <div className="flex items-start gap-3">
                     {item.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image} alt="" className="h-12 w-12 rounded-md object-cover border border-white/5" />
+                      <img src={sanitizeUrl(item.image)} alt="" className="h-12 w-12 rounded-md object-cover border border-white/5" />
                     ) : (
                       <div className="h-12 w-12 rounded-md border border-white/5 bg-white/5" />
                     )}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <a
-                          href={item.polymarketSlug ? `https://polymarket.com/event/${item.polymarketSlug}` : '#'}
+                          href={item.polymarketSlug ? sanitizeUrl(`https://polymarket.com/event/${item.polymarketSlug}`) : '#'}
                           className="font-semibold leading-snug line-clamp-2 text-blue-300 hover:text-blue-200 hover:underline"
                           target="_blank"
                           rel="noreferrer"
@@ -788,7 +789,7 @@ export function AdminPolymarketIntake() {
                         )}
                         {item.resolutionSource && (
                           <a
-                            href={item.resolutionSource}
+                            href={sanitizeUrl(item.resolutionSource)}
                             className="text-blue-300 hover:text-blue-200 underline"
                             target="_blank"
                             rel="noreferrer"

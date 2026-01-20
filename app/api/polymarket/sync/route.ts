@@ -79,6 +79,14 @@ export async function POST(request: Request) {
   try {
     const { prisma } = await import('@/lib/prisma');
     const creatorId = await getSystemCreatorId();
+
+    // SSRF Mitigation: Validate origin is trusted and internal
+    const trustedOrigins = [process.env.NEXT_PUBLIC_APP_URL, 'http://localhost:3000', 'https://pariflow.com'].filter(Boolean);
+    const isTrusted = trustedOrigins.some(to => origin.startsWith(to!));
+    if (!isTrusted && process.env.NODE_ENV === 'production') {
+      throw new Error(`Untrusted origin for internal sync: ${origin}`);
+    }
+
     const events = await fetchPolymarketEvents(origin, limit);
 
     let created = 0;
