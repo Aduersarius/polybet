@@ -74,7 +74,7 @@ const ERC20_ABI = [
 const PROVIDER_URL = process.env.POLYGON_PROVIDER_URL!;
 const MASTER_WALLET_ADDRESS = process.env.MASTER_WALLET_ADDRESS!;
 const MNEMONIC = process.env.CRYPTO_MASTER_MNEMONIC!;
-const CHECK_INTERVAL_MS = parseInt(process.env.SWEEP_CHECK_INTERVAL_MS || '30000');
+const CHECK_INTERVAL_MS = parseInt(process.env.SWEEP_CHECK_INTERVAL_MS || '10000'); // Default 10s for polling mode
 const MAX_RETRIES = parseInt(process.env.SWEEP_MAX_RETRIES || '50');
 const RETRY_DELAY_MS = parseInt(process.env.SWEEP_RETRY_DELAY_MS || '5000');
 
@@ -508,24 +508,34 @@ async function checkChainDeposits() {
 
             if (depositAddresses.length === 0) break;
 
-            // 2. Scan Batch
-            const promises = depositAddresses.map(async (addr) => {
-                try {
-                    const tokenContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, provider);
-                    const balance = await tokenContract.balanceOf(addr.address);
-                    const minDeposit = ethers.parseUnits('0.5', 6);
+            // 2. Scan Batch for both Native and Bridged USDC
+            const promises = depositAddresses.flatMap((addr) => {
+                const tokens = [
+                    { address: USDC_NATIVE_ADDRESS, symbol: 'USDC' },
+                    { address: USDC_BRIDGED_ADDRESS, symbol: 'USDC.e' }
+                ];
 
-                    if (balance > minDeposit) {
-                        log('INFO', '💰 FOUND DEPOSIT ON CHAIN!', {
-                            address: addr.address,
-                            balance: ethers.formatUnits(balance, 6),
-                            userId: addr.userId
-                        });
-                        await sweepChainDeposit(addr, balance);
+                return tokens.map(async (token) => {
+                    try {
+                        const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
+                        const balance = await tokenContract.balanceOf(addr.address);
+                        const minDeposit = ethers.parseUnits('0.1', 6); // Lowered threshold for polling
+
+                        if (balance > minDeposit) {
+                            log('INFO', `💰 FOUND ${token.symbol} ON CHAIN!`, {
+                                address: addr.address,
+                                balance: ethers.formatUnits(balance, 6),
+                                userId: addr.userId,
+                                token: token.symbol
+                            });
+                            // Pass token address to sweep function
+                            await sweepChainDeposit(addr, balance, token.address);
+                        }
+                    } catch (err) {
+                        // Silent error per-address to avoid log spam, but log the address
+                        console.error(`Failed to scan address ${addr.address} for ${token.symbol}`);
                     }
-                } catch (err) {
-                    console.error(`Failed to scan address ${addr.address}`, err);
-                }
+                });
             });
 
             // Run batch in parallel
@@ -550,9 +560,10 @@ async function checkChainDeposits() {
     }
 }
 
-async function sweepChainDeposit(depositAddress: any, balance: bigint) {
+async function sweepChainDeposit(depositAddress: any, balance: bigint, tokenAddress: string = USDC_NATIVE_ADDRESS) {
     try {
-        log('INFO', `⚡ Initiating sweep for detected funds`, {
+        const tokenSymbol = tokenAddress === USDC_NATIVE_ADDRESS ? 'USDC' : 'USDC.e';
+        log('INFO', `⚡ Initiating sweep for detected ${tokenSymbol}`, {
             address: depositAddress.address,
             amount: ethers.formatUnits(balance, 6)
         });
@@ -598,7 +609,7 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
         }
 
         // Sweep tokens
-        const tokenContract = new ethers.Contract(USDC_NATIVE_ADDRESS, ERC20_ABI, userWallet);
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, userWallet);
         const tx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance, {
             maxFeePerGas,
             maxPriorityFeePerGas
@@ -632,7 +643,7 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
                 data: {
                     userId: depositAddress.userId,
                     amount: rawAmount,
-                    currency: 'USDC',
+                    currency: tokenSymbol,
                     txHash: tx.hash,
                     status: 'COMPLETED',
                     fromAddress: depositAddress.address,
@@ -701,11 +712,11 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
  * Main worker loop
  */
 async function main() {
-    // Configuration
-    const FAST_INTERVAL_MS = CHECK_INTERVAL_MS; // 10s (Webhooks/DB Pending)
-    const SLOW_INTERVAL_MS = 5 * 60 * 1000;     // 5m (Blockchain Polling/Catch-all)
+    // Configuration for Polling-First Logic
+    const FAST_INTERVAL_MS = 10000;  // 10s (Process DB Pending/Retries)
+    const SLOW_INTERVAL_MS = 10000;  // 10s (Blockchain Polling - CRITICAL now)
 
-    log('INFO', '🚀 Sweep Monitor Worker Starting (Production Mode)...', {
+    log('INFO', '🚀 Sweep Monitor Worker Starting (POLLING MODE)...', {
         fastInterval: FAST_INTERVAL_MS,
         slowInterval: SLOW_INTERVAL_MS,
         maxRetries: MAX_RETRIES,
@@ -714,7 +725,7 @@ async function main() {
 
     // Run initial checks immediately
     await checkPendingSweeps();
-    checkChainDeposits(); // Run async without awaiting to not block start
+    await checkChainDeposits(); // Await first scan for safety
 
     // 1. Fast Loop (DB Pending)
     setInterval(async () => {
@@ -722,6 +733,7 @@ async function main() {
     }, FAST_INTERVAL_MS);
 
     // 2. Slow Loop (Blockchain Polling)
+    // This is now our primary detection mechanism
     setInterval(async () => {
         await checkChainDeposits();
     }, SLOW_INTERVAL_MS);
@@ -730,9 +742,9 @@ async function main() {
     setInterval(() => {
         const health = getHealthStatus();
         log('INFO', 'Health check', health);
-    }, 60000); //  Every minute
+    }, 60000); // Every minute
 
-    log('INFO', '✅ Worker running with Dual-Loop Strategy');
+    log('INFO', '✅ Worker running with Short-Cooldown Polling Strategy');
 }
 
 // Graceful shutdown
