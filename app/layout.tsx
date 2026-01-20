@@ -24,6 +24,8 @@ export const viewport: Viewport = {
   themeColor: '#0a0a0a',
 };
 
+import { Toaster } from "@/components/ui/toaster";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -49,6 +51,7 @@ export default function RootLayout({
           <SpeedInsights />
           <DeferredScripts />
         </Providers>
+        <Toaster />
       </body>
     </html>
   );

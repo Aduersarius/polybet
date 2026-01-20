@@ -124,11 +124,28 @@ export function getUserFriendlyError(error: any): UserFriendlyError {
   }
 
   if (lowerMessage.includes('two-factor') || lowerMessage.includes('2fa')) {
+    if (lowerMessage.includes('invalid') || lowerMessage.includes('incorrect') || lowerMessage.includes('expired')) {
+      return {
+        title: '🔐 Invalid Code',
+        description: 'The authentication code is incorrect or has expired. Please try again.',
+        variant: 'destructive',
+        icon: 'shield-alert'
+      };
+    }
     return {
       title: '🔒 2FA Required',
-      description: 'Two-factor authentication must be enabled before you can withdraw funds. Set it up in your security settings.',
+      description: 'Two-factor authentication must be enabled before you can perform this action.',
       variant: 'info',
       icon: 'shield',
+    };
+  }
+
+  if (lowerMessage.includes('totp') || lowerMessage.includes('authentication code') || (lowerMessage.includes('invalid') && lowerMessage.includes('code'))) {
+    return {
+      title: '🔐 Invalid Code',
+      description: 'The authentication code is incorrect or has expired. Please check your app and try again.',
+      variant: 'destructive',
+      icon: 'shield-alert'
     };
   }
 

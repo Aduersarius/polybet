@@ -146,12 +146,26 @@ export const twoFactor = {
                 return { error: { message: 'TOTP code must be exactly 6 digits' } };
             }
 
-            console.log('[2FA] Calling Better Auth verifyTotp...');
             const result = await (authClient as any).twoFactor.verifyTotp({
                 code: sanitizedCode,
                 trustDevice: trustDevice ?? false
             });
             console.log('[2FA] verifyTotp raw result:', JSON.stringify(result));
+
+            // Map cryptic better-auth errors to user-friendly messages
+            if (result?.error) {
+                const err = result.error;
+                // Better Auth uses status 401 or specific codes for wrong/expired codes
+                if (err.status === 401 || err.code === 'INVALID_2FA_CODE' || err.code === 'INVALID_OTP' || err.message?.toLowerCase().includes('unauthorized')) {
+                    return {
+                        error: {
+                            ...err,
+                            message: 'Invalid authentication code. Please check your authenticator app and try again.'
+                        }
+                    };
+                }
+                return result;
+            }
 
             // Better Auth sometimes returns { data: null } on failure without explicit error
             if (!result?.data && !result?.error) {

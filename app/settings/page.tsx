@@ -37,6 +37,7 @@ import {
 import { UserSettings, useSettings } from '@/lib/settings-context';
 import { toast } from '@/components/ui/use-toast';
 import { BrandedQRCode } from '@/components/ui/BrandedQRCode';
+import { getUserFriendlyError } from '@/lib/error-messages';
 
 const defaultSettings: UserSettings = {
     trading: {
@@ -813,7 +814,8 @@ function SettingsPageContent() {
                                             console.log('[2FA] enable response:', res);
 
                                             if (res?.error) {
-                                                toast({ title: res.error.message || 'Invalid password', variant: 'destructive' });
+                                                const { title, description, variant } = getUserFriendlyError(res.error.message || 'Invalid password');
+                                                toast({ title, description, variant });
                                                 return;
                                             }
 
@@ -934,7 +936,8 @@ function SettingsPageContent() {
                                             console.log('[2FA Setup] verifyTotp result:', res);
 
                                             if (res?.error) {
-                                                toast({ title: res.error.message || 'Invalid code', variant: 'destructive' });
+                                                const { title, description, variant } = getUserFriendlyError(res.error.message || 'Invalid code');
+                                                toast({ title, description, variant });
                                                 return;
                                             }
 
