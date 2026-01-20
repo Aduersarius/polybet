@@ -19,6 +19,5 @@ export async function POST(req: NextRequest) {
         message: 'Webhooks disabled. Polling mode active.'
     });
 }
-}
 
 
