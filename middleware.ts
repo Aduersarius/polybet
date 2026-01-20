@@ -62,7 +62,14 @@ export async function middleware(request: NextRequest) {
             console.error('middleware session check failed', e);
         }
 
-        if (!session) {
+        if (session) {
+            console.log(`[Middleware] Session found for ${pathname}. 2FA required: ${!!session.session?.isTwoFactorRequired}`);
+        } else {
+            console.log(`[Middleware] No session found for ${pathname}`);
+        }
+
+        if (!session || session.session?.isTwoFactorRequired) {
+            console.log(`[Middleware] Rejecting access to ${pathname}, redirecting to login`);
             const url = new URL('/', request.url);
             url.searchParams.set('auth', 'login');
             url.searchParams.set('callbackUrl', pathname);

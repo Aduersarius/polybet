@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authClient, twoFactor } from '@/lib/auth-client';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -17,13 +17,18 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // 2FA state
+    const { data: sessionData } = authClient.useSession();
     const [requires2FA, setRequires2FA] = useState(false);
     const [totpCode, setTotpCode] = useState('');
     const [trustDevice, setTrustDevice] = useState(false);
-
-    // Forgot Password state
     const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+
+    // Auto-detect if current session needs 2FA
+    useEffect(() => {
+        if ((sessionData as any)?.session?.isTwoFactorRequired) {
+            setRequires2FA(true);
+        }
+    }, [sessionData]);
 
     if (!isOpen && !isForgotPasswordOpen) return null;
 
@@ -34,15 +39,25 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
         setLoading(true);
 
         try {
-            const { data, error: loginError } = await authClient.signIn.email({
+            console.log('[LoginModal] handleSubmit started');
+            const response = await authClient.signIn.email({
                 email,
                 password,
             });
 
+            console.log('[LoginModal] API Response JSON:', JSON.stringify(response));
+            const { data, error: loginError } = response;
+
             if (loginError) {
-                // Better Auth returns a specific error code for 2FA
-                if (loginError.code === 'TWO_FACTOR_REQUIRED') {
-                    console.log('[LoginModal] 2FA required, showing TOTP input');
+                console.log('[LoginModal] Detected error code:', loginError.code);
+                const is2FA = loginError.code === 'TWO_FACTOR_REQUIRED' ||
+                    loginError.status === 403 ||
+                    loginError.code === '403' ||
+                    loginError.message?.toLowerCase().includes('two factor') ||
+                    loginError.message?.toLowerCase().includes('totp');
+
+                if (is2FA) {
+                    console.log('[LoginModal] 2FA requirement detected via error status/code');
                     setRequires2FA(true);
                     setLoading(false);
                     return;
@@ -53,8 +68,40 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                 return;
             }
 
+            const d = data as any;
+            const is2FARequired = d?.twoFactorRequired === true ||
+                d?.isTwoFactorRequired === true ||
+                d?.twoFactorRedirect === true ||
+                d?.nextStep === 'verify2fa' ||
+                d?.nextStep === 'two-factor' ||
+                d?.session?.isTwoFactorRequired === true;
+
+            if (is2FARequired) {
+                console.log('[LoginModal] 2FA requirement detected via data flag');
+                setRequires2FA(true);
+                setLoading(false);
+                return;
+            }
+
+            // Fallback for partial data
+            if (data && !d.session && !d.user) {
+                console.log('[LoginModal] Partial data returned, assuming 2FA');
+                setRequires2FA(true);
+                setLoading(false);
+                return;
+            }
+
+            // Final sanity: only redirect if we definitely see a session OR user
+            if (!d?.session && !d?.user) {
+                console.warn('[LoginModal] Success reported but missing session/user in data');
+                // Don't close or redirect. Try showing 2FA just in case
+                setRequires2FA(true);
+                setLoading(false);
+                return;
+            }
+
             // Success - redirect to home
-            console.log('[LoginModal] Login successful, redirecting...');
+            console.log('[LoginModal] Full login detected, redirecting...');
             onClose();
             window.location.href = '/';
         } catch (err: any) {
@@ -120,11 +167,11 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
     }
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4"
             onClick={handleClose}
         >
-            <div 
+            <div
                 className="relative w-full max-w-md mx-auto"
                 onClick={(e) => e.stopPropagation()}
             >
@@ -132,7 +179,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                 <div className="relative p-6 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
                     {/* Subtle gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-2xl pointer-events-none" />
-                    
+
                     {/* Close Button */}
                     <button
                         onClick={handleClose}

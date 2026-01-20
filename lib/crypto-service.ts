@@ -573,13 +573,37 @@ export class CryptoService {
 
         // Use Hot Wallet (Index 0)
         const hotWallet = this.hotNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
-        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, hotWallet);
+
+        // Smart USDC selection: Check which contract has enough balance
+        let activeUsdcAddress = USDC_ADDRESS;
+        let usdcContract = new ethers.Contract(activeUsdcAddress, ERC20_ABI, hotWallet);
+
+        try {
+            const balance = await usdcContract.balanceOf(hotWallet.address);
+            if (balance < amountUnits) {
+                this.warn(`[WITHDRAWAL] Insufficient balance in primary USDC contract (${activeUsdcAddress}). Checking fallback...`);
+                const fallbackAddress = activeUsdcAddress === USDC_NATIVE_ADDRESS ? USDC_BRIDGED_ADDRESS : USDC_NATIVE_ADDRESS;
+                const fallbackContract = new ethers.Contract(fallbackAddress, ERC20_ABI, hotWallet);
+                const fallbackBalance = await fallbackContract.balanceOf(hotWallet.address);
+
+                if (fallbackBalance >= amountUnits) {
+                    this.log(`[WITHDRAWAL] Switching to fallback USDC contract: ${fallbackAddress}`);
+                    activeUsdcAddress = fallbackAddress;
+                    usdcContract = fallbackContract;
+                } else {
+                    const totalUsdc = ethers.formatUnits(balance + fallbackBalance, 6);
+                    throw new Error(`Insufficient funds: Total USDC balance across native/bridged is only ${totalUsdc}`);
+                }
+            }
+        } catch (error: any) {
+            this.warn(`[WITHDRAWAL] Balance check failed, proceeding with default contract: ${error.message}`);
+        }
 
         let transferTxHash: string | null = null;
         try {
             const tx = await usdcContract.transfer(withdrawal.toAddress, amountUnits);
             transferTxHash = tx.hash;
-            this.log('[WITHDRAWAL] Transfer transaction sent. Hash:', tx.hash);
+            this.log(`[WITHDRAWAL] Transfer transaction sent via ${activeUsdcAddress}. Hash: ${tx.hash}`);
 
             // Wait for transaction confirmation and verify
             const receipt = await tx.wait();

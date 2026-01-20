@@ -79,7 +79,8 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
         { id: 'TECH', label: 'Tech' },
         { id: 'WORLD', label: 'World' },
     ];
-    const { data: session } = useSession();
+    const { data: rawSession } = useSession();
+    const session = (rawSession as any)?.session?.isTwoFactorRequired ? null : rawSession;
 
     useEffect(() => {
         setIsMounted(true);

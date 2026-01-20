@@ -369,8 +369,21 @@ export async function getSessionFromRequest(request: Request) {
 export async function requireAuth(request: Request) {
     const session = await getSessionFromRequest(request);
     if (!session) {
+        console.warn(`[Auth] requireAuth: No session for ${request.url}`);
         throw new Response(JSON.stringify({ error: 'Authentication required' }), {
             status: 401,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+
+    // Block access if 2FA is required but not completed
+    if ((session.session as any)?.isTwoFactorRequired) {
+        console.warn(`[Auth] requireAuth: 2FA required for user ${session.user.id}`);
+        throw new Response(JSON.stringify({
+            error: 'Authentication failed: Two-factor authentication required',
+            code: 'TWO_FACTOR_REQUIRED'
+        }), {
+            status: 403,
             headers: { 'Content-Type': 'application/json' },
         });
     }
