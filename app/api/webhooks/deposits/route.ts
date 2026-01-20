@@ -95,24 +95,16 @@ export async function POST(req: NextRequest) {
 
             let depositId!: string; // Definite assignment - will be set in transaction
 
-            // 5. Transaction: Create Deposit + Credit User + Ledger
+            // 5. Transaction: Create Deposit + Update Stats
             await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                // Read current balance for ledger
-                const user = await tx.user.findUnique({
-                    where: { id: depositAddress.userId },
-                    select: { currentBalance: true }
-                });
-                const balanceBefore = user?.currentBalance ? Number(user.currentBalance) : 0;
-                const balanceAfter = balanceBefore + netAmount;
-
-                // Create Deposit Record
+                // Create Deposit Record (will be credited by sweep monitor after successful sweep)
                 const deposit = await tx.deposit.create({
                     data: {
                         userId: depositAddress.userId,
                         amount: new Prisma.Decimal(usdcAmount),
                         currency: tokenSymbol,
                         txHash: activity.hash,
-                        status: 'PENDING_SWEEP', // Will be updated after sweep
+                        status: 'PENDING_SWEEP',
                         fromAddress: activity.fromAddress,
                         toAddress: activity.toAddress,
                     }
@@ -120,48 +112,24 @@ export async function POST(req: NextRequest) {
 
                 depositId = deposit.id;
 
-                // Credit User Balance
+                // Update Lifetime Stats only
                 await tx.user.update({
                     where: { id: depositAddress.userId },
                     data: {
-                        currentBalance: { increment: netAmount },
                         totalDeposited: { increment: usdcAmount }
                     }
                 });
 
-                // Create Ledger Entry
-                await tx.ledgerEntry.create({
-                    data: {
-                        userId: depositAddress.userId,
-                        direction: 'CREDIT',
-                        amount: new Prisma.Decimal(netAmount),
-                        currency: 'USD',
-                        referenceType: 'DEPOSIT',
-                        referenceId: deposit.id,
-                        balanceBefore: new Prisma.Decimal(balanceBefore),
-                        balanceAfter: new Prisma.Decimal(balanceAfter),
-                        metadata: {
-                            description: `Crypto Deposit (${tokenSymbol})`,
-                            fee: fee,
-                            originalAmount: usdcAmount,
-                            currency: tokenSymbol,
-                            txHash: activity.hash
-                        }
-                    }
-                });
-
-                // Create Notification
+                // Create a "PENDING" Notification instead of "SUCCESS"
                 await tx.notification.create({
                     data: {
                         userId: depositAddress.userId,
-                        type: 'DEPOSIT_SUCCESS',
-                        message: `Deposit of ${usdcAmount} ${tokenSymbol} successfully processed.`,
+                        type: 'DEPOSIT_PENDING',
+                        message: `Deposit of ${usdcAmount} ${tokenSymbol} detected. Funds will be available after network confirmation.`,
                         resourceId: deposit.id,
                         isRead: false,
                         metadata: {
                             amount: usdcAmount,
-                            netAmount: netAmount,
-                            fee: fee,
                             currency: tokenSymbol,
                             txHash: activity.hash
                         }
@@ -177,18 +145,8 @@ export async function POST(req: NextRequest) {
                         type: 'Deposit',
                         amount: usdcAmount,
                         currency: tokenSymbol,
-                        status: 'COMPLETED',
+                        status: 'PENDING',
                         createdAt: new Date().toISOString()
-                    });
-
-                    await triggerUserUpdate(depositAddress.userId, 'user-update', {
-                        type: 'DEPOSIT_SUCCESS',
-                        payload: {
-                            userId: depositAddress.userId,
-                            type: 'DEPOSIT_SUCCESS',
-                            message: `Deposit of ${usdcAmount} ${tokenSymbol} successfully processed.`,
-                            resourceId: activity.hash
-                        }
                     });
                 } catch (redisErr) {
                     console.error('[Webhook] Failed to publish Redis update:', redisErr);

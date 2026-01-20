@@ -9,7 +9,7 @@
  * - Graceful degradation
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { ethers } from 'ethers';
@@ -322,6 +322,7 @@ async function sweepDeposit(deposit: any) {
         const fee = rawAmount * 0.01; // 1% Fee (matching sweepChainDeposit logic)
         const finalAmount = rawAmount - fee;
 
+        // Update balance and status (Atomic Transaction)
         await prisma.$transaction(async (txPrisma) => {
             // 1. Mark Deposit Completed
             await txPrisma.deposit.update({
@@ -333,10 +334,13 @@ async function sweepDeposit(deposit: any) {
                 }
             });
 
-            // 2. Credit User Balance
+            // 2. Credit Balance Table (TUSD)
             const userBalance = await txPrisma.balance.findFirst({
-                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null }
+                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null, outcomeId: null }
             });
+
+            const balanceBefore = userBalance ? Number(userBalance.amount) : 0;
+            const balanceAfter = balanceBefore + finalAmount;
 
             if (userBalance) {
                 await txPrisma.balance.update({
@@ -353,6 +357,32 @@ async function sweepDeposit(deposit: any) {
                     }
                 });
             }
+
+            // 3. Create Ledger Entry
+            await txPrisma.ledgerEntry.create({
+                data: {
+                    userId: depositAddress.userId,
+                    direction: 'CREDIT',
+                    amount: new Prisma.Decimal(finalAmount),
+                    currency: 'USD',
+                    referenceType: 'DEPOSIT',
+                    referenceId: deposit.id,
+                    balanceBefore: new Prisma.Decimal(balanceBefore),
+                    balanceAfter: new Prisma.Decimal(balanceAfter),
+                    metadata: {
+                        description: `Sweep Deposit (USDC)`,
+                        fee: fee,
+                        originalAmount: rawAmount,
+                        txHash: sweepTx.hash
+                    }
+                }
+            });
+
+            // 4. Update legacy currentBalance to stay in sync for now
+            await txPrisma.user.update({
+                where: { id: depositAddress.userId },
+                data: { currentBalance: { increment: finalAmount } }
+            });
         });
 
         log('INFO', `✅ User ${depositAddress.userId} credited with $${finalAmount}`);
@@ -589,11 +619,19 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
         const finalAmount = rawAmount - fee;
 
         await prisma.$transaction(async (txPrisma) => {
-            // Create Deposit Record
-            await txPrisma.deposit.create({
+            // 1. Get current balance for ledger
+            const userBalance = await txPrisma.balance.findFirst({
+                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null, outcomeId: null }
+            });
+
+            const balanceBefore = userBalance ? Number(userBalance.amount) : 0;
+            const balanceAfter = balanceBefore + finalAmount;
+
+            // 2. Create Deposit Record
+            const deposit = await txPrisma.deposit.create({
                 data: {
                     userId: depositAddress.userId,
-                    amount: finalAmount,
+                    amount: rawAmount,
                     currency: 'USDC',
                     txHash: tx.hash,
                     status: 'COMPLETED',
@@ -602,12 +640,7 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
                 }
             });
 
-            // Credit Balance (simplified version of crypto-service logic)
-            // Check if Balance row exists...
-            const userBalance = await txPrisma.balance.findFirst({
-                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null }
-            });
-
+            // 3. Credit Balance
             if (userBalance) {
                 await txPrisma.balance.update({
                     where: { id: userBalance.id },
@@ -623,6 +656,32 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint) {
                     }
                 });
             }
+
+            // 4. Create Ledger Entry
+            await txPrisma.ledgerEntry.create({
+                data: {
+                    userId: depositAddress.userId,
+                    direction: 'CREDIT',
+                    amount: new Prisma.Decimal(finalAmount),
+                    currency: 'USD',
+                    referenceType: 'DEPOSIT',
+                    referenceId: deposit.id,
+                    balanceBefore: new Prisma.Decimal(balanceBefore),
+                    balanceAfter: new Prisma.Decimal(balanceAfter),
+                    metadata: {
+                        description: `Blockchain Polling Deposit (USDC)`,
+                        fee: fee,
+                        originalAmount: rawAmount,
+                        txHash: tx.hash
+                    }
+                }
+            });
+
+            // 5. Update legacy currentBalance
+            await txPrisma.user.update({
+                where: { id: depositAddress.userId },
+                data: { currentBalance: { increment: finalAmount } }
+            });
         });
 
         log('INFO', `✅ User ${depositAddress.userId} credited with $${finalAmount}`);

@@ -138,8 +138,30 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
             console.log(`[DirectTrade] User has ${availableShares.toFixed(2)} shares, selling ${sharesToTrade.toFixed(2)}`);
         }
 
-        // 6. Place order on Polymarket with SHARES, not USD
+        // 6. For BUY orders, verify user has enough TUSD (USD equivalent) balance
+        let balanceBefore = 0;
+        if (side === 'buy') {
+            const userBalance = await prisma.balance.findFirst({
+                where: { userId, tokenSymbol: 'TUSD', eventId: null },
+            });
+
+            const availableFunds = userBalance?.amount ? Number(userBalance.amount) : 0;
+            balanceBefore = availableFunds;
+
+            if (availableFunds < amount) {
+                return {
+                    success: false,
+                    error: `Insufficient balance. You need $${amount.toFixed(2)} but have $${availableFunds.toFixed(2)}`,
+                    totalFilled: 0,
+                    averagePrice: 0,
+                    executionModule: 'polymarket',
+                };
+            }
+        }
+
+        // 7. Place order on Polymarket
         let pmOrder;
+        // ... (existing order placement logic unchanged until the end of the order placement)
         if (price) {
             // Limit order - use user's specified price
             const limitShares = side === 'sell' ? sharesToTrade : amount / price;
@@ -153,16 +175,11 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
             });
         } else {
             // Market order - use aggressive pricing
-            // Calculate aggressive price first
             const aggressivePrice = pmSide === 'BUY'
                 ? Math.min(0.99, (levels[0]?.price || 0.5) * 1.02)
                 : Math.max(0.01, (levels[0]?.price || 0.5) * 0.98);
 
-            // For BUY: Calculate shares to ensure collateral >= $1
-            // For SELL: Use exact shares from user's balance
             const adjustedShares = side === 'sell' ? sharesToTrade : amount / aggressivePrice;
-
-            console.log(`[DirectTrade] Market order: ${pmSide} ${adjustedShares.toFixed(2)} shares @ $${aggressivePrice.toFixed(4)} (value: $${(adjustedShares * aggressivePrice).toFixed(4)})`);
 
             pmOrder = await polymarketTrading.placeOrder({
                 marketId: mapping.polymarketId,
@@ -178,106 +195,158 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
 
         console.log(`[DirectTrade] ✅ PM Order: ${pmOrder.orderId} - ${pmOrder.size} shares @ $${pmOrder.price}`);
 
-        // 6. Apply platform markup (brokerage fee)
-        const PLATFORM_MARKUP = 0.03; // 3% markup on PM price
+        // 8. Apply platform markup (3%)
+        const PLATFORM_MARKUP = 0.03;
         const pmExecutionPrice = Number(pmOrder.price);
         const userPrice = side === 'buy'
-            ? pmExecutionPrice * (1 + PLATFORM_MARKUP)  // User pays MORE when buying
-            : pmExecutionPrice * (1 - PLATFORM_MARKUP); // User gets LESS when selling
+            ? pmExecutionPrice * (1 + PLATFORM_MARKUP)
+            : pmExecutionPrice * (1 - PLATFORM_MARKUP);
 
-        const userCost = Number(pmOrder.filledSize || pmOrder.size) * userPrice;
-        const pmCost = Number(pmOrder.filledSize || pmOrder.size) * pmExecutionPrice;
-        const platformProfit = side === 'buy'
-            ? userCost - pmCost  // We charge more than we paid
-            : pmCost - userCost; // We paid more than we gave user
+        const filledSize = Number(pmOrder.filledSize || pmOrder.size);
+        const userCost = filledSize * userPrice;
+        const pmCost = filledSize * pmExecutionPrice;
+        const platformProfit = side === 'buy' ? userCost - pmCost : pmCost - userCost;
 
-        console.log(`[DirectTrade] 💰 Markup: User ${side === 'buy' ? 'pays' : 'receives'} $${userCost.toFixed(4)} vs PM $${pmCost.toFixed(4)} = Profit: $${platformProfit.toFixed(4)}`);
-
-        // 7. Create internal order record
+        // 9. ATOMIC EXECUTION: Update internal records and deduct/credit balances
         const outcome = await prisma.outcome.findFirst({
             where: { eventId, name: { equals: option, mode: 'insensitive' } },
         });
 
-        const internalOrder = await prisma.order.create({
-            data: {
-                userId,
-                eventId,
-                outcomeId: outcome?.id ?? null,
-                option,
-                side,
-                price: userPrice, // User sees marked-up price
-                amount: userCost, // User pays marked-up amount
-                amountFilled: pmOrder.filledSize || pmOrder.size,
-                status: 'filled',
-                orderType: price ? 'limit' : 'market',
-            },
-        });
+        const result = await prisma.$transaction(async (txPrisma: any) => {
 
-        // 8. Create Hedge Record (track profitability)
-        await prisma.hedgeRecord.create({
-            data: {
-                userId,
-                userOrderId: internalOrder.id,
-                eventId,
-                option: option as 'YES' | 'NO',
-                userAmount: userCost, // What user actually paid (with markup)
-                userPrice: userPrice, // Price user saw (with markup)
-
-                polymarketMarketId: mapping.polymarketId,
-                polymarketOrderId: pmOrder.orderId,
-                polymarketSide: pmSide,
-                polymarketPrice: pmExecutionPrice,
-                polymarketAmount: Number(pmOrder.size),
-                polymarketTokenId: tokenId,
-
-                status: 'hedged',
-                polymarketFees: 0, // PM fees not tracked yet
-                netProfit: platformProfit, // Our 3% markup profit
-                ourSpread: PLATFORM_MARKUP * 100, // 3% in basis points
-            }
-        });
-
-        // 8. Update user's Balance for trading panel
-        const tokenSymbol = `${option}_TOKEN`;
-        const sharesDelta = side === 'buy'
-            ? Number(pmOrder.filledSize || pmOrder.size)  // Add shares
-            : -Number(pmOrder.filledSize || pmOrder.size); // Remove shares
-
-        await prisma.balance.upsert({
-            where: {
-                userId_tokenSymbol_eventId_outcomeId: {
+            // A. Create Order
+            const internalOrder = await txPrisma.order.create({
+                data: {
                     userId,
-                    tokenSymbol,
                     eventId,
-                    outcomeId: outcome?.id || null,
+                    outcomeId: outcome?.id ?? null,
+                    option,
+                    side,
+                    price: userPrice,
+                    amount: userCost,
+                    amountFilled: filledSize,
+                    status: 'filled',
+                    orderType: price ? 'limit' : 'market',
                 },
-            },
-            update: {
-                amount: {
-                    increment: sharesDelta,
-                },
-            },
-            create: {
-                userId,
-                tokenSymbol,
-                amount: Math.max(0, sharesDelta), // Can't have negative balance
-                eventId,
-                outcomeId: outcome?.id,
-            },
-        });
+            });
 
-        console.log(`[DirectTrade] Updated balance: ${side === 'buy' ? '+' : ''}${sharesDelta.toFixed(2)} shares of ${option}`);
+            // B. Create Ledger Entry & Deduct/Credit Funds
+            if (side === 'buy') {
+                // Deduct TUSD
+                const balanceAfter = balanceBefore - userCost;
+                await txPrisma.balance.updateMany({
+                    where: { userId, tokenSymbol: 'TUSD', eventId: null },
+                    data: { amount: { decrement: userCost } }
+                });
+
+                // Update legacy balance too
+                await txPrisma.user.update({
+                    where: { id: userId },
+                    data: { currentBalance: { decrement: userCost } }
+                });
+
+                await txPrisma.ledgerEntry.create({
+                    data: {
+                        userId,
+                        direction: 'DEBIT',
+                        amount: new prisma.Prisma.Decimal(userCost),
+                        currency: 'USD',
+                        referenceType: 'TRADE',
+                        referenceId: internalOrder.id,
+                        balanceBefore: new prisma.Prisma.Decimal(balanceBefore),
+                        balanceAfter: new prisma.Prisma.Decimal(balanceAfter),
+                        metadata: { description: `Buy ${option} on ${eventId}`, shares: filledSize, price: userPrice }
+                    }
+                });
+            } else {
+                // For SELL, credit TUSD
+                const userTusd = await txPrisma.balance.findFirst({
+                    where: { userId, tokenSymbol: 'TUSD', eventId: null }
+                });
+                const tusdBefore = userTusd?.amount ? Number(userTusd.amount) : 0;
+                const tusdAfter = tusdBefore + userCost;
+
+                if (userTusd) {
+                    await txPrisma.balance.update({ where: { id: userTusd.id }, data: { amount: { increment: userCost } } });
+                } else {
+                    await txPrisma.balance.create({ data: { userId, tokenSymbol: 'TUSD', amount: userCost, locked: 0 } });
+                }
+
+                await txPrisma.user.update({ where: { id: userId }, data: { currentBalance: { increment: userCost } } });
+
+                await txPrisma.ledgerEntry.create({
+                    data: {
+                        userId,
+                        direction: 'CREDIT',
+                        amount: new prisma.Prisma.Decimal(userCost),
+                        currency: 'USD',
+                        referenceType: 'TRADE',
+                        referenceId: internalOrder.id,
+                        balanceBefore: new prisma.Prisma.Decimal(tusdBefore),
+                        balanceAfter: new prisma.Prisma.Decimal(tusdAfter),
+                        metadata: { description: `Sell ${option} on ${eventId}`, shares: filledSize, price: userPrice }
+                    }
+                });
+            }
+
+            // C. Update Shares Balance
+            const shareSymbol = `${option}_TOKEN`;
+            const sharesDelta = side === 'buy' ? filledSize : -filledSize;
+
+            await txPrisma.balance.upsert({
+                where: {
+                    userId_tokenSymbol_eventId_outcomeId: {
+                        userId,
+                        tokenSymbol: shareSymbol,
+                        eventId,
+                        outcomeId: outcome?.id || '',
+                    },
+                },
+                update: { amount: { increment: sharesDelta } },
+                create: {
+                    userId,
+                    tokenSymbol: shareSymbol,
+                    amount: Math.max(0, sharesDelta),
+                    eventId,
+                    outcomeId: outcome?.id,
+                },
+            });
+
+            // D. Create Hedge Record
+            await txPrisma.hedgeRecord.create({
+                data: {
+                    userId,
+                    userOrderId: internalOrder.id,
+                    eventId,
+                    option: option as 'YES' | 'NO',
+                    userAmount: userCost,
+                    userPrice: userPrice,
+                    polymarketMarketId: mapping.polymarketId,
+                    polymarketOrderId: pmOrder.orderId,
+                    polymarketSide: pmSide,
+                    polymarketPrice: pmExecutionPrice,
+                    polymarketAmount: filledSize,
+                    polymarketTokenId: tokenId,
+                    status: 'hedged',
+                    polymarketFees: 0,
+                    netProfit: platformProfit,
+                    ourSpread: PLATFORM_MARKUP * 100,
+                }
+            });
+
+            return { orderId: internalOrder.id, userPrice, userCost };
+        });
 
         return {
             success: true,
-            orderId: internalOrder.id,
-            totalFilled: pmOrder.size,
-            averagePrice: userPrice, // User sees marked-up price
+            orderId: result.orderId,
+            totalFilled: filledSize,
+            averagePrice: result.userPrice,
             fees: 0,
             executionModule: 'polymarket',
             trades: [{
-                price: userPrice, // User sees marked-up price
-                amount: pmOrder.size,
+                price: result.userPrice,
+                amount: filledSize,
                 makerUserId: 'POLYMARKET',
                 isAmmTrade: false
             }]
