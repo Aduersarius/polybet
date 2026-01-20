@@ -130,17 +130,18 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     // Calculate initial prices from event data on mount
     useEffect(() => {
         if (eventData) {
-            // For internal AMM events (qYes, qNo)
-            if (eventData.qYes !== undefined && eventData.qNo !== undefined) {
+            // Priority:
+            // 1. Direct odds columns (favored for A-Book/Polymarket)
+            if (eventData.yesOdds != null && eventData.noOdds != null) {
+                setYesPrice(eventData.yesOdds);
+                setNoPrice(eventData.noOdds);
+            }
+            // 2. LMSR q-positions (legacy B-Book fallback)
+            else if (eventData.qYes !== undefined && eventData.qNo !== undefined) {
                 const b = eventData.liquidityParameter || 10000.0;
                 const odds = calculateLMSROdds(eventData.qYes, eventData.qNo, b);
                 setYesPrice(odds.yesPrice);
                 setNoPrice(odds.noPrice);
-            }
-            // For Polymarket events (yesOdds, noOdds) - direct probabilities
-            else if (eventData.yesOdds !== undefined && eventData.noOdds !== undefined) {
-                setYesPrice(eventData.yesOdds);
-                setNoPrice(eventData.noOdds);
             }
         }
     }, [eventData]);

@@ -171,35 +171,38 @@ export async function GET(
                     response.outcomes = outcomesWithOdds;
                 } else {
                     // Binary event logic
-                    const qYes = (event as any).qYes || 0;
-                    const qNo = (event as any).qNo || 0;
-                    const b = (event as any).liquidityParameter || 10000.0;
+                    const source = (event as any).source;
+                    const yesOdds = (event as any).yesOdds;
+                    const noOdds = (event as any).noOdds;
 
-                    let odds;
-                    if (qYes === 0 && qNo === 0) {
-                        // No trades yet - use 50/50 as default
-                        odds = {
-                            yesPrice: 0.5,
-                            noPrice: 0.5,
-                            yesOdds: 2.0,
-                            noOdds: 2.0
+                    // Priority:
+                    // 1. If we have direct odds (synced from Polymarket), use them
+                    // 2. If it is a LOCAL event with q positions, use LMSR
+                    // 3. 50/50 fallback
+
+                    let finalProbs;
+                    if (yesOdds != null && noOdds != null && source === 'POLYMARKET') {
+                        finalProbs = {
+                            yesPrice: yesOdds,
+                            noPrice: noOdds
                         };
                     } else {
-                        // Calculate odds using actual token positions
-                        const diff = (qNo - qYes) / b;
-                        const yesPrice = 1 / (1 + Math.exp(diff));
-                        const noPrice = 1 - yesPrice;
+                        const qYes = (event as any).qYes || 0;
+                        const qNo = (event as any).qNo || 0;
+                        const b = (event as any).liquidityParameter || 10000.0;
 
-                        odds = {
-                            yesPrice,
-                            noPrice,
-                            yesOdds: 1 / yesPrice,
-                            noOdds: 1 / noPrice
-                        };
+                        if (qYes === 0 && qNo === 0) {
+                            finalProbs = { yesPrice: 0.5, noPrice: 0.5 };
+                        } else {
+                            const diff = (qNo - qYes) / b;
+                            const yesPrice = 1 / (1 + Math.exp(diff));
+                            const noPrice = 1 - yesPrice;
+                            finalProbs = { yesPrice, noPrice };
+                        }
                     }
 
-                    response.yesOdds = odds.yesPrice;
-                    response.noOdds = odds.noPrice;
+                    response.yesOdds = finalProbs.yesPrice;
+                    response.noOdds = finalProbs.noPrice;
                 }
 
                 return response;

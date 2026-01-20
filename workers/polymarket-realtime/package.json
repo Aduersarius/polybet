@@ -3,10 +3,10 @@
     "version": "1.0.0",
     "description": "Real-time odds streaming worker for Polymarket integration",
     "type": "module",
-    "main": "dist/worker.js",
+    "main": "dist/workers/polymarket-realtime/worker.js",
     "scripts": {
         "build": "tsc",
-        "start": "node dist/worker.js",
+        "start": "node dist/workers/polymarket-realtime/worker.js",
         "dev": "tsx watch worker.ts",
         "generate": "prisma generate"
     },

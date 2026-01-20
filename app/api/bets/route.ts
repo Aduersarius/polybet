@@ -118,15 +118,59 @@ export async function POST(request: Request) {
             ]);
         };
 
-        // PHASE 2.5: Use request queuing to serialize bets on the same event
-        // This prevents concurrent AMM state updates and race conditions
-        const { RequestQueue } = await import('@/lib/queue');
+        // PHASE 1: Route via Orchestrator
+        if (eventMeta.source === 'POLYMARKET') {
+            const { OrderOrchestrator } = await import('@/lib/order-orchestrator');
 
-        const result = await RequestQueue.enqueue(
-            `bet:${eventId}`, // Queue key per event
+            const result = await OrderOrchestrator.processOrder({
+                userId: targetUserId,
+                eventId,
+                option,
+                amount: numericAmount,
+            });
+
+            if (!result.success) {
+                return createClientErrorResponse(result.error || 'Trade failed', 400);
+            }
+
+            // Publish to Pusher for Real-time Updates (non-blocking)
+            (async () => {
+                try {
+                    const { getPusherServer, triggerUserUpdate } = await import('@/lib/pusher-server');
+                    const pusherServer = getPusherServer();
+
+                    await pusherServer.trigger(`event-${eventId}`, 'odds-update', {
+                        eventId,
+                        timestamp: Math.floor(Date.now() / 1000),
+                        yesPrice: result.userPrice,
+                        volume: numericAmount
+                    });
+
+                    await triggerUserUpdate(targetUserId, 'user-update', {
+                        type: 'POSITION_UPDATE',
+                        payload: { eventId }
+                    });
+                } catch (err) {
+                    console.error('[Pusher] Broadcast failed:', err);
+                }
+            })();
+
+            trackTrade('buy', option.toLowerCase() as 'yes' | 'no', numericAmount, 'binary');
+
+            return NextResponse.json({
+                success: true,
+                orderId: result.userOrderId,
+                userPrice: result.userPrice,
+                polymarketPrice: result.polymarketPrice,
+                amount: result.userAmount,
+            });
+        }
+
+        // PHASE 2: Fallback to internal AMM for non-Polymarket events
+        const { RequestQueue } = await import('@/lib/queue');
+        const internalResult = await RequestQueue.enqueue(
+            `bet:${eventId}`,
             async () => {
-                // 1. Fetch FRESH Event State (no stale cache for AMM)
-                // CRITICAL: Always get latest AMM state to prevent race conditions
                 const event = await withTimeout(
                     prisma.event.findUnique({
                         where: { id: eventId },
@@ -137,22 +181,14 @@ export async function POST(request: Request) {
                             qNo: true,
                             status: true,
                             source: true,
-                            polymarketId: true,
                         }
-                    }),
-                    3000 // 3 second timeout for single record
+                    })
                 ) as any;
 
-                if (!event) {
-                    throw new Error('Event not found');
-                }
-
-                // 2. Run AMM Math
                 const b = event.liquidityParameter || 10000;
                 const currentQYes = event.qYes || 0;
                 const currentQNo = event.qNo || 0;
 
-                // Calculate tokens received for this amount
                 const tokensReceived = calculateTokensForCost(
                     currentQYes,
                     currentQNo,
@@ -161,27 +197,12 @@ export async function POST(request: Request) {
                     b
                 );
 
-                // Calculate new state
                 const newQYes = option === 'YES' ? currentQYes + tokensReceived : currentQYes;
                 const newQNo = option === 'NO' ? currentQNo + tokensReceived : currentQNo;
-
-                // Calculate new odds
                 const newOdds = calculateLMSROdds(newQYes, newQNo, b);
 
-                // 3. Atomic User Upsert + Bet Transaction
-                // OPTIMIZATION: Use upsert to find-or-create user in 1 query instead of 2-3
-                const [upsertedUser, updatedEvent, newBet, orderRecord] = await withTimeout(
+                const [updatedEvent, orderRecord] = await withTimeout(
                     prisma.$transaction([
-                        prisma.user.upsert({
-                            where: { id: targetUserId },
-                            update: {}, // No updates needed if user exists
-                            create: {
-                                id: targetUserId,
-                                username: user.name || `User_${targetUserId.slice(-8)}`,
-                                email: user.email,
-                                address: `0x${targetUserId.slice(-8)}`
-                            }
-                        }),
                         prisma.event.update({
                             where: { id: eventId },
                             data: {
@@ -189,17 +210,6 @@ export async function POST(request: Request) {
                                 qNo: newQNo,
                                 yesOdds: newOdds.yesPrice,
                                 noOdds: newOdds.noPrice
-                            }
-                        }),
-                        (prisma as any).marketActivity.create({
-                            data: {
-                                amount: numericAmount,
-                                option,
-                                userId: targetUserId,
-                                eventId,
-                                type: 'BET',
-                                price: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
-                                isAmmInteraction: true
                             }
                         }),
                         prisma.order.create({
@@ -216,107 +226,12 @@ export async function POST(request: Request) {
                                 orderType: 'market',
                             },
                         })
-                    ]) as Promise<[any, any, any, any]>,
-                    8000 // 8 second timeout for transaction
+                    ]) as Promise<[any, any]>
                 );
 
-                return { user, updatedEvent, newBet, tokensReceived, newOdds, orderRecord };
-            },
-            { timeout: 10000 } // 10 second queue timeout
-        );
-
-        const { newBet, tokensReceived, newOdds, orderRecord } = result;
-
-        // PHASE 1: Smart Position-Aware Hedging
-        // Detect if user is closing existing position → close hedge
-        // Or opening new position → create new hedge
-        if (eventMeta.source === 'POLYMARKET' && orderRecord?.id) {
-            try {
-                // Check user's net position BEFORE this bet
-                const userPositions = await prisma.order.groupBy({
-                    by: ['option'],
-                    where: {
-                        userId: targetUserId,
-                        eventId,
-                        status: 'filled',
-                        id: { not: orderRecord.id }, // Exclude current order
-                    },
-                    _sum: {
-                        amountFilled: true,
-                    },
-                });
-
-                const yesPosition = userPositions.find((p: any) => p.option === 'YES')?._sum.amountFilled || 0;
-                const noPosition = userPositions.find((p: any) => p.option === 'NO')?._sum.amountFilled || 0;
-                const netYesPosition = yesPosition - noPosition;
-
-                console.log(`[Hedging] User position before bet: YES=${netYesPosition.toFixed(2)}, current bet: ${option} $${numericAmount}`);
-
-                // Determine if this closes an existing position
-                const isClosing = (
-                    (option === 'NO' && netYesPosition > 0) || // Selling YES by buying NO
-                    (option === 'YES' && netYesPosition < 0)    // Selling NO by buying YES
-                );
-
-                if (isClosing) {
-                    // User is closing their position - close the hedge on Polymarket
-                    console.log('[Hedging] 🔄 Position close detected - closing existing hedge');
-
-                    const { closeHedgePosition } = await import('@/lib/hedge-simple');
-                    const closeResult = await closeHedgePosition({
-                        userId: targetUserId,
-                        eventId,
-                        option: option as 'YES' | 'NO',
-                        amount: numericAmount,
-                        userOrderId: orderRecord.id,
-                    });
-
-                    if (!closeResult.success) {
-                        console.error('[Hedging] Failed to close hedge:', closeResult.error);
-                        trackError('trading', 'hedge_close_failed');
-                        // Don't fail the user's trade - they closed their position successfully
-                        // The hedge close failure is our problem to handle manually
-                    } else {
-                        console.log(`[Hedging] ✅ Hedge closed - P/L: $${closeResult.realizedPnL?.toFixed(4)}`);
-                    }
-                } else {
-                    // User is opening new position - normal hedge
-                    console.log('[Hedging] 📈 New position detected - opening hedge');
-
-                    const hedgeResult = await hedgeAndExecute({
-                        userId: targetUserId,
-                        eventId,
-                        option: option as 'YES' | 'NO',
-                        amount: numericAmount,
-                    }, {
-                        skipUserTrade: true  // AMM already created the order
-                    });
-
-                    if (!hedgeResult.success) {
-                        console.error('[Hedging] CRITICAL: Hedge failed after AMM committed:', {
-                            orderId: orderRecord.id,
-                            error: hedgeResult.error,
-                            errorCode: hedgeResult.errorCode
-                        });
-                        trackError('trading', 'hedge_failed_after_commit');
-
-                        return createClientErrorResponse(
-                            'Unable to complete bet placement. Please contact support if amount was deducted.',
-                            503
-                        );
-                    }
-
-                    console.log(`[Hedging] ✅ Hedge opened - Profit: $${hedgeResult.netProfit?.toFixed(4)}, PM Order: ${hedgeResult.polymarketOrderId}`);
-                }
-            } catch (err) {
-                console.error('[Hedging] CRITICAL Exception:', err);
-                trackError('trading', 'hedge_exception');
-                return createClientErrorResponse(
-                    'Unable to complete bet placement. Please contact support if amount was deducted.',
-                    503
-                );
+                return { updatedEvent, tokensReceived, newOdds, orderRecord };
             }
-        }
+        );
 
         // 4. Publish to Pusher for Real-time Updates (non-blocking)
         (async () => {
@@ -327,7 +242,7 @@ export async function POST(request: Request) {
                 await pusherServer.trigger(`event-${eventId}`, 'odds-update', {
                     eventId,
                     timestamp: Math.floor(Date.now() / 1000),
-                    yesPrice: newOdds.yesPrice,
+                    yesPrice: internalResult.newOdds.yesPrice,
                     volume: numericAmount
                 });
 
@@ -341,7 +256,7 @@ export async function POST(request: Request) {
         })();
 
         const totalTime = Date.now() - startTime;
-        console.log(`✅ Trade executed: ${option} $${numericAmount} → ${tokensReceived.toFixed(2)} tokens. New Price: ${newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
+        console.log(`✅ Trade executed: ${option} $${numericAmount} → ${internalResult.tokensReceived.toFixed(2)} tokens. New Price: ${internalResult.newOdds.yesPrice.toFixed(2)} (${totalTime}ms)`);
 
         // Track trade metrics in Sentry
         trackTrade(
@@ -352,27 +267,21 @@ export async function POST(request: Request) {
         );
         trackApiLatency('/api/bets', totalTime, 200);
 
-        // 5. Minimal cache invalidation + WebSocket publish (non-blocking)
-        // Fire and forget to avoid blocking the response
-        // Note: For sports events (Polymarket), the SSE stream at /api/sports/live/stream
-        // will automatically pick up this bet within 3 seconds and recalculate hybrid odds
+        // 5. Minimal cache invalidation (non-blocking)
         Promise.all([
-            (async () => {
-                await redis.del(`event:${eventId}`).catch(() => { });
-                await redis.del(`event:amm:${eventId}`).catch(() => { });
-            })()
+            redis.del(`event:${eventId}`).catch(() => { }),
+            redis.del(`event:amm:${eventId}`).catch(() => { })
         ]).catch(err => console.error('Post-bet cleanup failed:', err));
 
 
         // 6. Return Result
         return NextResponse.json({
             success: true,
-            betId: newBet.id,
-            orderId: orderRecord?.id,
-            tokensReceived,
-            priceAtTrade: option === 'YES' ? newOdds.yesPrice : newOdds.noPrice,
-            newYesPrice: newOdds.yesPrice,
-            newNoPrice: newOdds.noPrice
+            orderId: internalResult.orderRecord.id,
+            tokensReceived: internalResult.tokensReceived,
+            priceAtTrade: option === 'YES' ? internalResult.newOdds.yesPrice : internalResult.newOdds.noPrice,
+            newYesPrice: internalResult.newOdds.yesPrice,
+            newNoPrice: internalResult.newOdds.noPrice
         });
 
     } catch (error) {

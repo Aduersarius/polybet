@@ -153,454 +153,7 @@ function dedupeOutcomeNames(raw: any[] = []) {
   });
 }
 
-async function fetchOrderbookMid(tokenId: string): Promise<number | undefined> {
-  const MAX_ALLOWED_SPREAD = 0.30; // 30% max spread - wider spreads produce garbage mid-prices
-  const url = `${POLYMARKET_CLOB_API_URL}/orderbook?token_id=${encodeURIComponent(tokenId)}`;
-  try {
-    const resp = await fetch(url, { cache: 'no-store' });
-    if (!resp.ok) {
-      console.warn('[Polymarket] orderbook mid fallback failed', {
-        tokenId,
-        status: resp.status,
-        statusText: resp.statusText,
-      });
-      return undefined;
-    }
-    const data = await resp.json();
-    const bids = Array.isArray(data?.bids) ? data.bids : Array.isArray(data?.data?.bids) ? data.data.bids : [];
-    const asks = Array.isArray(data?.asks) ? data.asks : Array.isArray(data?.data?.asks) ? data.data.asks : [];
-    const bestBid = bids.length ? Number(bids[0]?.price ?? bids[0]?.[0]) : undefined;
-    const bestAsk = asks.length ? Number(asks[0]?.price ?? asks[0]?.[0]) : undefined;
-    const hasBestBid = typeof bestBid === 'number' && Number.isFinite(bestBid);
-    const hasBestAsk = typeof bestAsk === 'number' && Number.isFinite(bestAsk);
 
-    // VALIDATION: Require BOTH bid AND ask to exist (no one-sided orderbooks)
-    if (!hasBestBid || !hasBestAsk) {
-      console.warn('[Polymarket] orderbook one-sided, skipping mid calculation', { tokenId, hasBestBid, hasBestAsk });
-      return undefined;
-    }
-
-    // VALIDATION: Check spread is reasonable (wide spreads like 0.01/0.99 produce garbage 50% mid)
-    const spread = (bestAsk as number) - (bestBid as number);
-    if (spread > MAX_ALLOWED_SPREAD) {
-      console.warn('[Polymarket] orderbook spread too wide (%s% > %s%), skipping',
-        (spread * 100).toFixed(1),
-        MAX_ALLOWED_SPREAD * 100,
-        { tokenId }
-      ); return undefined;
-    }
-
-    const mid = ((bestBid as number) + (bestAsk as number)) / 2;
-    return Number.isFinite(mid) ? mid : undefined;
-  } catch (err) {
-    console.warn('[Polymarket] orderbook mid fallback error', { tokenId, err });
-    return undefined;
-  }
-}
-
-async function fetchOddsHistoryChunk(
-  tokenId: string,
-  startSec: number,
-  endSec: number,
-  resolution: string,
-  retryWithSmallerChunks: boolean = false
-): Promise<any[]> {
-  const requestedDays = (endSec - startSec) / (24 * 60 * 60);
-
-  // Fetch full history with uniform 30-minute fidelity for consistent candle intervals
-  // This provides ~48 candles per day, balancing data density with storage efficiency
-  let allHistory: any[] = [];
-  const historyMap = new Map<number, any>(); // timestamp -> point (for deduplication)
-
-  const historyUrl = `${POLYMARKET_CLOB_API_URL}/prices-history?market=${encodeURIComponent(
-    tokenId
-  )}&interval=max&fidelity=30`;
-
-  console.log(`[Polymarket] Fetching full history with interval=max, fidelity=30min (uniform candles)`);
-  const historyResp = await fetch(historyUrl, { cache: 'no-store' });
-
-  if (historyResp.ok) {
-    const data = await historyResp.json();
-    const history = Array.isArray(data?.history)
-      ? data.history
-      : Array.isArray(data?.prices)
-        ? data.prices
-        : Array.isArray(data)
-          ? data
-          : [];
-
-    if (history.length > 0) {
-      // Add all points to map
-      history.forEach((point: any) => {
-        const tsRaw = Number(point.timestamp ?? point.time ?? point.ts ?? point.t);
-        const tsSec = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : tsRaw;
-        if (Number.isFinite(tsSec)) {
-          historyMap.set(tsSec, point);
-        }
-      });
-
-      const timestamps = Array.from(historyMap.keys()).sort((a, b) => a - b);
-      if (timestamps.length > 0) {
-        const earliest = timestamps[0];
-        const latest = timestamps[timestamps.length - 1];
-        const dataDays = (latest - earliest) / (24 * 60 * 60);
-        console.log(`[Polymarket] 30min fidelity: ${history.length} points covering ${dataDays.toFixed(1)} days (${new Date(earliest * 1000).toISOString()} to ${new Date(latest * 1000).toISOString()})`);
-      }
-    }
-  }
-
-  // Convert map to array
-  allHistory.push(...Array.from(historyMap.values()));
-
-  // Strategy 2: If interval=max didn't give us enough data, try chunked requests with old API
-  if (allHistory.length > 0) {
-    const timestamps = allHistory
-      .map((p: any) => {
-        const tsRaw = Number(p.timestamp ?? p.time ?? p.ts ?? p.t);
-        return tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : tsRaw;
-      })
-      .filter((ts: number) => Number.isFinite(ts))
-      .sort((a: number, b: number) => a - b);
-
-    if (timestamps.length > 0) {
-      const earliest = timestamps[0];
-      const latest = timestamps[timestamps.length - 1];
-      const dataDays = (latest - earliest) / (24 * 60 * 60);
-
-      // If we got less than 80% of requested days, try chunked approach
-      if (dataDays < requestedDays * 0.8 && requestedDays > 30) {
-        console.log(`[Polymarket] interval=max only returned ${dataDays.toFixed(1)} days, trying chunked requests for older data`);
-
-        // Try to get older data by chunking backwards from the earliest point we have
-        const chunkDays = 7; // Use 7-day chunks
-        const chunkSeconds = chunkDays * 24 * 60 * 60;
-        let currentEnd = earliest;
-        const additionalPoints: any[] = [];
-
-        while (currentEnd > startSec && additionalPoints.length < 500000) { // Safety limit increased for full history
-          const chunkStart = Math.max(currentEnd - chunkSeconds, startSec);
-          console.log(`[Polymarket] Fetching chunk: ${new Date(chunkStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
-
-          // Use fidelity=30 to match our 30-minute candle interval
-          const chunkUrl = `${POLYMARKET_CLOB_API_URL}/prices-history?market=${encodeURIComponent(
-            tokenId
-          )}&startTs=${chunkStart}&endTs=${currentEnd}&fidelity=30`;
-
-          const chunkResp = await fetch(chunkUrl, { cache: 'no-store' });
-          if (chunkResp.ok) {
-            const chunkData = await chunkResp.json();
-            const chunkHistory = Array.isArray(chunkData?.history)
-              ? chunkData.history
-              : Array.isArray(chunkData?.prices)
-                ? chunkData.prices
-                : Array.isArray(chunkData)
-                  ? chunkData
-                  : [];
-
-            if (chunkHistory.length > 0) {
-              additionalPoints.push(...chunkHistory);
-              console.log(`[Polymarket] Got ${chunkHistory.length} additional points from chunk`);
-            }
-          }
-
-          currentEnd = chunkStart;
-          if (currentEnd > startSec) {
-            await new Promise(resolve => setTimeout(resolve, 300)); // Delay between chunks
-          }
-        }
-
-        if (additionalPoints.length > 0) {
-          // Merge and deduplicate by timestamp
-          const allPointsMap = new Map<number, any>();
-
-          [...allHistory, ...additionalPoints].forEach((point: any) => {
-            const tsRaw = Number(point.timestamp ?? point.time ?? point.ts ?? point.t);
-            const tsSec = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : tsRaw;
-            if (Number.isFinite(tsSec)) {
-              // Keep the point with higher fidelity (more detailed) if timestamps match
-              const existing = allPointsMap.get(tsSec);
-              if (!existing || (point.p && existing.p && Math.abs(point.p - existing.p) < 0.001)) {
-                allPointsMap.set(tsSec, point);
-              }
-            }
-          });
-
-          // Clear and repopulate instead of reassigning
-          allHistory.length = 0;
-          allHistory.push(...Array.from(allPointsMap.values()));
-          console.log(`[Polymarket] Combined ${allHistory.length} total points from interval=max and chunked requests`);
-        }
-      }
-    }
-  } else {
-    // Fallback to old API format if interval=max completely failed
-    console.warn(`[Polymarket] interval=max failed, trying old API format`);
-    const oldUrl = `${POLYMARKET_CLOB_API_URL}/prices-history?market=${encodeURIComponent(
-      tokenId
-    )}&startTs=${startSec}&endTs=${endSec}&fidelity=30`;
-    const oldResp = await fetch(oldUrl, { cache: 'no-store' });
-
-    if (oldResp.ok) {
-      const oldData = await oldResp.json();
-      const fallbackHistory = Array.isArray(oldData?.history)
-        ? oldData.history
-        : Array.isArray(oldData?.prices)
-          ? oldData.prices
-          : Array.isArray(oldData)
-            ? oldData
-            : [];
-      allHistory.push(...fallbackHistory);
-    }
-  }
-
-  // Filter by date range if needed
-  if (allHistory.length > 0 && startSec > 0) {
-    const filtered = allHistory.filter((point: any) => {
-      const tsRaw = Number(point.timestamp ?? point.time ?? point.ts ?? point.t);
-      const tsSec = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : tsRaw;
-      return Number.isFinite(tsSec) && tsSec >= startSec && tsSec <= endSec;
-    });
-    console.log(`[Polymarket] Filtered ${filtered.length} points from ${allHistory.length} total (range: ${new Date(startSec * 1000).toISOString()} to ${new Date(endSec * 1000).toISOString()})`);
-    return filtered;
-  }
-
-  return allHistory;
-}
-
-async function backfillOddsHistory(params: {
-  prisma: any;
-  eventId: string;
-  outcomeId: string;
-  tokenId?: string;
-  marketId?: string;
-  lookbackDays?: number;
-  resolution?: string;
-  fallbackProbability?: number;
-  eventCreatedAt?: Date;
-  polymarketStartDate?: string | Date; // Polymarket market creation date
-}): Promise<number | undefined> {
-  const {
-    prisma,
-    eventId,
-    outcomeId,
-    tokenId,
-    marketId,
-    lookbackDays,
-    resolution = HISTORY_RESOLUTION,
-    fallbackProbability,
-    eventCreatedAt,
-    polymarketStartDate,
-  } = params;
-  if (!tokenId || typeof tokenId !== 'string' || tokenId.trim().length === 0) return;
-
-  try {
-    const endSec = Math.floor(Date.now() / 1000);
-    let startSec: number;
-
-    // Priority 1: Use Polymarket market creation date if available (most accurate)
-    if (polymarketStartDate) {
-      const polyDate = typeof polymarketStartDate === 'string' ? new Date(polymarketStartDate) : polymarketStartDate;
-      if (!isNaN(polyDate.getTime())) {
-        const polySec = Math.floor(polyDate.getTime() / 1000);
-        const nowSec = Math.floor(Date.now() / 1000);
-        // CRITICAL: Don't use future dates - cap to current time
-        // Check against actual current time, not endSec (which might be slightly off)
-        if (polySec > nowSec) {
-          console.warn(`[Polymarket] Polymarket start date is in the future (${polyDate.toISOString()}, now: ${new Date().toISOString()}), using 1-year lookback instead`);
-          startSec = endSec - 365 * 24 * 60 * 60;
-        } else {
-          startSec = polySec;
-          const daysAgo = (endSec - startSec) / (24 * 60 * 60);
-          console.log(`[Polymarket] Using Polymarket market start date: ${polyDate.toISOString()} (${daysAgo.toFixed(1)} days ago)`);
-        }
-      } else {
-        console.warn(`[Polymarket] Invalid Polymarket start date format, using 1-year lookback`);
-        startSec = endSec - 365 * 24 * 60 * 60;
-      }
-    } else if (lookbackDays) {
-      // Priority 2: Use explicit lookbackDays if provided
-      startSec = endSec - lookbackDays * 24 * 60 * 60;
-      console.log(`[Polymarket] Using lookbackDays: ${lookbackDays} days`);
-    } else {
-      // Priority 3: Default to 1 year lookback (more reliable than DB creation date)
-      // DB creation date is when we first ingested, not when Polymarket created the market
-      startSec = endSec - 365 * 24 * 60 * 60;
-      console.log(`[Polymarket] Using default 1-year lookback (DB createdAt may be inaccurate for existing markets)`);
-
-      // Log DB creation date for debugging
-      if (eventCreatedAt) {
-        const dbAgeDays = (endSec - Math.floor(eventCreatedAt.getTime() / 1000)) / (24 * 60 * 60);
-        console.log(`[Polymarket] DB event createdAt: ${eventCreatedAt.toISOString()} (${dbAgeDays.toFixed(1)} days ago)`);
-      }
-    }
-
-    // Final safety check: ensure startSec is not in the future and not too far in the past
-    // Use fresh timestamp to avoid any timing issues
-    const currentTimeSec = Math.floor(Date.now() / 1000);
-    if (startSec > currentTimeSec) {
-      const futureDate = new Date(startSec * 1000);
-      const nowDate = new Date();
-      console.warn(`[Polymarket] Calculated start date is in the future (${futureDate.toISOString()} vs now ${nowDate.toISOString()}), capping to 1-year lookback`);
-      startSec = currentTimeSec - 365 * 24 * 60 * 60; // Use 1 year lookback from actual current time
-    }
-
-    // Cap lookback to reasonable maximum (2 years) to avoid API issues
-    const maxLookbackSec = 2 * 365 * 24 * 60 * 60;
-    if (endSec - startSec > maxLookbackSec) {
-      console.warn(`[Polymarket] Requested lookback exceeds 2 years, capping to 2 years`);
-      startSec = endSec - maxLookbackSec;
-    }
-
-    // Ensure startSec doesn't exceed endSec (final safety net)
-    if (startSec > endSec) {
-      startSec = endSec - 365 * 24 * 60 * 60;
-    }
-
-    // Calculate total days to fetch
-    const totalDays = (endSec - startSec) / (24 * 60 * 60);
-    console.log(`[Polymarket] Requesting odds history: ${new Date(startSec * 1000).toISOString()} to ${new Date(endSec * 1000).toISOString()} (${totalDays.toFixed(1)} days)`);
-
-    // Use interval=max to get ALL available history in one request (much more efficient)
-    // The fetchOddsHistoryChunk function will filter by date range if needed
-    console.log(`[Polymarket] Fetching full history with interval=max (will filter to requested range)`);
-    let allPoints = await fetchOddsHistoryChunk(tokenId, startSec, endSec, resolution, false);
-    console.log(`[Polymarket] Received ${allPoints.length} points from interval=max request`);
-
-    // Check if we got data and log the actual date range
-    if (allPoints.length > 0) {
-      const timestamps = allPoints
-        .map(p => {
-          const tsRaw = Number(p.timestamp ?? p.time ?? p.ts ?? p.t);
-          return tsRaw > 1e12 ? tsRaw : tsRaw * 1000;
-        })
-        .filter(ts => Number.isFinite(ts))
-        .sort((a, b) => a - b);
-
-      if (timestamps.length > 0) {
-        const earliest = new Date(timestamps[0]);
-        const latest = new Date(timestamps[timestamps.length - 1]);
-        const actualDays = (timestamps[timestamps.length - 1] - timestamps[0]) / (24 * 60 * 60 * 1000);
-        console.log(`[Polymarket] Actual data range: ${earliest.toISOString()} to ${latest.toISOString()} (${actualDays.toFixed(1)} days)`);
-
-        // Warn if we got much less than requested
-        if (actualDays < totalDays * 0.5) {
-          console.warn(`[Polymarket] WARNING: Only received ${actualDays.toFixed(1)} days of data, but requested ${totalDays.toFixed(1)} days. Polymarket API may be limiting historical data.`);
-        }
-      }
-    }
-
-    let effectivePoints = allPoints;
-    if (!effectivePoints.length) {
-      console.warn('[Polymarket] prices-history returned 0 points', {
-        tokenId,
-        marketId,
-        totalDays: totalDays.toFixed(1),
-        resolution,
-      });
-      const mid = await fetchOrderbookMid(tokenId);
-      if (mid != null) {
-        effectivePoints = [
-          {
-            timestamp: Date.now(),
-            price: mid,
-            probability: clamp01(mid),
-          },
-        ];
-      } else if (Number.isFinite(fallbackProbability)) {
-        // Final fallback: use provided probability (from intake mapping) to seed one point
-        effectivePoints = [
-          {
-            timestamp: Date.now(),
-            price: fallbackProbability,
-            probability: clamp01(fallbackProbability as number),
-          },
-        ];
-      }
-    }
-
-    const bucketedMap = new Map<number, any>();
-    for (const p of effectivePoints) {
-      // Polymarket timeseries uses `t` for timestamp and `p` for price.
-      const tsRaw = Number(p.timestamp ?? p.time ?? p.ts ?? p.t);
-      if (!Number.isFinite(tsRaw)) continue;
-      const tsMs = tsRaw > 1e12 ? tsRaw : tsRaw * 1000;
-      const bucketTs = Math.floor(tsMs / BUCKET_MS) * BUCKET_MS;
-      const priceRaw = p.price ?? p.probability ?? p.p ?? p.value;
-      if (priceRaw == null) continue;
-      const prob = normalizeProbability(priceRaw);
-      // Overwrite within the bucket, keeping the latest sample seen.
-      bucketedMap.set(bucketTs, {
-        eventId,
-        outcomeId,
-        polymarketTokenId: tokenId,
-        timestampMs: bucketTs,
-        price: Number(priceRaw),
-        probability: prob,
-        source: 'POLYMARKET',
-      });
-    }
-
-    const rows = Array.from(bucketedMap.values());
-
-    if (!rows.length) {
-      console.warn('[Polymarket] odds history parsing produced 0 rows', {
-        tokenId,
-        marketId,
-        pointCount: effectivePoints.length,
-      });
-      return;
-    }
-
-    if (prisma?.oddsHistory?.createMany) {
-      const result = await prisma.oddsHistory.createMany({
-        data: rows.map((r: any) => {
-          const { timestampMs, ...rest } = r;
-          return {
-            ...rest,
-            timestamp: new Date(timestampMs),
-          };
-        }) as any[],
-        skipDuplicates: true,
-      });
-      if (result.count === 0 && rows.length > 0) {
-        console.log(`[Polymarket] odds history backfill: all ${rows.length} rows were duplicates (already stored)`);
-      } else {
-        console.log('[Polymarket] odds history backfill stored', result.count, 'rows for', tokenId, marketId, `(${totalDays.toFixed(1)} days)`);
-      }
-    } else {
-      // Fallback for environments where Prisma client is stale but table exists
-      // SECURITY FIX: Use parameterized queries instead of string concatenation
-      let insertedCount = 0;
-      for (const r of rows) {
-        try {
-          await prisma.$executeRaw`
-            INSERT INTO "OddsHistory" ("eventId", "outcomeId", "polymarketTokenId", "timestamp", "price", "probability", "source", "createdAt")
-            VALUES (${r.eventId}, ${r.outcomeId}, ${r.polymarketTokenId || null}, ${new Date(r.timestampMs)}, ${r.price}, ${r.probability}, ${r.source}, ${new Date()})
-            ON CONFLICT ("eventId", "outcomeId", "timestamp") DO NOTHING
-          `;
-          insertedCount++;
-        } catch (insertErr) {
-          // Skip duplicates silently (ON CONFLICT should handle most, but race conditions may occur)
-          if (!(insertErr instanceof Error && insertErr.message.includes('duplicate'))) {
-            console.warn('[Polymarket] odds history row insert failed:', insertErr);
-          }
-        }
-      }
-      console.log('[Polymarket] odds history backfill stored via parameterized insert', insertedCount, 'rows for', tokenId, marketId, `(${totalDays.toFixed(1)} days)`);
-    }
-
-    // Return the latest probability found in history to seed the current outcome price
-    if (rows.length > 0) {
-      const sorted = [...rows].sort((a, b) => b.timestampMs - a.timestampMs);
-      return sorted[0].probability;
-    }
-
-    return undefined;
-  } catch (err) {
-    console.error('[Polymarket] odds history backfill failed', { tokenId, marketId, err });
-    return undefined;
-  }
-}
 
 async function fetchTokensForMarket(polymarketId: string): Promise<{ tokens: string[]; marketId?: string }> {
   try {
@@ -1131,15 +684,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Queue async backfill for each mapped outcome/token
-    // This makes approval fast - backfill happens in background worker
-    const { queueBackfillJob } = await import('@/lib/backfill-queue');
-
-    for (const [idx, o] of outcomesFromMapping.entries()) {
+    // Build backfill parameters for all outcomes
+    const backfillParams = outcomesFromMapping.map((o: any, idx: number) => {
       const name = o.name || `Outcome ${idx + 1}`;
       const mappingPolyId = o.polymarketTokenId || o.polymarketId;
       const outcomeId = (mappingPolyId ? outcomeIdsByPolyId[mappingPolyId] : undefined) || outcomeIdsByName[name];
-      if (!outcomeId || !o.polymarketTokenId) continue;
+
+      if (!outcomeId || !o.polymarketTokenId) return null;
 
       const marketIdForHistory: string | undefined =
         (o as any)._marketIdForHistory ||
@@ -1149,21 +700,24 @@ export async function POST(request: NextRequest) {
         polymarketConditionId ||
         polymarketId;
 
-      // Queue backfill job for background processing
-      await queueBackfillJob({
+      return {
         eventId: dbEvent.id,
         outcomeId,
         tokenId: o.polymarketTokenId,
         marketId: marketIdForHistory,
         polymarketStartDate: eventData?.startDate || eventData?.createdAt,
-        probability: typeof o.probability === 'number' ? o.probability : undefined,
-      });
+        fallbackProbability: typeof o.probability === 'number' ? o.probability : undefined,
+      };
+    }).filter(Boolean) as any[];
 
-      console.log(`[Polymarket] Queued backfill job for ${dbEvent.id}/${outcomeId}`);
+    // Trigger background backfill directly in the backend process
+    if (backfillParams.length > 0) {
+      const { triggerBackgroundBackfill } = await import('@/lib/polymarket-backfill');
+      triggerBackgroundBackfill(backfillParams);
+      console.log(`[Polymarket] Triggered backend backfill for ${backfillParams.length} outcomes`);
     }
 
     // Notify Polymarket WebSocket client to subscribe to new market tokens (dynamic subscription)
-    // This enables real-time price updates without restarting the WS server
     try {
       const { redis } = await import('@/lib/redis');
       if (redis) {
@@ -1176,31 +730,25 @@ export async function POST(request: NextRequest) {
         console.log('[Polymarket] Published new-market-approved event for dynamic subscription');
       }
     } catch (redisErr) {
-      // Non-critical: WS will pick up new markets on next restart or via API poll
-      console.log('[Polymarket] Redis publish failed (non-critical):', redisErr);
+      console.log('[Polymarket] Redis publish failed:', redisErr);
     }
 
     // Trigger Polymarket WebSocket stream ingestion for fresh odds updates (fire-and-forget)
-    // This ensures the newly mapped event starts receiving live updates immediately
-    // The stream endpoint will pick up this mapping since it queries for isActive: true
     (async () => {
       try {
         const streamUrl = process.env.NEXT_PUBLIC_APP_URL
           ? `${process.env.NEXT_PUBLIC_APP_URL}/api/polymarket/history/stream`
           : 'http://localhost:3000/api/polymarket/history/stream';
 
-        // Fire-and-forget: trigger stream ingestion (non-blocking)
         fetch(streamUrl, {
           method: 'GET',
-          signal: AbortSignal.timeout(5000), // 5s timeout to avoid hanging
+          signal: AbortSignal.timeout(5000),
         }).catch((err) => {
-          // Silently fail - the periodic cron job will pick it up anyway
-          console.log('[Polymarket] Stream trigger failed (non-critical):', err.message);
+          console.log('[Polymarket] Stream trigger failed:', err.message);
         });
 
         console.log('[Polymarket] Triggered WebSocket stream ingestion for event', dbEvent.id);
       } catch (err) {
-        // Ignore errors - this is best-effort
         console.log('[Polymarket] Could not trigger stream ingestion:', err);
       }
     })();

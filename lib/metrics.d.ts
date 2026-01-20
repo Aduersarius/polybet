@@ -1,0 +1,28 @@
+export declare const eventRequestsCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const eventSearchCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const tradeCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const polymarketSyncHistogram: import("@opentelemetry/api").Histogram<import("@opentelemetry/api").Attributes>;
+export declare const authLoginCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const auth2faCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const hedgeOperationCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const hedgeDurationHistogram: import("@opentelemetry/api").Histogram<import("@opentelemetry/api").Attributes>;
+export declare const hedgeSplitCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const dbQueryCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const dbQueryHistogram: import("@opentelemetry/api").Histogram<import("@opentelemetry/api").Attributes>;
+export declare const redisCommandCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const redisDurationHistogram: import("@opentelemetry/api").Histogram<import("@opentelemetry/api").Attributes>;
+export declare function registerCircuitBreakerGauge(callback: (result: {
+    observe: (value: number, attributes?: Record<string, any>) => void;
+}) => void): void;
+export declare function trackAuthEvent(type: 'login' | '2fa', status: 'success' | 'failure', method?: string): void;
+export declare function trackHedgeEvent(operation: string, status: 'success' | 'failure' | 'partial', duration?: number, extras?: Record<string, any>): void;
+export declare const errorsCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare const apiLatencyHistogram: import("@opentelemetry/api").Histogram<import("@opentelemetry/api").Attributes>;
+export declare const externalApiHistogram: import("@opentelemetry/api").Histogram<import("@opentelemetry/api").Attributes>;
+export declare const transactionCounter: import("@opentelemetry/api").Counter<import("@opentelemetry/api").Attributes>;
+export declare function trackTrade(side: string | Record<string, any>, outcome?: string, amount?: number, type?: string): void;
+export declare function trackError(errorOrCategory: any, messageOrContext?: any): void;
+export declare function trackApiLatency(route: string, duration: number, status?: number): void;
+export declare function trackExternalApi(service: string, operation: string, duration: number, success?: boolean): void;
+export declare function trackTransaction(type: string, status: string | number, amount?: number | string, token?: string): void;
+export declare function startTimer(): () => number;

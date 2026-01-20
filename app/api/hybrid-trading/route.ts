@@ -239,17 +239,24 @@ export async function POST(request: Request) {
                     );
                 } else {
                     // Binary update logic
-                    const b = updatedEvent.liquidityParameter || 1000;
-                    const qYes = updatedEvent.qYes || 0;
-                    const qNo = updatedEvent.qNo || 0;
-                    const sumExp = Math.exp(qYes / b) + Math.exp(qNo / b);
-                    const probYes = Math.exp(qYes / b) / sumExp;
-                    const probNo = Math.exp(qNo / b) / sumExp;
+                    if (updatedEvent.source === 'POLYMARKET' && updatedEvent.yesOdds != null) {
+                        updatePayload.probs = {
+                            YES: updatedEvent.yesOdds,
+                            NO: updatedEvent.noOdds || (1 - updatedEvent.yesOdds)
+                        };
+                    } else {
+                        const b = updatedEvent.liquidityParameter || 1000;
+                        const qYes = updatedEvent.qYes || 0;
+                        const qNo = updatedEvent.qNo || 0;
+                        const sumExp = Math.exp(qYes / b) + Math.exp(qNo / b);
+                        const probYes = Math.exp(qYes / b) / sumExp;
+                        const probNo = Math.exp(qNo / b) / sumExp;
 
-                    updatePayload.probs = {
-                        YES: probYes,
-                        NO: probNo
-                    };
+                        updatePayload.probs = {
+                            YES: probYes,
+                            NO: probNo
+                        };
+                    }
                 }
             }
 

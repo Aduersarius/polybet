@@ -8,6 +8,22 @@ export function getRedisClient(): Redis {
         connectionAttempted = true;
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
+        const buildTlsConfig = (url: string) => {
+            if (!url.startsWith('rediss://')) return undefined;
+            const allowSelfSigned = process.env.REDIS_ALLOW_SELF_SIGNED === 'true' || process.env.REDIS_TLS_REJECT_UNAUTHORIZED === '0';
+            const caB64 = process.env.REDIS_TLS_CA_BASE64;
+            const tls: Record<string, any> = {};
+            if (allowSelfSigned) tls.rejectUnauthorized = false;
+            if (caB64) {
+                try {
+                    tls.ca = Buffer.from(caB64, 'base64');
+                } catch (err) {
+                    console.warn('[Redis Admin] Failed to parse REDIS_TLS_CA_BASE64:', err);
+                }
+            }
+            return Object.keys(tls).length ? tls : {};
+        };
+
         redisClient = new Redis(redisUrl, {
             maxRetriesPerRequest: 3,
             retryStrategy(times) {
@@ -18,6 +34,7 @@ export function getRedisClient(): Redis {
                 return Math.min(times * 100, 2000);
             },
             lazyConnect: true,
+            tls: buildTlsConfig(redisUrl),
         });
 
         // Add error handling
