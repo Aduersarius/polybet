@@ -32,7 +32,7 @@ const envSchema = z.object({
 
     // External Services
     RESEND_API_KEY: z.string().optional(),
-    RESEND_FROM_EMAIL: z.string().email().optional(),
+    RESEND_FROM_EMAIL: z.string().optional(),
     TELEGRAM_BOT_TOKEN: z.string().optional(),
     TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
     TELEGRAM_WEBHOOK_URL: z.string().url().optional(),
