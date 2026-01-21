@@ -457,7 +457,7 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
             />
 
             {/* Mobile CTA */}
-            <MobileCTABanner onSignupClick={() => setShowSignupModal(true)} />
+            <MobileCTABanner />
         </>
     );
 }

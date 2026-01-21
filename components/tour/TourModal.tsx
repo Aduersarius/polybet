@@ -16,110 +16,55 @@ interface TourModalProps {
   onComplete: () => void;
 }
 
-const tourSlides = [
+const tourSlides: TourSlide[] = [
   {
-    icon: <TrendingUp className="w-12 h-12" />,
+    icon: <TrendingUp className="w-8 h-8 sm:w-10 sm:h-10" />,
     title: 'Welcome to Pariflow',
-    description: 'Trade on real-world events and profit from your predictions. Join thousands of traders in the prediction market revolution.',
+    description: 'Trade on real-world events and profit from your predictions.',
     preview: (
-      <div className="relative">
-        {/* Decorative background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-xl blur-xl"></div>
-
-        {/* Event cards grid */}
-        <div className="relative grid grid-cols-2 gap-3">
-          {/* Card 1 */}
-          <div className="bg-gradient-to-br from-[#1a1f2e] to-[#141824] border border-blue-400/20 rounded-lg p-3 transform hover:scale-105 transition-transform">
-            <div className="text-[10px] text-blue-400 font-medium mb-1">POLITICS</div>
-            <div className="text-xs text-white mb-2 line-clamp-2">2024 Presidential Election</div>
-            <div className="flex gap-1.5">
-              <div className="flex-1 bg-green-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-green-400 font-bold">65%</div>
-              </div>
-              <div className="flex-1 bg-red-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-red-400 font-bold">35%</div>
-              </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-gradient-to-br from-[#1a1f2e] to-[#141824] border border-blue-400/20 rounded-lg p-2.5">
+          <div className="text-[9px] text-blue-400 font-medium mb-0.5">POLITICS</div>
+          <div className="text-[11px] text-white mb-1.5 line-clamp-1">2024 Election</div>
+          <div className="flex gap-1">
+            <div className="flex-1 bg-green-500/20 rounded px-1.5 py-0.5">
+              <div className="text-[10px] text-green-400 font-bold">65%</div>
             </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="bg-gradient-to-br from-[#1a1f2e] to-[#141824] border border-purple-400/20 rounded-lg p-3 transform hover:scale-105 transition-transform">
-            <div className="text-[10px] text-purple-400 font-medium mb-1">CRYPTO</div>
-            <div className="text-xs text-white mb-2 line-clamp-2">Bitcoin $100k in 2025?</div>
-            <div className="flex gap-1.5">
-              <div className="flex-1 bg-green-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-green-400 font-bold">72%</div>
-              </div>
-              <div className="flex-1 bg-red-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-red-400 font-bold">28%</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="bg-gradient-to-br from-[#1a1f2e] to-[#141824] border border-orange-400/20 rounded-lg p-3 transform hover:scale-105 transition-transform">
-            <div className="text-[10px] text-orange-400 font-medium mb-1">SPORTS</div>
-            <div className="text-xs text-white mb-2 line-clamp-2">Super Bowl Champions</div>
-            <div className="flex gap-1.5">
-              <div className="flex-1 bg-green-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-green-400 font-bold">58%</div>
-              </div>
-              <div className="flex-1 bg-red-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-red-400 font-bold">42%</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 4 */}
-          <div className="bg-gradient-to-br from-[#1a1f2e] to-[#141824] border border-pink-400/20 rounded-lg p-3 transform hover:scale-105 transition-transform">
-            <div className="text-[10px] text-pink-400 font-medium mb-1">TECH</div>
-            <div className="text-xs text-white mb-2 line-clamp-2">AI Breakthrough 2025</div>
-            <div className="flex gap-1.5">
-              <div className="flex-1 bg-green-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-green-400 font-bold">81%</div>
-              </div>
-              <div className="flex-1 bg-red-500/20 rounded px-2 py-1">
-                <div className="text-[10px] text-red-400 font-bold">19%</div>
-              </div>
+            <div className="flex-1 bg-red-500/20 rounded px-1.5 py-0.5">
+              <div className="text-[10px] text-red-400 font-bold">35%</div>
             </div>
           </div>
         </div>
-
-        {/* Stats overlay */}
-        <div className="mt-4 flex items-center justify-center gap-6 text-center">
-          <div>
-            <div className="text-lg font-bold text-blue-400">500+</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider">Markets</div>
-          </div>
-          <div className="w-px h-8 bg-gray-700"></div>
-          <div>
-            <div className="text-lg font-bold text-purple-400">$2.5M</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider">Volume</div>
-          </div>
-          <div className="w-px h-8 bg-gray-700"></div>
-          <div>
-            <div className="text-lg font-bold text-pink-400">24/7</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider">Trading</div>
+        <div className="bg-gradient-to-br from-[#1a1f2e] to-[#141824] border border-purple-400/20 rounded-lg p-2.5">
+          <div className="text-[9px] text-purple-400 font-medium mb-0.5">CRYPTO</div>
+          <div className="text-[11px] text-white mb-1.5 line-clamp-1">BTC $100k?</div>
+          <div className="flex gap-1">
+            <div className="flex-1 bg-green-500/20 rounded px-1.5 py-0.5">
+              <div className="text-[10px] text-green-400 font-bold">72%</div>
+            </div>
+            <div className="flex-1 bg-red-500/20 rounded px-1.5 py-0.5">
+              <div className="text-[10px] text-red-400 font-bold">28%</div>
+            </div>
           </div>
         </div>
       </div>
     ),
   },
   {
-    icon: <Search className="w-12 h-12" />,
+    icon: <Search className="w-8 h-8 sm:w-10 sm:h-10" />,
     title: 'Discover Markets',
-    description: 'Search and filter through hundreds of prediction markets across politics, sports, crypto, and more.',
+    description: 'Search and filter through prediction markets across politics, sports, crypto, and more.',
     preview: (
-      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-3 space-y-2">
+      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-2.5 space-y-2">
         <div className="flex items-center gap-2 text-gray-400">
-          <Search className="w-4 h-4" />
-          <div className="flex-1 h-8 bg-gray-800/50 rounded border border-gray-700/30 flex items-center px-3 text-xs">
+          <Search className="w-3.5 h-3.5" />
+          <div className="flex-1 h-7 bg-gray-800/50 rounded border border-gray-700/30 flex items-center px-2.5 text-[11px]">
             Search events...
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
           {['All', 'Politics', 'Sports', 'Crypto'].map((cat) => (
-            <div key={cat} className="px-3 py-1 bg-blue-500/10 border border-blue-400/20 rounded text-xs text-blue-400">
+            <div key={cat} className="px-2 py-0.5 bg-blue-500/10 border border-blue-400/20 rounded text-[10px] text-blue-400">
               {cat}
             </div>
           ))}
@@ -128,39 +73,38 @@ const tourSlides = [
     ),
   },
   {
-    icon: <BarChart3 className="w-12 h-12" />,
+    icon: <BarChart3 className="w-8 h-8 sm:w-10 sm:h-10" />,
     title: 'Read Market Odds',
-    description: 'Each market shows live odds and trading volume. Higher odds indicate higher market confidence in that outcome.',
+    description: 'Higher odds indicate higher market confidence in that outcome.',
     preview: (
-      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-3 space-y-2">
-        <div className="text-xs text-gray-400 font-medium">Will Bitcoin reach $100k in 2025?</div>
+      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-2.5 space-y-2">
+        <div className="text-[11px] text-gray-400 font-medium">Will Bitcoin reach $100k?</div>
         <div className="flex gap-2">
           <div className="flex-1 bg-green-500/10 border border-green-400/20 rounded p-2">
-            <div className="text-xs text-gray-400">YES</div>
-            <div className="text-lg font-bold text-green-400">68%</div>
+            <div className="text-[10px] text-gray-400">YES</div>
+            <div className="text-base font-bold text-green-400">68%</div>
           </div>
           <div className="flex-1 bg-red-500/10 border border-red-400/20 rounded p-2">
-            <div className="text-xs text-gray-400">NO</div>
-            <div className="text-lg font-bold text-red-400">32%</div>
+            <div className="text-[10px] text-gray-400">NO</div>
+            <div className="text-base font-bold text-red-400">32%</div>
           </div>
         </div>
-        <div className="text-xs text-gray-500">Volume: $125,430</div>
       </div>
     ),
   },
   {
-    icon: <Heart className="w-12 h-12" />,
-    title: 'Track Your Favorites',
-    description: 'Bookmark interesting markets to your watchlist for quick access and real-time updates.',
+    icon: <Heart className="w-8 h-8 sm:w-10 sm:h-10" />,
+    title: 'Track Favorites',
+    description: 'Bookmark interesting markets to your watchlist for quick access.',
     preview: (
-      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-3">
+      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-2.5">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs text-gray-400">Your Watchlist</div>
-          <Heart className="w-4 h-4 text-pink-400 fill-pink-400" />
+          <div className="text-[11px] text-gray-400">Your Watchlist</div>
+          <Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400" />
         </div>
-        <div className="space-y-1.5">
-          {['Bitcoin $100k?', 'US Elections 2024', 'ETH Price Prediction'].map((item) => (
-            <div key={item} className="text-xs text-gray-300 py-1 px-2 bg-gray-800/30 rounded flex items-center gap-2">
+        <div className="space-y-1">
+          {['Bitcoin $100k?', 'US Elections', 'ETH Price'].map((item) => (
+            <div key={item} className="text-[11px] text-gray-300 py-1 px-2 bg-gray-800/30 rounded flex items-center gap-1.5">
               <div className="w-1 h-1 rounded-full bg-blue-400"></div>
               {item}
             </div>
@@ -170,30 +114,27 @@ const tourSlides = [
     ),
   },
   {
-    icon: <Wallet className="w-12 h-12" />,
+    icon: <Wallet className="w-8 h-8 sm:w-10 sm:h-10" />,
     title: 'Ready to Trade',
-    description: 'Click any market to view detailed charts, place trades, and start building your portfolio.',
+    description: 'Click any market to view charts, place trades, and build your portfolio.',
     preview: (
-      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-3 space-y-2">
-        <div className="text-xs text-gray-400 mb-2">Trading Panel</div>
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <button className="flex-1 bg-green-500/20 border border-green-400/30 rounded py-2 text-xs text-green-400 font-medium">
-              Buy YES
-            </button>
-            <button className="flex-1 bg-red-500/20 border border-red-400/30 rounded py-2 text-xs text-red-400 font-medium">
-              Buy NO
-            </button>
+      <div className="bg-[#1a1f2e]/50 border border-gray-700/50 rounded-lg p-2.5 space-y-2">
+        <div className="flex gap-2">
+          <button className="flex-1 bg-green-500/20 border border-green-400/30 rounded py-1.5 text-[11px] text-green-400 font-medium">
+            Buy YES
+          </button>
+          <button className="flex-1 bg-red-500/20 border border-red-400/30 rounded py-1.5 text-[11px] text-red-400 font-medium">
+            Buy NO
+          </button>
+        </div>
+        <div className="bg-gray-800/30 rounded p-2 text-[11px] text-gray-400">
+          <div className="flex justify-between mb-0.5">
+            <span>Amount:</span>
+            <span className="text-white">$100</span>
           </div>
-          <div className="bg-gray-800/30 rounded p-2 text-xs text-gray-400">
-            <div className="flex justify-between mb-1">
-              <span>Amount:</span>
-              <span className="text-white">$100</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Potential win:</span>
-              <span className="text-green-400">$147</span>
-            </div>
+          <div className="flex justify-between">
+            <span>Potential win:</span>
+            <span className="text-green-400">$147</span>
           </div>
         </div>
       </div>
@@ -203,7 +144,6 @@ const tourSlides = [
 
 export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
 
   useEffect(() => {
     if (!isOpen) {
@@ -211,29 +151,27 @@ export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
     }
   }, [isOpen]);
 
-  // Handle Enter key to proceed to next slide
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' || e.key === 'ArrowRight') {
         e.preventDefault();
-        if (currentSlide < tourSlides.length - 1) {
-          setDirection('forward');
-          setCurrentSlide(currentSlide + 1);
-        } else {
-          onComplete();
-        }
+        handleNext();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === 'Escape') {
+        onClose();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentSlide, onComplete]);
+  }, [isOpen, currentSlide, onComplete, onClose]);
 
   const handleNext = () => {
     if (currentSlide < tourSlides.length - 1) {
-      setDirection('forward');
       setCurrentSlide(currentSlide + 1);
     } else {
       onComplete();
@@ -242,13 +180,8 @@ export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
 
   const handlePrev = () => {
     if (currentSlide > 0) {
-      setDirection('backward');
       setCurrentSlide(currentSlide - 1);
     }
-  };
-
-  const handleSkip = () => {
-    onClose();
   };
 
   if (!isOpen) return null;
@@ -256,122 +189,111 @@ export function TourModal({ isOpen, onClose, onComplete }: TourModalProps) {
   const slide = tourSlides[currentSlide];
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-500"
-        onClick={handleSkip}
+        className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-xl bg-[#0f1419]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 fade-in duration-500">
+      <div className="relative w-full max-w-[340px] sm:max-w-md bg-gradient-to-b from-[#1a1f2e] to-[#0f1419] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Close button */}
         <button
-          onClick={handleSkip}
-          className="absolute top-5 right-5 text-gray-500 hover:text-gray-300 transition-colors z-10"
+          onClick={onClose}
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1.5 text-gray-500 hover:text-gray-300 transition-colors rounded-lg hover:bg-white/5 z-10"
           aria-label="Close tour"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Content */}
-        <div className="p-10">
-          <div
-            className="transition-all duration-500"
-            key={currentSlide}
-          >
-            {/* Icon */}
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
-                {slide.icon}
-              </div>
+        <div className="p-5 sm:p-6">
+          {/* Icon */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-400/20 flex items-center justify-center text-blue-400">
+              {slide.icon}
             </div>
-
-            {/* Step indicator */}
-            <div className="text-center mb-3">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Step {currentSlide + 1} of {tourSlides.length}
-              </span>
-            </div>
-
-            {/* Title */}
-            <h2 className="text-2xl font-bold text-white text-center mb-4">
-              {slide.title}
-            </h2>
-
-            {/* Description */}
-            <p className="text-base text-gray-400 text-center leading-relaxed mb-6">
-              {slide.description}
-            </p>
-
-            {/* Preview */}
-            {slide.preview && (
-              <div className="mt-6">
-                {slide.preview}
-              </div>
-            )}
           </div>
 
+          {/* Step indicator */}
+          <div className="text-center mb-2">
+            <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Step {currentSlide + 1} of {tourSlides.length}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-lg sm:text-xl font-bold text-white text-center mb-2">
+            {slide.title}
+          </h2>
+
+          {/* Description */}
+          <p className="text-xs sm:text-sm text-gray-400 text-center leading-relaxed mb-4">
+            {slide.description}
+          </p>
+
+          {/* Preview */}
+          {slide.preview && (
+            <div className="mb-4">
+              {slide.preview}
+            </div>
+          )}
+
           {/* Navigation */}
-          <div className="space-y-4 mt-8">
+          <div className="space-y-3">
             {/* Progress dots */}
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-1.5">
               {tourSlides.map((_, index) => (
                 <button
                   key={index}
-                  onClick={() => {
-                    setDirection(index > currentSlide ? 'forward' : 'backward');
-                    setCurrentSlide(index);
-                  }}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${index === currentSlide
-                    ? 'w-8 bg-blue-500'
-                    : 'w-1.5 bg-gray-700 hover:bg-gray-600'
-                    }`}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    index === currentSlide
+                      ? 'w-6 bg-blue-500'
+                      : 'w-1.5 bg-gray-700 hover:bg-gray-600'
+                  }`}
                   aria-label={`Go to step ${index + 1}`}
                 />
               ))}
             </div>
 
             {/* Buttons */}
-            <div className="flex items-center justify-between gap-3">
-              <button
-                onClick={handleSkip}
-                className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
-              >
-                Skip
-              </button>
-
-              <div className="flex items-center gap-2">
-                {currentSlide > 0 && (
-                  <button
-                    onClick={handlePrev}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 transition-colors"
-                    aria-label="Previous step"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                )}
-
+            <div className="flex items-center gap-3">
+              {currentSlide > 0 ? (
                 <button
-                  onClick={handleNext}
-                  className="px-6 h-10 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                  onClick={handlePrev}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+                  aria-label="Previous step"
                 >
-                  {currentSlide === tourSlides.length - 1 ? (
-                    'Get Started'
-                  ) : (
-                    <>
-                      Next
-                      <ChevronRight className="w-4 h-4" />
-                    </>
-                  )}
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
-              </div>
+              ) : (
+                <button
+                  onClick={onClose}
+                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  Skip
+                </button>
+              )}
+
+              <button
+                onClick={handleNext}
+                className="flex-1 h-10 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+              >
+                {currentSlide === tourSlides.length - 1 ? (
+                  'Get Started'
+                ) : (
+                  <>
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
       </div>
-
     </div>
   );
 }
-

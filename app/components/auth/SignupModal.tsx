@@ -97,35 +97,41 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             {/* Signup Modal */}
             {isOpen && !showVerificationModal && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4"
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
                     onClick={onClose}
                 >
                     <div
-                        className="relative w-full max-w-md mx-auto"
+                        className="relative w-full sm:max-w-md sm:mx-4 max-h-[90vh] sm:max-h-[85vh] overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Glassmorphism card with gradient border */}
-                        <div className="relative p-6 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
+                        {/* Mobile: rounded top, Desktop: fully rounded */}
+                        <div className="relative bg-gradient-to-br from-[#1a1f2e]/98 via-[#1a1d2e]/95 to-[#16181f]/98 backdrop-blur-xl rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-white/10 overflow-hidden">
                             {/* Subtle gradient overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-2xl pointer-events-none" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-t-3xl sm:rounded-2xl pointer-events-none" />
+
+                            {/* Drag handle for mobile */}
+                            <div className="sm:hidden flex justify-center pt-3 pb-1">
+                                <div className="w-10 h-1 bg-white/20 rounded-full" />
+                            </div>
 
                             {/* Close Button */}
                             <button
                                 onClick={onClose}
-                                className="absolute top-4 right-4 z-10 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                                className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
 
-                            <div className="relative">
+                            {/* Scrollable content */}
+                            <div className="relative px-5 sm:px-6 pb-6 pt-2 sm:pt-6 max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
                                 {/* Header */}
-                                <div className="mb-6">
-                                    <h2 className="text-2xl font-bold text-white">
+                                <div className="mb-5">
+                                    <h2 className="text-xl sm:text-2xl font-bold text-white">
                                         Create Account
                                     </h2>
-                                    <p className="text-white/60 mt-2 text-sm">Start your prediction journey</p>
+                                    <p className="text-white/60 mt-1 text-sm">Start your prediction journey</p>
                                 </div>
 
                                 {/* Error Message */}
@@ -136,55 +142,58 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                 )}
 
                                 {/* Form */}
-                                <form onSubmit={handleSubmit} className="space-y-4">
+                                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-white/80 mb-2">
+                                        <label className="block text-sm font-medium text-white/80 mb-1.5">
                                             Email
                                         </label>
                                         <input
                                             type="email"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
-                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all"
+                                            className="w-full px-4 py-2.5 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all text-base"
                                             placeholder="your@email.com"
                                             required
+                                            autoComplete="email"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-white/80 mb-2">
+                                        <label className="block text-sm font-medium text-white/80 mb-1.5">
                                             Password
                                         </label>
                                         <input
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all"
+                                            className="w-full px-4 py-2.5 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all text-base"
                                             placeholder="••••••••"
                                             required
                                             minLength={8}
+                                            autoComplete="new-password"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-white/80 mb-2">
+                                        <label className="block text-sm font-medium text-white/80 mb-1.5">
                                             Confirm Password
                                         </label>
                                         <input
                                             type="password"
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all"
+                                            className="w-full px-4 py-2.5 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all text-base"
                                             placeholder="••••••••"
                                             required
                                             minLength={8}
+                                            autoComplete="new-password"
                                         />
                                     </div>
 
-                                    {/* Promo Code Input (Optional) */}
+                                    {/* Promo Code Input (Optional) - Collapsible on mobile */}
                                     <div>
-                                        <label className="block text-sm font-medium text-white/80 mb-2">
-                                            Promo Code (Optional)
+                                        <label className="block text-sm font-medium text-white/80 mb-1.5">
+                                            Promo Code <span className="text-white/40">(Optional)</span>
                                         </label>
                                         <div className="relative">
                                             <input
@@ -195,7 +204,6 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                                     setPromoCode(value);
 
                                                     if (value.length >= 3) {
-                                                        // Validate promo code
                                                         try {
                                                             const res = await fetch(`/api/affiliate/validate-code?code=${encodeURIComponent(value)}&type=promo`);
                                                             const data = await res.json();
@@ -210,7 +218,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                                         setPromoCodeName(null);
                                                     }
                                                 }}
-                                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all"
+                                                className="w-full px-4 py-2.5 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 hover:border-white/20 transition-all text-base"
                                                 placeholder="Enter promo code"
                                             />
                                             {promoCodeValid === true && promoCodeName && (
@@ -243,30 +251,28 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                 </form>
 
                                 {/* Divider */}
-                                <div className="my-6 flex items-center">
+                                <div className="my-4 sm:my-5 flex items-center">
                                     <div className="flex-1 border-t border-white/10"></div>
                                     <span className="px-4 text-sm text-white/40">or</span>
                                     <div className="flex-1 border-t border-white/10"></div>
                                 </div>
 
-                                {/* Social Login Buttons */}
-                                <div className="space-y-3 mb-6">
-                                    <button
-                                        onClick={() => (authClient as any).signIn.social({ provider: 'google', callbackURL: '/' })}
-                                        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-colors font-medium"
-                                    >
-                                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                                        </svg>
-                                        Sign up with Google
-                                    </button>
-                                </div>
+                                {/* Social Login */}
+                                <button
+                                    onClick={() => (authClient as any).signIn.social({ provider: 'google', callbackURL: '/' })}
+                                    className="w-full flex items-center justify-center gap-3 px-4 py-2.5 sm:py-3 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-colors font-medium"
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                                    </svg>
+                                    Sign up with Google
+                                </button>
 
                                 {/* Switch to Login */}
-                                <p className="text-center text-white/50 text-sm">
+                                <p className="text-center text-white/50 text-sm mt-4 pb-2">
                                     Already have an account?{' '}
                                     <button
                                         onClick={onSwitchToLogin}
@@ -286,7 +292,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 isOpen={showVerificationModal}
                 onClose={() => {
                     setShowVerificationModal(false);
-                    onClose(); // Close the signup modal as well
+                    onClose();
                 }}
                 userEmail={signedUpEmail}
             />

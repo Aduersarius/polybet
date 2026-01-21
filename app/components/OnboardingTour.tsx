@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 interface OnboardingTourProps {
     isOpen: boolean;
@@ -11,110 +11,190 @@ interface OnboardingTourProps {
 
 const steps = [
     {
-        title: '🎯 Browse Markets',
-        description: 'Explore various prediction markets across sports, politics, crypto, and more. Use categories to filter events or search for specific topics.',
+        title: 'Browse Markets',
+        description: 'Explore prediction markets across sports, politics, crypto, and more. Use categories to filter or search for topics.',
         icon: '🎯',
+        tip: 'Use the search bar to find specific events',
     },
     {
-        title: '📊 Understand Odds',
-        description: 'Odds show market confidence. 70% YES means the market thinks there\'s a 70% chance it happens. Lower odds = higher potential profit if you\'re right.',
+        title: 'Understand Odds',
+        description: '70% YES means the market thinks there\'s a 70% chance it happens. Lower odds = higher potential profit.',
         icon: '📊',
+        tip: 'Winning shares always pay exactly $1.00',
     },
     {
-        title: '💰 Deposit Funds',
-        description: 'Click "Deposit" to add funds via crypto (USDC on Polygon). Your balance appears instantly and you can start trading.',
+        title: 'Deposit Funds',
+        description: 'Click "Deposit" to add funds via crypto (USDC on Polygon). Your balance appears instantly.',
         icon: '💰',
+        tip: 'Minimum deposit is just $1',
     },
     {
-        title: '🎲 Place Your Trade',
-        description: 'Buy YES if you think it will happen, NO if you don\'t. Enter your amount ($0.10-$10,000) and confirm. You can use market or limit orders.',
+        title: 'Place Your Trade',
+        description: 'Buy YES if you think it will happen, NO if you don\'t. Use market or limit orders.',
         icon: '🎲',
+        tip: 'Start small - you can trade as little as $0.10',
     },
     {
-        title: '📈 Track Your Positions',
-        description: 'View your active bets in "My Bets". Watch odds change in real-time. Sell anytime before the event ends to lock in profits or cut losses.',
+        title: 'Track Positions',
+        description: 'View active bets in "My Bets". Sell anytime before the event ends to lock in profits.',
         icon: '📈',
+        tip: 'Use favorites ❤️ to track markets you care about',
     },
     {
-        title: '💸 Withdraw Winnings',
-        description: 'When markets resolve, winning shares pay $1 each. Withdraw funds anytime to your Polygon wallet (requires 2FA and at least 1 bet placed).',
+        title: 'Withdraw Winnings',
+        description: 'When markets resolve, winning shares pay $1 each. Withdraw funds anytime to your wallet.',
         icon: '💸',
+        tip: 'Requires 2FA for security',
     },
 ];
 
 export function OnboardingTour({ isOpen, onClose }: OnboardingTourProps) {
-    const content = useMemo(() => steps, []);
+    const [currentStep, setCurrentStep] = useState(0);
+    const totalSteps = steps.length;
+    const step = steps[currentStep];
+
+    const handleNext = () => {
+        if (currentStep < totalSteps - 1) {
+            setCurrentStep(currentStep + 1);
+        } else {
+            onClose();
+        }
+    };
+
+    const handlePrev = () => {
+        if (currentStep > 0) {
+            setCurrentStep(currentStep - 1);
+        }
+    };
+
+    const handleClose = () => {
+        setCurrentStep(0);
+        onClose();
+    };
 
     return (
         <AnimatePresence>
             {isOpen && (
                 <>
+                    {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.9 }}
+                        animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[90]"
-                        onClick={onClose}
+                        onClick={handleClose}
                     />
+
+                    {/* Modal */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center px-2 sm:px-4 py-3 sm:py-4"
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4"
                     >
-                        <div className="w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] bg-[#0f1117] border border-white/10 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                            <div className="grid md:grid-cols-2 gap-0 flex-1 overflow-hidden">
-                                <div className="relative bg-gradient-to-br from-blue-700/40 via-purple-700/30 to-black p-3 sm:p-6 md:p-8 flex flex-col justify-between overflow-hidden">
-                                    <div className="space-y-1.5 sm:space-y-4">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className="text-[9px] sm:text-xs uppercase tracking-[0.15em] sm:tracking-[0.2em] text-blue-200/80">Get started</p>
-                                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/15 bg-white/5 text-[11px] text-blue-100">
-                                                <span>Get started</span>
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25h.008v.008h-.008v-.008ZM12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm-.75-9.75h1.5v4.5h-1.5v-4.5Zm0-3h1.5v1.5h-1.5v-1.5Z" />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                        <h2 className="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-tight">Welcome to Pariflow!</h2>
-                                        <p className="text-[11px] sm:text-sm text-blue-100/90 max-w-md leading-snug">
-                                            Learn how to trade on prediction markets in 6 simple steps.
-                                        </p>
-                                    </div>
-                                    <div className="hidden md:block rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-blue-50/90 mt-4 space-y-2">
-                                        <p className="font-semibold">💡 Quick Tips:</p>
-                                        <ul className="space-y-1 text-blue-100/80">
-                                            <li>• Odds move with demand - prices change as traders buy/sell</li>
-                                            <li>• You can sell anytime before an event ends</li>
-                                            <li>• Winning shares always pay exactly $1.00</li>
-                                            <li>• Use favorites ❤️ to track markets you care about</li>
-                                        </ul>
-                                    </div>
+                        <div 
+                            className="w-full max-w-sm bg-gradient-to-b from-[#1a1f2e] to-[#0f1117] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="relative px-5 pt-5 pb-4">
+                                {/* Close button */}
+                                <button
+                                    onClick={handleClose}
+                                    className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+
+                                {/* Progress bar */}
+                                <div className="flex items-center gap-1.5 mb-4">
+                                    {steps.map((_, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                                                idx <= currentStep ? 'bg-blue-500' : 'bg-white/10'
+                                            }`}
+                                        />
+                                    ))}
                                 </div>
-                                <div className="bg-[#0a0c12] p-3 sm:p-6 md:p-8 space-y-2 sm:space-y-4 flex flex-col overflow-hidden">
-                                    <div className="space-y-1.5 sm:space-y-3 overflow-y-auto custom-scrollbar pr-1 sm:pr-2 flex-1">
-                                        {content.map((step, idx) => (
-                                            <div key={step.title} className="flex gap-2 p-2 sm:p-3 rounded-lg sm:rounded-xl border border-white/5 bg-white/5 hover:border-blue-500/30 transition-colors group">
-                                                <div className="flex-shrink-0 w-5 h-5 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold flex items-center justify-center text-[10px] sm:text-sm group-hover:scale-110 transition-transform">
-                                                    {idx + 1}
-                                                </div>
-                                                <div className="space-y-0.5 min-w-0">
-                                                    <h3 className="text-xs sm:text-base font-semibold text-white leading-tight">{step.title}</h3>
-                                                    <p className="text-[10px] sm:text-xs text-gray-300 leading-snug">{step.description}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="text-[9px] sm:text-xs text-center text-gray-400">
-                                        💡 Restart this tour anytime
-                                    </div>
-                                    <div className="flex justify-end">
+
+                                {/* Step counter */}
+                                <div className="text-xs text-gray-400 mb-3">
+                                    Step {currentStep + 1} of {totalSteps}
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="px-5 pb-4">
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={currentStep}
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        {/* Icon */}
+                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center text-3xl mb-4">
+                                            {step.icon}
+                                        </div>
+
+                                        {/* Title */}
+                                        <h2 className="text-xl font-bold text-white mb-2">
+                                            {step.title}
+                                        </h2>
+
+                                        {/* Description */}
+                                        <p className="text-sm text-gray-300 leading-relaxed mb-4">
+                                            {step.description}
+                                        </p>
+
+                                        {/* Tip */}
+                                        <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                                            <span className="text-sm">💡</span>
+                                            <p className="text-xs text-blue-200/90 leading-relaxed">
+                                                {step.tip}
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
+
+                            {/* Navigation */}
+                            <div className="px-5 pb-5 pt-2">
+                                <div className="flex items-center gap-3">
+                                    {/* Back button */}
+                                    {currentStep > 0 ? (
                                         <button
-                                            onClick={onClose}
-                                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] sm:text-sm font-medium transition-colors"
+                                            onClick={handlePrev}
+                                            className="w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-colors"
                                         >
-                                            Start trading
+                                            <ChevronLeft className="w-5 h-5" />
                                         </button>
-                                    </div>
+                                    ) : (
+                                        <button
+                                            onClick={handleClose}
+                                            className="text-sm text-gray-400 hover:text-white transition-colors"
+                                        >
+                                            Skip
+                                        </button>
+                                    )}
+
+                                    {/* Next/Finish button */}
+                                    <button
+                                        onClick={handleNext}
+                                        className="flex-1 h-10 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                                    >
+                                        {currentStep === totalSteps - 1 ? (
+                                            'Start Trading'
+                                        ) : (
+                                            <>
+                                                Next
+                                                <ChevronRight className="w-4 h-4" />
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -124,8 +204,3 @@ export function OnboardingTour({ isOpen, onClose }: OnboardingTourProps) {
         </AnimatePresence>
     );
 }
-
-
-
-
-
