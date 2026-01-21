@@ -283,7 +283,27 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     </div >
                                 </div >
                             ) : isMounted ? (
-                                <PlatformStats />
+                                <div className="flex items-center gap-2">
+                                    {/* Mobile: Show online traders */}
+                                    <div className="md:hidden">
+                                        <PlatformStats />
+                                    </div>
+                                    {/* Desktop: Show login/signup buttons */}
+                                    <div className="hidden md:flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowLoginModal(true)}
+                                            className="inline-flex h-8 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-blue-400/30 text-white hover:bg-white/15 hover:border-blue-400/50 text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide hover:shadow-[0_4px_16px_rgba(59,130,246,0.2)]"
+                                        >
+                                            Login
+                                        </button>
+                                        <button
+                                            onClick={() => setShowSignupModal(true)}
+                                            className="inline-flex h-8 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(59,130,246,0.3)] hover:shadow-[0_6px_24px_rgba(59,130,246,0.4)] hover:scale-105"
+                                        >
+                                            Sign Up
+                                        </button>
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="flex items-center gap-2">
                                     {/* Placeholder to prevent hydration mismatch */}

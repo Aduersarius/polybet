@@ -390,7 +390,6 @@ export function MobileBottomNav({ onSearchClick }: MobileBottomNavProps) {
                                             icon={Trophy} 
                                             label="Leaderboard" 
                                             onClick={() => setShowMenu(false)}
-                                            badge="Coming Soon"
                                         />
                                     </div>
                                 </div>
