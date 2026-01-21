@@ -11,11 +11,14 @@ export function buildTlsConfig(url?: string) {
     const targetUrl = url || redisUrl;
     if (!targetUrl.startsWith('rediss://')) return undefined;
 
-    const tls: Record<string, any> = {};
+    const tls: Record<string, any> = {
+        // Default to system CAs, but allow override
+        rejectUnauthorized: env.REDIS_TLS_REJECT_UNAUTHORIZED
+    };
 
-    if (env.REDIS_ALLOW_SELF_SIGNED) {
+    if (env.REDIS_ALLOW_SELF_SIGNED || !env.REDIS_TLS_REJECT_UNAUTHORIZED) {
         tls.rejectUnauthorized = false;
-        console.log('[Redis] 🛡️ Scoped TLS bypass enabled (rejectUnauthorized: false)');
+        console.log(`[Redis] 🛡️ TLS verification disabled (rejectUnauthorized: false)`);
     }
 
     // Check for CA in process.env (legacy support or custom)
@@ -23,12 +26,13 @@ export function buildTlsConfig(url?: string) {
     if (caB64) {
         try {
             tls.ca = Buffer.from(caB64, 'base64');
+            console.log('[Redis] 📜 Custom CA loaded from environment');
         } catch (err) {
             console.warn('⚠️ Failed to parse REDIS_TLS_CA_BASE64, ignoring', err);
         }
     }
-    // Some providers require an empty object if no special config needed for rediss://
-    return Object.keys(tls).length ? tls : {};
+
+    return tls;
 }
 
 function ensureSecureRedisConfig() {
@@ -135,35 +139,42 @@ function getRedisInstance(): Redis | null {
         const tls = buildTlsConfig(redisUrl);
 
         redisInstance = new Redis(redisUrl, {
-            // Increased retries for production workers to prevent crashes during brief TLS hiccups
-            maxRetriesPerRequest: process.env.NODE_ENV === 'production' ? 20 : 3,
+            // High retries for production workers to prevent crashes during brief network blips
+            maxRetriesPerRequest: 30,
             retryStrategy(times) {
-                const maxTimes = process.env.NODE_ENV === 'production' ? 10 : 3;
+                const maxTimes = 20;
                 if (times > maxTimes) {
                     console.error(`⚠️ Redis connection failed after ${times} retries`);
                     return null;
                 }
-                return Math.min(times * 200, 5000);
+                // Exponential backoff with jitter
+                return Math.min(times * 200 + Math.random() * 100, 5000);
             },
             lazyConnect: true,
             tls,
-            // Add connect timeout
             connectTimeout: 10000,
+            // Reconnect on any error that seems transitory
+            reconnectOnError(err) {
+                const message = err.message.toLowerCase();
+                return message.includes('etimedout') || message.includes('econnrefused') || message.includes('econnreset');
+            }
         });
 
         // Add error handling
         redisInstance.on('error', (err) => {
             const errorMsg = err.message || String(err);
-            // Distinguish between connection and authentication errors
-            if (errorMsg.includes('WRONGPASS') || errorMsg.includes('invalid password') || errorMsg.includes('NOAUTH')) {
-                console.error('🔴 Redis Authentication Error: Invalid password or credentials. Check REDIS_URL format: redis://:password@host:port');
-                // Don't retry on auth errors - they won't succeed
+
+            // Helpful guidance for the specific error the user is seeing
+            if (errorMsg.includes('unable to verify the first certificate')) {
+                console.error('🔴 Redis TLS Error: Unable to verify certificate.');
+                console.error('👉 FIX: Set REDIS_TLS_REJECT_UNAUTHORIZED=false or REDIS_ALLOW_SELF_SIGNED=true in your environment.');
+            } else if (errorMsg.includes('WRONGPASS') || errorMsg.includes('invalid password') || errorMsg.includes('NOAUTH')) {
+                console.error('🔴 Redis Authentication Error: Invalid credentials. Check REDIS_URL.');
                 redisInstance = null;
-                connectionAttempted = false; // Allow retry after fixing credentials
+                connectionAttempted = false;
             } else {
                 console.error('🔴 Redis Error:', errorMsg);
             }
-            // Don't throw, just log - make Redis optional
         });
 
         redisInstance.on('connect', () => {

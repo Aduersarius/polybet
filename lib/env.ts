@@ -12,7 +12,8 @@ const envSchema = z.object({
 
     // Redis
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
-    REDIS_ALLOW_SELF_SIGNED: z.string().transform((v) => v === 'true').default(false),
+    REDIS_ALLOW_SELF_SIGNED: z.preprocess((v) => v === 'true' || v === true, z.boolean()).default(false),
+    REDIS_TLS_REJECT_UNAUTHORIZED: z.preprocess((v) => v === 'true' || v === true, z.boolean()).default(true),
 
     // Auth & Security
     BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters in production'),
