@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateUUID, validateEventId, sanitizeText } from '@/lib/validation';
+import { sanitizeText } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -137,37 +137,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const { id } = await params;
 
         // Validate event ID (supports both UUID and Polymarket numeric IDs)
-        const eventIdResult = validateEventId(id, true);
-        if (!eventIdResult.valid) {
-            return createClientErrorResponse(`Invalid event ID: ${eventIdResult.error}`, 400);
+        // Note: [id] parameter is not validated via regex here anymore to stay flexible with proxy IDs
+        if (!id || id.length < 1) {
+            return createClientErrorResponse('Invalid event ID', 400);
         }
 
         const body = await req.json();
 
-        // Validate message text
-        const textResult = validateString(body.text, {
-            required: true,
-            minLength: 1,
-            maxLength: 5000,
-            trim: true
-        });
-        if (!textResult.valid) {
-            return createClientErrorResponse(`text: ${textResult.error}`, 400);
+        // Validate message using centralized schema
+        const { MessageRequestSchema } = await import('@/lib/validation');
+        const parsed = MessageRequestSchema.safeParse(body);
+
+        if (!parsed.success) {
+            const firstError = parsed.error.issues[0];
+            return createClientErrorResponse(`${firstError.path.join('.')}: ${firstError.message}`, 400);
         }
 
-        // Validate parentId if provided
-        let parentId: string | undefined;
-        if (body.parentId) {
-            const parentIdResult = validateUUID(body.parentId, false);
-            if (!parentIdResult.valid) {
-                return createClientErrorResponse(`parentId: ${parentIdResult.error}`, 400);
-            }
-            parentId = parentIdResult.sanitized;
-        }
+        const { text: rawText, parentId } = parsed.data;
 
         // Sanitize text to prevent XSS (consistent with support ticket messages)
-        const text = sanitizeText(textResult.sanitized!);
-        const eventId = eventIdResult.sanitized!;
+        const text = sanitizeText(rawText);
+        const eventId = id;
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {

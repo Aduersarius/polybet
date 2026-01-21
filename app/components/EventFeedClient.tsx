@@ -217,17 +217,9 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
             );
         }
 
-        const effectiveSort =
-            selectedCategory === 'TRENDING' ? 'volume_high' :
-                selectedCategory === 'NEW' ? 'newest' : sortBy;
-
-        filtered.sort((a: DbEvent, b: DbEvent) => {
-            if (effectiveSort === 'volume_high') return (b.volume || 0) - (a.volume || 0);
-            if (effectiveSort === 'volume_low') return (a.volume || 0) - (b.volume || 0);
-            if (effectiveSort === 'liquidity_high') return (b.betCount || 0) - (a.betCount || 0);
-            if (effectiveSort === 'ending_soon') return new Date(a.resolutionDate).getTime() - new Date(b.resolutionDate).getTime();
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+        // trust the server-side order, do NOT re-sort here or cards will jump around during infinite scroll
+        // previous logic would re-sort the entire accumulated list every time a new page was added
+        // which caused "chaotic" UI jumps
 
         return {
             activeEvents: filtered.filter((e: DbEvent) => new Date(e.resolutionDate) > now),

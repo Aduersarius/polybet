@@ -7,17 +7,21 @@
  */
 
 import WebSocket from 'ws';
+import { z } from 'zod';
 import { prisma } from './prisma';
-import { redis } from './redis';
+import { redis, buildTlsConfig } from './redis';
 import { getPusherServer } from './pusher-server';
+import { env } from './env';
 
-interface PolymarketWSMessage {
-  event_type: 'market' | 'book' | 'tick_size' | 'last_trade_price' | 'user';
-  market?: string;
-  asset_id?: string;
-  hash?: string;
-  data?: any;
-}
+const PolymarketWSMessageSchema = z.object({
+  event_type: z.enum(['market', 'book', 'tick_size', 'last_trade_price', 'user']),
+  market: z.string().optional(),
+  asset_id: z.string().optional(),
+  hash: z.string().optional(),
+  data: z.any().optional(),
+});
+
+type PolymarketWSMessage = z.infer<typeof PolymarketWSMessageSchema>;
 
 export interface PolymarketWSClientOptions {
   onPriceUpdate?: (tokenId: string, price: number) => Promise<void>;
@@ -104,7 +108,12 @@ export class PolymarketWebSocketClient {
 
   private async handleMessage(data: WebSocket.Data) {
     try {
-      const message: PolymarketWSMessage = JSON.parse(data.toString());
+      const parsed = PolymarketWSMessageSchema.safeParse(JSON.parse(data.toString()));
+      if (!parsed.success) {
+        console.warn('[Polymarket WS] Received invalid message format:', parsed.error.format());
+        return;
+      }
+      const message = parsed.data;
       if (message.event_type === 'last_trade_price' && message.asset_id && message.data) {
         const price = parseFloat(message.data);
         if (!isNaN(price)) {
@@ -275,8 +284,9 @@ export class PolymarketWebSocketClient {
   public async setupDynamicSubscription() {
     if (!redis) return;
     const { Redis } = await import('ioredis');
-    const sub = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-      tls: process.env.REDIS_URL?.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
+    const sub = new Redis(env.REDIS_URL, {
+      tls: buildTlsConfig(),
+      maxRetriesPerRequest: null, // Subscriptions should wait forever
     });
     await sub.subscribe('polymarket:new-market');
     sub.on('message', async () => {

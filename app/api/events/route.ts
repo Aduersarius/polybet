@@ -464,6 +464,8 @@ export async function GET(request: Request) {
     }
 }
 
+import { CreateEventSchema } from '@/lib/schemas/common';
+
 export async function POST(request: Request) {
     try {
         assertSameOrigin(request);
@@ -477,28 +479,18 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { title, description, resolutionDate, categories, imageUrl, type = 'BINARY', outcomes = [], isHidden = false } = body;
+        const result = CreateEventSchema.safeParse(body);
 
-        // Basic validation
-        if (!title || !description || !resolutionDate) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        if (!result.success) {
+            return NextResponse.json({
+                error: 'Validation failed',
+                details: result.error.issues[0].message
+            }, { status: 400 });
         }
 
-        if (!['BINARY', 'MULTIPLE'].includes(type)) {
-            return NextResponse.json({ error: 'Invalid event type' }, { status: 400 });
-        }
+        const { title, description, resolutionDate, categories, imageUrl, type, outcomes, isHidden } = result.data;
 
-        const parsedOutcomes = Array.isArray(outcomes)
-            ? outcomes.filter((o: any) => o?.name).map((o: any) => ({
-                name: o.name,
-                probability: o.probability ?? 0.5,
-                liquidity: o.liquidity ?? 0,
-            }))
-            : [];
-
-        if (type === 'MULTIPLE' && parsedOutcomes.length < 2) {
-            return NextResponse.json({ error: 'Please provide at least two outcomes' }, { status: 400 });
-        }
+        const parsedOutcomes = outcomes || [];
 
         // 2. Create Event with Creator and AMM defaults
         const event = await prisma.event.create({

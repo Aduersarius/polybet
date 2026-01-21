@@ -11,7 +11,7 @@ import { redis } from '@/lib/redis';
 import { safePublish, safeDelete } from '@/lib/redis-utils';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateNumber, validateUUID, validateEventId } from '@/lib/validation';
+import { TradeRequestSchema } from '@/lib/validation';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { trackTrade, trackApiLatency, trackError } from '@/lib/metrics';
 
@@ -52,69 +52,23 @@ export async function POST(request: Request) {
 
         const body = await request.json();
 
-        // Validate all inputs
-        const eventIdResult = validateEventId(body.eventId, true);
-        if (!eventIdResult.valid) {
-            return createClientErrorResponse(`eventId: ${eventIdResult.error}`, 400);
+        // Validate all inputs using centralized schema
+        const parsed = TradeRequestSchema.safeParse(body);
+
+        if (!parsed.success) {
+            const firstError = parsed.error.issues[0];
+            return createClientErrorResponse(`${firstError.path.join('.')}: ${firstError.message}`, 400);
         }
 
-        const sideResult = validateString(body.side, { required: true, pattern: /^(buy|sell)$/ });
-        if (!sideResult.valid) {
-            return createClientErrorResponse(`side: ${sideResult.error || 'must be "buy" or "sell"'}`, 400);
-        }
-
-        const amountResult = validateNumber(body.amount, { required: true, min: 0.01, max: MAX_TRADE_AMOUNT });
-        if (!amountResult.valid) {
-            return createClientErrorResponse(`amount: ${amountResult.error}`, 400);
-        }
-
-        // Validate option or outcomeId (at least one required)
-        let option: string | undefined;
-        let outcomeId: string | undefined;
-
-        if (body.option) {
-            const optionResult = validateString(body.option, { required: false, pattern: /^(YES|NO)$/ });
-            if (!optionResult.valid) {
-                return createClientErrorResponse(`option: ${optionResult.error || 'must be "YES" or "NO"'}`, 400);
-            }
-            option = optionResult.sanitized;
-        }
-
-        if (body.outcomeId) {
-            // Relax validation to allow CUIDs and other ID formats, not just UUIDs
-            const outcomeIdResult = validateString(body.outcomeId, {
-                required: false,
-                maxLength: 50,
-                pattern: /^[a-zA-Z0-9_-]+$/
-            });
-            if (!outcomeIdResult.valid) {
-                return createClientErrorResponse(`outcomeId: ${outcomeIdResult.error}`, 400);
-            }
-            outcomeId = outcomeIdResult.sanitized;
-        }
-
-        if (!option && !outcomeId) {
-            return createClientErrorResponse('Either option or outcomeId is required', 400);
-        }
-
-        // Validate price if orderType is limit
-        const orderType = body.orderType || 'market';
-        let price: number | undefined;
-
-        if (orderType === 'limit') {
-            if (body.price === undefined || body.price === null) {
-                return createClientErrorResponse('Price is required for limit orders', 400);
-            }
-            const priceResult = validateNumber(body.price, { required: true, min: 0.01, max: 1 });
-            if (!priceResult.valid) {
-                return createClientErrorResponse(`price: ${priceResult.error}`, 400);
-            }
-            price = priceResult.sanitized;
-        }
-
-        const eventId = eventIdResult.sanitized!;
-        const side = sideResult.sanitized as 'buy' | 'sell';
-        const amount = amountResult.sanitized!;
+        const {
+            eventId,
+            side,
+            amount,
+            option,
+            outcomeId,
+            orderType,
+            price
+        } = parsed.data;
 
         // Fetch event to determine type for correct parameter handling
         const event = await prisma.event.findUnique({

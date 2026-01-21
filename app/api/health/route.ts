@@ -1,103 +1,58 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
+import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-interface HealthStatus {
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    timestamp: string;
-    version: string;
-    uptime: number;
-    checks: {
-        database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
-        redis: { status: 'ok' | 'error' | 'unavailable'; latencyMs?: number; error?: string };
-    };
-}
-
-const startTime = Date.now();
-
-/**
- * Health Check Endpoint
- * 
- * Used by:
- * - Load balancers (Vercel, nginx, k8s)
- * - Uptime monitoring (UptimeRobot, Pingdom)
- * - Deployment verification
- * 
- * Returns:
- * - 200 if healthy
- * - 503 if unhealthy (database down)
- * - 207 if degraded (redis down but db ok)
- */
 export async function GET() {
-    const checks: HealthStatus['checks'] = {
-        database: { status: 'ok' },
-        redis: { status: 'unavailable' },
-    };
-
-    let overallStatus: HealthStatus['status'] = 'healthy';
-
-    // Check Database
-    const dbStart = Date.now();
     try {
-        await prisma.$queryRaw`SELECT 1`;
-        checks.database = {
+        const health: any = {
             status: 'ok',
-            latencyMs: Date.now() - dbStart,
+            timestamp: Date.now(),
+            services: {
+                database: 'unknown',
+                redis: 'unknown',
+                polymarketWorker: 'unknown'
+            }
         };
-    } catch (error) {
-        checks.database = {
-            status: 'error',
-            latencyMs: Date.now() - dbStart,
-            error: error instanceof Error ? error.message : 'Unknown error',
-        };
-        overallStatus = 'unhealthy';
-    }
 
-    // Check Redis
-    if (redis) {
-        const redisStart = Date.now();
+        // 1. Check Database
         try {
-            const status = (redis as any).status;
-            if (status === 'ready') {
-                await redis.ping();
-                checks.redis = {
-                    status: 'ok',
-                    latencyMs: Date.now() - redisStart,
-                };
-            } else {
-                checks.redis = {
-                    status: 'error',
-                    error: `Redis status: ${status}`,
-                };
-                if (overallStatus === 'healthy') {
-                    overallStatus = 'degraded';
-                }
-            }
-        } catch (error) {
-            checks.redis = {
-                status: 'error',
-                latencyMs: Date.now() - redisStart,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            };
-            if (overallStatus === 'healthy') {
-                overallStatus = 'degraded';
-            }
+            await prisma.$queryRaw`SELECT 1`;
+            health.services.database = 'connected';
+        } catch (err) {
+            health.services.database = 'disconnected';
+            health.status = 'error';
         }
+
+        // 2. Check Redis & Worker Heartbeat
+        try {
+            if (redis) {
+                health.services.redis = 'connected';
+
+                const heartbeat = await redis.get('worker:polymarket:heartbeat');
+                if (heartbeat) {
+                    const age = Date.now() - parseInt(heartbeat);
+                    health.services.polymarketWorker = age < 60000 ? 'active' : 'stale';
+                    if (age >= 60000) health.status = 'warning';
+                    health.workerAgeMs = age;
+                } else {
+                    health.services.polymarketWorker = 'inactive';
+                    health.status = 'warning';
+                }
+            } else {
+                health.services.redis = 'disconnected';
+                health.status = 'error';
+            }
+        } catch (err) {
+            health.services.redis = 'error';
+            health.status = 'error';
+        }
+
+        const statusCode = health.status === 'error' ? 500 : (health.status === 'warning' ? 200 : 200);
+        return NextResponse.json(health, { status: statusCode });
+    } catch (error) {
+        return NextResponse.json({ status: 'error', message: 'Health check failed' }, { status: 500 });
     }
-
-    const response: HealthStatus = {
-        status: overallStatus,
-        timestamp: new Date().toISOString(),
-        version: process.env.npm_package_version || '0.1.0',
-        uptime: Math.floor((Date.now() - startTime) / 1000),
-        checks,
-    };
-
-    // Return appropriate status code
-    const statusCode = overallStatus === 'unhealthy' ? 503 : overallStatus === 'degraded' ? 207 : 200;
-
-    return NextResponse.json(response, { status: statusCode });
 }

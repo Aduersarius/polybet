@@ -98,6 +98,17 @@ export class HedgeManager {
    * Update configuration
    */
   async updateConfig(key: keyof HedgeConfig, value: any, updatedBy?: string): Promise<void> {
+    // Validate the specific key being updated using centralized schema
+    const { HedgeConfigSchema } = await import('./validation');
+    const shape = HedgeConfigSchema.shape;
+
+    if (key in shape) {
+      const result = (shape as any)[key].safeParse(value);
+      if (!result.success) {
+        throw new Error(`Validation failed for ${key}: ${result.error.issues[0].message}`);
+      }
+    }
+
     await prisma.hedgeConfig.upsert({
       where: { key },
       create: {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { ethers } from 'ethers';
 import { getCryptoService } from '@/lib/crypto-service';
 import { auth, verifyUserTotp } from '@/lib/auth';
@@ -7,7 +8,15 @@ import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
 import { trackTransaction, trackError, trackApiLatency } from '@/lib/metrics';
 
-const ALLOWED_TOKENS = ['USDC'];
+const ALLOWED_TOKENS = ['USDC'] as const;
+
+const WithdrawRequestSchema = z.object({
+    amount: z.coerce.number().positive('Amount must be positive'),
+    address: z.string().min(1, 'Address is required').refine(ethers.isAddress, { message: 'Invalid Ethereum address format' }),
+    token: z.enum(ALLOWED_TOKENS, { message: 'Unsupported token' } as any),
+    idempotencyKey: z.string().max(200).optional(),
+    totpCode: z.string().min(1, 'TOTP code is required'),
+});
 
 export async function POST(req: NextRequest) {
     const startTime = Date.now();
@@ -21,29 +30,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { amount, address, token, idempotencyKey, totpCode } = await req.json();
+        const body = await req.json();
+        const parsed = WithdrawRequestSchema.safeParse(body);
 
-        const amountNumber = Number(amount);
-        if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
-            return NextResponse.json({ error: 'Amount must be a positive number' }, { status: 400 });
+        if (!parsed.success) {
+            const firstError = parsed.error.issues[0];
+            return NextResponse.json({
+                error: firstError.message
+            }, { status: 400 });
         }
 
-        if (!address || !token) {
-            return NextResponse.json({ error: 'Missing amount, address, or token' }, { status: 400 });
-        }
-
-        if (!ALLOWED_TOKENS.includes(token)) {
-            return NextResponse.json({ error: 'Unsupported token' }, { status: 400 });
-        }
-
-        // Validate idempotencyKey if provided
-        if (idempotencyKey && (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0 || idempotencyKey.length > 200)) {
-            return NextResponse.json({ error: 'Invalid idempotencyKey' }, { status: 400 });
-        }
-
-        if (!ethers.isAddress(address)) {
-            return NextResponse.json({ error: 'Invalid Ethereum address format' }, { status: 400 });
-        }
+        const { amount: amountNumber, address, token, idempotencyKey, totpCode } = parsed.data;
 
         // Enhanced address validation: verify EIP-55 checksum to catch typos
         let checksummedAddress: string;

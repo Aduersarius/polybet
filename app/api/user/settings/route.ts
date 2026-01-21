@@ -56,11 +56,20 @@ export async function GET(request: Request) {
     }
 }
 
+import { UserSettingsSchema } from '@/lib/schemas/common';
+
 export async function PATCH(request: Request) {
     try {
         assertSameOrigin(request);
         const user = await requireAuth(request);
-        const updates = await request.json();
+        const body = await request.json();
+        const parsed = UserSettingsSchema.safeParse(body);
+
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid settings data' }, { status: 400 });
+        }
+
+        const updates = parsed.data;
 
         // Get current settings
         const dbUser = await prisma.user.findUnique({

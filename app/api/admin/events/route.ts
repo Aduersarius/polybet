@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdminAuth } from '@/lib/auth';
 import { resolveMarket } from '@/lib/hybrid-trading';
+import { EventFilterSchema, AdminEventActionSchema } from '@/lib/schemas/common';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,12 +14,14 @@ export async function GET(request: NextRequest) {
         await requireAdminAuth(request);
 
         const { searchParams } = new URL(request.url);
-        const page = parseInt(searchParams.get('page') || '1', 10);
-        const limit = Math.min(parseInt(searchParams.get('limit') || '10', 10), 100);
-        const search = searchParams.get('search') || '';
-        const status = searchParams.get('status') || '';
-        const type = searchParams.get('type') || '';
-        const visibility = searchParams.get('visibility') || '';
+        const params = Object.fromEntries(searchParams.entries());
+        const parsed = EventFilterSchema.safeParse(params);
+
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid search parameters' }, { status: 400 });
+        }
+
+        const { page, limit, search, status, type, visibility } = parsed.data;
         const skip = (page - 1) * limit;
 
         // Build filter conditions array
@@ -114,11 +117,13 @@ export async function PUT(request: NextRequest) {
         // Admin authentication check
         await requireAdminAuth(request);
         const body = await request.json();
-        const { eventId, action, value } = body;
+        const parsed = AdminEventActionSchema.safeParse(body);
 
-        if (!eventId || !['toggleHide', 'resolve', 'delete'].includes(action)) {
-            return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid admin action parameters' }, { status: 400 });
         }
+
+        const { eventId, action, value } = parsed.data;
 
         let updatedEvent;
         if (action === 'toggleHide') {

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { telegramService } from '@/lib/telegram/telegram-service';
-import type { TelegramUpdate } from '@/lib/telegram/types';
+import { TelegramUpdateSchema } from '@/lib/schemas/common';
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 
@@ -18,37 +18,38 @@ export async function POST(request: NextRequest) {
     const url = request.nextUrl;
     const host = request.headers.get('host') || '';
     const forwardedHost = request.headers.get('x-forwarded-host') || '';
-    
+
     console.log('[Webhook] Received Telegram webhook request');
     console.log('[Webhook] Host:', host);
     console.log('[Webhook] Forwarded-Host:', forwardedHost);
     console.log('[Webhook] URL:', url.toString());
-    console.log('[Webhook] Headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
-    
+
     // Handle www redirect by returning 200 immediately (prevent redirect loop)
     // If request comes via www, we still process it but log the issue
     if (host.startsWith('www.') || forwardedHost.startsWith('www.')) {
       console.warn('[Webhook] Request received via www subdomain - consider updating webhook URL to non-www');
     }
-    
+
     // Verify webhook secret
     const secretToken = request.headers.get('x-telegram-bot-api-secret-token');
-    
+
     if (WEBHOOK_SECRET && secretToken !== WEBHOOK_SECRET) {
       console.warn('[Webhook] Invalid webhook secret');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse update
-    let update: TelegramUpdate;
-    try {
-      update = await request.json();
-      console.log('[Webhook] Parsed update, message text:', update.message?.text || 'no text');
-    } catch (parseError) {
-      console.error('[Webhook] Failed to parse JSON:', parseError);
-      // Return 200 to prevent Telegram from disabling webhook
+    // Parse and Validate update
+    const body = await request.json();
+    const result = TelegramUpdateSchema.safeParse(body);
+
+    if (!result.success) {
+      console.error('[Webhook] Validation failed:', result.error.issues[0].message);
+      // Return 200 to prevent Telegram from disabling webhook even on fail
       return NextResponse.json({ ok: true });
     }
+
+    const update = result.data;
+    console.log('[Webhook] Validated update, message text:', update.message?.text || 'no text');
 
     // Process update asynchronously (don't block webhook response)
     telegramService.processUpdate(update).catch((error) => {

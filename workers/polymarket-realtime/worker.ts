@@ -18,10 +18,22 @@ async function startWorker() {
         autoUpdateDb: true // Library handles all the heavy lifting
     });
 
+    // Start heartbeat loop
+    const { redis } = await import('../../lib/redis');
+    setInterval(async () => {
+        try {
+            if (redis) {
+                await redis.setex('worker:polymarket:heartbeat', 60, Date.now().toString());
+            }
+        } catch (err) {
+            console.error('⚠️ Heartbeat failed:', err);
+        }
+    }, 30000);
+
     // Initial subscription to all existing active events
     await client.subscribeToAllActiveEvents();
 
-    console.log('✅ Worker active. Orchestrating real-time updates via shared library.');
+    console.log('✅ Worker active. Orchestrating real-time updates via shared library with heartbeat.');
 }
 
 // Global error handling to prevent silent death

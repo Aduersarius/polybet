@@ -1,55 +1,25 @@
 import Redis from 'ioredis';
+import { env, isProd } from './env';
 import { redisCommandCounter, redisDurationHistogram } from './metrics';
 
 // Use the REDIS_URL from env, or default to localhost (for VPS)
-// For Vercel, you MUST set REDIS_URL in .env to point to your VPS (e.g. redis://:password@188.137.178.118:6379)
 const globalForRedis = global as unknown as { redis: Redis | null; isReady?: boolean };
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisUrl = env.REDIS_URL;
 
-function validateRedisUrl(url: string): { valid: boolean; error?: string } {
-    try {
-        // Check if URL has basic structure
-        if (!url.startsWith('redis://') && !url.startsWith('rediss://')) {
-            return { valid: false, error: 'REDIS_URL must start with redis:// or rediss://' };
-        }
+export function buildTlsConfig(url?: string) {
+    const targetUrl = url || redisUrl;
+    if (!targetUrl.startsWith('rediss://')) return undefined;
 
-        // Check if password is provided in the URL
-        // Format can be: redis://:password@host:port or redis://username:password@host:port
-        // Also supports rediss:// (TLS) URLs
-        const hasPassword = url.includes('@') && (
-            url.match(/redis[s]?:\/\/:[^@]+@/) || // :password@ format (both redis:// and rediss://)
-            url.match(/redis[s]?:\/\/[^:]+:[^@]+@/) // username:password@ format (both redis:// and rediss://)
-        );
-
-        // For production, require password
-        if (process.env.NODE_ENV === 'production' && !hasPassword) {
-            return { valid: false, error: 'REDIS_URL must include password in production. Format: redis://:password@host:port or redis://username:password@host:port' };
-        }
-
-        // Try to parse the URL to validate format
-        try {
-            new URL(url);
-        } catch {
-            return { valid: false, error: 'Invalid REDIS_URL format. Expected: redis://:password@host:port' };
-        }
-
-        return { valid: true };
-    } catch (err) {
-        return { valid: false, error: `Invalid REDIS_URL format: ${err instanceof Error ? err.message : String(err)}` };
-    }
-}
-
-function buildTlsConfig(url: string) {
-    if (!url.startsWith('rediss://')) return undefined;
-
-    const allowSelfSigned = process.env.REDIS_ALLOW_SELF_SIGNED === 'true' || process.env.REDIS_TLS_REJECT_UNAUTHORIZED === '0';
-    const caB64 = process.env.REDIS_TLS_CA_BASE64;
     const tls: Record<string, any> = {};
 
-    if (allowSelfSigned) {
+    if (env.REDIS_ALLOW_SELF_SIGNED) {
         tls.rejectUnauthorized = false;
+        console.log('[Redis] 🛡️ Scoped TLS bypass enabled (rejectUnauthorized: false)');
     }
+
+    // Check for CA in process.env (legacy support or custom)
+    const caB64 = process.env.REDIS_TLS_CA_BASE64;
     if (caB64) {
         try {
             tls.ca = Buffer.from(caB64, 'base64');
@@ -57,20 +27,16 @@ function buildTlsConfig(url: string) {
             console.warn('⚠️ Failed to parse REDIS_TLS_CA_BASE64, ignoring', err);
         }
     }
-    return Object.keys(tls).length ? tls : undefined;
+    // Some providers require an empty object if no special config needed for rediss://
+    return Object.keys(tls).length ? tls : {};
 }
 
 function ensureSecureRedisConfig() {
-    if (process.env.NODE_ENV !== 'production') return;
+    if (!isProd) return;
 
-    if (!process.env.REDIS_URL) {
-        throw new Error('REDIS_URL is required in production');
-    }
-
-    const url = process.env.REDIS_URL;
-    const isLocalDefault = url.startsWith('redis://localhost') || url.startsWith('redis://127.0.0.1');
-    const hasAuth = url.includes('@');
-    const usesTls = url.startsWith('rediss://');
+    const isLocalDefault = redisUrl.startsWith('redis://localhost') || redisUrl.startsWith('redis://127.0.0.1');
+    const hasAuth = redisUrl.includes('@');
+    const usesTls = redisUrl.startsWith('rediss://');
 
     if (isLocalDefault) {
         throw new Error('REDIS_URL must not point to localhost in production');
@@ -165,28 +131,24 @@ function getRedisInstance(): Redis | null {
     connectionAttempted = true;
 
     try {
-        // Validate REDIS_URL format
-        const validation = validateRedisUrl(redisUrl);
-        if (!validation.valid) {
-            console.error('🔴 Redis Configuration Error:', validation.error);
-            console.error('   Current REDIS_URL:', redisUrl.replace(/:[^:@]+@/, ':****@')); // Mask password
-            return null;
-        }
-
         // Silent initialization - errors logged only on failure
         const tls = buildTlsConfig(redisUrl);
 
         redisInstance = new Redis(redisUrl, {
-            maxRetriesPerRequest: 3,
+            // Increased retries for production workers to prevent crashes during brief TLS hiccups
+            maxRetriesPerRequest: process.env.NODE_ENV === 'production' ? 20 : 3,
             retryStrategy(times) {
-                if (times > 3) {
-                    console.log('⚠️ Redis connection failed after 3 retries, disabling Redis');
-                    return null; // Stop retrying
+                const maxTimes = process.env.NODE_ENV === 'production' ? 10 : 3;
+                if (times > maxTimes) {
+                    console.error(`⚠️ Redis connection failed after ${times} retries`);
+                    return null;
                 }
-                return Math.min(times * 100, 2000);
+                return Math.min(times * 200, 5000);
             },
-            lazyConnect: true, // Don't connect immediately
+            lazyConnect: true,
             tls,
+            // Add connect timeout
+            connectTimeout: 10000,
         });
 
         // Add error handling

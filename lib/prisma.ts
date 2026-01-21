@@ -7,10 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import { dbQueryCounter, dbQueryHistogram } from './metrics';
 
+import { env, isProd } from './env';
+
 // Prisma Client Singleton - v4 (Prisma 7 Adapter Edition)
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient; pool: Pool; hasLogged: boolean };
-
-const isProd = process.env.NODE_ENV === 'production';
 
 function createPrismaClient() {
     if (!isProd && !globalForPrisma.hasLogged) {
@@ -18,7 +18,7 @@ function createPrismaClient() {
         globalForPrisma.hasLogged = true;
     }
 
-    let dbUrl = process.env.DATABASE_URL || '';
+    let dbUrl = env.DATABASE_URL;
     if (dbUrl && !dbUrl.includes('pgbouncer=true')) {
         dbUrl += dbUrl.includes('?') ? '&pgbouncer=true' : '?pgbouncer=true';
     }
@@ -63,30 +63,10 @@ if (!isProd || !globalForPrisma.prisma) {
     globalForPrisma.prisma = basePrisma;
 }
 
-const SESSION_HASH_SECRET = (() => {
-    const secret =
-        process.env.SESSION_TOKEN_SECRET ||
-        process.env.BETTER_AUTH_SECRET ||
-        process.env.NEXTAUTH_SECRET ||
-        '';
-    if (isProd && !secret) {
-        throw new Error('SESSION_TOKEN_SECRET (or BETTER_AUTH_SECRET/NEXTAUTH_SECRET) is required in production for session hashing');
-    }
-    return secret;
-})();
+const SESSION_HASH_SECRET = env.SESSION_TOKEN_SECRET || env.BETTER_AUTH_SECRET || '';
 
 // Allow reuse of existing auth secrets if SECURE_DATA_KEY is not set, but still require strong length in production.
-const DATA_ENCRYPTION_KEY = (() => {
-    const key =
-        process.env.SECURE_DATA_KEY ||
-        process.env.BETTER_AUTH_SECRET ||
-        process.env.NEXTAUTH_SECRET ||
-        '';
-    if (isProd && key.length < 32) {
-        throw new Error('SECURE_DATA_KEY (or BETTER_AUTH_SECRET/NEXTAUTH_SECRET) must be at least 32 characters in production');
-    }
-    return key;
-})();
+const DATA_ENCRYPTION_KEY = env.SECURE_DATA_KEY || env.BETTER_AUTH_SECRET || '';
 
 let warnedAboutEncryptionKey = false;
 

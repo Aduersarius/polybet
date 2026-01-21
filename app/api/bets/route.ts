@@ -3,22 +3,28 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
 
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
 import { createErrorResponse, createClientErrorResponse } from '@/lib/error-handler';
-import { validateString, validateNumber, validateEventId, validateUUID } from '@/lib/validation';
 import { trackTrade, trackApiLatency, trackError } from '@/lib/metrics';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { polymarketCircuit } from '@/lib/circuit-breaker';
-import { hedgeAndExecute } from '@/lib/hedge-simple';
 
 // MVP Safety Limits
 const MAX_BET_AMOUNT = 1000; // $1000 max per bet for MVP
 const RATE_LIMIT_BETS = 20;  // 20 bets per minute
 const RATE_LIMIT_WINDOW = 60000; // 1 minute window
+
+const BetRequestSchema = z.object({
+    eventId: z.string().min(1),
+    option: z.enum(['YES', 'NO', 'yes', 'no', 'Yes', 'No']).transform(v => v.toUpperCase() as 'YES' | 'NO'),
+    amount: z.coerce.number().min(0.01).max(MAX_BET_AMOUNT),
+    outcomeId: z.string().uuid().optional(),
+});
 
 export async function POST(request: Request) {
     const startTime = Date.now();
@@ -43,33 +49,15 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        // Validate inputs
-        const eventIdResult = validateEventId(body.eventId, true);
-        if (!eventIdResult.valid) {
-            return createClientErrorResponse(`eventId: ${eventIdResult.error}`, 400);
+        // Validate inputs using Zod
+        const parsed = BetRequestSchema.safeParse(body);
+        if (!parsed.success) {
+            const firstError = parsed.error.issues[0];
+            return createClientErrorResponse(`${firstError.path.join('.')}: ${firstError.message}`, 400);
         }
 
-        const optionResult = validateString(body.option || body.outcome, {
-            required: true,
-            pattern: /^(YES|NO)$/i
-        });
-        if (!optionResult.valid) {
-            return createClientErrorResponse(`option: ${optionResult.error || 'must be "YES" or "NO"'}`, 400);
-        }
-
-        const amountResult = validateNumber(body.amount, {
-            required: true,
-            min: 0.01,
-            max: MAX_BET_AMOUNT
-        });
-        if (!amountResult.valid) {
-            return createClientErrorResponse(`amount: ${amountResult.error}`, 400);
-        }
-
+        const { eventId, option, amount: numericAmount, outcomeId: validatedOutcomeId } = parsed.data;
         const targetUserId = user.id;
-        const eventId = eventIdResult.sanitized!;
-        const option = optionResult.sanitized!.toUpperCase() as 'YES' | 'NO';
-        const numericAmount = amountResult.sanitized!;
 
         const eventMeta = await prisma.event.findUnique({
             where: { id: eventId },
@@ -79,14 +67,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
         let matchedOutcome = null;
-        if (body.outcomeId) {
-            const outcomeIdResult = validateUUID(body.outcomeId);
-            if (outcomeIdResult.valid) {
-                matchedOutcome = await prisma.outcome.findUnique({
-                    where: { id: outcomeIdResult.sanitized!, eventId },
-                    select: { id: true, polymarketOutcomeId: true },
-                });
-            }
+        if (validatedOutcomeId) {
+            matchedOutcome = await prisma.outcome.findUnique({
+                where: { id: validatedOutcomeId, eventId },
+                select: { id: true, polymarketOutcomeId: true },
+            });
         }
 
         if (!matchedOutcome) {

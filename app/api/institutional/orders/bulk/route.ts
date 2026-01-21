@@ -7,25 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { requireApiKeyAuth, checkInstitutionalRateLimit, checkVolumeLimit, hasPermission } from '@/lib/api-auth';
 import { placeHybridOrder } from '@/lib/hybrid-trading';
 import { redis } from '@/lib/redis';
-
-interface BulkOrderRequest {
-  idempotencyKey: string;
-  orders: Array<{
-    eventId: string;
-    side: 'buy' | 'sell';
-    option?: 'YES' | 'NO'; // For binary events
-    outcomeId?: string; // For multiple events
-    amount: number;
-    price?: number; // Required for limit orders
-    orderType?: 'market' | 'limit' | 'iceberg' | 'twap' | 'stop';
-    // Advanced order parameters
-    visibleAmount?: number; // For iceberg
-    timeWindow?: number; // For TWAP (minutes)
-    totalDuration?: number; // For TWAP (minutes)
-    stopPrice?: number; // For stop orders
-    stopType?: 'stop_loss' | 'stop_limit'; // For stop orders
-  }>;
-}
+import { BulkOrderRequestSchema } from '@/lib/schemas/common';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -48,21 +30,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const body: BulkOrderRequest = await request.json();
-    const { idempotencyKey, orders } = body;
+    const body = await request.json();
+    const result = BulkOrderRequestSchema.safeParse(body);
 
-    // Validate request
-    if (!idempotencyKey || !orders || !Array.isArray(orders) || orders.length === 0) {
+    if (!result.success) {
+      const firstError = result.error.issues[0];
       return NextResponse.json({
-        error: 'Missing required fields: idempotencyKey and orders array'
+        error: `Validation error: ${firstError.path.join('.')}: ${firstError.message}`
       }, { status: 400 });
     }
 
-    if (orders.length > 100) {
-      return NextResponse.json({
-        error: 'Maximum 100 orders per bulk request'
-      }, { status: 400 });
-    }
+    const { idempotencyKey, orders } = result.data;
 
     // Check idempotency - prevent duplicate bulk operations
     const existingBatch = await prisma.batchOrder.findUnique({
@@ -125,39 +103,14 @@ export async function POST(request: NextRequest) {
           stopType,
         } = orderData;
 
-        // Basic validation
+        // Basic validation - already handled by Zod but keeping the targetOption logic
         const targetOption = option || outcomeId;
-        if (!eventId || !side || !targetOption || !amount) {
-          throw new Error('Missing required order fields');
-        }
-
-        if (!['buy', 'sell'].includes(side)) {
-          throw new Error('Side must be "buy" or "sell"');
-        }
-
-        if (amount <= 0) {
-          throw new Error('Amount must be greater than 0');
+        if (!targetOption) {
+          throw new Error('Target option (YES/NO or outcomeId) is required');
         }
 
         // Check volume limits
         await checkVolumeLimit(auth, amount);
-
-        // Validate advanced order types
-        if (orderType === 'iceberg' && (!visibleAmount || visibleAmount >= amount)) {
-          throw new Error('Iceberg orders require visibleAmount < total amount');
-        }
-
-        if (orderType === 'twap' && (!timeWindow || !totalDuration)) {
-          throw new Error('TWAP orders require timeWindow and totalDuration');
-        }
-
-        if (orderType === 'stop' && (!stopPrice || !stopType)) {
-          throw new Error('Stop orders require stopPrice and stopType');
-        }
-
-        if (orderType === 'limit' && !price) {
-          throw new Error('Limit orders require price');
-        }
 
         // For now, only support market and limit orders in the execution engine
         // Advanced orders would need additional processing logic

@@ -1,451 +1,110 @@
+import { z } from 'zod';
+import { ethers } from 'ethers';
+
 /**
  * Input validation utilities
- * Provides type-safe validation for API inputs
+ * Provides centralized Zod schemas for API inputs
  */
 
-export interface ValidationResult {
-    valid: boolean;
-    error?: string;
-    sanitized?: any;
-}
+// --- Base Schemas ---
 
-/**
- * Validates and sanitizes a string input
- */
-export function validateString(
-    value: unknown,
-    options: {
-        minLength?: number;
-        maxLength?: number;
-        required?: boolean;
-        pattern?: RegExp;
-        trim?: boolean;
-    } = {}
-): ValidationResult {
-    const { minLength = 0, maxLength = 10000, required = false, pattern, trim = true } = options;
-
-    if (value === null || value === undefined) {
-        if (required) {
-            return { valid: false, error: 'Field is required' };
+export const EthAddressSchema = z.string()
+    .min(1, 'Address is required')
+    .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address format')
+    .refine((addr) => {
+        try {
+            return ethers.isAddress(addr);
+        } catch {
+            return false;
         }
-        return { valid: true, sanitized: '' };
-    }
+    }, { message: 'Invalid address checksum' });
 
-    if (typeof value !== 'string') {
-        return { valid: false, error: 'Field must be a string' };
-    }
+export const EmailSchema = z.string()
+    .email('Invalid email format')
+    .max(255, 'Email too long');
 
-    let sanitized = trim ? value.trim() : value;
+export const UUIDSchema = z.string()
+    .uuid('Invalid UUID format');
 
-    if (sanitized.length < minLength) {
-        return { valid: false, error: `Field must be at least ${minLength} characters` };
-    }
+export const EventIdSchema = z.string()
+    .min(1, 'Event ID is required')
+    .max(100)
+    .refine((val) => {
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const numericPattern = /^\d+$/;
+        const cuidPattern = /^[a-z0-9]{20,30}$/i;
+        return uuidPattern.test(val) || numericPattern.test(val) || cuidPattern.test(val);
+    }, { message: 'Invalid event ID format' });
 
-    if (sanitized.length > maxLength) {
-        return { valid: false, error: `Field must be at most ${maxLength} characters` };
-    }
-
-    if (pattern && !pattern.test(sanitized)) {
-        return { valid: false, error: 'Field format is invalid' };
-    }
-
-    return { valid: true, sanitized };
-}
-
-/**
- * Validates and sanitizes a number input
- */
-export function validateNumber(
-    value: unknown,
-    options: {
-        min?: number;
-        max?: number;
-        required?: boolean;
-        integer?: boolean;
-    } = {}
-): ValidationResult {
-    const { min, max, required = false, integer = false } = options;
-
-    if (value === null || value === undefined) {
-        if (required) {
-            return { valid: false, error: 'Field is required' };
-        }
-        return { valid: true, sanitized: undefined };
-    }
-
-    // Convert string to number if possible
-    let num: number;
-    if (typeof value === 'string') {
-        num = parseFloat(value);
-    } else if (typeof value === 'number') {
-        num = value;
-    } else {
-        return { valid: false, error: 'Field must be a number' };
-    }
-
-    // Check for NaN and Infinity
-    if (!Number.isFinite(num)) {
-        return { valid: false, error: 'Field must be a finite number' };
-    }
-
-    // Check integer requirement
-    if (integer && !Number.isInteger(num)) {
-        return { valid: false, error: 'Field must be an integer' };
-    }
-
-    // Check bounds
-    if (min !== undefined && num < min) {
-        return { valid: false, error: `Field must be at least ${min}` };
-    }
-
-    if (max !== undefined && num > max) {
-        return { valid: false, error: `Field must be at most ${max}` };
-    }
-
-    return { valid: true, sanitized: num };
-}
-
-/**
- * Validates an email address
- */
-export function validateEmail(value: unknown, required: boolean = false): ValidationResult {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const stringResult = validateString(value, {
-        required,
-        maxLength: 255,
-        pattern: emailPattern,
-        trim: true
-    });
-
-    if (!stringResult.valid) {
-        return stringResult;
-    }
-
-    if (stringResult.sanitized && !emailPattern.test(stringResult.sanitized)) {
-        return { valid: false, error: 'Invalid email format' };
-    }
-
-    return stringResult;
-}
-
-/**
- * Known dangerous Ethereum addresses to block
- * Includes burn addresses, null addresses, and known scam wallets
- */
-const BLOCKED_ADDRESSES = new Set([
-    '0x0000000000000000000000000000000000000000', // Null address
-    '0x000000000000000000000000000000000000dead', // Common burn address
-    '0xdead000000000000000000000000000000000000', // Another burn address
-    '0xffffffffffffffffffffffffffffffffffffffff', // Max address
-]);
-
-/**
- * Validates EIP-55 checksum for an Ethereum address
- * Returns true if the address has valid checksum or is all lowercase/uppercase
- */
-function validateEthereumChecksum(address: string): boolean {
-    // If all lowercase or all uppercase (excluding 0x prefix), skip checksum validation
-    const addressWithoutPrefix = address.slice(2);
-    if (addressWithoutPrefix === addressWithoutPrefix.toLowerCase() ||
-        addressWithoutPrefix === addressWithoutPrefix.toUpperCase()) {
-        return true;
-    }
-
-    // EIP-55 checksum validation
+export const SafeUrlSchema = z.string().url().refine((val) => {
     try {
-        // Simple checksum check - compare against the checksummed version
-        const addressLower = address.toLowerCase();
-        const chars = addressLower.slice(2).split('');
-
-        // Create keccak256 hash using Web Crypto API compatible approach
-        // For simplicity, we'll skip full keccak validation and just ensure format
-        // The actual checksum verification happens via ethers.getAddress() in the caller
-
-        // Check that mixed-case addresses have valid character set
-        for (const char of addressWithoutPrefix) {
-            if (!/[0-9a-fA-F]/.test(char)) {
-                return false;
-            }
-        }
-        return true;
+        const parsed = new URL(val);
+        if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+        const hostname = parsed.hostname.toLowerCase();
+        return !(
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname.startsWith('192.168.') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('172.16.') ||
+            hostname.endsWith('.local')
+        );
     } catch {
         return false;
     }
-}
+}, { message: 'URL cannot point to internal addresses or use unsafe protocols' });
 
-/**
- * Validates an Ethereum address with enhanced security checks:
- * - Format validation (0x + 40 hex chars)
- * - Checksum validation (EIP-55)
- * - Blocklist check for dangerous addresses
- */
-export function validateEthereumAddress(value: unknown, required: boolean = false): ValidationResult {
-    const addressPattern = /^0x[a-fA-F0-9]{40}$/;
-    const stringResult = validateString(value, {
-        required,
-        pattern: addressPattern,
-        trim: true
-    });
+// --- Domain Schemas ---
 
-    if (!stringResult.valid) {
-        return stringResult;
-    }
+export const BetRequestSchema = z.object({
+    eventId: EventIdSchema,
+    option: z.enum(['YES', 'NO', 'yes', 'no', 'Yes', 'No']).transform(v => v.toUpperCase() as 'YES' | 'NO'),
+    amount: z.coerce.number().min(0.01).max(1000),
+    outcomeId: z.string().optional(),
+});
 
-    const address = stringResult.sanitized;
+export const TradeRequestSchema = z.object({
+    eventId: EventIdSchema,
+    side: z.enum(['buy', 'sell']),
+    amount: z.coerce.number().min(0.01).max(1000),
+    option: z.enum(['YES', 'NO', 'yes', 'no', 'Yes', 'No']).optional().transform(v => v?.toUpperCase()),
+    outcomeId: z.string().max(50).regex(/^[a-zA-Z0-9_-]+$/).optional(),
+    orderType: z.enum(['market', 'limit']).default('market'),
+    price: z.coerce.number().min(0.01).max(1).optional(),
+}).refine(data => data.option || data.outcomeId, {
+    message: "Either option or outcomeId is required",
+    path: ["option"]
+});
 
-    if (!address && !required) {
-        return { valid: true, sanitized: '' };
-    }
+export const MessageRequestSchema = z.object({
+    text: z.string().trim().min(1, 'Message cannot be empty').max(5000, 'Message too long'),
+    parentId: UUIDSchema.optional(),
+});
 
-    if (!address || !addressPattern.test(address)) {
-        return { valid: false, error: 'Invalid Ethereum address format' };
-    }
+export const UserUpdateSchema = z.object({
+    username: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_\s-]*$/, 'Invalid characters in username').optional(),
+    description: z.string().trim().max(500).optional(),
+    avatarUrl: SafeUrlSchema.optional().nullable(),
+    website: SafeUrlSchema.optional().nullable(),
+    twitter: z.string().max(50).regex(/^[a-zA-Z0-9_]{1,15}$/, 'Invalid Twitter handle').optional().nullable(),
+    telegram: z.string().max(50).regex(/^[a-zA-Z0-9_]{5,32}$/, 'Invalid Telegram handle').optional().nullable(),
+    discord: z.string().max(50).regex(/^.{2,32}#[0-9]{4}$|^[a-zA-Z0-9_.]{2,32}$/, 'Invalid Discord handle').optional().nullable(),
+});
 
-    // Check against blocklist
-    if (BLOCKED_ADDRESSES.has(address.toLowerCase())) {
-        return { valid: false, error: 'This address is not allowed for withdrawals' };
-    }
+export const HedgeConfigSchema = z.object({
+    enabled: z.boolean(),
+    minSpreadBps: z.number().min(0).max(5000), // Max 50%
+    maxSlippageBps: z.number().min(0).max(1000), // Max 10%
+    maxUnhedgedExposure: z.number().min(0),
+    maxPositionSize: z.number().min(0),
+    hedgeTimeoutMs: z.number().min(1000).max(60000),
+    retryAttempts: z.number().min(0).max(10),
+    minProfitThreshold: z.number().min(0),
+});
 
-    // Validate checksum for mixed-case addresses
-    if (!validateEthereumChecksum(address)) {
-        return { valid: false, error: 'Invalid address checksum - please verify the address' };
-    }
+// --- Sanitization Utilities ---
 
-    return { valid: true, sanitized: address };
-}
-
-/**
- * Validates an Ethereum address for withdrawal with strict checks
- * Uses ethers.js for proper checksum verification
- */
-export async function validateWithdrawalAddress(address: string): Promise<ValidationResult> {
-    // Basic validation first
-    const basicResult = validateEthereumAddress(address, true);
-    if (!basicResult.valid) {
-        return basicResult;
-    }
-
-    // Check against blocklist (case-insensitive)
-    if (BLOCKED_ADDRESSES.has(address.toLowerCase())) {
-        return { valid: false, error: 'This address is blocked. Please use a different address.' };
-    }
-
-    // For full checksum validation, the caller should use ethers.getAddress()
-    // which throws if the checksum is invalid
-    return { valid: true, sanitized: address };
-}
-
-/**
- * Validates an array input
- */
-export function validateArray<T>(
-    value: unknown,
-    options: {
-        minLength?: number;
-        maxLength?: number;
-        required?: boolean;
-        itemValidator?: (item: unknown) => ValidationResult;
-    } = {}
-): ValidationResult {
-    const { minLength = 0, maxLength = 1000, required = false, itemValidator } = options;
-
-    if (value === null || value === undefined) {
-        if (required) {
-            return { valid: false, error: 'Field is required' };
-        }
-        return { valid: true, sanitized: [] };
-    }
-
-    if (!Array.isArray(value)) {
-        return { valid: false, error: 'Field must be an array' };
-    }
-
-    if (value.length < minLength) {
-        return { valid: false, error: `Array must have at least ${minLength} items` };
-    }
-
-    if (value.length > maxLength) {
-        return { valid: false, error: `Array must have at most ${maxLength} items` };
-    }
-
-    // Validate items if validator provided
-    if (itemValidator) {
-        const sanitized: T[] = [];
-        for (let i = 0; i < value.length; i++) {
-            const itemResult = itemValidator(value[i]);
-            if (!itemResult.valid) {
-                return { valid: false, error: `Item at index ${i}: ${itemResult.error}` };
-            }
-            if (itemResult.sanitized !== undefined) {
-                sanitized.push(itemResult.sanitized as T);
-            }
-        }
-        return { valid: true, sanitized };
-    }
-
-    return { valid: true, sanitized: value };
-}
-
-/**
- * Validates an object with schema
- */
-export function validateObject(
-    value: unknown,
-    schema: Record<string, (val: unknown) => ValidationResult>,
-    required: boolean = false
-): ValidationResult {
-    if (value === null || value === undefined) {
-        if (required) {
-            return { valid: false, error: 'Object is required' };
-        }
-        return { valid: true, sanitized: {} };
-    }
-
-    if (typeof value !== 'object' || Array.isArray(value)) {
-        return { valid: false, error: 'Field must be an object' };
-    }
-
-    const obj = value as Record<string, unknown>;
-    const sanitized: Record<string, unknown> = {};
-
-    for (const [key, validator] of Object.entries(schema)) {
-        const result = validator(obj[key]);
-        if (!result.valid) {
-            return { valid: false, error: `${key}: ${result.error}` };
-        }
-        if (result.sanitized !== undefined) {
-            sanitized[key] = result.sanitized;
-        } else if (obj[key] !== undefined) {
-            sanitized[key] = obj[key];
-        }
-    }
-
-    return { valid: true, sanitized };
-}
-
-/**
- * Validates a UUID
- */
-export function validateUUID(value: unknown, required: boolean = false): ValidationResult {
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const stringResult = validateString(value, {
-        required,
-        pattern: uuidPattern,
-        trim: true
-    });
-
-    if (!stringResult.valid) {
-        return stringResult;
-    }
-
-    const sanitized = stringResult.sanitized;
-    if (!sanitized) {
-        if (required) {
-            return { valid: false, error: 'Field is required' };
-        }
-        return { valid: true, sanitized: undefined };
-    }
-
-    if (!uuidPattern.test(sanitized)) {
-        return { valid: false, error: 'Invalid UUID format' };
-    }
-
-    return { valid: true, sanitized };
-}
-
-/**
- * Validates an event ID (accepts both UUID format and numeric string for Polymarket IDs)
- */
-export function validateEventId(value: unknown, required: boolean = false): ValidationResult {
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const numericPattern = /^\d+$/;
-    // Also allow alphanumeric IDs like "cmiop7iys001fbbofy5tac70l" (cuid format)
-    const cuidPattern = /^[a-z0-9]{20,30}$/i;
-
-    const stringResult = validateString(value, {
-        required,
-        trim: true,
-        maxLength: 100
-    });
-
-    if (!stringResult.valid) {
-        return stringResult;
-    }
-
-    const sanitized = stringResult.sanitized;
-    if (!sanitized && !required) {
-        return { valid: true, sanitized: '' };
-    }
-
-    // Check if it matches any valid format
-    if (uuidPattern.test(sanitized) || numericPattern.test(sanitized) || cuidPattern.test(sanitized)) {
-        return { valid: true, sanitized };
-    }
-
-    return { valid: false, error: 'Invalid event ID format' };
-}
-
-/**
- * Validates a boolean
- */
-export function validateBoolean(value: unknown, required: boolean = false): ValidationResult {
-    if (value === null || value === undefined) {
-        if (required) {
-            return { valid: false, error: 'Field is required' };
-        }
-        return { valid: true, sanitized: false };
-    }
-
-    if (typeof value === 'boolean') {
-        return { valid: true, sanitized: value };
-    }
-
-    if (typeof value === 'string') {
-        const lower = value.toLowerCase();
-        if (lower === 'true' || lower === '1' || lower === 'yes') {
-            return { valid: true, sanitized: true };
-        }
-        if (lower === 'false' || lower === '0' || lower === 'no') {
-            return { valid: true, sanitized: false };
-        }
-    }
-
-    return { valid: false, error: 'Field must be a boolean' };
-}
-
-/**
- * Validates a date string or Date object
- */
-export function validateDate(value: unknown, required: boolean = false): ValidationResult {
-    if (value === null || value === undefined) {
-        if (required) {
-            return { valid: false, error: 'Field is required' };
-        }
-        return { valid: true, sanitized: undefined };
-    }
-
-    let date: Date;
-    if (value instanceof Date) {
-        date = value;
-    } else if (typeof value === 'string') {
-        date = new Date(value);
-    } else {
-        return { valid: false, error: 'Field must be a date' };
-    }
-
-    if (isNaN(date.getTime())) {
-        return { valid: false, error: 'Invalid date' };
-    }
-
-    return { valid: true, sanitized: date };
-}
-
-/**
- * Sanitizes HTML to prevent XSS
- * Basic implementation - consider using a library like DOMPurify for production
- */
 export function sanitizeHtml(html: string): string {
-    // Remove script tags and event handlers
     return html
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/on\w+="[^"]*"/gi, '')
@@ -453,113 +112,6 @@ export function sanitizeHtml(html: string): string {
         .replace(/javascript:/gi, '');
 }
 
-/**
- * Validates a URL with safe protocols (http/https only)
- * Prevents javascript: and data: protocol XSS attacks
- */
-export function validateSafeUrl(value: unknown, required: boolean = false): ValidationResult {
-    if (value === null || value === undefined || value === '') {
-        if (required) {
-            return { valid: false, error: 'URL is required' };
-        }
-        return { valid: true, sanitized: null };
-    }
-
-    if (typeof value !== 'string') {
-        return { valid: false, error: 'URL must be a string' };
-    }
-
-    const trimmed = value.trim();
-    if (!trimmed) {
-        if (required) {
-            return { valid: false, error: 'URL is required' };
-        }
-        return { valid: true, sanitized: null };
-    }
-
-    try {
-        const parsed = new URL(trimmed);
-
-        // Only allow http and https protocols
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-            return { valid: false, error: 'URL must use http or https protocol' };
-        }
-
-        // Block localhost and internal IPs for security (SSRF prevention)
-        const hostname = parsed.hostname.toLowerCase();
-        if (
-            hostname === 'localhost' ||
-            hostname === '127.0.0.1' ||
-            hostname.startsWith('192.168.') ||
-            hostname.startsWith('10.') ||
-            hostname.startsWith('172.16.') ||
-            hostname.endsWith('.local')
-        ) {
-            return { valid: false, error: 'URL cannot point to internal addresses' };
-        }
-
-        return { valid: true, sanitized: trimmed };
-    } catch {
-        return { valid: false, error: 'Invalid URL format' };
-    }
-}
-
-/**
- * Validates a social media handle (Twitter, Telegram, Discord)
- * Only allows alphanumeric characters and underscores
- */
-export function validateSocialHandle(
-    value: unknown,
-    options: { required?: boolean; maxLength?: number; platform?: 'twitter' | 'telegram' | 'discord' } = {}
-): ValidationResult {
-    const { required = false, maxLength = 50, platform } = options;
-
-    if (value === null || value === undefined || value === '') {
-        if (required) {
-            return { valid: false, error: 'Handle is required' };
-        }
-        return { valid: true, sanitized: null };
-    }
-
-    if (typeof value !== 'string') {
-        return { valid: false, error: 'Handle must be a string' };
-    }
-
-    // Remove @ prefix if present
-    let handle = value.trim().replace(/^@/, '');
-
-    if (!handle) {
-        if (required) {
-            return { valid: false, error: 'Handle is required' };
-        }
-        return { valid: true, sanitized: null };
-    }
-
-    // Platform-specific patterns
-    const patterns: Record<string, RegExp> = {
-        twitter: /^[a-zA-Z0-9_]{1,15}$/,
-        telegram: /^[a-zA-Z0-9_]{5,32}$/,
-        discord: /^.{2,32}#[0-9]{4}$|^[a-zA-Z0-9_.]{2,32}$/, // username#0000 or new format
-    };
-
-    // Generic pattern if no platform specified
-    const pattern = platform ? patterns[platform] : /^[a-zA-Z0-9_]{1,50}$/;
-
-    if (handle.length > maxLength) {
-        return { valid: false, error: `Handle must be at most ${maxLength} characters` };
-    }
-
-    if (!pattern.test(handle)) {
-        return { valid: false, error: 'Handle contains invalid characters' };
-    }
-
-    return { valid: true, sanitized: handle };
-}
-
-/**
- * Sanitizes text input to prevent XSS
- * Encodes HTML special characters
- */
 export function sanitizeText(text: string): string {
     if (!text) return '';
     return text
@@ -572,45 +124,85 @@ export function sanitizeText(text: string): string {
 }
 
 /**
- * Validates and sanitizes user description/bio text
+ * Legacy Validation Result Type
  */
-export function validateDescription(value: unknown, required: boolean = false): ValidationResult {
-    const result = validateString(value, {
-        required,
-        maxLength: 500,
-        trim: true,
-    });
-
-    if (!result.valid) return result;
-
-    // Sanitize the content
-    if (result.sanitized) {
-        result.sanitized = sanitizeText(result.sanitized);
-    }
-
-    return result;
+export interface ValidationResult {
+    valid: boolean;
+    sanitized?: any;
+    error?: string;
 }
 
 /**
- * Validates username with strict pattern
+ * Helper to convert Zod result to legacy ValidationResult
  */
-export function validateUsername(value: unknown, required: boolean = false): ValidationResult {
-    const result = validateString(value, {
-        required,
-        minLength: required ? 1 : 0,
-        maxLength: 50,
-        pattern: /^[a-zA-Z0-9_\s-]*$/,
-        trim: true,
-    });
-
-    if (!result.valid) {
-        // Provide clearer error message for pattern failure
-        if (result.error === 'Field format is invalid') {
-            return { valid: false, error: 'Username can only contain letters, numbers, underscores, and hyphens' };
-        }
-        return result;
+function toLegacyResult(result: any): ValidationResult {
+    if (!result.success) {
+        return {
+            valid: false,
+            error: result.error.issues[0].message,
+        };
     }
-
-    return result;
+    return {
+        valid: true,
+        sanitized: result.data,
+    };
 }
 
+// --- Legacy Validation Functions (Backward Compatibility) ---
+
+export function validateString(value: unknown, min: number = 0, max: number = 255): ValidationResult {
+    const schema = z.string().min(min).max(max).transform(v => v.trim());
+    return toLegacyResult(schema.safeParse(value));
+}
+
+export function validateNumber(value: unknown, min?: number, max?: number, integer: boolean = false): ValidationResult {
+    if (value === undefined || value === null || value === '') {
+        return { valid: true, sanitized: undefined };
+    }
+
+    let schema = z.coerce.number({ message: 'Field must be a number' });
+    if (integer) schema = schema.int('Field must be an integer');
+    if (min !== undefined) schema = schema.min(min, `Field must be at least ${min}`);
+    if (max !== undefined) schema = schema.max(max, `Field must be at most ${max}`);
+
+    return toLegacyResult(schema.safeParse(value));
+}
+
+export function validateEmail(value: unknown, required: boolean = false): ValidationResult {
+    if (!value && !required) return { valid: true, sanitized: undefined };
+    return toLegacyResult(EmailSchema.safeParse(value));
+}
+
+export function validateEthereumAddress(value: unknown, required: boolean = false): ValidationResult {
+    if (!value && !required) return { valid: true, sanitized: undefined };
+    return toLegacyResult(EthAddressSchema.safeParse(value));
+}
+
+export function validateUUID(value: unknown, required: boolean = false): ValidationResult {
+    if (!value && !required) return { valid: true, sanitized: undefined };
+    return toLegacyResult(UUIDSchema.safeParse(value));
+}
+
+export function validateEventId(value: unknown, required: boolean = false): ValidationResult {
+    if (!value && !required) return { valid: true, sanitized: undefined };
+    return toLegacyResult(EventIdSchema.safeParse(value));
+}
+
+export function validateBoolean(value: unknown): ValidationResult {
+    const schema = z.preprocess((val) => {
+        if (typeof val === 'string') {
+            const lower = val.toLowerCase();
+            if (['true', '1', 'yes'].includes(lower)) return true;
+            if (['false', '0', 'no'].includes(lower)) return false;
+        }
+        return val;
+    }, z.boolean({ message: 'Field must be a boolean' }));
+
+    return toLegacyResult(schema.safeParse(value));
+}
+
+export function validateDate(value: unknown, required: boolean = false): ValidationResult {
+    if (!value && !required) return { valid: true, sanitized: undefined };
+    const schema = z.coerce.date({ message: 'Field must be a date' });
+    return toLegacyResult(schema.safeParse(value));
+}
