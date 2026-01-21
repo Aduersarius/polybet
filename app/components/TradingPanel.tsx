@@ -20,6 +20,7 @@ import { HelpBanner } from '@/components/ui/HelpBanner';
 import { getOutcomeColor } from '@/lib/colors';
 import { DepositModal } from '@/components/wallet/DepositModal';
 import { SuccessConfetti, useSuccessConfetti } from '@/components/ui/SuccessConfetti';
+import { track } from '@vercel/analytics/react';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -337,6 +338,14 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 variant: 'success',
                 title: 'Trade successful',
                 description: `${selectedTab === 'buy' ? 'Bought' : 'Sold'} ${result.totalFilled.toFixed(2)} ${selectedOption} tokens`,
+            });
+            track('Bet', {
+                side: selectedTab,
+                option: selectedOption,
+                amount: parseFloat(amount),
+                price: result.averagePrice,
+                eventId: eventId,
+                totalFilled: result.totalFilled
             });
 
             // Trigger success confetti animation from the trade button

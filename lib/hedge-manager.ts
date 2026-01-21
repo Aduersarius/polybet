@@ -1215,26 +1215,16 @@ export class HedgeManager {
   async settleEventHedges(
     eventId: string,
     winningOutcome: string
-  ): Promise<{ settledCount: number; totalPnl: number; errors: string[] }> {
-    const positions = await this.getEventHedgePositions(eventId);
+  ): Promise<{ settledCount: number; totalPnl: number; errors: string[]; queued: boolean }> {
 
-    let settledCount = 0;
-    let totalPnl = 0;
-    const errors: string[] = [];
+    // Trigger workflow via dynamic import
+    const { processSettlement } = await import('@/workflows/settlement');
+    await processSettlement({ eventId, winningOutcome });
 
-    for (const position of positions) {
-      const result = await this.settleHedgePosition(position.id, winningOutcome);
-      if (result.settled) {
-        settledCount++;
-        totalPnl += result.pnl;
-      } else if (result.error) {
-        errors.push(`Position ${position.id}: ${result.error}`);
-      }
-    }
+    console.log(`[HedgeManager] Queued settlement workflow for event ${eventId}`);
 
-    console.log(`[HedgeManager] Settled ${settledCount}/${positions.length} hedges for event ${eventId}, total PnL: $${totalPnl.toFixed(2)}`);
-
-    return { settledCount, totalPnl, errors };
+    // Return queued status - actual results will be transparently handled by workflow
+    return { settledCount: 0, totalPnl: 0, errors: [], queued: true };
   }
 }
 

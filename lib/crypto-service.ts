@@ -506,36 +506,41 @@ export class CryptoService {
     }
 
     async approveWithdrawal(withdrawalId: string, adminId: string) {
-        this.log('[WITHDRAWAL] Starting approval for withdrawal', withdrawalId, 'by admin', adminId);
+        this.log(`[WITHDRAWAL] Triggering workflow for ${withdrawalId} by admin ${adminId}`);
 
-        const withdrawal = await prisma.withdrawal.findUnique({
-            where: { id: withdrawalId },
-        });
+        // Dynamic import to avoid circular dependency
+        const { processWithdrawal } = await import('@/workflows/withdrawal');
+
+        // Trigger the workflow
+        await processWithdrawal({ withdrawalId, adminId });
+
+        this.log(`[WITHDRAWAL] Workflow triggered for ${withdrawalId}`);
+
+        // Return queued status
+        return {
+            status: 'QUEUED',
+            withdrawalId,
+            txHash: null
+        };
+    }
+
+    async validateAndApproveWithdrawal(withdrawalId: string, adminId: string) {
+        const withdrawal = await prisma.withdrawal.findUnique({ where: { id: withdrawalId } });
 
         const isRetryApproved = withdrawal?.status === 'APPROVED' && !withdrawal.txHash;
-
         if (!withdrawal || (!isRetryApproved && withdrawal.status !== 'PENDING')) {
-            const errorMsg = `Invalid withdrawal request: ${withdrawalId} - status: ${withdrawal?.status || 'not found'}`;
-            console.error('[WITHDRAWAL]', errorMsg);
-            throw new Error(errorMsg);
+            throw new Error(`Invalid withdrawal request: ${withdrawalId} - status: ${withdrawal?.status || 'not found'}`);
         }
-
-        // Idempotency check: ensure withdrawal hasn't been processed before (txHash set)
         if (withdrawal.txHash) {
-            const errorMsg = `Withdrawal already processed: ${withdrawalId}`;
-            console.error('[WITHDRAWAL]', errorMsg);
-            throw new Error(errorMsg);
+            // Check if we already processed it
+            return { success: true, amount: withdrawal.amount, currency: withdrawal.currency, toAddress: withdrawal.toAddress, userId: withdrawal.userId, alreadyProcessed: true };
         }
 
+        // Limit Checks
         const maxSingle = Number(process.env.ADMIN_WITHDRAW_MAX_SINGLE ?? 50000);
         const maxDaily = Number(process.env.ADMIN_WITHDRAW_MAX_DAILY ?? 200000);
-        if (!Number.isFinite(maxSingle) || maxSingle <= 0 || !Number.isFinite(maxDaily) || maxDaily <= 0) {
-            throw new Error('Admin withdrawal limits misconfigured on server');
-        }
 
-        if (Number(withdrawal.amount) > maxSingle) {
-            throw new Error(`Withdrawal exceeds admin per-request cap of ${maxSingle}`);
-        }
+        if (Number(withdrawal.amount) > maxSingle) throw new Error(`Exceeds single cap`);
 
         const startOfDay = new Date();
         startOfDay.setUTCHours(0, 0, 0, 0);
@@ -547,12 +552,8 @@ export class CryptoService {
             _sum: { amount: true }
         });
         const usedToday = Number(dailyTotals._sum.amount || 0);
-        if (usedToday + Number(withdrawal.amount) > maxDaily) {
-            const remaining = Math.max(0, maxDaily - usedToday);
-            throw new Error(`Daily admin approval cap exceeded. Remaining today: ${remaining}`);
-        }
+        if (usedToday + Number(withdrawal.amount) > maxDaily) throw new Error(`Daily cap exceeded`);
 
-        // Validate and update status to APPROVED (skip update on retry of already-approved with no txHash)
         if (!isRetryApproved) {
             this.validateWithdrawalStatusTransition(withdrawal.status, 'APPROVED');
             await prisma.withdrawal.update({
@@ -563,193 +564,80 @@ export class CryptoService {
                     approvedAt: new Date()
                 }
             });
-        } else {
-            this.warn('[WITHDRAWAL] Resuming previously approved withdrawal without txHash', withdrawalId);
         }
+        return { success: true, amount: withdrawal.amount, currency: withdrawal.currency, toAddress: withdrawal.toAddress, userId: withdrawal.userId };
+    }
 
-        // Convert USD amount to USDC (6 decimals)
+    async broadcastWithdrawal(withdrawalId: string) {
+        const withdrawal = await prisma.withdrawal.findUnique({ where: { id: withdrawalId } });
+        if (!withdrawal) throw new Error('Withdrawal not found');
+        if (withdrawal.txHash) return withdrawal.txHash; // Idempotency
+        if (withdrawal.status !== 'APPROVED') throw new Error('Withdrawal must be APPROVED to broadcast');
+
         const amountUnits = ethers.parseUnits(withdrawal.amount.toFixed(6), 6);
-        this.log('[WITHDRAWAL] Processing withdrawal of', withdrawal.amount, 'USD (', ethers.formatUnits(amountUnits, 6), 'USDC) to', withdrawal.toAddress);
-
-        // Use Hot Wallet (Index 0)
         const hotWallet = this.hotNode.derivePath(`m/44'/60'/0'/0/0`).connect(this.provider);
 
-        // Smart USDC selection: Check which contract has enough balance
+        // Selection Logic
         let activeUsdcAddress = USDC_ADDRESS;
         let usdcContract = new ethers.Contract(activeUsdcAddress, ERC20_ABI, hotWallet);
 
-        try {
-            const balance = await usdcContract.balanceOf(hotWallet.address);
-            if (balance < amountUnits) {
-                this.warn(`[WITHDRAWAL] Insufficient balance in primary USDC contract (${activeUsdcAddress}). Checking fallback...`);
-                const fallbackAddress = activeUsdcAddress === USDC_NATIVE_ADDRESS ? USDC_BRIDGED_ADDRESS : USDC_NATIVE_ADDRESS;
-                const fallbackContract = new ethers.Contract(fallbackAddress, ERC20_ABI, hotWallet);
-                const fallbackBalance = await fallbackContract.balanceOf(hotWallet.address);
-
-                if (fallbackBalance >= amountUnits) {
-                    this.log(`[WITHDRAWAL] Switching to fallback USDC contract: ${fallbackAddress}`);
-                    activeUsdcAddress = fallbackAddress;
-                    usdcContract = fallbackContract;
-                } else {
-                    const totalUsdc = ethers.formatUnits(balance + fallbackBalance, 6);
-                    throw new Error(`Insufficient funds: Total USDC balance across native/bridged is only ${totalUsdc}`);
-                }
+        // Check balance & Fallback Logic
+        const balance = await usdcContract.balanceOf(hotWallet.address);
+        if (balance < amountUnits) {
+            const fallback = activeUsdcAddress === USDC_NATIVE_ADDRESS ? USDC_BRIDGED_ADDRESS : USDC_NATIVE_ADDRESS;
+            const fallbackContract = new ethers.Contract(fallback, ERC20_ABI, hotWallet);
+            if (await fallbackContract.balanceOf(hotWallet.address) >= amountUnits) {
+                usdcContract = fallbackContract;
+                activeUsdcAddress = fallback;
+            } else {
+                throw new Error(`Insufficient funds: ${ethers.formatUnits(balance, 6)}`);
             }
-        } catch (error: any) {
-            this.warn(`[WITHDRAWAL] Balance check failed, proceeding with default contract: ${error.message}`);
         }
 
-        let transferTxHash: string | null = null;
-        try {
-            const tx = await usdcContract.transfer(withdrawal.toAddress, amountUnits);
-            transferTxHash = tx.hash;
-            this.log(`[WITHDRAWAL] Transfer transaction sent via ${activeUsdcAddress}. Hash: ${tx.hash}`);
+        const tx = await usdcContract.transfer(withdrawal.toAddress, amountUnits);
+        this.log(`[WITHDRAWAL] Broadcast TX ${tx.hash} for ${withdrawalId}`);
+        return tx.hash;
+    }
 
-            // Wait for transaction confirmation and verify
-            const receipt = await tx.wait();
-            if (receipt.status !== 1) {
-                throw new Error(`Blockchain transaction failed with status ${receipt.status}`);
+    async finalizeWithdrawal(withdrawalId: string, txHash: string, adminId: string) {
+        // Wait for confirmation
+        const tx = await this.provider.getTransaction(txHash);
+        if (!tx) throw new Error('Transaction not found on chain');
+
+        const receipt = await tx.wait();
+        if (receipt?.status !== 1) throw new Error('Transaction failed on chain');
+
+        // Update DB
+        const withdrawal = await prisma.withdrawal.update({
+            where: { id: withdrawalId },
+            data: {
+                status: 'COMPLETED',
+                txHash: txHash,
+                approvedAt: new Date(),
+                approvedBy: adminId
             }
-            this.log('[WITHDRAWAL] Transfer transaction confirmed for withdrawal', withdrawalId);
+        });
 
-            // Update database with retry logic for robustness
-            let updateAttempts = 0;
-            const maxAttempts = 3;
-            while (updateAttempts < maxAttempts) {
-                try {
-                    // Validate status transition (should be APPROVED to COMPLETED)
-                    const currentWithdrawal = await prisma.withdrawal.findUnique({ where: { id: withdrawalId } });
-                    if (currentWithdrawal) {
-                        this.validateWithdrawalStatusTransition(currentWithdrawal.status, 'COMPLETED');
-                    }
-                    await prisma.withdrawal.update({
-                        where: { id: withdrawalId },
-                        data: {
-                            status: 'COMPLETED',
-                            txHash: tx.hash,
-                            approvedAt: new Date(),
-                            approvedBy: adminId
-                        }
-                    });
-
-                    // Release locked funds (they were deducted from available at request time)
-                    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                        const balances = await tx.$queryRaw<Array<{ id: string; locked: any }>>`
-                            SELECT "id", "locked" FROM "Balance"
-                            WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
-                            FOR UPDATE
-                        `;
-                        if (balances.length > 0) {
-                            await tx.balance.update({
-                                where: { id: balances[0].id },
-                                data: { locked: { decrement: withdrawal.amount } }
-                            });
-                        }
-                    });
-
-                    // Publish via Pusher (Soketi) for Frontend
-                    try {
-                        const { triggerUserUpdate } = await import('@/lib/pusher-server');
-
-                        await triggerUserUpdate(withdrawal.userId, 'transaction-update', {
-                            id: withdrawal.id,
-                            type: 'Withdrawal',
-                            amount: withdrawal.amount,
-                            currency: withdrawal.currency,
-                            status: 'COMPLETED',
-                            createdAt: withdrawal.createdAt,
-                            txHash: tx.hash
-                        });
-
-                        await triggerUserUpdate(withdrawal.userId, 'user-update', {
-                            type: 'WITHDRAWAL_SUCCESS',
-                            payload: {
-                                userId: withdrawal.userId,
-                                type: 'WITHDRAWAL_SUCCESS',
-                                message: `Withdrawal of ${withdrawal.amount} ${withdrawal.currency} confirmed!`,
-                                resourceId: withdrawal.id
-                            }
-                        });
-                    } catch (pusherErr) {
-                        console.error('[WITHDRAWAL] Failed to publish Pusher update:', pusherErr);
-                    }
-
-                    this.log('[WITHDRAWAL] Successfully completed withdrawal', withdrawalId);
-                    return tx.hash; // Done
-                } catch (updateErr) {
-                    updateAttempts++;
-                    this.warn('[WITHDRAWAL] DB update attempt', updateAttempts, 'failed for', withdrawalId, ':', updateErr);
-                    if (updateAttempts >= maxAttempts) {
-                        console.error('[WITHDRAWAL] Failed to update withdrawal status after successful transfer for', withdrawalId, ':', updateErr);
-                        // At this point, transfer succeeded but DB update failed
-                        // This is a critical error that needs manual intervention
-                        throw new Error(`Transfer succeeded but database update failed for withdrawal ${withdrawalId} - manual intervention required`);
-                    }
-                    // Wait before retry
-                    await new Promise(resolve => setTimeout(resolve, 1000 * updateAttempts));
-                }
-            }
-
-            return tx.hash;
-        } catch (error) {
-            console.error('[WITHDRAWAL] Withdrawal processing failed for', withdrawalId, ':', error);
-
-            // Attempt to mark as failed and refund
-            try {
-                await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                    const currentWithdrawal = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });
-                    if (currentWithdrawal) {
-                        // Validate transition to FAILED
-                        this.validateWithdrawalStatusTransition(currentWithdrawal.status, 'FAILED');
-                    }
-                    await tx.withdrawal.update({
-                        where: { id: withdrawalId },
-                        data: {
-                            status: 'FAILED',
-                            txHash: transferTxHash // Include tx hash if transfer succeeded
-                        }
-                    });
-
-                    // Refund with row-level locking
-                    const balances = await tx.$queryRaw<Array<{ id: string; amount: any; locked: any }>>`
-                        SELECT "id", "amount", "locked" FROM "Balance"
-                        WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
-                        FOR UPDATE
-                    `;
-                    if (balances.length > 0) {
-                        const availableBefore = Number(balances[0].amount);
-                        const refundAmount = Number(withdrawal.amount);
-                        await tx.balance.update({
-                            where: { id: balances[0].id },
-                            data: { amount: { increment: refundAmount }, locked: { decrement: refundAmount } }
-                        });
-                        await this.recordLedger(tx, {
-                            userId: withdrawal.userId,
-                            direction: 'CREDIT',
-                            amount: refundAmount,
-                            currency: 'TUSD',
-                            balanceBefore: availableBefore,
-                            balanceAfter: availableBefore + refundAmount,
-                            referenceType: 'WITHDRAWAL_REFUND',
-                            referenceId: withdrawalId,
-                            metadata: { txHash: transferTxHash }
-                        });
-                        this.log('[WITHDRAWAL] Successfully refunded', refundAmount, 'USD to user', withdrawal.userId);
-                    } else {
-                        console.error('[WITHDRAWAL] No balance found to refund for user', withdrawal.userId);
-                    }
+        // Release Lock / Burn Locked Amount
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const balances = await tx.$queryRaw<Array<{ id: string; locked: any }>>`
+                SELECT "id", "locked" FROM "Balance"
+                WHERE "userId" = ${withdrawal.userId} AND "tokenSymbol" = 'TUSD' AND "eventId" IS NULL AND "outcomeId" IS NULL
+                FOR UPDATE
+            `;
+            if (balances.length > 0) {
+                await tx.balance.update({
+                    where: { id: balances[0].id },
+                    data: { locked: { decrement: withdrawal.amount } }
                 });
-            } catch (refundError) {
-                console.error('[WITHDRAWAL] CRITICAL: Failed to update withdrawal status and refund for', withdrawalId, '. Manual intervention required:', refundError);
-                // If both transfer succeeded and refund failed, this is very bad
-                // The user has been debited but transfer may or may not have succeeded
-                throw new Error(`Withdrawal processing failed and rollback incomplete for ${withdrawalId} - manual intervention required`);
             }
+        });
 
-            throw error;
-        }
+        this.log(`[WITHDRAWAL] Completed withdrawal ${withdrawalId}`);
+        return withdrawal;
     }
 }
+
 
 let cryptoServiceSingleton: CryptoService | null = null;
 

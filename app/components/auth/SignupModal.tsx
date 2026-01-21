@@ -5,6 +5,7 @@ import { authClient } from '@/lib/auth-client';
 import { validatePassword, getPasswordErrorMessage } from '@/lib/password-validation';
 import { EmailVerificationModal } from './EmailVerificationModal';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { track } from '@vercel/analytics/react';
 
 interface SignupModalProps {
     isOpen: boolean;
@@ -72,6 +73,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 }
 
                 // Success - show verification modal
+                track('Signup', { method: 'email' });
                 setSignedUpEmail(email);
                 setShowVerificationModal(true);
                 // Clear form
@@ -94,11 +96,11 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         <>
             {/* Signup Modal */}
             {isOpen && !showVerificationModal && (
-                <div 
+                <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4"
                     onClick={onClose}
                 >
-                    <div 
+                    <div
                         className="relative w-full max-w-md mx-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -106,7 +108,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                         <div className="relative p-6 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
                             {/* Subtle gradient overlay */}
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-2xl pointer-events-none" />
-                            
+
                             {/* Close Button */}
                             <button
                                 onClick={onClose}

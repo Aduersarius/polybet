@@ -141,8 +141,8 @@ export async function POST(req: NextRequest) {
             }
 
             const service = getCryptoService();
-            const txHash = await service.approveWithdrawal(withdrawalId, adminId);
-            return NextResponse.json({ success: true, txHash });
+            const result = await service.approveWithdrawal(withdrawalId, adminId);
+            return NextResponse.json({ success: true, ...result });
         } else if (action === 'REJECT') {
             await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const withdrawal = await tx.withdrawal.findUnique({ where: { id: withdrawalId } });

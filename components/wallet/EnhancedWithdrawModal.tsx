@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { sanitizeUrl } from '@/lib/utils';
 import { getUserFriendlyError } from '@/lib/error-messages';
 import Link from 'next/link';
+import { track } from '@vercel/analytics/react';
 
 interface EnhancedWithdrawModalProps {
     isOpen: boolean;
@@ -229,6 +230,13 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                     title: '✅ Withdrawal Submitted',
                     description: 'Your withdrawal request has been submitted and is awaiting admin approval.',
                 });
+                // Track withdrawal request
+                track('Withdrawal', {
+                    amount: numAmount,
+                    token: token,
+                    chain: selectedNetworkData?.chain || 'unknown',
+                    status: 'requested'
+                });
                 onSuccess?.();
                 onClose();
             } else {
@@ -340,13 +348,13 @@ export function EnhancedWithdrawModal({ isOpen, onClose, onSuccess }: EnhancedWi
                                         <div
                                             key={item.id}
                                             className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${item.completed
-                                                    ? 'bg-emerald-500/20 border-emerald-500/40'
-                                                    : 'bg-white/5 border-white/10'
+                                                ? 'bg-emerald-500/20 border-emerald-500/40'
+                                                : 'bg-white/5 border-white/10'
                                                 }`}
                                         >
                                             <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${item.completed
-                                                    ? 'bg-emerald-500 text-white'
-                                                    : 'bg-white/10 border border-white/20'
+                                                ? 'bg-emerald-500 text-white'
+                                                : 'bg-white/10 border border-white/20'
                                                 }`}>
                                                 {item.completed && <Check className="w-3 h-3" />}
                                             </div>

@@ -6,6 +6,7 @@ import { BrandedQRCode } from '@/components/ui/BrandedQRCode';
 import { USDCIcon, USDTIcon, PolygonIcon, EthereumIcon, BNBIcon, ArbitrumIcon } from '@/components/ui/CryptoIcons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
+import { track } from '@vercel/analytics/react';
 
 interface EnhancedDepositModalProps {
     isOpen: boolean;
@@ -196,6 +197,12 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                                     description: `$${Number(deposit.amount).toFixed(2)} USDC has been added to your balance.`,
                                     variant: "default", // Success variant if available
                                 });
+                                track('Deposit', {
+                                    amount: Number(deposit.amount),
+                                    currency: 'USDC',
+                                    chain: 'Polygon',
+                                    status: 'confirmed'
+                                });
                             } else {
                                 setDepositStatus('detected');
                                 toast({
@@ -213,6 +220,12 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                             toast({
                                 title: "Deposit Confirmed",
                                 description: "Your funds are now available to trade.",
+                            });
+                            track('Deposit', {
+                                amount: Number(deposit.amount),
+                                currency: 'USDC',
+                                chain: 'Polygon',
+                                status: 'confirmed'
                             });
                         }
                     }
