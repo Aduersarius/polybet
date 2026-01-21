@@ -207,11 +207,34 @@ export async function hedgeAndExecute(
                     error: userTrade.error,
                 });
 
-                // TODO: Implement rollback - close Polymarket position
-                // For now, just fail gracefully
+                // ATTEMPT ROLLBACK: Close the Polymarket position immediately
+                console.log('[HedgeSimple] Initiating emergency rollback of hedge...');
+
+                try {
+                    const rollbackSide = request.option === 'YES' ? 'SELL' : 'BUY';
+                    const rollbackResult = await placePolymarketHedge({
+                        marketId: mapping.polymarketId,
+                        conditionId: mapping.polymarketConditionId || mapping.polymarketId,
+                        tokenId,
+                        side: rollbackSide,
+                        amount: request.amount, // Try to unwind the full amount
+                        targetPrice: 0.5 // Market order logic handle price, just pass dummy
+                    });
+
+                    if (rollbackResult.success) {
+                        console.log('[HedgeSimple] ✅ Rollback successful (Position closed). OrderId:', rollbackResult.orderId);
+                        // Record the rollback to keep ledger clean? 
+                        // For now, we just saved the house from exposure.
+                    } else {
+                        console.error('[HedgeSimple] ❌ ROLLBACK FAILED! MANUAL INTERVENTION REQUIRED.', rollbackResult.error);
+                    }
+                } catch (rollbackError) {
+                    console.error('[HedgeSimple] ❌ ROLLBACK CRASHED:', rollbackError);
+                }
+
                 return {
                     success: false,
-                    error: 'Trade failed after hedge (contact support)',
+                    error: 'Trade failed. System attempted to reverse external position.',
                     errorCode: 'DATABASE',
                     polymarketOrderId: hedgeResult.orderId,
                 };

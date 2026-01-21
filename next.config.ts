@@ -151,6 +151,8 @@ const nextConfig: NextConfig = {
 // Apply bundle analyzer
 const configWithAnalyzer = withBundleAnalyzer(nextConfig);
 
+import { withWorkflow } from "workflow/next";
+
 // Export without Sentry wrapper to avoid build-time errors
 // Sentry runtime monitoring still works via sentry.*.config.ts files
-export default configWithAnalyzer;
+export default withWorkflow(configWithAnalyzer);

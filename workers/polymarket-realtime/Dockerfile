@@ -2,38 +2,38 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies for Prisma on Alpine (openssl, libc compatibility)
+# Install dependencies for Prisma on Alpine
 RUN apk add --no-cache openssl libc6-compat
 
-# Copy worker package files (build context is project root)
+# 1. Install dependencies (Root + Worker)
+# We copy the worker package.json to the root for install, simulating a focused install
 COPY workers/polymarket-realtime/package*.json ./
-
-# Install ALL dependencies (including devDependencies for prisma CLI and tsc)
 RUN npm install --include=dev
 
-# Copy Prisma schema from project root
+# 2. Copy Shared Libraries (CRITICAL for Redis/Env fixes)
+# This ensures ../../lib/redis resolves to the updated code
+COPY lib/ ./lib/
 COPY prisma/ ./prisma/
+COPY .env* ./
 
-# Generate Prisma client (dummy URL for build, real URL comes at runtime)
+# 3. Copy Worker Source Code
+# Preserve structure so relative imports (../../lib) work
+COPY workers/polymarket-realtime/ ./workers/polymarket-realtime/
+
+# 4. Generate Client & Build
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
-# Copy worker source files
-COPY workers/polymarket-realtime/tsconfig.json ./
-COPY workers/polymarket-realtime/worker.ts ./
-COPY workers/polymarket-realtime/lib/ ./lib/
-
-# Build TypeScript
+# Switch to worker directory for build
+WORKDIR /app/workers/polymarket-realtime
 RUN npm run build
 
-# Prune devDependencies for smaller image
-RUN npm prune --production
+# 5. Cleanup & Runtime
+# We stay in the worker directory
+ENV NODE_ENV=production
 
-# Clear dummy env for runtime
-ENV DATABASE_URL=""
-
-# Run the worker
-# Run as non-root user for security
+# Run as non-root
 USER node
 
-CMD ["node", "dist/worker.js"]
+# Path needs to be adjusted because we are now deep in the folder
+CMD ["node", "dist/workers/polymarket-realtime/worker.js"]
