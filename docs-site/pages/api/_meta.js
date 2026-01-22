@@ -1,0 +1,5 @@
+export default {
+  overview: "API Overview",
+  authentication: "Authentication",
+  "institutional-market-data": "Institutional Market Data API"
+}

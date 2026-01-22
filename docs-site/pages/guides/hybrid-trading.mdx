@@ -7,7 +7,7 @@ description: AMM + Orderbook trading system guide
 
 ## Overview
 
-The Pariflow platform now features a sophisticated hybrid trading system that combines the benefits of Automated Market Making (AMM) with traditional order book functionality. This system provides both market makers (AMM bot) and traders (limit orders) with optimal trading experiences.
+The Pariflow platform features a sophisticated hybrid trading system that combines the benefits of Automated Market Making (AMM) with traditional order book functionality. This system provides both liquidity providers and traders with optimal trading experiences.
 
 ## Key Features
 
@@ -17,10 +17,10 @@ The Pariflow platform now features a sophisticated hybrid trading system that co
 - **Smart Routing**: Automatically matches orders against both AMM and other traders
 - **Real-time Updates**: WebSocket-powered live price and order book updates
 
-### AMM Bot (Liquidity Provider)
-- **Constant Liquidity**: Provides $100k starting liquidity per market
+### Liquidity Provider
+- **Constant Liquidity**: Provides deep liquidity per market
 - **Dynamic Pricing**: Uses LMSR (Logarithmic Market Scoring Rule) for fair pricing
-- **Spread Trading**: Maintains 1% spread around fair market price
+- **Spread Trading**: Maintains tight spreads around fair market price
 - **Automatic Rebalancing**: Continuously updates prices based on market activity
 
 ### Order Book Features
@@ -28,68 +28,6 @@ The Pariflow platform now features a sophisticated hybrid trading system that co
 - **Market Orders**: Execute immediately at best available price
 - **Order Matching**: Advanced matching engine with price-time priority
 - **Real-time Updates**: Live order book updates via WebSocket
-
-## Architecture
-
-### Database Schema
-
-```sql
--- Orders table for limit order management
-CREATE TABLE "Order" (
-    "id" TEXT PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "eventId" TEXT NOT NULL,
-    "side" TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
-    "option" TEXT NOT NULL CHECK (option IN ('YES', 'NO')),
-    "price" DOUBLE PRECISION NOT NULL CHECK (price >= 0.01 AND price <= 0.99),
-    "amount" DOUBLE PRECISION NOT NULL CHECK (amount > 0),
-    "amountFilled" DOUBLE PRECISION DEFAULT 0.0,
-    "status" TEXT DEFAULT 'open' CHECK (status IN ('open', 'partially_filled', 'filled', 'cancelled')),
-    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Trades table for transaction history
-CREATE TABLE "Trade" (
-    "id" TEXT PRIMARY KEY,
-    "eventId" TEXT NOT NULL,
-    "orderId" TEXT NOT NULL,
-    "makerOrderId" TEXT,
-    "makerUserId" TEXT,
-    "side" TEXT NOT NULL,
-    "option" TEXT NOT NULL,
-    "price" DOUBLE PRECISION NOT NULL,
-    "amount" DOUBLE PRECISION NOT NULL,
-    "isAmmTrade" BOOLEAN DEFAULT FALSE,
-    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- User balances for different token types
-CREATE TABLE "Balance" (
-    "id" TEXT PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "tokenSymbol" TEXT NOT NULL,  -- 'TUSD' for USD, 'YES_{eventId}'/'NO_{eventId}' for outcome tokens
-    "eventId" TEXT,
-    "amount" DOUBLE PRECISION DEFAULT 0.0,
-    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
-
-### Core Components
-
-1. **Hybrid Trading Engine** (`lib/hybrid-trading.ts`)
-   - Order matching logic
-   - AMM integration
-   - Balance management
-   - Real-time price calculations
-
-2. **WebSocket Server** (`lib/ws-server.ts`)
-   - Real-time updates
-   - Room-based subscriptions
-   - Event-driven architecture
-
-3. **API Endpoints**
-   - `POST /api/hybrid-trading` - Place orders
-   - `GET /api/hybrid-trading?eventId&option` - Get order book
 
 ## How It Works
 
@@ -102,7 +40,7 @@ CREATE TABLE "Balance" (
 
 2. **Smart Order Matching**
    - **Limit Orders**: First match against existing orders in order book
-   - **Market Orders**: Execute immediately against AMM
+   - **Market Orders**: Execute immediately against best available liquidity
    - **Unfilled Amounts**: Route remaining to AMM for instant execution
 
 3. **AMM Integration**
@@ -115,23 +53,23 @@ CREATE TABLE "Balance" (
    - Order book refreshes automatically
    - Price feeds update in real-time
 
-### AMM Bot Operation
+### Liquidity Provider Operation
 
-The AMM bot continuously:
+The liquidity provider continuously:
 1. **Monitors Market Activity**: Tracks trades and price changes
 2. **Updates Prices**: Recalculates fair value using LMSR
-3. **Places Orders**: Maintains buy/sell orders with 1% spread
-4. **Provides Liquidity**: Ensures traders can always execute
+3. **Maintains Liquidity**: Ensures traders can always execute
+4. **Manages Risk**: Balances positions across outcomes
 
 ## API Usage
 
-### Place Hybrid Order
+### Place Order
 
 ```javascript
 // Market Order
 POST /api/hybrid-trading
 {
-  "eventId": "bitcoin-100k-2025",
+  "eventId": "example-market-id",
   "side": "buy",
   "option": "YES", 
   "amount": 100,
@@ -141,11 +79,11 @@ POST /api/hybrid-trading
 // Limit Order
 POST /api/hybrid-trading
 {
-  "eventId": "bitcoin-100k-2025",
+  "eventId": "example-market-id",
   "side": "buy",
   "option": "YES",
   "amount": 100,
-  "price": 0.65,  // $0.65 per token
+  "price": 0.65,
   "orderType": "limit"
 }
 ```
@@ -153,8 +91,7 @@ POST /api/hybrid-trading
 ### Get Order Book
 
 ```javascript
-// Get YES tokens order book
-GET /api/hybrid-trading?eventId=bitcoin-100k-2025&option=YES
+GET /api/hybrid-trading?eventId=example-market-id&option=YES
 
 // Response
 {
@@ -174,8 +111,6 @@ GET /api/hybrid-trading?eventId=bitcoin-100k-2025&option=YES
 ### WebSocket Subscription
 
 ```javascript
-import { socket } from '@/lib/socket';
-
 // Subscribe to event updates
 socket.emit('join-event', eventId);
 
@@ -194,7 +129,7 @@ socket.on('orderbook-update', (data) => {
 
 ### Trading Panel
 
-The updated TradingPanel component includes:
+The TradingPanel component includes:
 - Order type selection (Market/Limit)
 - Real-time order book display
 - Price inputs for limit orders
@@ -210,8 +145,8 @@ The updated TradingPanel component includes:
 - **Transparency**: Real-time order book and price feeds
 
 ### For Liquidity Providers
-- **Passive Income**: AMM bot earns from spreads
-- **Risk Management**: Automated position sizing and hedging
+- **Passive Income**: Earn from spreads
+- **Risk Management**: Automated position sizing
 - **Fair Pricing**: LMSR ensures mathematically fair prices
 - **Market Making**: Continuous liquidity provision
 
@@ -224,23 +159,27 @@ The updated TradingPanel component includes:
 ## Technical Details
 
 ### LMSR Formula
+
+The Logarithmic Market Scoring Rule (LMSR) provides mathematically sound pricing:
+
 ```
 Price = 1 / (1 + e^((q_no - q_yes) / b))
 ```
+
 Where:
-- `q_yes` = Total YES tokens bought
-- `q_no` = Total NO tokens bought  
-- `b` = Liquidity parameter (higher = more stable prices)
+- `q_yes` = Quantity of YES outcome tokens
+- `q_no` = Quantity of NO outcome tokens  
+- `b` = Liquidity parameter (controls price sensitivity)
 
 ### Order Matching Priority
 1. **Price Priority**: Best prices first
 2. **Time Priority**: Earlier orders first
-3. **AMM Fallback**: Unfilled amounts execute against AMM
+3. **AMM Fallback**: Unfilled amounts execute against liquidity pool
 
 ### WebSocket Events
 - `trade-update`: New trade execution
 - `orderbook-update`: Order book changes
-- `odds-update`: AMM price changes
+- `odds-update`: Price changes
 - `portfolio-update`: User balance changes
 
 ## Getting Started
@@ -251,46 +190,19 @@ Where:
    ```
 
 2. **Access Application**:
-   - Next.js App: http://localhost:3000
-   - WebSocket Server: ws://localhost:3001
+   Navigate to any event page
 
 3. **Test Trading**:
-   - Visit any event page
    - Use the TradingPanel to place orders
-   - Watch real-time updates via WebSocket
-
-## Configuration
-
-### Environment Variables
-```bash
-# Database
-DATABASE_URL=postgresql://user:pass@host:port/db
-
-# WebSocket
-WEBSOCKET_PORT=3001
-CORS_ORIGIN=http://localhost:3000
-
-# AMM Bot Settings
-AMM_LIQUIDITY_USD=100000
-AMM_SPREAD=0.01
-AMM_ORDER_SIZE=10000
-```
-
-### AMM Parameters
-Adjust liquidity and spread in `lib/hybrid-trading.ts`:
-```typescript
-const AMM_LIQUIDITY_USD = 100000; // Total liquidity per market
-const AMM_SPREAD = 0.01;          // 1% spread around fair price
-const AMM_ORDER_SIZE = 10000;     // Order size for AMM bot
-```
+   - Watch real-time updates
 
 ## Future Enhancements
 
 - **Advanced Order Types**: Stop-loss, conditional orders
 - **Portfolio Management**: PnL tracking, position sizing
-- **Risk Management**: Position limits, margin requirements
-- **API Trading**: RESTful and WebSocket APIs for bots
-- **Cross-market Arbitrage**: Multi-event trading strategies
+- **Risk Management**: Position limits
+- **API Trading**: RESTful and WebSocket APIs for automated trading
+- **Cross-market Strategies**: Multi-event trading
 
 ---
 

@@ -13,8 +13,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Pariflow | Real-Life Market Forecasting",
-  description: "Bet on anything, pay with crypto.",
+  title: "Pariflow: Real-World Events Prediction Market",
+  description: "Predict real-world events on Pariflow, a transparent prediction market that aggregates market signals to forecast outcomes across politics, economics and more.",
   icons: {
     icon: '/favicon.ico',
   },

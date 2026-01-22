@@ -10,14 +10,14 @@ Pariflow is a production-grade prediction market platform built with modern tech
 ## Architecture Components
 
 ### Frontend
-- **Next.js 16**: React framework with server-side rendering
+- **Next.js**: React framework with server-side rendering
 - **TypeScript**: Type-safe development
 - **Tailwind CSS**: Utility-first styling
-- **WebSocket Client**: Real-time updates
+- **Real-time Updates**: WebSocket-powered live data
 
 ### Backend
-- **Next.js API Routes**: Serverless API endpoints
-- **PostgreSQL**: Primary database (via Prisma ORM)
+- **API Routes**: Serverless API endpoints
+- **PostgreSQL**: Primary database with ORM
 - **Redis**: Caching and pub/sub for real-time updates
 - **WebSocket Server**: Real-time communication
 
@@ -28,26 +28,25 @@ Pariflow is a production-grade prediction market platform built with modern tech
 - **Risk Management**: Automated hedging
 
 ### External Integrations
-- **Polymarket**: Hedging and market data
+- **Liquidity Providers**: External market hedging
 - **Blockchain**: Wallet connections and transactions
-- **Sports APIs**: Real-time sports data
 
 ## Data Flow
 
 ```
 User Browser
     ↓
-Next.js Frontend
+Frontend Application
     ↓
-API Routes (Next.js)
+API Layer
     ↓
 ┌─────────────────┐
-│  PostgreSQL     │ ← Primary data store
-│  Redis          │ ← Caching & pub/sub
+│  Database       │ ← Primary data store
+│  Cache          │ ← Performance optimization
 │  Trading Engine │ ← Order matching
 └─────────────────┘
     ↓
-External APIs (Polymarket, Sports)
+External Services
 ```
 
 ## Key Features
@@ -59,49 +58,46 @@ External APIs (Polymarket, Sports)
 
 ### Real-time Updates
 - WebSocket for live prices
-- Redis pub/sub for scalability
+- Pub/sub for scalability
 - Event-driven architecture
 
 ### Risk Management
-- Automated hedging with Polymarket
+- Automated hedging with external liquidity
 - Order splitting for large trades
 - Exposure monitoring and alerts
 
-## Database Schema
-
-### Core Tables
+## Core Data Models
 
 - **Event**: Market events and outcomes
 - **Order**: Limit orders in order book
 - **Trade**: Executed trades
 - **User**: User accounts and profiles
 - **Balance**: User token balances
-- **HedgePosition**: Hedging records
 
-See [Database Schema](/architecture/database) for detailed schema documentation.
+See [Database Architecture](/architecture/database) for more details.
 
 ## Security
 
-- **API Authentication**: API key-based authentication
+- **API Authentication**: Secure authentication mechanisms
 - **CSRF Protection**: Cross-site request forgery protection
 - **Rate Limiting**: Per-endpoint rate limits
-- **Input Validation**: Zod schema validation
-- **SQL Injection Prevention**: Prisma ORM parameterized queries
+- **Input Validation**: Schema validation
+- **SQL Injection Prevention**: Parameterized queries
 
 ## Scalability
 
 - **Serverless Architecture**: Auto-scaling API routes
-- **Redis Pub/Sub**: Handles thousands of concurrent connections
-- **Database Indexing**: Optimized queries
-- **Caching**: Redis for frequently accessed data
+- **Pub/Sub**: Handles concurrent connections
+- **Database Optimization**: Indexed queries
+- **Caching**: Frequently accessed data
 
 ## Monitoring
 
-- **Health Checks**: `/api/health` endpoint
-- **Error Tracking**: Sentry integration
-- **Analytics**: Vercel Analytics
+- **Health Checks**: System status endpoint
+- **Error Tracking**: Integrated monitoring
+- **Analytics**: Usage analytics
 - **Logging**: Structured logging
 
 ---
 
-Next: [Database Schema](/architecture/database) or [Polymarket Integration](/architecture/polymarket-integration)
+Next: [Database Architecture](/architecture/database)

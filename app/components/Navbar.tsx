@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
-import { Wallet } from 'lucide-react';
+import { Wallet, Trophy } from 'lucide-react';
 import { authClient, useSession, signOut } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
@@ -251,6 +251,10 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                             <div className="py-2 px-2">
                                                 <Link href="/profile" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
                                                     Profile
+                                                </Link>
+                                                <Link href="/leaderboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                    <Trophy className="w-4 h-4" />
+                                                    Leaderboard
                                                 </Link>
                                                 <Link href="/settings" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
                                                     Settings

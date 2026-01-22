@@ -1,11 +1,11 @@
 ---
 title: Setup & Configuration
-description: Complete setup guide for Pariflow administrators
+description: Getting started with Pariflow administration
 ---
 
 # Setup & Configuration
 
-Complete guide for setting up and configuring the Pariflow platform.
+This guide covers the basic setup for running Pariflow locally for development.
 
 ## Prerequisites
 
@@ -24,25 +24,13 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory with the required configuration. Contact your team administrator for the specific values needed.
 
-```bash
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/pariflow
-
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
-
-# Next.js
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-secret-key
-
-# Polymarket (for hedging)
-POLYMARKET_CLOB_API_URL=https://clob.polymarket.com
-POLYMARKET_API_KEY=your-api-key
-MASTER_WALLET_PRIVATE_KEY=0xYourPrivateKey
-POLYMARKET_CHAIN_ID=137
-```
+Required environment variables:
+- Database connection string
+- Redis connection (optional)
+- Authentication secrets
+- Third-party API credentials (if using external integrations)
 
 ### 3. Database Setup
 
@@ -78,19 +66,9 @@ Redis is used for:
 - Pub/sub for real-time updates
 - Rate limiting
 
-Configure in `lib/redis.ts`:
-
-```typescript
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-```
-
 ### WebSocket Configuration
 
-WebSocket server runs on port 3001 by default. Configure in `lib/ws-server.ts`:
-
-```typescript
-const WS_PORT = process.env.WEBSOCKET_PORT || 3001;
-```
+WebSocket server runs on a configurable port for real-time updates.
 
 ## Feature Setup
 
@@ -98,28 +76,18 @@ const WS_PORT = process.env.WEBSOCKET_PORT || 3001;
 
 See [Hedging System Guide](/admin/hedging) for complete hedging setup.
 
-### Enable Sports Integration
-
-1. Configure sports API credentials
-2. Set up WebSocket connection
-3. Enable sports markets in admin panel
-
-See [Sports Setup Guide](/admin/sports) for details.
-
 ### Enable Telegram Bot
 
 1. Create Telegram bot via BotFather
 2. Configure webhook URL
 3. Set up notification handlers
 
-See [Telegram Bot Setup](/admin/telegram) for details.
-
 ## Production Deployment
 
 ### Vercel Deployment
 
 1. Connect repository to Vercel
-2. Configure environment variables
+2. Configure environment variables in Vercel dashboard
 3. Deploy
 
 ### Custom Server
@@ -140,29 +108,25 @@ See [Telegram Bot Setup](/admin/telegram) for details.
 
 ### Health Checks
 
-Monitor system health at `/api/health`:
-
-```bash
-curl http://localhost:3000/api/health
-```
+Monitor system health at `/api/health` endpoint.
 
 ### Logging
 
 - Application logs: Check server logs
-- Error tracking: Sentry integration
+- Error tracking: Integrated monitoring
 - Analytics: Vercel Analytics
 
 ## Troubleshooting
 
 ### Database Connection Issues
 
-- Verify `DATABASE_URL` is correct
+- Verify database URL is correct
 - Check PostgreSQL is running
 - Verify network connectivity
 
 ### Redis Connection Issues
 
-- Verify `REDIS_URL` is correct
+- Verify Redis URL is correct
 - Check Redis is running
 - System works without Redis (degraded mode)
 
@@ -175,7 +139,6 @@ curl http://localhost:3000/api/health
 ## Next Steps
 
 - [Hedging System Setup](/admin/hedging)
-- [Deployment Guide](/admin/deployment)
 - [Architecture Documentation](/architecture/overview)
 
 ---

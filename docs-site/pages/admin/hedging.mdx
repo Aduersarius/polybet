@@ -1,15 +1,13 @@
 ---
 title: Hedging System
-description: Complete guide to the automated hedging system
+description: Overview of the automated hedging system
 ---
 
 # Hedging Dashboard - Admin Panel Guide
 
 ## Quick Access
 
-**URL:** `http://localhost:3000/admin?view=hedging`
-
-Or navigate from Admin Panel → Click "Hedging" in the sidebar
+Navigate from Admin Panel → Click "Hedging" in the sidebar
 
 ## What You'll See
 
@@ -17,110 +15,56 @@ Or navigate from Admin Panel → Click "Hedging" in the sidebar
 
 The dashboard shows:
 - **System Status**: Healthy, Disabled, Disconnected, or High Exposure
-- **Connection Status**: Connected to Polymarket or Disconnected
+- **Connection Status**: Connected to external liquidity or Disconnected
 - **Real-time Metrics**: Success rate, profit, exposure
 
-## About Credentials & Private Keys
+## How Hedging Works
 
-### How Hedging Works
+When users place orders on Pariflow, the system can automatically hedge these positions on external liquidity providers. This ensures:
 
-```
-Your Platform           Polymarket
-     ↓                      ↓
-User places order    →  System needs to place
-at price X              opposite order at price Y
-     ↓                      ↓
-You accept          →  Sign transaction with
-                        YOUR private key
-     ↓                      ↓
-Order filled        →  Hedge executed
-                        on Polymarket
-```
-
-### What You Need
-
-1. **Polymarket Account**
-   - Contact: hello@polymarket.com
-   - Request: API trading access
-   - Use case: "Market making / Order book aggregator"
-
-2. **Proxy Wallet**
-   - Smart contract wallet for automated trading
-   - Polymarket will help you set this up
-   - You fund it with USDC
-
-3. **Private Key**
-   - This is the KEY to your proxy wallet
-   - Used to sign blockchain transactions
-   - **MUST BE KEPT SECRET**
-
-4. **API Key**
-   - Authentication for Polymarket's API
-   - Less sensitive than private key
-   - Rate limited per account
-
-### Where Keys Are Stored
-
-```bash
-# .env file (NEVER commit to git!)
-MASTER_WALLET_PRIVATE_KEY=0x1234567890abcdef...  # Your wallet's private key
-POLYMARKET_API_KEY=abc123def456...             # API authentication
-```
-
-**Security:**
-- Keys stored only in `.env` on your server
-- Never sent to frontend
-- Used only by backend to sign transactions
-- Git ignores `.env` file (already configured)
+1. **Risk Management**: Platform exposure is minimized
+2. **Price Discovery**: Prices reflect broader market sentiment
+3. **Liquidity**: Users get better execution on larger orders
 
 ## Dashboard Features
 
 ### 1. System Health Banner
 
 Shows current status:
-- **Healthy** - All systems go
-- **Disabled** - Hedging turned off (default)
-- **High Exposure** - Too many unhedged positions
-- **Disconnected** - Credentials not configured
-
-**Actions:**
-- Enable/Disable hedging with one click
-- Updates configuration in real-time
+- **Healthy** - All systems operational
+- **Disabled** - Hedging turned off
+- **High Exposure** - Approaching position limits
+- **Disconnected** - External connection unavailable
 
 ### 2. Main Metrics Cards
 
 **Success Rate**
 - Percentage of successful hedges
 - Target: >95%
-- Shows successful/total hedge count
 
 **Net Profit**
 - Total profit after fees
-- Includes profit margin percentage
-- Updates in real-time
+- Includes margin percentage
 
 **Unhedged Exposure**
 - USD value of positions without hedges
-- Number of open unhedged positions
-- Alert if >80% of limit
+- Alert if approaching limits
 
 **Avg Hedge Time**
 - How long hedges take to execute
 - Target: <5 seconds
-- Indicates API performance
 
 ### 3. Profit Breakdown
 - Spread captured (revenue)
-- Polymarket fees (cost)
+- External fees (cost)
 - Net profit (after fees)
 
 ### 4. Configuration Panel
 Shows current settings:
 - Hedging enabled/disabled
-- Min spread (e.g., 2%)
-- Max slippage tolerance
-- Max position size
-- Max unhedged exposure limit
+- Minimum spread requirements
+- Maximum position sizes
+- Exposure limits
 
 ### 5. Top Markets
 - Markets with most hedge volume
@@ -132,58 +76,22 @@ Debug panel showing:
 - Why hedges failed
 - Order details
 - Timestamps
-- Amounts
 
 ## Getting Started
 
-### Step 1: Get Credentials (External)
+### Step 1: Obtain Access
 
-Contact Polymarket:
-```
-To: hello@polymarket.com
-Subject: API Trading Access Request
+Contact your platform administrator to:
+1. Request external API access credentials
+2. Set up required wallet infrastructure
+3. Configure environment variables
 
-Hi,
+### Step 2: Enable Hedging
 
-I'm building a prediction market aggregator and would like 
-API trading access to hedge user orders on your platform.
-
-Our platform: [Your URL]
-Expected volume: [Estimate]
-Use case: Market making / Order aggregation
-
-Please let me know the process for getting API credentials 
-and setting up a proxy wallet.
-
-Thanks!
-```
-
-### Step 2: Add to .env
-
-Once you have credentials:
-```bash
-# Add to your .env file
-POLYMARKET_CLOB_API_URL=https://clob.polymarket.com
-POLYMARKET_API_KEY=your_api_key_from_polymarket
-MASTER_WALLET_PRIVATE_KEY=0xYourPrivateKeyHere
-POLYMARKET_CHAIN_ID=137  # Polygon mainnet
-```
-
-### Step 3: Run Initialization
-
-```bash
-npx tsx scripts/init-hedging.ts
-```
-
-Should show:
-- ✓ All keys set
-- ✓ Connection successful
-
-### Step 4: Enable Hedging
-
-1. Open admin panel: `http://localhost:3000/admin?view=hedging`
-2. Click "Enable Hedging" button
-3. System will start auto-hedging user orders
+1. Open admin panel
+2. Navigate to Hedging section
+3. Click "Enable Hedging" button
+4. Monitor the dashboard for successful operation
 
 ## Monitoring
 
@@ -191,41 +99,41 @@ Should show:
 
 - **Success Rate**: Should be >95%
 - **Net Profit**: Should be positive after fees
-- **Unhedged Exposure**: Keep below limits
+- **Unhedged Exposure**: Keep below configured limits
 - **Avg Hedge Time**: Should be <5 seconds
 
 ### Alerts
 
 The system will alert you if:
-- Success rate drops below 90%
-- Unhedged exposure exceeds 80% of limit
-- Connection to Polymarket is lost
-- Average hedge time exceeds 10 seconds
+- Success rate drops below threshold
+- Unhedged exposure exceeds limits
+- External connection is lost
+- Performance degrades
 
 ## Troubleshooting
 
 ### "Disconnected" Status
 
 **Causes:**
-- Missing or incorrect API keys in `.env`
+- Missing or incorrect credentials
 - Network connectivity issues
-- Polymarket API downtime
+- External API downtime
 
 **Solutions:**
-1. Check `.env` file has all required keys
-2. Restart server after adding keys
-3. Test connection: `npx tsx scripts/init-hedging.ts`
+1. Verify all required environment variables are set
+2. Restart the server
+3. Check external service status
 
 ### Low Success Rate
 
 **Causes:**
-- Insufficient liquidity on Polymarket
-- Slippage too high
-- API rate limiting
+- Insufficient external liquidity
+- Price slippage too high
+- Rate limiting
 
 **Solutions:**
-1. Check market liquidity before hedging
-2. Adjust min spread settings
+1. Check market liquidity
+2. Adjust spread settings
 3. Enable order splitting for large orders
 
 ### High Unhedged Exposure
@@ -237,39 +145,17 @@ The system will alert you if:
 
 **Solutions:**
 1. Enable hedging if disabled
-2. Check why hedges are failing
-3. Consider manual hedging for large positions
-
-## Configuration
-
-### Adjust Settings via API
-
-```bash
-# Update min spread
-curl -X POST http://localhost:3000/api/hedge/config \
-  -H "Content-Type: application/json" \
-  -d '{"key": "minSpreadBps", "value": 250}'
-
-# Update max exposure
-curl -X POST http://localhost:3000/api/hedge/config \
-  -H "Content-Type: application/json" \
-  -d '{"key": "maxUnhedgedExposure", "value": 10000}'
-```
-
-### View Current Config
-
-```bash
-curl http://localhost:3000/api/hedge/config
-```
+2. Investigate failure reasons
+3. Consider manual intervention for large positions
 
 ## Best Practices
 
-1. **Start Conservative**: Begin with higher min spread
-2. **Monitor Closely**: Watch metrics for first few days
-3. **Adjust Gradually**: Make small config changes
-4. **Keep Keys Secure**: Never commit `.env` to git
-5. **Test First**: Use testnet when available
+1. **Start Conservative**: Begin with higher minimum spreads
+2. **Monitor Closely**: Watch metrics during initial operation
+3. **Adjust Gradually**: Make small configuration changes
+4. **Secure Credentials**: Follow security best practices for all secrets
+5. **Test First**: Verify configuration before enabling in production
 
 ---
 
-For more details, see the [Hedging Implementation Summary](/admin/hedging-implementation) or [Order Splitting Guide](/guides/order-splitting).
+For more details, contact your platform administrator.

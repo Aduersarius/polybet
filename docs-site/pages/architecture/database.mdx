@@ -1,228 +1,95 @@
 ---
-title: Database Schema
-description: Complete database schema documentation
+title: Database Architecture
+description: Overview of the database design
 ---
 
-# Database Schema
+# Database Architecture
 
-Complete documentation of the Pariflow database schema.
+Overview of Pariflow's database design and data model.
 
-## Core Tables
+## Database Technology
 
-### Event
+Pariflow uses PostgreSQL as its primary database, with Prisma ORM for type-safe database access.
 
-Market events and outcomes.
+## Core Data Models
 
-```prisma
-model Event {
-  id                String   @id @default(cuid())
-  title             String
-  description       String?
-  categoryId        String?
-  imageUrl          String?
-  endDate           DateTime
-  resolved          Boolean  @default(false)
-  resolution        String?
-  qYes              Float    @default(0)
-  qNo               Float    @default(0)
-  liquidityParameter Float   @default(100000)
-  yesOdds           Float?
-  noOdds            Float?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-```
+### Events
 
-### Order
+Market events represent prediction markets. Each event has:
+- Title and description
+- Category classification
+- Resolution date
+- Pricing parameters
+- Current odds/probabilities
 
-Limit orders in the order book.
+### Orders
 
-```prisma
-model Order {
-  id            String    @id @default(cuid())
-  userId        String
-  eventId       String
-  outcomeId     String?
-  option        String?
-  side          String    // 'buy' or 'sell'
-  price         Float
-  amount        Float
-  amountFilled  Float     @default(0.0)
-  status        String    @default("open")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-```
+The order book system tracks:
+- User orders (buy/sell)
+- Price and amount
+- Fill status
+- Order type (market/limit)
 
-### Trade
+### Trades
 
-Executed trades.
+Executed trades are recorded with:
+- Event reference
+- Execution price and amount
+- Timestamp
+- Counterparty information
 
-```prisma
-model Trade {
-  id               String    @id @default(cuid())
-  eventId          String
-  orderId          String
-  makerOrderId     String?
-  makerUserId      String?
-  outcomeId        String?
-  option           String?
-  side             String
-  price            Float
-  amount           Float
-  isAmmTrade       Boolean  @default(false)
-  createdAt        DateTime  @default(now())
-}
-```
+### Users
 
-### User
+User accounts include:
+- Authentication credentials
+- Profile information
+- Account settings
 
-User accounts and profiles.
+### Balances
 
-```prisma
-model User {
-  id            String   @id @default(cuid())
-  address       String   @unique
-  email         String
-  username      String?
-  avatarUrl     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-```
+User balances are tracked for:
+- Platform currency (USD equivalent)
+- Outcome tokens per event
 
-### Balance
+## Key Relationships
 
-User token balances.
+- **Events** have multiple **Orders** and **Trades**
+- **Users** have multiple **Orders**, **Trades**, and **Balances**
+- **Orders** can result in multiple **Trades**
 
-```prisma
-model Balance {
-  id            String   @id @default(cuid())
-  userId        String
-  tokenSymbol   String
-  eventId       String?
-  amount        Float    @default(0.0)
-  updatedAt     DateTime @updatedAt
-}
-```
+## Data Integrity
 
-## Hedging Tables
+The database enforces:
+- Referential integrity via foreign keys
+- Balance consistency via transactions
+- Audit trails for financial operations
 
-### HedgePosition
+## Performance Optimization
 
-Hedging records and status.
-
-```prisma
-model HedgePosition {
-  id                String   @id @default(cuid())
-  orderId           String
-  eventId           String
-  status            String
-  userPrice         Float
-  hedgePrice        Float
-  amount            Float
-  spreadCaptured    Float
-  polymarketFees    Float
-  gasCost           Float
-  netProfit         Float
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-```
-
-### PolymarketMarketMapping
-
-Maps internal events to Polymarket markets.
-
-```prisma
-model PolymarketMarketMapping {
-  id                    String   @id @default(cuid())
-  internalEventId       String
-  polymarketId          String
-  polymarketConditionId String
-  polymarketTokenId     String
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-}
-```
-
-## Relationships
-
-### Event Relationships
-- Event → Orders (one-to-many)
-- Event → Trades (one-to-many)
-- Event → Outcomes (one-to-many)
-
-### User Relationships
-- User → Orders (one-to-many)
-- User → Trades (one-to-many)
-- User → Balances (one-to-many)
-
-### Order Relationships
-- Order → Trades (one-to-many)
-- Order → HedgePosition (one-to-one)
-
-## Indexes
-
-Key indexes for performance:
-
-```sql
--- Event lookups
-CREATE INDEX idx_event_category ON "Event"("categoryId");
-CREATE INDEX idx_event_resolved ON "Event"("resolved");
-
--- Order matching
-CREATE INDEX idx_order_event_side ON "Order"("eventId", "side", "status");
-CREATE INDEX idx_order_price ON "Order"("price", "side");
-
--- Trade queries
-CREATE INDEX idx_trade_event_time ON "Trade"("eventId", "createdAt");
-CREATE INDEX idx_trade_user ON "Trade"("makerUserId", "createdAt");
-
--- Balance lookups
-CREATE INDEX idx_balance_user ON "Balance"("userId", "tokenSymbol");
-```
-
-## Data Types
-
-### Prices
-- Stored as `DOUBLE PRECISION`
-- Range: 0.01 to 0.99
-- Represents probability (0.01 = 1%, 0.99 = 99%)
-
-### Amounts
-- Stored as `DOUBLE PRECISION`
-- Represents USD value or token quantity
-- Precision: 2 decimal places for USD, 8 for tokens
-
-### Timestamps
-- Stored as `TIMESTAMP WITH TIME ZONE`
-- All times in UTC
-- Indexed for time-range queries
+Key optimizations include:
+- Strategic indexing on frequently queried columns
+- Connection pooling for concurrent access
+- Query optimization for real-time data
 
 ## Migrations
 
-Database migrations are managed with Prisma:
+Database schema changes are managed through Prisma migrations:
 
 ```bash
-# Create migration
-npx prisma migrate dev --name migration_name
+# Create a new migration
+npx prisma migrate dev --name description
 
-# Apply migrations
+# Apply migrations in production
 npx prisma migrate deploy
-
-# Generate Prisma Client
-npx prisma generate
 ```
 
 ## Best Practices
 
-1. **Use Transactions**: For multi-table operations
-2. **Index Queries**: Add indexes for frequent queries
-3. **Validate Input**: Use Prisma schema validation
-4. **Monitor Performance**: Track slow queries
-5. **Backup Regularly**: Automated daily backups
+1. **Use Transactions**: For operations spanning multiple tables
+2. **Validate Input**: Leverage Prisma's built-in validation
+3. **Monitor Performance**: Track slow queries
+4. **Backup Regularly**: Automated backup strategy
 
 ---
 
-For more details, see [System Overview](/architecture/overview) or [Polymarket Integration](/architecture/polymarket-integration).
+For more details, see [System Overview](/architecture/overview).

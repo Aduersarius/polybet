@@ -58,7 +58,7 @@ export function Footer() {
                             <a href="https://discord.gg/zdm8sVgg" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discord</a>
                         </div>
                         <div className="text-[10px] text-gray-500 text-center">
-                            © 2025 Pariflow. All rights reserved.
+                            © 2026 Pariflow. All rights reserved.
                         </div>
                     </div>
                 </div>
