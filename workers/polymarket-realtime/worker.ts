@@ -1,5 +1,7 @@
 import { PolymarketWebSocketClient } from '../../lib/polymarket-ws';
 
+// v1.0.1 - Redis TLS fix for REDIS_ALLOW_SELF_SIGNED priority
+
 /**
  * STRIPPED-DOWN POLYMARKET REAL-TIME WORKER
  * 
