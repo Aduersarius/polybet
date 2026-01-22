@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { dbQueryCounter, dbQueryHistogram } from './metrics';
 
-import { env, isProd } from './env';
+import { env, isProd, isDev } from './env';
 
 // Prisma Client Singleton - v4 (Prisma 7 Adapter Edition)
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient; pool: Pool; hasLogged: boolean };
@@ -35,10 +35,15 @@ function createPrismaClient() {
 
     const pool = new Pool({
         connectionString: dbUrl,
-        max: isProd ? 10 : 2, // Keep it low for dev/PgCat stability
-        idleTimeoutMillis: 30000,
+        max: isProd ? 10 : 5, // Increased for Next.js 16 Turbopack hot-reloads
+        idleTimeoutMillis: 10000, // Faster cleanup in dev
         connectionTimeoutMillis: 5000,
         ssl: sslConfig,
+        // Aggressively clean up connections in dev to prevent exhaustion
+        ...(isDev && {
+            allowExitOnIdle: false,
+            maxUses: 7500, // Recycle connections after many queries
+        }),
     });
 
     // Handle pool errors to prevent process crash
