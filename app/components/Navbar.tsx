@@ -102,8 +102,17 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [showOnboarding, setShowOnboarding] = useState(false);
     const { startTour } = useCustomTour();
     const [isMounted, setIsMounted] = useState(false);
+    const [bannerVisible, setBannerVisible] = useState(false);
     const { data: balanceData, refetch: refetchBalance } = useBalance();
     const balance = balanceData ?? 0;
+
+    // Check if launch banner is visible (not dismissed)
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const dismissed = localStorage.getItem('launchBannerDismissed');
+            setBannerVisible(dismissed !== 'true');
+        }
+    }, []);
 
     const categories: Category[] = [
         { id: 'ALL', label: 'All' },
@@ -171,7 +180,13 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
             {/* Extended background for navbar overscroll */}
             <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/40 backdrop-blur-xl backdrop-saturate-150 pointer-events-none -z-10" />
 
-            <nav className="border-b border-blue-400/10 bg-black/40 backdrop-blur-xl backdrop-saturate-150 fixed top-0 left-0 right-0 z-50 shadow-[0_4px_24px_rgba(0,0,0,0.3)]" style={{ boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.4), 0 4px 24px rgba(0, 0, 0, 0.3)' }}>
+            <nav 
+                className="border-b border-blue-400/10 bg-black/40 backdrop-blur-xl backdrop-saturate-150 fixed left-0 right-0 z-[90] shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition-all duration-300" 
+                style={{ 
+                    top: bannerVisible ? '72px' : '0',
+                    boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.4), 0 4px 24px rgba(0, 0, 0, 0.3)' 
+                }}
+            >
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10">
                     <div className="flex items-center justify-between h-18 gap-6">
                         {/* Logo */}
