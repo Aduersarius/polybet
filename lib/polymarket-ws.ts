@@ -28,6 +28,13 @@ export interface PolymarketWSClientOptions {
   autoUpdateDb?: boolean;
 }
 
+// Circuit breaker states for resilience
+enum CircuitState {
+  CLOSED = 'CLOSED',        // Normal operation
+  OPEN = 'OPEN',            // Too many failures, stop trying
+  HALF_OPEN = 'HALF_OPEN'   // Testing if service recovered
+}
+
 export class PolymarketWebSocketClient {
   private ws: WebSocket | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
@@ -37,6 +44,14 @@ export class PolymarketWebSocketClient {
   private isConnected = false;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private options: PolymarketWSClientOptions;
+
+  // Circuit breaker for resilience
+  private circuitState: CircuitState = CircuitState.CLOSED;
+  private failureCount = 0;
+  private lastFailureTime = 0;
+  private readonly FAILURE_THRESHOLD = 5;      // Open after 5 failures
+  private readonly RESET_TIMEOUT = 60000;      // Retry after 60s
+  private readonly HALF_OPEN_TIMEOUT = 10000;  // Test timeout
 
   // Performance cache: asset_id -> Mapping with Event & Outcomes
   private mappingCache: Map<string, any> = new Map();
@@ -48,6 +63,21 @@ export class PolymarketWebSocketClient {
   }
 
   private connect() {
+    // ============================================================================
+    // CIRCUIT BREAKER: Check before connecting
+    // ============================================================================
+    if (this.circuitState === CircuitState.OPEN) {
+      const timeSinceFailure = Date.now() - this.lastFailureTime;
+      if (timeSinceFailure > this.RESET_TIMEOUT) {
+        console.log('[Polymarket WS] Circuit HALF_OPEN - testing connection');
+        this.circuitState = CircuitState.HALF_OPEN;
+      } else {
+        const retryIn = Math.ceil((this.RESET_TIMEOUT - timeSinceFailure) / 1000);
+        console.warn(`[Polymarket WS] ⚠️ Circuit OPEN - skipping reconnect (retry in ${retryIn}s)`);
+        return;
+      }
+    }
+
     try {
       console.log('[Polymarket WS] Connecting... 🔌');
       this.ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com');
@@ -56,6 +86,9 @@ export class PolymarketWebSocketClient {
         console.log('[Polymarket WS] ✅ Connected!');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        // Reset circuit breaker on successful connection
+        this.failureCount = 0;
+        this.circuitState = CircuitState.CLOSED;
         this.startHeartbeat();
         this.resubscribeToMarkets();
       });
@@ -66,17 +99,41 @@ export class PolymarketWebSocketClient {
 
       this.ws.on('error', (error) => {
         console.error('[Polymarket WS] Error:', error.message);
+        this.handleFailure();
       });
 
       this.ws.on('close', () => {
         console.log('[Polymarket WS] 🔌 Disconnected');
         this.isConnected = false;
         this.stopHeartbeat();
-        this.attemptReconnect();
+        this.handleFailure();
       });
-
     } catch (error) {
       console.error('[Polymarket WS] Failed to connect:', error);
+      this.handleFailure();
+    }
+  }
+
+  private handleFailure() {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failureCount >= this.FAILURE_THRESHOLD) {
+      this.circuitState = CircuitState.OPEN;
+      console.error(`[Polymarket WS] ⚠️ CIRCUIT BREAKER OPEN - ${this.failureCount} consecutive failures`);
+      console.error(`[Polymarket WS] Will retry in ${this.RESET_TIMEOUT / 1000}s`);
+      console.error('[Polymarket WS] 🚨 ALERT: Real-time odds updates are DOWN');
+      // TODO: Send alert to monitoring (Slack/email/Sentry)
+
+      // Schedule retry after reset timeout
+      setTimeout(() => {
+        if (this.circuitState === CircuitState.OPEN) {
+          console.log('[Polymarket WS] Attempting recovery from circuit breaker...');
+          this.connect();
+        }
+      }, this.RESET_TIMEOUT);
+    } else {
+      // Still have attempts left, try reconnecting
       this.attemptReconnect();
     }
   }

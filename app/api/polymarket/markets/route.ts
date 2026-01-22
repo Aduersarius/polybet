@@ -1,5 +1,7 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
+import { normalizeProbability } from '@/lib/polymarket-normalization';
+import { gammaRateLimiter, logError } from '@/lib/rate-limiter';
 
 type PolymarketOutcome = {
     id?: string;
@@ -101,19 +103,9 @@ function normalizeOutcomePrices(raw: PolymarketMarket['outcomePrices']): number[
     return [];
 }
 
-function normalizeProbValue(raw: unknown, fallback: number | undefined = 0.5): number | undefined {
-    if (raw == null) return fallback;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return fallback;
-    // Handle inputs expressed as percentages (0–100)
-    if (n > 1 && n <= 100) return n / 100;
-    // Anything > 100 is almost certainly NOT a probability (e.g. strike levels like 120000),
-    // so treat it as invalid and return undefined (caller should handle fallback)
-    if (n > 100) return undefined;
-    if (n < 0) return 0;
-    if (n > 1) return 1;
-    return n;
-}
+// Use centralized normalization from lib/polymarket-normalization.ts
+// Removed duplicate: normalizeProbValue, clamp01, probFromValue
+// These are now imported as normalizeProbability from the centralized library
 
 function normalizeMarkets(raw: PolymarketEvent['markets']): PolymarketMarket[] {
     if (Array.isArray(raw)) return raw;
@@ -136,12 +128,7 @@ function clamp01(n: number) {
 }
 
 function probFromValue(raw: unknown, fallback = 0.5) {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return fallback;
-    if (n > 1 && n <= 100) return clamp01(n / 100);
-    // Guard: huge numbers are not probabilities; fall back instead of clamping to 1.
-    if (n > 100) return clamp01(fallback);
-    return clamp01(n);
+    return normalizeProbability(raw, fallback) ?? fallback;
 }
 
 function bestVolume(market: PolymarketMarket, parent?: PolymarketEvent) {
@@ -374,7 +361,7 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
         const validProbabilities: number[] = [];
         for (let idx = 0; idx < outcomeCount; idx++) {
             const rawPrice = prices[idx] ?? outs[idx]?.price ?? outs[idx]?.probability;
-            const prob = normalizeProbValue(rawPrice, undefined);
+            const prob = normalizeProbability(rawPrice, undefined);
             if (prob !== undefined) {
                 validProbabilities.push(prob);
             }
@@ -390,8 +377,8 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
                 // Try multiple sources for probability
                 const rawPrice = prices[idx] ?? outs[idx]?.price ?? outs[idx]?.probability;
 
-                // Use normalizeProbValue which rejects values > 100 (strike levels)
-                let probability = normalizeProbValue(rawPrice, fallbackProb);
+                // Use normalizeProbability which rejects values > 100 (strike levels)
+                let probability = normalizeProbability(rawPrice, fallbackProb);
                 // If we got undefined (invalid value > 100), use fallback only if we have no valid probs
                 if (probability === undefined) {
                     // Only use fallback if we truly have no valid probabilities
@@ -448,7 +435,7 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
     return {
         ...base,
         outcomes: outs.slice(0, 5).map((o, idx) => {
-            const normalizedProb = normalizeProbValue(
+            const normalizedProb = normalizeProbability(
                 o.price ?? (prices[idx] != null ? prices[idx] : undefined),
                 0.5
             );
@@ -466,6 +453,9 @@ function toDbEvent(market: PolymarketMarket, parent?: PolymarketEvent) {
 }
 
 async function fetchEvents(params: Record<string, string>) {
+    // Rate limit to prevent hitting Polymarket API limits
+    await gammaRateLimiter.removeToken();
+
     const search = new URLSearchParams(params);
     const upstream = await fetch(`https://gamma-api.polymarket.com/events?${search.toString()}`, {
         cache: 'no-store',
@@ -475,7 +465,7 @@ async function fetchEvents(params: Record<string, string>) {
         }
     });
     if (!upstream.ok) {
-        console.error('Polymarket upstream not ok', upstream.status);
+        logError('gamma-api-fetch', new Error(`Gamma API returned ${upstream.status}`), { params });
         return [];
     }
     const text = await upstream.text();
@@ -628,7 +618,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const requestedLimit = Number(searchParams.get('limit'));
         const idParam = searchParams.get('id') || undefined;
-        const autoCreateMappings = searchParams.get('automap') === 'true'; // Disabled by default
+        // AUTO-MAPPING REMOVED: simplify to manual approval only via /intake route
         const nowIso = new Date().toISOString();
         const targetCount = Math.min(
             Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_LIMIT),
@@ -667,81 +657,8 @@ export async function GET(request: Request) {
             .sort((a, b) => (b.volume || 0) - (a.volume || 0))
             .slice(0, targetCount);
 
-        // Auto-create Polymarket market mappings for hedging (explicit opt-in only)
-        if (autoCreateMappings) {
-            // Fire and forget - don't block the response!
-            (async () => {
-                try {
-                    const { prisma } = await import('@/lib/prisma');
-
-                    // Batch check existing mappings (much faster than one-by-one)
-                    const eventIds = topByVolume.map(e => e.id);
-                    const existingMappings = await prisma.polymarketMarketMapping.findMany({
-                        where: { internalEventId: { in: eventIds } },
-                        select: { internalEventId: true, lastSyncedAt: true, id: true }
-                    });
-
-                    const existingMap = new Map(existingMappings.map((m: any) => [m.internalEventId, m]));
-                    const toCreate: any[] = [];
-                    const toUpdate: any[] = [];
-                    const oneHourAgo = Date.now() - 3600000;
-
-                    for (const event of topByVolume) {
-                        const existing: any = existingMap.get(event.id);
-
-                        if (!existing) {
-                            // New mapping needed
-                            toCreate.push({
-                                internalEventId: event.id,
-                                polymarketId: event.id,
-                                polymarketConditionId: null,
-                                polymarketTokenId: null,
-                                isActive: true,
-                                lastSyncedAt: new Date(),
-                                outcomeMapping: event.outcomes ? {
-                                    outcomes: event.outcomes.map((o: any) => ({
-                                        internalId: o.id,
-                                        polymarketId: o.id,
-                                        name: o.name,
-                                    }))
-                                } : null,
-                            });
-                        } else if (!existing.lastSyncedAt || existing.lastSyncedAt.getTime() < oneHourAgo) {
-                            // Stale mapping - update
-                            toUpdate.push({
-                                id: existing.id,
-                                lastSyncedAt: new Date(),
-                                isActive: true,
-                            });
-                        }
-                    }
-
-                    // Batch insert new mappings
-                    if (toCreate.length > 0) {
-                        await prisma.polymarketMarketMapping.createMany({
-                            data: toCreate,
-                            skipDuplicates: true,
-                        });
-                        console.log(`[Polymarket] Created ${toCreate.length} mappings`);
-                    }
-
-                    // Batch update stale mappings (if needed)
-                    if (toUpdate.length > 0) {
-                        await Promise.all(
-                            toUpdate.map(u =>
-                                prisma.polymarketMarketMapping.update({
-                                    where: { id: u.id },
-                                    data: { lastSyncedAt: u.lastSyncedAt, isActive: u.isActive },
-                                })
-                            )
-                        );
-                        console.log(`[Polymarket] Updated ${toUpdate.length} mappings`);
-                    }
-                } catch (mappingError) {
-                    console.error('[Polymarket] Failed to create mappings:', mappingError);
-                }
-            })(); // Fire and forget - runs in background
-        }
+        // AUTO-MAPPING REMOVED FOR SIMPLICITY
+        // All mappings now created manually via /api/polymarket/intake approval workflow
 
         // Add caching headers
         const response = NextResponse.json(topByVolume);

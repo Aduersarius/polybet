@@ -11,14 +11,18 @@ export function buildTlsConfig(url?: string) {
     const targetUrl = url || redisUrl;
     if (!targetUrl.startsWith('rediss://')) return undefined;
 
-    const tls: Record<string, any> = {
-        // Default to system CAs, but allow override
-        rejectUnauthorized: env.REDIS_TLS_REJECT_UNAUTHORIZED
-    };
+    const tls: Record<string, any> = {};
 
-    if (env.REDIS_ALLOW_SELF_SIGNED || !env.REDIS_TLS_REJECT_UNAUTHORIZED) {
+    // Priority: REDIS_ALLOW_SELF_SIGNED first, then REDIS_TLS_REJECT_UNAUTHORIZED
+    if (env.REDIS_ALLOW_SELF_SIGNED) {
         tls.rejectUnauthorized = false;
-        console.log(`[Redis] 🛡️ TLS verification disabled (rejectUnauthorized: false)`);
+        console.log(`[Redis] 🛡️ TLS verification disabled (REDIS_ALLOW_SELF_SIGNED=true)`);
+    } else if (!env.REDIS_TLS_REJECT_UNAUTHORIZED) {
+        tls.rejectUnauthorized = false;
+        console.log(`[Redis] 🛡️ TLS verification disabled (REDIS_TLS_REJECT_UNAUTHORIZED=false)`);
+    } else {
+        tls.rejectUnauthorized = true;
+        console.log(`[Redis] 🔒 TLS verification enabled`);
     }
 
     // Check for CA in process.env (legacy support or custom)

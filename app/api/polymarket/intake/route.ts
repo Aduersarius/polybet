@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeProbability } from '@/lib/polymarket-normalization';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -115,15 +116,11 @@ function normalizeOutcomePrices(raw: any): number[] {
   return toArray(raw).map((v: any) => toNumber(v));
 }
 
+// Use centralized normalization from lib/polymarket-normalization.ts
+// Removed duplicate: probFromValue, clamp01
+
 function probFromValue(raw: unknown, fallback: number | undefined = 0.5): number | undefined {
-  if (raw == null) return fallback;
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return fallback;
-  if (n > 1 && n <= 100) return clamp01(n / 100);
-  // Guard: huge numbers are not probabilities (e.g. strike levels like 120000),
-  // so return undefined to indicate invalid value (caller should handle fallback)
-  if (n > 100) return undefined;
-  return clamp01(n);
+  return normalizeProbability(raw, fallback);
 }
 
 function clamp01(n: number) {

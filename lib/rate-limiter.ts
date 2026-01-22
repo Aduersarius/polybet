@@ -145,3 +145,100 @@ export async function checkRateLimitByIp(
     const key = `rate_limit:ip:${ip}`;
     return checkLimit(key, limit, windowMs);
 }
+
+// ============================================================================
+// TOKEN BUCKET RATE LIMITER FOR EXTERNAL APIs (POLYMARKET GAMMA)
+// ============================================================================
+
+/**
+ * Simple token bucket rate limiter for external API calls
+ * Used for Polymarket Gamma API to prevent hitting rate limits
+ */
+export class TokenBucketRateLimiter {
+    private tokens: number;
+    private lastRefill: number;
+
+    constructor(
+        private readonly maxTokens: number,
+        private readonly refillRate: number,  // tokens per second
+    ) {
+        this.tokens = maxTokens;
+        this.lastRefill = Date.now();
+    }
+
+    /**
+     * Remove a token, waiting if necessary
+     */
+    async removeToken(): Promise<void> {
+        this.refillTokens();
+
+        if (this.tokens < 1) {
+            const waitTime = (1 / this.refillRate) * 1000;
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            this.refillTokens();
+        }
+
+        this.tokens -= 1;
+    }
+
+    private refillTokens(): void {
+        const now = Date.now();
+        const elapsed = (now - this.lastRefill) / 1000;
+        const newTokens = elapsed * this.refillRate;
+
+        this.tokens = Math.min(this.maxTokens, this.tokens + newTokens);
+        this.lastRefill = now;
+    }
+}
+
+/**
+ * Singleton rate limiter for Gamma API
+ * Limit: 2 requests per second (conservative to avoid 429s)
+ */
+export const gammaRateLimiter = new TokenBucketRateLimiter(
+    10,  // 10 tokens max (burst allowance)
+    2    // 2 requests per second
+);
+
+// ============================================================================
+// ERROR LOGGING UTILITIES (SENTRY-READY)
+// ============================================================================
+
+/**
+ * Structured error logging
+ * Ready for Sentry integration when added
+ */
+export function logError(context: string, error: unknown, metadata?: Record<string, any>) {
+    const errorData = {
+        timestamp: new Date().toISOString(),
+        context,
+        error: error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        } : String(error),
+        metadata: metadata || {},
+        severity: 'error'
+    };
+
+    console.error(`[ERROR] ${context}:`, JSON.stringify(errorData, null, 2));
+
+    // TODO: When Sentry is added, uncomment:
+    // import * as Sentry from '@sentry/nextjs';
+    // Sentry.captureException(error, { tags: { context }, extra: metadata });
+}
+
+/**
+ * Structured warning logging
+ */
+export function logWarning(context: string, message: string, metadata?: Record<string, any>) {
+    const warnData = {
+        timestamp: new Date().toISOString(),
+        context,
+        message,
+        metadata: metadata || {},
+        severity: 'warning'
+    };
+
+    console.warn(`[WARN] ${context}:`, JSON.stringify(warnData, null, 2));
+}
