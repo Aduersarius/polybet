@@ -18,12 +18,13 @@
         }
     },
     "include": [
-        "*.ts",
-        "lib/**/*.ts",
-        "../../lib/**/*.ts"
+        "*.ts"
     ],
     "exclude": [
         "node_modules",
-        "dist"
+        "dist",
+        "../../lib/__tests__",
+        "**/*.test.ts",
+        "**/*.spec.ts"
     ]
 }
