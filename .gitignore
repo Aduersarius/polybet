@@ -56,3 +56,6 @@ workers/polymarket-realtime/node_modules/
 # AI Assistant / Agent directories
 .agent/
 .gemini/
+
+
+backups/

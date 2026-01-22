@@ -21,6 +21,7 @@
     "setup": "doppler setup --project pariflow --config dev"
   },
   "dependencies": {
+    "@better-auth/passkey": "^1.4.16",
     "@heroicons/react": "^2.2.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.210.0",
@@ -51,7 +52,7 @@
     "@vercel/postgres": "^0.10.0",
     "@vercel/speed-insights": "^1.2.0",
     "bcryptjs": "^3.0.3",
-    "better-auth": "^1.4.4-beta.1",
+    "better-auth": "^1.4.16",
     "botid": "^1.5.10",
     "braintrust": "^0.4.9",
     "class-variance-authority": "^0.7.1",

@@ -132,6 +132,7 @@ function SettingsPageContent() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [resendCooldown, setResendCooldown] = useState(0);
+    const [userPasskeys, setUserPasskeys] = useState<any[]>([]);
 
     // Initial sync from global settings to local draft
     useEffect(() => {
@@ -193,6 +194,22 @@ function SettingsPageContent() {
             router.replace('/settings?category=account');
         }
     }, [searchParams, user, is2FAEnabled, hasChecked2FA, router]);
+
+    // Fetch user's passkeys on mount
+    useEffect(() => {
+        const fetchPasskeys = async () => {
+            if (!user) return;
+            try {
+                const passkeys = await authClient.passkey.listUserPasskeys();
+                if (passkeys?.data) {
+                    setUserPasskeys(passkeys.data as any[]);
+                }
+            } catch (err) {
+                console.error('Failed to fetch passkeys:', err);
+            }
+        };
+        fetchPasskeys();
+    }, [user]);
 
     // Redirect if not logged in
     useEffect(() => {
@@ -490,6 +507,95 @@ function SettingsPageContent() {
                                     >
                                         Connect
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Passkeys Section */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Passkeys</h3>
+                            <div className="bg-white/5 rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                                            <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.59-4.18" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <div className="text-white font-medium">Biometric Login</div>
+                                            <div className="text-sm text-gray-400">Use FaceID, TouchID, or security keys</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const res = await authClient.passkey.addPasskey({
+                                                    name: `Passkey - ${new Date().toLocaleDateString()}`
+                                                });
+                                                if (res?.error) {
+                                                    toast({ title: res.error.message || 'Failed to add passkey', variant: 'destructive' });
+                                                } else {
+                                                    toast({ title: 'Passkey added successfully!', variant: 'success' });
+                                                    // Refresh passkey list
+                                                    const passkeys = await authClient.passkey.listUserPasskeys();
+                                                    if (passkeys?.data) {
+                                                        setUserPasskeys(passkeys.data as any[]);
+                                                    }
+                                                }
+                                            } catch (err: any) {
+                                                console.error(err);
+                                                toast({ title: 'Failed to add passkey', variant: 'destructive' });
+                                            }
+                                        }}
+                                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+                                    >
+                                        Add Passkey
+                                    </button>
+                                </div>
+
+                                {/* List of registered passkeys */}
+                                {userPasskeys.length > 0 ? (
+                                    <div className="space-y-2 mb-3">
+                                        {userPasskeys.map((passkey: any) => (
+                                            <div key={passkey.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                                                <div className="flex items-center gap-3">
+                                                    <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                                    </svg>
+                                                    <div>
+                                                        <div className="text-sm text-white font-medium">{passkey.name || 'Unnamed Passkey'}</div>
+                                                        <div className="text-xs text-gray-500">
+                                                            Added {new Date(passkey.createdAt).toLocaleDateString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!confirm('Are you sure you want to delete this passkey?')) return;
+                                                        try {
+                                                            const res = await authClient.passkey.deletePasskey({ id: passkey.id });
+                                                            if (res?.error) {
+                                                                toast({ title: 'Failed to delete passkey', variant: 'destructive' });
+                                                            } else {
+                                                                toast({ title: 'Passkey deleted', variant: 'success' });
+                                                                setUserPasskeys(prev => prev.filter((p: any) => p.id !== passkey.id));
+                                                            }
+                                                        } catch (err) {
+                                                            toast({ title: 'Failed to delete passkey', variant: 'destructive' });
+                                                        }
+                                                    }}
+                                                    className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+
+                                <div className="text-xs text-gray-500 bg-white/5 p-3 rounded border border-white/5">
+                                    Passkeys allow you to sign in without a password using your device's biometric or security capabilities.
                                 </div>
                             </div>
                         </div>

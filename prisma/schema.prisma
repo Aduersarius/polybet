@@ -1,3 +1,4 @@
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
@@ -83,6 +84,7 @@ model User {
   supportRole         String? // null | "agent" | "admin" | "support_manager"
   ticketsCreated      SupportTicket[]     @relation("TicketUser")
   ticketsAssigned     SupportTicket[]     @relation("TicketAgent")
+  passkeys            Passkey[]
   supportMessages     SupportMessage[]    @relation("SupportMessageUser")
   supportNotes        SupportNote[]       @relation("NoteAgent")
   attachmentsUploaded SupportAttachment[] @relation("AttachmentUploader")
@@ -94,6 +96,8 @@ model User {
   referralDate   DateTime? // When user clicked affiliate link
   referralRecord Referral?
 
+  twofactors TwoFactor[]
+
   @@index([address])
   @@index([lastVisitedAt])
   @@index([lastCountry])
@@ -101,6 +105,7 @@ model User {
   @@index([lastRegion])
   @@index([supportRole])
   @@index([referredBy])
+  @@map("user")
 }
 
 model TelemetryEvent {
@@ -178,14 +183,18 @@ model Event {
   isEsports  Boolean   @default(false)
   eventType  String?   @default("upcoming") // 'live' | 'upcoming' | 'futures'
 
+  // Fast queries for live/upcoming
+  // Fast esports filtering
+  // Fast queries by event type
+  // Fast sorting by event type and start time
   @@index([status, createdAt])
   @@index([categories], type: Gin)
   @@index([creatorId])
   @@index([searchVector], type: Gin)
-  @@index([live, startTime]) // Fast queries for live/upcoming
-  @@index([isEsports, live]) // Fast esports filtering
-  @@index([eventType, live]) // Fast queries by event type
-  @@index([eventType, startTime]) // Fast sorting by event type and start time
+  @@index([live, startTime])
+  @@index([isEsports, live])
+  @@index([eventType, live])
+  @@index([eventType, startTime])
 }
 
 model EventSuggestion {
@@ -446,6 +455,7 @@ model LedgerEntry {
 }
 
 // Better Auth models
+
 model Account {
   id         String @id @default(cuid())
   accountId  String
@@ -465,6 +475,7 @@ model Account {
 
   @@unique([accountId, providerId])
   @@index([userId])
+  @@map("account")
 }
 
 model Session {
@@ -480,6 +491,7 @@ model Session {
 
   @@index([userId])
   @@index([token])
+  @@map("session")
 }
 
 model Verification {
@@ -489,6 +501,9 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }
 
 model TwoFactor {
@@ -498,6 +513,32 @@ model TwoFactor {
   backupCodes String // better-auth stores as encrypted string
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Passkey {
+  id           String   @id @default(cuid())
+  name         String?
+  publicKey    String
+  userId       String
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  aaguid String?
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
 }
 
 model DepositAddress {
@@ -528,9 +569,10 @@ model Deposit {
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id])
 
+  // Index for efficient PENDING_SWEEP queries
   @@index([userId])
   @@index([txHash])
-  @@index([status]) // Index for efficient PENDING_SWEEP queries
+  @@index([status])
 }
 
 model Withdrawal {
@@ -603,6 +645,7 @@ model ApiKey {
 }
 
 // Hedging and Risk Management Models
+
 model HedgePosition {
   id                 String    @id @default(cuid())
   userOrderId        String?   @unique
@@ -625,7 +668,7 @@ model HedgePosition {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  userOrder     Order?       @relation(fields: [userOrderId], references: [id])
+  userOrder Order? @relation(fields: [userOrderId], references: [id])
 
   @@index([status])
   @@index([createdAt])
@@ -742,6 +785,7 @@ model HedgeConfig {
 }
 
 // New simplified hedge tracking (replaces PolyOrder + PolyPosition + HedgePosition)
+
 model HedgeRecord {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -772,9 +816,9 @@ model HedgeRecord {
   error  String?
 
   // Relations
-  user           User            @relation(fields: [userId], references: [id])
-  order          Order           @relation(fields: [userOrderId], references: [id])
-  event          Event           @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+  order Order @relation(fields: [userOrderId], references: [id])
+  event Event @relation(fields: [eventId], references: [id])
 
   @@index([userId])
   @@index([eventId])
@@ -787,6 +831,7 @@ model HedgeRecord {
 // ============================================
 
 // Support Ticket
+
 model SupportTicket {
   id           String  @id @default(cuid())
   ticketNumber String  @unique // Human-readable: TICK-2024-0001
@@ -829,6 +874,7 @@ model SupportTicket {
 }
 
 // Support Messages (immutable)
+
 model SupportMessage {
   id         String   @id @default(cuid())
   ticketId   String
@@ -851,6 +897,7 @@ model SupportMessage {
 }
 
 // File Attachments
+
 model SupportAttachment {
   id        String  @id @default(cuid())
   ticketId  String
@@ -879,6 +926,7 @@ model SupportAttachment {
 }
 
 // Internal Notes (support team only)
+
 model SupportNote {
   id        String   @id @default(cuid())
   ticketId  String
@@ -893,6 +941,7 @@ model SupportNote {
 }
 
 // Audit Log (immutable)
+
 model SupportAuditLog {
   id       String @id @default(cuid())
   ticketId String
@@ -916,6 +965,7 @@ model SupportAuditLog {
 }
 
 // Telegram User Linking
+
 model TelegramUser {
   id         String  @id @default(cuid())
   telegramId String  @unique // Telegram user ID
@@ -941,6 +991,7 @@ model TelegramUser {
 }
 
 // Rate Limiting
+
 model SupportRateLimit {
   id          String   @id @default(cuid())
   userId      String

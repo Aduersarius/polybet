@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { twoFactor } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
@@ -306,7 +307,14 @@ export const auth = betterAuth({
     plugins: [
         twoFactor({
             issuer: "Pariflow",
-        })
+            trustDevice: {
+                enabled: true,
+                cookieConfig: {
+                    maxAge: 60 * 60 * 24 * 30, // 30 days
+                }
+            }
+        }),
+        passkey()
     ],
     session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds

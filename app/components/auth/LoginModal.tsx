@@ -101,7 +101,17 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
             }
 
             // Success - redirect to home
-            console.log('[LoginModal] Full login detected, redirecting...');
+            console.log('[LoginModal] Full login detected, doing final session check...');
+
+            // Double check we actually have the session
+            const { data: finalSession } = await authClient.getSession();
+            if (!finalSession) {
+                console.error('[LoginModal] Login appeared successful but session is missing');
+                setError('Login succeeded but session failed to establish. Please try again.');
+                return;
+            }
+
+            console.log('[LoginModal] Session verified. Redirecting...');
             onClose();
             window.location.href = '/';
         } catch (err: any) {
@@ -120,10 +130,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
         try {
             console.log('[LoginModal] Verifying TOTP code:', totpCode);
 
-            // Better Auth's 2FA flow: After sign-in with email/password (which we already did),
-            // verify the TOTP code separately using twoFactor.verifyTotp
             const result = await twoFactor.verifyTotp(totpCode, trustDevice);
-
             console.log('[LoginModal] TOTP verification result:', result);
 
             if (result?.error) {
@@ -132,10 +139,24 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
                 return;
             }
 
+            // CRITICAL FIX: Verify we actually have a valid session before redirecting
+            // This prevents the "refresh loop" where we redirect too early
+            console.log('[LoginModal] 2FA verified, checking session...');
+            const { data: sessionData } = await authClient.getSession();
+
+            if (!sessionData) {
+                console.error('[LoginModal] Session check failed after 2FA verify');
+                setError('Verification successful, but session failed to establish. Please try again.');
+                setLoading(false);
+                return;
+            }
+
+            console.log('[LoginModal] Session confirmed:', sessionData);
+
             // Success - close modal and redirect
-            console.log('[LoginModal] 2FA verified successfully, redirecting...');
-            setLoading(false);
             onClose();
+            // detailed log for debugging
+            console.log('[LoginModal] Redirecting to home...');
             window.location.href = '/';
         } catch (err: any) {
             console.error('[LoginModal] TOTP verify error:', err);
@@ -336,6 +357,32 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
 
                             {/* Social Login Buttons */}
                             <div className="space-y-3 mb-6">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        try {
+                                            const res = await authClient.signIn.passkey();
+                                            if (res?.error) {
+                                                setError(res.error.message || 'Passkey login failed');
+                                                setLoading(false);
+                                            } else {
+                                                onClose();
+                                                window.location.href = '/';
+                                            }
+                                        } catch (e: any) {
+                                            setError(e.message || 'Passkey login failed');
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/10 text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all font-medium backdrop-blur-sm"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.59-4.18" />
+                                    </svg>
+                                    Sign in with Passkey
+                                </button>
+
                                 <button
                                     onClick={() => (authClient as any).signIn.social({ provider: 'google', callbackURL: '/' })}
                                     className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-colors font-medium"
