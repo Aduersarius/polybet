@@ -257,3 +257,31 @@ input[type="number"] {
   display: none;
   /* Chrome, Safari and Opera */
 }
+
+/* iOS Safe Area Support for Mobile Bottom Navigation */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Ensure content doesn't hide behind mobile nav */
+@media (max-width: 767px) {
+  .pb-safe {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Mobile Bottom Nav Animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}

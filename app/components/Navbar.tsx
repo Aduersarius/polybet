@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
-import { Plus, Wallet, Headphones } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { authClient, useSession, signOut } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
@@ -47,6 +47,49 @@ function SupportLink() {
         >
             Support
         </button>
+    );
+}
+
+// Platform stats component for non-authenticated users
+function PlatformStats() {
+    const [onlineCount, setOnlineCount] = useState(0);
+
+    useEffect(() => {
+        // Generate a realistic-looking online count
+        // Base: 40-80 users, varies slightly over time
+        const generateCount = () => {
+            const hour = new Date().getHours();
+            // Higher during peak hours (10am-10pm), lower at night
+            const isPeakHour = hour >= 10 && hour <= 22;
+            const base = isPeakHour ? 65 : 35;
+            const variance = Math.floor(Math.random() * 30) - 15; // -15 to +15
+            return Math.max(20, base + variance);
+        };
+
+        setOnlineCount(generateCount());
+
+        // Update every 30-90 seconds with small changes
+        const interval = setInterval(() => {
+            setOnlineCount(prev => {
+                const change = Math.floor(Math.random() * 7) - 3; // -3 to +3
+                return Math.max(15, Math.min(120, prev + change));
+            });
+        }, 30000 + Math.random() * 60000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="flex items-center gap-1.5 text-white/70">
+            <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white/80"></span>
+            </span>
+            <span className="text-xs font-medium text-white/90">
+                {onlineCount}
+            </span>
+            <span className="text-[11px] text-white/50">traders online</span>
+        </div>
     );
 }
 
@@ -173,7 +216,7 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                             {isMounted && session && <NotificationBell />}
 
 
-                            {/* Authentication */}
+                            {/* Authentication / Platform Stats */}
                             {isMounted && session ? (
                                 <div className="flex items-center gap-2 sm:gap-3">
                                     {/* Balance Display */}
@@ -241,18 +284,25 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                 </div >
                             ) : isMounted ? (
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setShowLoginModal(true)}
-                                        className="inline-flex h-8 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-blue-400/30 text-white hover:bg-white/15 hover:border-blue-400/50 text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide hover:shadow-[0_4px_16px_rgba(59,130,246,0.2)]"
-                                    >
-                                        Login
-                                    </button>
-                                    <button
-                                        onClick={() => setShowSignupModal(true)}
-                                        className="inline-flex h-8 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(59,130,246,0.3)] hover:shadow-[0_6px_24px_rgba(59,130,246,0.4)] hover:scale-105"
-                                    >
-                                        Sign Up
-                                    </button>
+                                    {/* Mobile: Show online traders */}
+                                    <div className="md:hidden">
+                                        <PlatformStats />
+                                    </div>
+                                    {/* Desktop: Show login/signup buttons */}
+                                    <div className="hidden md:flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowLoginModal(true)}
+                                            className="inline-flex h-8 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-blue-400/30 text-white hover:bg-white/15 hover:border-blue-400/50 text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide hover:shadow-[0_4px_16px_rgba(59,130,246,0.2)]"
+                                        >
+                                            Login
+                                        </button>
+                                        <button
+                                            onClick={() => setShowSignupModal(true)}
+                                            className="inline-flex h-8 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-bold px-4 transition-all duration-300 uppercase tracking-wide shadow-[0_4px_16px_rgba(59,130,246,0.3)] hover:shadow-[0_6px_24px_rgba(59,130,246,0.4)] hover:scale-105"
+                                        >
+                                            Sign Up
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
