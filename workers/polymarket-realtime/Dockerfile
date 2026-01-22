@@ -20,20 +20,15 @@ COPY .env* ./
 # Preserve structure so relative imports (../../lib) work
 COPY workers/polymarket-realtime/ ./workers/polymarket-realtime/
 
-# 4. Generate Client & Build
+# 4. Generate Prisma Client
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
-# Switch to worker directory for build
-WORKDIR /app/workers/polymarket-realtime
-RUN npm run build
-
-# 5. Cleanup & Runtime
-# We stay in the worker directory
+#5. Runtime
 ENV NODE_ENV=production
 
 # Run as non-root
 USER node
 
-# Path needs to be adjusted because we are now deep in the folder
-CMD ["node", "dist/workers/polymarket-realtime/worker.js"]
+# Run worker with tsx (no need to compile)
+CMD ["npx", "tsx", "workers/polymarket-realtime/worker.ts"]
