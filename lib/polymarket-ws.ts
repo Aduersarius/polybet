@@ -14,12 +14,13 @@ import { getPusherServer } from './pusher-server';
 import { env } from './env';
 
 const PolymarketWSMessageSchema = z.object({
-  event_type: z.enum(['market', 'book', 'tick_size', 'last_trade_price', 'user']),
-  market: z.string().optional(),
+  event_type: z.string(),
   asset_id: z.string().optional(),
-  hash: z.string().optional(),
+  market: z.string().optional(),
+  price: z.string().optional(),
   data: z.any().optional(),
-});
+  timestamp: z.string().optional(),
+}).passthrough();
 
 type PolymarketWSMessage = z.infer<typeof PolymarketWSMessageSchema>;
 
@@ -42,6 +43,7 @@ export class PolymarketWebSocketClient {
   private maxReconnectAttempts = 20;
   private subscribedMarkets: Set<string> = new Set();
   private isConnected = false;
+  private isInitialSubscriptionSent = false;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private options: PolymarketWSClientOptions;
 
@@ -85,6 +87,7 @@ export class PolymarketWebSocketClient {
       this.ws.on('open', () => {
         console.log('[Polymarket WS] ✅ Connected!');
         this.isConnected = true;
+        this.isInitialSubscriptionSent = false;
         this.reconnectAttempts = 0;
         // Reset circuit breaker on successful connection
         this.failureCount = 0;
@@ -165,19 +168,36 @@ export class PolymarketWebSocketClient {
 
   private async handleMessage(data: WebSocket.Data) {
     try {
-      const parsed = PolymarketWSMessageSchema.safeParse(JSON.parse(data.toString()));
+      const raw = data.toString();
+      const json = JSON.parse(raw);
+
+      const parsed = PolymarketWSMessageSchema.safeParse(json);
       if (!parsed.success) {
-        console.warn('[Polymarket WS] Received invalid message format:', parsed.error.format());
+        // Log detailed error but don't spam
+        if (Math.random() < 0.01) {
+          console.warn('[Polymarket WS] Received unknown message format:', raw.substring(0, 200));
+        }
         return;
       }
+
       const message = parsed.data;
-      if (message.event_type === 'last_trade_price' && message.asset_id && message.data) {
-        const price = parseFloat(message.data);
+
+      // Polymarket CLOB Market Channel uses 'event_type'
+      // Common types for price: 'price_change', 'last_trade_price'
+      if ((message.event_type === 'last_trade_price' || message.event_type === 'price_change') && message.asset_id) {
+        // Price can be in 'price' or 'data' for different event types
+        const priceStr = message.price || message.data;
+        const price = typeof priceStr === 'string' ? parseFloat(priceStr) : (typeof priceStr === 'number' ? priceStr : NaN);
+
         if (!isNaN(price)) {
           await this.handleMarketUpdate(message.asset_id, price);
         }
       }
-    } catch (error) { }
+    } catch (error) {
+      if (Math.random() < 0.05) {
+        console.error('[Polymarket WS] Error parsing message:', error);
+      }
+    }
   }
 
   /**
@@ -293,19 +313,41 @@ export class PolymarketWebSocketClient {
     }
   }
 
-  public subscribe(assetId: string) {
-    if (!this.ws || !this.isConnected) {
-      this.subscribedMarkets.add(assetId);
-      return;
+  /**
+   * Batch subscribe to multiple assets
+   */
+  public subscribe(assetIds: string | string[]) {
+    const ids = Array.isArray(assetIds) ? assetIds : [assetIds];
+    if (ids.length === 0) return;
+
+    // Add to tracking set
+    ids.forEach(id => this.subscribedMarkets.add(id));
+
+    if (!this.ws || !this.isConnected) return;
+
+    try {
+      // Polymarket CLOB WS uses:
+      // 1. { type: 'market', assets_ids: [...] } for initial setup
+      // 2. { operation: 'subscribe', assets_ids: [...] } for subsequent additions
+
+      const payload = !this.isInitialSubscriptionSent
+        ? { type: 'market', assets_ids: ids }
+        : { operation: 'subscribe', assets_ids: ids };
+
+      this.ws.send(JSON.stringify(payload));
+      this.isInitialSubscriptionSent = true;
+      console.log(`[Polymarket WS] 📡 Subscribed to ${ids.length} assets (${payload.hasOwnProperty('type') ? 'Initial' : 'Incremental'})`);
+    } catch (error) {
+      console.error('[Polymarket WS] Failed to send subscription:', error);
     }
-    this.ws.send(JSON.stringify({ type: 'subscribe', event_type: 'last_trade_price', asset_id: assetId }));
-    this.subscribedMarkets.add(assetId);
   }
 
   private resubscribeToMarkets() {
     const markets = Array.from(this.subscribedMarkets);
     this.subscribedMarkets.clear();
-    for (const m of markets) this.subscribe(m);
+    if (markets.length > 0) {
+      this.subscribe(markets);
+    }
   }
 
   public async subscribeToAllActiveEvents() {
@@ -316,15 +358,21 @@ export class PolymarketWebSocketClient {
       });
 
       const active = mappings.filter((m: any) => m.event?.status === 'ACTIVE');
-      console.log(`[Polymarket WS] Subscribing to ${active.length} active mappings...`);
+      console.log(`[Polymarket WS] Preparing subscriptions for ${active.length} active mappings...`);
 
+      const allIds: string[] = [];
       for (const mapping of active) {
-        if (mapping.yesTokenId) this.subscribe(mapping.yesTokenId);
-        if (mapping.noTokenId) this.subscribe(mapping.noTokenId);
+        if (mapping.yesTokenId) allIds.push(mapping.yesTokenId);
+        if (mapping.noTokenId) allIds.push(mapping.noTokenId);
         const outcomes = (mapping.outcomeMapping as any)?.outcomes;
         if (Array.isArray(outcomes)) {
-          outcomes.forEach((o: any) => { if (o.polymarketId) this.subscribe(o.polymarketId); });
+          outcomes.forEach((o: any) => { if (o.polymarketId) allIds.push(o.polymarketId); });
         }
+      }
+
+      // Batch subscribe
+      if (allIds.length > 0) {
+        this.subscribe(allIds);
       }
     } catch (error) {
       console.error('[Polymarket WS] Failed to subscribe to active events:', error);
