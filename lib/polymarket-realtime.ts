@@ -194,7 +194,7 @@ export class PolymarketRealtimeClient {
         try {
             const mappings = await prisma.polymarketMarketMapping.findMany({
                 where: { isActive: true },
-                include: { event: { select: { status: true, polymarketSlug: true } } }
+                include: { event: { select: { status: true, polymarketId: true } } }
             });
 
             const active = mappings.filter((m: any) => m.event?.status === 'ACTIVE');
@@ -217,25 +217,27 @@ export class PolymarketRealtimeClient {
         const poll = async () => {
             for (const mapping of mappings) {
                 try {
-                    const slug = mapping.event?.polymarketSlug;
-                    if (!slug) continue;
+                    const polymarketId = mapping.event?.polymarketId;
+                    if (!polymarketId) continue;
 
-                    // Fetch market data from Gamma API
-                    const response = await fetch(`https://gamma-api.polymarket.com/markets/${slug}`);
-                    if (!response.ok) continue;
+                    // Get token IDs from mapping
+                    const clobTokenIds = [mapping.yesTokenId, mapping.noTokenId].filter(Boolean);
+                    if (clobTokenIds.length === 0) continue;
 
-                    const data = await response.json();
+                    // Fetch individual token prices from Gamma API
+                    for (const tokenId of clobTokenIds) {
+                        try {
+                            const response = await fetch(`https://gamma-api.polymarket.com/prices?token_id=${tokenId}`);
+                            if (!response.ok) continue;
 
-                    // Update prices for each outcome
-                    const outcomePrices = data.outcomePrices || [];
-                    const clobTokenIds = data.clobTokenIds || [];
+                            const priceData = await response.json();
+                            const price = parseFloat(priceData?.price || priceData?.mid || '0');
 
-                    for (let i = 0; i < clobTokenIds.length; i++) {
-                        const tokenId = clobTokenIds[i];
-                        const price = parseFloat(outcomePrices[i]);
-
-                        if (tokenId && !isNaN(price)) {
-                            await this.handleMarketUpdate(tokenId, price);
+                            if (!isNaN(price) && price > 0) {
+                                await this.handleMarketUpdate(tokenId, price);
+                            }
+                        } catch (err) {
+                            // Continue on individual token errors
                         }
                     }
                 } catch (error: any) {
