@@ -1,8 +1,9 @@
-import { PolymarketWebSocketClient } from '../../lib/polymarket-ws';
+import { PolymarketRealtimeClient } from '../../lib/polymarket-realtime';
+// v2.0.0 - Migrated to official @polymarket/real-time-data-client library
 /**
  * STRIPPED-DOWN POLYMARKET REAL-TIME WORKER
  *
- * Logic has been unified in lib/polymarket-ws.ts for:
+ * Logic has been unified in lib/polymarket-realtime.ts for:
  * 1. Automatic Database Sync (Event/Outcome tables)
  * 2. Automated History tracking (OddsHistory)
  * 3. Real-time Broadcasting (Redis/Pusher)
@@ -11,12 +12,24 @@ import { PolymarketWebSocketClient } from '../../lib/polymarket-ws';
  */
 async function startWorker() {
     console.log('🚀 Initializing Polymarket Real-Time Manager...');
-    const client = new PolymarketWebSocketClient({
+    const client = new PolymarketRealtimeClient({
         autoUpdateDb: true // Library handles all the heavy lifting
     });
-    // Initial subscription to all existing active events
-    await client.subscribeToAllActiveEvents();
-    console.log('✅ Worker active. Orchestrating real-time updates via shared library.');
+    // Connect to RTDS (Real-Time Data Service)
+    client.connect();
+    // Start heartbeat loop
+    const { redis } = await import('../../lib/redis');
+    setInterval(async () => {
+        try {
+            if (redis) {
+                await redis.setex('worker:polymarket:heartbeat', 60, Date.now().toString());
+            }
+        }
+        catch (err) {
+            console.error('⚠️ Heartbeat failed:', err);
+        }
+    }, 30000);
+    console.log('✅ Worker active. Orchestrating real-time updates via official Polymarket RTDS client.');
 }
 // Global error handling to prevent silent death
 process.on('uncaughtException', (err) => {
