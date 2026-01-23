@@ -44,28 +44,8 @@ export class PolymarketRealtimeClient {
     }
 
     public connect() {
-        console.log('[Polymarket RTDS] Connecting to Real-Time Data Service...');
-
-        this.client = new RealTimeDataClient({
-            autoReconnect: true,
-            onConnect: (client) => {
-                console.log('[Polymarket RTDS] ✅ Connected!');
-                this.failureCount = 0;
-                this.circuitState = CircuitState.CLOSED;
-                this.subscribeToActiveMarkets();
-            },
-            onMessage: (client, message) => {
-                this.handleMessage(message);
-            },
-            onStatusChange: (status) => {
-                console.log(`[Polymarket RTDS] Status: ${status}`);
-                if (status === ConnectionStatus.DISCONNECTED) {
-                    this.handleFailure();
-                }
-            }
-        });
-
-        this.client.connect();
+        console.log('[Polymarket RTDS] Connecting to Polymarket data source...');
+        this.subscribeToActiveMarkets();
         return this;
     }
 
@@ -214,30 +194,62 @@ export class PolymarketRealtimeClient {
         try {
             const mappings = await prisma.polymarketMarketMapping.findMany({
                 where: { isActive: true },
-                include: { event: { select: { status: true } } }
+                include: { event: { select: { status: true, polymarketSlug: true } } }
             });
 
             const active = mappings.filter((m: any) => m.event?.status === 'ACTIVE');
-            console.log(`[Polymarket RTDS] Found ${active.length} active mappings`);
+            console.log(`[Polymarket RTDS] Found ${active.length} active markets`);
 
-            if (!this.client) return;
+            // IMPORTANT: The activity/trades WebSocket topic requires CLOB API authentication
+            // which we don't have. Instead, we'll poll the public Gamma API every 30s.
+            console.log('[Polymarket RTDS] ⚠️ WebSocket requires auth - using HTTP polling instead');
 
-            // Subscribe to activity (trades) topic for all active markets
-            // The RTDS automatically filters trades by token IDs we care about
-            this.client.subscribe({
-                subscriptions: [
-                    {
-                        topic: 'activity',
-                        type: 'trades',
-                        // No filters - we'll filter client-side based on our mappings
-                    }
-                ]
-            });
-
-            console.log(`[Polymarket RTDS] 📡 Subscribed to trade activity feed`);
+            this.startPolling(active);
         } catch (error: any) {
-            console.error('[Polymarket RTDS] Failed to subscribe:', error.message);
+            console.error('[Polymarket RTDS] Failed to start polling:', error.message);
         }
+    }
+
+    private startPolling(mappings: any[]) {
+        // Poll Polymarket Gamma API every 30 seconds for price updates
+        const pollInterval = 30000; // 30s
+
+        const poll = async () => {
+            for (const mapping of mappings) {
+                try {
+                    const slug = mapping.event?.polymarketSlug;
+                    if (!slug) continue;
+
+                    // Fetch market data from Gamma API
+                    const response = await fetch(`https://gamma-api.polymarket.com/markets/${slug}`);
+                    if (!response.ok) continue;
+
+                    const data = await response.json();
+
+                    // Update prices for each outcome
+                    const outcomePrices = data.outcomePrices || [];
+                    const clobTokenIds = data.clobTokenIds || [];
+
+                    for (let i = 0; i < clobTokenIds.length; i++) {
+                        const tokenId = clobTokenIds[i];
+                        const price = parseFloat(outcomePrices[i]);
+
+                        if (tokenId && !isNaN(price)) {
+                            await this.handleMarketUpdate(tokenId, price);
+                        }
+                    }
+                } catch (error: any) {
+                    // Silently continue on individual market errors
+                }
+            }
+        };
+
+        // Initial poll
+        poll();
+
+        // Poll every 30s
+        setInterval(poll, pollInterval);
+        console.log(`[Polymarket RTDS] 🔄 Polling ${mappings.length} markets every ${pollInterval / 1000}s`);
     }
 
     public disconnect() {
