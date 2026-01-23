@@ -80,7 +80,7 @@ export class PolymarketWebSocketClient {
 
     try {
       console.log('[Polymarket WS] Connecting... 🔌');
-      this.ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com');
+      this.ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/market');
 
       this.ws.on('open', () => {
         console.log('[Polymarket WS] ✅ Connected!');

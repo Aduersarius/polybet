@@ -160,7 +160,7 @@ function getRedisInstance(): Redis | null {
             // Reconnect on any error that seems transitory
             reconnectOnError(err) {
                 const message = err.message.toLowerCase();
-                return message.includes('etimedout') || message.includes('econnrefused') || message.includes('econnreset');
+                return message.includes('etimedout') || message.includes('econnrefused') || message.includes('econnreset') || message.includes('epipe');
             }
         });
 
