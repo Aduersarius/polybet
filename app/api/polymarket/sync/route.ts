@@ -103,9 +103,34 @@ export async function POST(request: Request) {
             evt.type ||
             ((evt.outcomes || []).length > 2 ? 'MULTIPLE' : 'BINARY');
 
-          const baseData = {
+          const existing = await tx.event.findFirst({
+            where: { polymarketId },
+            select: { id: true, slug: true },
+          });
+
+          // Generate a human-readable slug using LLM if it's missing
+          let slug = existing?.slug;
+          if (!slug && evt.title) {
+            console.log(`[Sync] Generating slug for: ${evt.title.slice(0, 50)}...`);
+            const { generateSlugWithLLM } = await import('@/lib/slug');
+            slug = await generateSlugWithLLM(evt.title, new Date(resolutionDate));
+            console.log(`[Sync] Result: ${slug || 'FAILED'}`);
+
+            // Optional: Conflict resolution for slugs in sync
+            if (slug) {
+              const conflict = await tx.event.findFirst({
+                where: { slug, NOT: { polymarketId } }
+              });
+              if (conflict) {
+                slug = `${slug}-${polymarketId.slice(0, 4)}`;
+              }
+            }
+          }
+
+          const baseData: any = {
             title: evt.title || 'Untitled market',
             description: evt.description || '',
+            slug: slug || null,
             categories,
             imageUrl: evt.imageUrl || null,
             resolutionDate: new Date(resolutionDate),
@@ -120,11 +145,6 @@ export async function POST(request: Request) {
             creatorId,
             isHidden: false,
           };
-
-          const existing = await tx.event.findFirst({
-            where: { polymarketId },
-            select: { id: true },
-          });
 
           const dbEvent = existing
             ? await tx.event.update({

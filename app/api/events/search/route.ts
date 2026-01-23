@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
                         categories: true,
                         resolutionDate: true,
                         imageUrl: true,
+                        slug: true,
                     },
                     take: 20,
                     orderBy: {

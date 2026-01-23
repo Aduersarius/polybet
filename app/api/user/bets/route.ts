@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
                 event: {
                     select: {
                         title: true,
+                        slug: true,
                         status: true,
                         result: true
                     }
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
         const formattedBets = bets.map((bet: any) => ({
             id: bet.id,
             eventId: bet.eventId,
+            slug: bet.event.slug,
             eventTitle: bet.event.title,
             amount: Number(bet.amount),
             option: bet.outcome?.name || bet.option || 'Unknown',

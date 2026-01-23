@@ -37,6 +37,7 @@ type IntakeItem = {
   outcomes: Array<{ id?: string; name: string; price?: number; probability?: number }>;
   status: string;
   internalEventId?: string;
+  internalSlug?: string | null;
   notes?: string | null;
   // Event type classification
   marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
@@ -856,7 +857,17 @@ export function AdminPolymarketIntake() {
                       {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                     </span>
                   )}
-                  {item.internalEventId && (
+                  {item.internalSlug ? (
+                    <a
+                      href={`/event/${item.internalSlug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1 block truncate max-w-[120px]"
+                      title={item.internalSlug}
+                    >
+                      /{item.internalSlug}
+                    </a>
+                  ) : item.internalEventId && (
                     <div className="text-[11px] text-muted-foreground mt-1 break-words">{item.internalEventId}</div>
                   )}
                   <div className="text-[11px] text-zinc-500 font-mono mt-1">{item.polymarketId}</div>

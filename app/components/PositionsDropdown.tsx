@@ -9,6 +9,7 @@ import { useSession } from '@/lib/auth-client';
 interface Position {
     eventId: string;
     eventTitle: string;
+    slug?: string | null;
     option: string;
     shares: number;
     avgPrice: number;
@@ -121,7 +122,7 @@ export function PositionsDropdown() {
                                 positions.map((position, idx) => (
                                     <Link
                                         key={`${position.eventId}-${position.option}-${idx}`}
-                                        href={`/event/${position.eventId}`}
+                                        href={`/event/${position.slug || position.eventId}`}
                                         onClick={() => setIsOpen(false)}
                                         className="block p-3 border-b border-white/5 hover:bg-white/5 transition-colors"
                                     >

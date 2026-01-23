@@ -35,7 +35,26 @@ export async function GET(request: NextRequest) {
             }
         });
 
-        return NextResponse.json({ notifications, unreadCount });
+        // Enrich notifications with event slugs
+        const eventIds = notifications
+            .filter((n: any) => n.resourceId && (n.type === 'BET_RESULT' || n.type === 'FAVORITE_UPDATE' || n.type === 'MENTION'))
+            .map((n: any) => n.resourceId as string);
+
+        let slugMap: Record<string, string | null> = {};
+        if (eventIds.length > 0) {
+            const events = await prisma.event.findMany({
+                where: { id: { in: eventIds } },
+                select: { id: true, slug: true }
+            });
+            slugMap = events.reduce((acc: Record<string, string | null>, e: any) => ({ ...acc, [e.id]: e.slug }), {});
+        }
+
+        const enrichedNotifications = notifications.map((n: any) => ({
+            ...n,
+            resourceSlug: n.resourceId ? slugMap[n.resourceId] : null
+        }));
+
+        return NextResponse.json({ notifications: enrichedNotifications, unreadCount });
     } catch (error) {
         console.error('Error fetching notifications:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

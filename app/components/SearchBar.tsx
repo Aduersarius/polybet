@@ -14,6 +14,7 @@ interface SearchResult {
     title: string;
     category: string;
     resolutionDate: string;
+    slug?: string;
 }
 
 export function SearchBar({ onSearch, placeholder = "Search markets..." }: SearchBarProps) {
@@ -66,8 +67,8 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
         onSearch?.(value);
     };
 
-    const handleResultClick = (eventId: string) => {
-        router.push(`/event/${eventId}`);
+    const handleResultClick = (result: SearchResult) => {
+        router.push(`/event/${result.slug || result.id}`);
         setQuery('');
         setResults([]);
         setIsFocused(false);
@@ -156,7 +157,7 @@ export function SearchBar({ onSearch, placeholder = "Search markets..." }: Searc
                             {results.map((result) => (
                                 <button
                                     key={result.id}
-                                    onClick={() => handleResultClick(result.id)}
+                                    onClick={() => handleResultClick(result)}
                                     className="w-full px-5 py-3 text-left hover:bg-blue-500/10 transition-all duration-200 border-b border-blue-400/10 last:border-b-0 group"
                                 >
                                     <div className="flex items-start justify-between gap-3">

@@ -124,11 +124,16 @@ export default function EventPage() {
             setLiveEvent(event);
             // Set dynamic page title
             document.title = `${event.title} | Pariflow`;
+
+            // Redirect to slug if accessing by UUID and slug exists
+            if (event.slug && eventId === event.id) {
+                router.replace(`/event/${event.slug}`);
+            }
         }
         return () => {
             document.title = 'Pariflow | Real-Life Market Forecasting';
         };
-    }, [event]);
+    }, [event, eventId, router]);
 
     // Collapse larger sections by default on mobile, expand on desktop
     useEffect(() => {
@@ -172,12 +177,15 @@ export default function EventPage() {
 
     // Real-time updates via WebSocket
     useEffect(() => {
+        if (!liveEvent?.id) return;
+
         const { socket } = require('@/lib/socket');
-        const channel = socket.subscribe(`event-${eventId}`);
+        const channel = socket.subscribe(`event-${liveEvent.id}`);
 
         function onTradeUpdate(update: any) {
             console.log('Received real-time update:', update);
-            if (update.eventId !== eventId) return;
+            // Verify update belongs to this event using the internal ID
+            if (update.eventId !== liveEvent.id) return;
 
             setLiveEvent((prev: any) => {
                 if (!prev) return prev;
@@ -220,9 +228,9 @@ export default function EventPage() {
 
         return () => {
             channel.unbind(`odds-update`, onTradeUpdate);
-            socket.unsubscribe(`event-${eventId}`);
+            socket.unsubscribe(`event-${liveEvent.id}`);
         };
-    }, [eventId]);
+    }, [liveEvent?.id]);
 
     if (isLoading || !liveEvent) {
         return (
@@ -346,6 +354,7 @@ export default function EventPage() {
                                         <CompactEventPanel
                                             eventTitle={liveEvent.title}
                                             eventId={liveEvent.id.toString()}
+                                            eventSlug={liveEvent.slug}
                                             volume={liveEvent.volume}
                                             creationDate={liveEvent.createdAt}
                                             resolutionDate={liveEvent.resolutionDate}

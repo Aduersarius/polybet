@@ -5,14 +5,15 @@ import { Button } from '@/components/ui/button';
 interface ShareDropdownProps {
     eventTitle: string;
     eventId: string;
+    eventSlug?: string | null;
     className?: string;
 }
 
-export function ShareDropdown({ eventTitle, eventId, className }: ShareDropdownProps) {
+export function ShareDropdown({ eventTitle, eventId, eventSlug, className }: ShareDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/event/${eventId}` : '';
+    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/event/${eventSlug || eventId}` : '';
     const shareText = `Check out this prediction market: ${eventTitle}`;
 
     const handleCopyLink = async () => {

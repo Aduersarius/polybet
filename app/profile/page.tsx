@@ -45,6 +45,7 @@ interface PublicProfile {
 interface BetHistory {
     id: string;
     eventId: string;
+    slug?: string | null;
     eventTitle: string;
     amount: number;
     option: string;
@@ -56,6 +57,7 @@ interface BetHistory {
 
 interface Position {
     eventId: string;
+    slug?: string | null;
     eventTitle: string;
     option: string;
     shares: number;
@@ -477,7 +479,7 @@ function ProfileContent() {
                                             {positions && positions.length > 0 ? (
                                                 positions.map((pos, idx) => (
                                                     <Link
-                                                        href={`/event/${pos.eventId}`}
+                                                        href={`/event/${pos.slug || pos.eventId}`}
                                                         key={idx}
                                                         className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-white/5 transition-colors group/row cursor-pointer items-center"
                                                     >
@@ -554,7 +556,7 @@ function ProfileContent() {
                                             {bets && bets.length > 0 ? (
                                                 bets.map((bet) => (
                                                     <Link
-                                                        href={`/event/${bet.eventId}`}
+                                                        href={`/event/${bet.slug || bet.eventId}`}
                                                         key={bet.id}
                                                         className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-white/5 transition-colors group/row cursor-pointer items-center"
                                                     >

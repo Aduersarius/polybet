@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '@/lib/auth';
 import { promptLLM } from '@/lib/llm';
 import { scaleVolumeForStorage } from '@/lib/volume-scaler';
+import { generateSlugWithLLM } from '@/lib/slug';
 
 export const runtime = 'nodejs';
 
@@ -78,6 +79,7 @@ Requirements:
     return '';
   }
 }
+
 
 async function getSystemCreatorId(prisma: any) {
   const envId = process.env.POLYMARKET_CREATOR_ID;
@@ -352,8 +354,30 @@ export async function POST(request: NextRequest) {
       generatedDescription = await generateDescriptionWithLLM(title, rules);
     }
 
+    // Generate a human-readable slug using LLM
+    let slug = '';
+    if (title) {
+      slug = await generateSlugWithLLM(title, resolutionDate);
+
+      // Check if this slug already exists elsewhere
+      if (slug) {
+        const existingWithSlug = await prisma.event.findFirst({
+          where: {
+            slug,
+            NOT: { polymarketId } // Don't conflict with ourself if we already have this slug
+          }
+        });
+
+        // Resolve conflict by appending random ID if slug is taken
+        if (existingWithSlug) {
+          slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+        }
+      }
+    }
+
     const baseEventData: any = {
       title,
+      slug: slug || null,
       description: generatedDescription || '', // LLM-generated short description
       rules: rules || null, // Polymarket's resolution rules
       categories,

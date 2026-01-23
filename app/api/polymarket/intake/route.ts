@@ -45,6 +45,7 @@ type IntakeMarket = {
   groupItemThreshold?: string;
   status: string;
   internalEventId?: string;
+  internalSlug?: string | null;
   notes?: string | null;
   // Event type classification
   marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
@@ -306,13 +307,18 @@ export async function GET(request: Request) {
     );
 
     const { prisma } = await import('@/lib/prisma');
-    const mappings: PolymarketMapping[] = ids.length
+    const mappings = ids.length
       ? await prisma.polymarketMarketMapping.findMany({
         where: { polymarketId: { in: ids } },
+        include: {
+          event: {
+            select: { slug: true }
+          }
+        }
       })
       : [];
 
-    const mapByPoly = new Map(mappings.map((m) => [m.polymarketId, m]));
+    const mapByPoly = new Map<string, any>(mappings.map((m: any) => [m.polymarketId, { ...m, internalSlug: m.event?.slug }]));
 
     // Aggregate by Polymarket event so the admin list shows one row per event
     const grouped = new Map<string, IntakeMarket[]>();
@@ -438,6 +444,7 @@ export async function GET(request: Request) {
             })),
             status: mapping?.status || 'unmapped',
             internalEventId: mapping?.internalEventId ?? undefined,
+            internalSlug: (mapping as any)?.internalSlug || null,
             notes: mapping?.notes,
             // Dynamic classification based on probability analysis
             marketType: isMutuallyExclusive ? 'MULTIPLE' as const : 'GROUPED_BINARY' as const,
@@ -490,6 +497,7 @@ export async function GET(request: Request) {
         variantCount: group.length,
         status: mapping?.status || 'unmapped',
         internalEventId: mapping?.internalEventId ?? undefined,
+        internalSlug: (mapping as any)?.internalSlug || null,
         notes: mapping?.notes,
         marketType: inferredType as 'BINARY' | 'MULTIPLE',
         isGroupedBinary: false,

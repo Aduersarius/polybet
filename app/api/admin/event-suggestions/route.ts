@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
                 include: {
                     user: {
                         select: { id: true, username: true, email: true, address: true }
+                    },
+                    approvedEvent: {
+                        select: { slug: true }
                     }
                 }
             }),
@@ -90,10 +93,13 @@ export async function PUT(request: NextRequest) {
 
             const outcomes = Array.isArray(suggestion.outcomes) ? suggestion.outcomes : [];
             const isMultiple = suggestion.type === 'MULTIPLE';
+            const { generateSlugWithLLM } = await import('@/lib/slug');
+            const slug = await generateSlugWithLLM(suggestion.title, suggestion.resolutionDate);
 
             const event = await tx.event.create({
                 data: {
                     title: suggestion.title,
+                    slug: slug || null,
                     description: suggestion.description,
                     categories: suggestion.categories,
                     resolutionDate: suggestion.resolutionDate,

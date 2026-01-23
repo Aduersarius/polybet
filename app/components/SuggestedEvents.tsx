@@ -55,7 +55,7 @@ export function SuggestedEvents({ category, currentEventId }: SuggestedEventsPro
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Related Markets</h3>
             <div className="space-y-3">
                 {suggestedEvents.map((event: any) => (
-                    <Link key={event.id} href={`/event/${event.id}`} className="block group">
+                    <Link key={event.id} href={`/event/${event.slug || event.id}`} className="block group">
                         <motion.div
                             whileHover={{ borderColor: 'rgba(96, 165, 250, 0.4)' }}
                             transition={{ duration: 0.15 }}

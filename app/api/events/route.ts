@@ -284,6 +284,7 @@ export async function GET(request: Request) {
                 isEsports: true,
                 externalVolume: true,
                 externalBetCount: true,
+                slug: true,
                 outcomes: {
                     select: {
                         id: true,
@@ -490,12 +491,26 @@ export async function POST(request: Request) {
 
         const { title, description, resolutionDate, categories, imageUrl, type, outcomes, isHidden } = result.data;
 
+        // Generate slug using LLM
+        let slug = '';
+        if (title) {
+            const { generateSlugWithLLM } = await import('@/lib/slug');
+            slug = await generateSlugWithLLM(title, new Date(resolutionDate));
+
+            // Check for conflicts
+            const existing = await prisma.event.findFirst({ where: { slug } });
+            if (existing) {
+                slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+            }
+        }
+
         const parsedOutcomes = outcomes || [];
 
         // 2. Create Event with Creator and AMM defaults
         const event = await prisma.event.create({
             data: {
                 title,
+                slug: slug || null,
                 description,
                 resolutionDate: new Date(resolutionDate),
                 categories: categories ?? [],
@@ -524,6 +539,7 @@ export async function POST(request: Request) {
                 imageUrl: true,
                 status: true,
                 type: true,
+                slug: true,
                 isHidden: true,
                 outcomes: true,
             },

@@ -4,12 +4,13 @@ import { useState } from 'react';
 interface ShareButtonsProps {
     eventTitle: string;
     eventId: string;
+    eventSlug?: string | null;
 }
 
-export function ShareButtons({ eventTitle, eventId }: ShareButtonsProps) {
+export function ShareButtons({ eventTitle, eventId, eventSlug }: ShareButtonsProps) {
     const [copied, setCopied] = useState(false);
 
-    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/event/${eventId}` : '';
+    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/event/${eventSlug || eventId}` : '';
     const shareText = `Check out this prediction market: ${eventTitle}`;
 
     const handleCopyLink = async () => {

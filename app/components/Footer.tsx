@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
@@ -10,9 +10,14 @@ export function Footer() {
     const { data: rawSession } = useSession();
     const session = (rawSession as any)?.session?.isTwoFactorRequired ? null : rawSession;
     const isAuthenticated = !!(session as any)?.user;
-    
+
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSignupModal, setShowSignupModal] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     return (
         <>
@@ -21,16 +26,16 @@ export function Footer() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-gray-400">
                         <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
                             {/* Auth buttons for non-authenticated users on mobile only */}
-                            {!isAuthenticated && (
+                            {isMounted && !isAuthenticated && (
                                 <>
-                                    <button 
+                                    <button
                                         onClick={() => setShowLoginModal(true)}
                                         className="md:hidden hover:text-white transition-colors font-medium"
                                     >
                                         Login
                                     </button>
                                     <span className="md:hidden text-gray-600">•</span>
-                                    <button 
+                                    <button
                                         onClick={() => setShowSignupModal(true)}
                                         className="md:hidden hover:text-white transition-colors font-medium text-blue-400 hover:text-blue-300"
                                     >

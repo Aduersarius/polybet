@@ -22,6 +22,7 @@ interface DbEvent {
     volume?: number;
     betCount?: number;
     type?: string;
+    slug?: string;
     outcomes?: Array<{
         id: string;
         name: string;
@@ -322,7 +323,7 @@ export function GroupedBinaryEventCard({
                     transition={{ duration: 0.2 }}
                 >
                     <Link
-                        href={`/event/${event.id}`}
+                        href={`/event/${event.slug || event.id}`}
                         className="w-full h-full block"
                         style={{ overflow: 'visible' }}
                     >

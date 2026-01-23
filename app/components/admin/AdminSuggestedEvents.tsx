@@ -18,6 +18,7 @@ interface EventSuggestion {
     reviewedAt?: string | null;
     reviewNote?: string | null;
     approvedEventId?: string | null;
+    approvedEvent?: { slug: string | null } | null;
     user: {
         id: string;
         username?: string | null;
@@ -159,8 +160,8 @@ export function AdminSuggestedEvents() {
                                         {suggestion.approvedEventId && (
                                             <div className="text-xs text-emerald-400 mt-1">
                                                 Published as:{' '}
-                                                <Link href={`/event/${suggestion.approvedEventId}`} className="underline">
-                                                    {suggestion.approvedEventId}
+                                                <Link href={`/event/${suggestion.approvedEvent?.slug || suggestion.approvedEventId}`} className="underline">
+                                                    {suggestion.approvedEvent?.slug || suggestion.approvedEventId}
                                                 </Link>
                                             </div>
                                         )}

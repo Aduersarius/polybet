@@ -30,6 +30,7 @@ interface Notification {
     type: 'REPLY' | 'MENTION' | 'BET_RESULT' | 'FAVORITE_UPDATE' | 'SUPPORT_REPLY' | 'DEPOSIT_SUCCESS';
     message: string;
     resourceId: string | null;
+    resourceSlug?: string | null;
     isRead: boolean;
     createdAt: string;
     metadata?: NotificationMetadata;
@@ -268,7 +269,7 @@ export function NotificationBell() {
                 // Dispatch event for SupportChatWidget to handle ticket selection
                 window.dispatchEvent(new CustomEvent('open-support-chat', { detail: { ticketId: notification.resourceId } }));
             } else if (notification.type !== 'DEPOSIT_SUCCESS') {
-                window.location.href = `/event/${notification.resourceId}`;
+                window.location.href = `/event/${notification.resourceSlug || notification.resourceId}`;
             }
         }
         setIsOpen(false);

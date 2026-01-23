@@ -12,6 +12,7 @@ import { useState } from 'react';
 interface BetHistory {
     id: string;
     eventId: string;
+    slug?: string | null;
     eventTitle: string;
     option: 'YES' | 'NO' | string;
     amount: number;
@@ -98,7 +99,7 @@ export default function HistoryPage() {
                             {filteredBets && filteredBets.length > 0 ? (
                                 filteredBets.map((bet) => (
                                     <Link
-                                        href={`/event/${bet.eventId}`}
+                                        href={`/event/${bet.slug || bet.eventId}`}
                                         key={bet.id}
                                         className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-white/5 transition-colors group items-center"
                                     >

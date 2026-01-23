@@ -6,6 +6,7 @@ import { ShareDropdown } from './ShareDropdown';
 interface CompactEventPanelProps {
     eventTitle: string;
     eventId: string;
+    eventSlug?: string | null;
     volume?: number;
     creationDate?: string;
     resolutionDate?: string;
@@ -35,6 +36,7 @@ function VolumeDisplay({ volume }: { volume?: number }) {
 export function CompactEventPanel({
     eventTitle,
     eventId,
+    eventSlug,
     volume,
     creationDate,
     resolutionDate
@@ -44,7 +46,7 @@ export function CompactEventPanel({
             <VolumeDisplay volume={volume} />
             <EventCountdown creationDate={creationDate} resolutionDate={resolutionDate} />
             <div className="absolute bottom-0 right-0">
-                <ShareDropdown eventTitle={eventTitle} eventId={eventId} />
+                <ShareDropdown eventTitle={eventTitle} eventId={eventId} eventSlug={eventSlug} />
             </div>
         </div>
     );

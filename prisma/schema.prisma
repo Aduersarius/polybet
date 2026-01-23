@@ -145,6 +145,7 @@ model Event {
   type               String                   @default("BINARY") // "BINARY" or "MULTIPLE"
   source             String                   @default("LOCAL") // LOCAL | POLYMARKET | OTHER
   polymarketId       String?                  @unique
+  slug               String?                  @unique
   resolutionSource   String? // e.g. POLYMARKET, MANUAL
   resolvedAt         DateTime?
   externalVolume     Float?                   @default(0.0) // Upstream market volume (e.g., Polymarket)
@@ -160,6 +161,7 @@ model Event {
   marketActivity     MarketActivity[]
   orders             Order[]
   favorites          UserFavorite[]
+  suggestions        EventSuggestion[]
   creator            User                     @relation(fields: [creatorId], references: [id])
   polyOrders         PolyOrder[]              @relation("PolyOrderEvent")
   polyPositions      PolyPosition[]           @relation("PolyPositionEvent")
@@ -214,6 +216,7 @@ model EventSuggestion {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   approvedEventId String?
+  approvedEvent   Event? @relation(fields: [approvedEventId], references: [id])
 
   user User @relation(fields: [userId], references: [id])
 

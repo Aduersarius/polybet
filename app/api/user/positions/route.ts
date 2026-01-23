@@ -41,10 +41,11 @@ export async function GET(request: NextRequest) {
         // Get event details for positions
         const positions = await Promise.all(
             balances.map(async (balance) => {
-                const event: Prisma.EventGetPayload<{ select: { title: true; status: true; type: true } }> | null = await prisma.event.findUnique({
+                const event: Prisma.EventGetPayload<{ select: { title: true; slug: true; status: true; type: true } }> | null = await prisma.event.findUnique({
                     where: { id: balance.eventId! },
                     select: {
                         title: true,
+                        slug: true,
                         status: true,
                         type: true
                     }
@@ -108,6 +109,7 @@ export async function GET(request: NextRequest) {
                 return {
                     eventId: balance.eventId!,
                     eventTitle: event.title,
+                    slug: event.slug,
                     option: outcomeName,
                     shares: totalShares,
                     avgPrice,

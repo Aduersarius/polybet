@@ -27,61 +27,47 @@ export async function GET(
             async () => {
                 const { prisma } = await import('@/lib/prisma');
 
-                const whereClause: any = lookupByPolymarket ? { polymarketId: id } : { id };
-
                 const queryPromise = (async () => {
+                    const { prisma } = await import('@/lib/prisma');
+
+                    const commonInclude = {
+                        creator: {
+                            select: {
+                                id: true,
+                                username: true,
+                                address: true,
+                            },
+                        },
+                        outcomes: true,
+                    };
+
                     if (lookupByPolymarket) {
                         const byPoly = await prisma.event.findUnique({
                             where: { polymarketId: id },
-                            include: {
-                                creator: {
-                                    select: {
-                                        id: true,
-                                        username: true,
-                                        address: true,
-                                    },
-                                },
-                                outcomes: true,
-                            },
+                            include: commonInclude,
                         });
 
-                        if (byPoly) {
-
-                            return byPoly;
-                        }
+                        if (byPoly) return byPoly;
 
                         // Fallback: if the caller passed our internal event id with by=polymarket, try id lookup.
-                        const fallbackById = await prisma.event.findUnique({
+                        return prisma.event.findUnique({
                             where: { id },
-                            include: {
-                                creator: {
-                                    select: {
-                                        id: true,
-                                        username: true,
-                                        address: true,
-                                    },
-                                },
-                                outcomes: true,
-                            },
+                            include: commonInclude,
                         });
-
-
-
-                        return fallbackById;
                     }
 
+                    // Try direct ID lookup first
+                    const byId = await prisma.event.findUnique({
+                        where: { id },
+                        include: commonInclude,
+                    });
+
+                    if (byId) return byId;
+
+                    // Support human-readable slugs
                     return prisma.event.findUnique({
-                        where: whereClause,
-                        include: {
-                            creator: {
-                                select: {
-                                    id: true,
-                                    username: true,
-                                    address: true,
-                                },
-                            },
-                            outcomes: true,
-                        },
+                        where: { slug: id },
+                        include: commonInclude,
                     });
                 })();
 

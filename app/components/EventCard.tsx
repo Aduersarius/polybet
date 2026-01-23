@@ -983,7 +983,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           transition={{ duration: 0.2 }}
         >
           <Link
-            href={`/event/${event.id}`}
+            href={`/event/${(event as any).slug || event.id}`}
             scroll={false}
             onClick={() => {
               if (typeof window !== 'undefined') {
