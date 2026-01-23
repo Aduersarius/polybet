@@ -28,6 +28,7 @@ export declare class PolymarketRealtimeClient {
     private handleMessage;
     private handleMarketUpdate;
     private subscribeToActiveMarkets;
+    private startPolling;
     disconnect(): void;
 }
 export declare function getPolymarketRealtimeClient(): PolymarketRealtimeClient;
