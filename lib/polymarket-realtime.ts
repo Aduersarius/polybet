@@ -5,9 +5,8 @@
  * Handles trade feeds, price updates, and market data streams.
  * 
  * Topics available:
- * - "activity": Trade executions (type: "trades")
- * - "comments": Market comments  
- * - "crypto_prices": Crypto price feeds
+ * - "clob_market": Market data (price changes, orderbook, last trades) - PUBLIC
+ * - "activity": Trade executions (type: "trades") - PUBLIC (requires slug)
  */
 
 import { RealTimeDataClient, Message, ConnectionStatus } from '@polymarket/real-time-data-client';
@@ -31,6 +30,7 @@ export class PolymarketRealtimeClient {
     private client: RealTimeDataClient | null = null;
     private options: PolymarketRealtimeClientOptions;
     private mappingCache: Map<string, any> = new Map();
+    private activeTokenIds: Set<string> = new Set();
 
     // Circuit breaker
     private circuitState: CircuitState = CircuitState.CLOSED;
@@ -44,8 +44,26 @@ export class PolymarketRealtimeClient {
     }
 
     public connect() {
-        console.log('[Polymarket RTDS] Connecting to Polymarket data source...');
-        this.subscribeToActiveMarkets();
+        console.log('[Polymarket RTDS] Connecting to Polymarket data source (WebSocket)...');
+
+        try {
+            this.client = new RealTimeDataClient({
+                onConnect: () => {
+                    console.log('[Polymarket RTDS] ✅ WebSocket Connected!');
+                    this.subscribeToActiveMarkets();
+                },
+                onMessage: (client, msg) => this.handleMessage(msg),
+                onStatusChange: (status) => {
+                    console.log(`[Polymarket RTDS] Connection status: ${status}`);
+                }
+            });
+
+            this.client.connect();
+        } catch (error: any) {
+            console.error('[Polymarket RTDS] Failed to initialize WebSocket client:', error);
+            this.handleFailure();
+        }
+
         return this;
     }
 
@@ -63,8 +81,33 @@ export class PolymarketRealtimeClient {
 
     private async handleMessage(message: Message) {
         try {
-            // Handle trade messages from activity topic
-            if (message.topic === 'activity' && message.type === 'trade') {
+            // Debug log for sampling
+            if (Math.random() < 0.01) {
+                console.log(`[Polymarket RTDS] Msg: ${message.topic}/${message.type}`);
+            }
+
+            // Handle CLOB Market Last Trade Price
+            if (message.topic === 'clob_market' && message.type === 'last_trade_price') {
+                // Payload is an array of trade updates: [{ asset_id, price, size, ... }]
+                const updates = message.payload as any[];
+
+                if (Array.isArray(updates)) {
+                    for (const update of updates) {
+                        const assetId = update.asset_id;
+                        const price = parseFloat(update.price);
+
+                        if (assetId && !isNaN(price)) {
+                            // Run in background to not block the WS loop
+                            this.handleMarketUpdate(assetId, price).catch(err => {
+                                console.error(`[Polymarket RTDS] Update error for ${assetId}:`, err);
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Fallback: Handle Activity Trades (if we subscribe to them later)
+            else if (message.topic === 'activity' && message.type === 'trade') {
                 const payload = message.payload as any;
                 const assetId = payload.asset;
                 const price = parseFloat(payload.price);
@@ -74,9 +117,7 @@ export class PolymarketRealtimeClient {
                 }
             }
         } catch (error: any) {
-            if (Math.random() < 0.05) {
-                console.error('[Polymarket RTDS] Error handling message:', error.message);
-            }
+            console.error('[Polymarket RTDS] Error handling message:', error.message);
         }
     }
 
@@ -132,34 +173,42 @@ export class PolymarketRealtimeClient {
                 }
             }
 
-            // 3. Track Odds History (5m buckets)
-            const ODDS_HISTORY_BUCKET_MS = 5 * 60 * 1000;
-            const bucketTs = Math.floor(Date.now() / ODDS_HISTORY_BUCKET_MS) * ODDS_HISTORY_BUCKET_MS;
+            // 3. Track Odds History (5m buckets efficiency)
+            // We throttle history writes to avoid spamming DB on every tick
+            const historyKey = `history_last_write:${asset_id}`;
+            const lastWrite = this.mappingCache.get(historyKey) || 0;
+            const THROTTLE_MS = 60000; // Only write history max once per minute per token
 
-            const targetOutcome = isBinary && (mapping.yesTokenId === asset_id || mapping.noTokenId === asset_id)
-                ? event.outcomes?.find((o: any) => o.name?.toUpperCase() === (mapping.yesTokenId === asset_id ? 'YES' : 'NO'))
-                : event.outcomes?.find((o: any) => o.polymarketOutcomeId === asset_id);
+            if (Date.now() - lastWrite > THROTTLE_MS) {
+                const ODDS_HISTORY_BUCKET_MS = 5 * 60 * 1000;
+                const bucketTs = Math.floor(Date.now() / ODDS_HISTORY_BUCKET_MS) * ODDS_HISTORY_BUCKET_MS;
 
-            if (targetOutcome) {
-                await prisma.oddsHistory.upsert({
-                    where: {
-                        eventId_outcomeId_timestamp: {
+                const targetOutcome = isBinary && (mapping.yesTokenId === asset_id || mapping.noTokenId === asset_id)
+                    ? event.outcomes?.find((o: any) => o.name?.toUpperCase() === (mapping.yesTokenId === asset_id ? 'YES' : 'NO'))
+                    : event.outcomes?.find((o: any) => o.polymarketOutcomeId === asset_id);
+
+                if (targetOutcome) {
+                    await prisma.oddsHistory.upsert({
+                        where: {
+                            eventId_outcomeId_timestamp: {
+                                eventId: event.id,
+                                outcomeId: targetOutcome.id,
+                                timestamp: new Date(bucketTs),
+                            },
+                        },
+                        update: { price, probability: price },
+                        create: {
                             eventId: event.id,
                             outcomeId: targetOutcome.id,
                             timestamp: new Date(bucketTs),
+                            price,
+                            probability: price,
+                            polymarketTokenId: asset_id,
+                            source: 'POLYMARKET',
                         },
-                    },
-                    update: { price, probability: price },
-                    create: {
-                        eventId: event.id,
-                        outcomeId: targetOutcome.id,
-                        timestamp: new Date(bucketTs),
-                        price,
-                        probability: price,
-                        polymarketTokenId: asset_id,
-                        source: 'POLYMARKET',
-                    },
-                });
+                    });
+                    this.mappingCache.set(historyKey, Date.now());
+                }
             }
 
             // 4. Real-time Broadcast (Pusher + Redis)
@@ -191,6 +240,8 @@ export class PolymarketRealtimeClient {
     }
 
     private async subscribeToActiveMarkets() {
+        if (!this.client) return;
+
         try {
             const mappings = await prisma.polymarketMarketMapping.findMany({
                 where: { isActive: true },
@@ -200,58 +251,38 @@ export class PolymarketRealtimeClient {
             const active = mappings.filter((m: any) => m.event?.status === 'ACTIVE');
             console.log(`[Polymarket RTDS] Found ${active.length} active markets`);
 
-            // IMPORTANT: The activity/trades WebSocket topic requires CLOB API authentication
-            // which we don't have. Instead, we'll poll the public Gamma API every 30s.
-            console.log('[Polymarket RTDS] ⚠️ WebSocket requires auth - using HTTP polling instead');
+            // Collect all Token IDs to subscribe to
+            const tokenIds: string[] = [];
 
-            this.startPolling(active);
-        } catch (error: any) {
-            console.error('[Polymarket RTDS] Failed to start polling:', error.message);
-        }
-    }
-
-    private startPolling(mappings: any[]) {
-        // Poll Polymarket Gamma API every 30 seconds for price updates
-        const pollInterval = 30000; // 30s
-
-        const poll = async () => {
-            for (const mapping of mappings) {
-                try {
-                    const polymarketId = mapping.event?.polymarketId;
-                    if (!polymarketId) continue;
-
-                    // Get token IDs from mapping
-                    const clobTokenIds = [mapping.yesTokenId, mapping.noTokenId].filter(Boolean);
-                    if (clobTokenIds.length === 0) continue;
-
-                    // Fetch individual token prices from Gamma API
-                    for (const tokenId of clobTokenIds) {
-                        try {
-                            const response = await fetch(`https://gamma-api.polymarket.com/prices?token_id=${tokenId}`);
-                            if (!response.ok) continue;
-
-                            const priceData = await response.json();
-                            const price = parseFloat(priceData?.price || priceData?.mid || '0');
-
-                            if (!isNaN(price) && price > 0) {
-                                await this.handleMarketUpdate(tokenId, price);
-                            }
-                        } catch (err) {
-                            // Continue on individual token errors
-                        }
-                    }
-                } catch (error: any) {
-                    // Silently continue on individual market errors
-                }
+            for (const map of active) {
+                if (map.yesTokenId) tokenIds.push(map.yesTokenId);
+                if (map.noTokenId) tokenIds.push(map.noTokenId);
             }
-        };
 
-        // Initial poll
-        poll();
+            this.activeTokenIds = new Set(tokenIds);
 
-        // Poll every 30s
-        setInterval(poll, pollInterval);
-        console.log(`[Polymarket RTDS] 🔄 Polling ${mappings.length} markets every ${pollInterval / 1000}s`);
+            if (tokenIds.length === 0) {
+                console.log('[Polymarket RTDS] No active tokens to subscribe to.');
+                return;
+            }
+
+            console.log(`[Polymarket RTDS] 🔌 Subscribing to ${tokenIds.length} tokens via WebSocket...`);
+
+            // Subscribe to 'clob_market' -> 'last_trade_price'
+            // This channel is PUBLIC and provides real-time price updates based on last trades
+            this.client.subscribe({
+                subscriptions: [{
+                    topic: 'clob_market',
+                    type: 'last_trade_price',
+                    filters: tokenIds as any // Cast to any because library types incorrectly expect string
+                }]
+            });
+
+            console.log('[Polymarket RTDS] 🚀 Subscription sent! Real-time updates active.');
+
+        } catch (error: any) {
+            console.error('[Polymarket RTDS] Failed to subscribe:', error.message);
+        }
     }
 
     public disconnect() {
@@ -271,3 +302,4 @@ export function getPolymarketRealtimeClient() {
     }
     return globalRealtimeClient;
 }
+
