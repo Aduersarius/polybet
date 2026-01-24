@@ -75,14 +75,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         });
 
         // Generate event URLs (prefer slugs for better SEO)
-        const eventPages: MetadataRoute.Sitemap = events.map((event) => {
+        const eventPages: MetadataRoute.Sitemap = events.map((event: any) => {
             const url = `${baseUrl}/event/${event.slug || event.id}`;
-            
+
             // Determine priority based on how recent the event is
             const daysSinceCreation = Math.floor(
                 (now.getTime() - new Date(event.createdAt).getTime()) / (1000 * 60 * 60 * 24)
             );
-            
+
             // Newer events get higher priority
             let priority = 0.7;
             if (daysSinceCreation < 7) priority = 0.9;
