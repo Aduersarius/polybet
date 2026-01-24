@@ -14,7 +14,7 @@ import { PolymarketRealtimeClient } from '../../lib/polymarket-realtime';
  */
 
 async function startWorker() {
-    console.log('🚀 Initializing Polymarket Real-Time Manager...');
+    console.log('🚀 Initializing Polymarket Real-Time Manager..');
 
     const client = new PolymarketRealtimeClient({
         autoUpdateDb: true // Library handles all the heavy lifting
