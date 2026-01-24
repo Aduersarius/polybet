@@ -519,14 +519,16 @@ export async function POST(request: Request) {
           if (event.yesTokenId || event.noTokenId) {
             await prisma.polymarketMarketMapping.upsert({
               where: {
-                eventId: existing.id,
+                internalEventId: existing.id,
               },
               create: {
-                eventId: existing.id,
+                internalEventId: existing.id,
+                polymarketId: event.polymarketId,
                 yesTokenId: event.yesTokenId || '',
                 noTokenId: event.noTokenId || '',
               },
               update: {
+                polymarketId: event.polymarketId,
                 yesTokenId: event.yesTokenId || '',
                 noTokenId: event.noTokenId || '',
               },
@@ -551,14 +553,16 @@ export async function POST(request: Request) {
           if (yesTokenId || noTokenId) {
             await prisma.polymarketMarketMapping.upsert({
               where: {
-                eventId: newEvent.id,
+                internalEventId: newEvent.id,
               },
               create: {
-                eventId: newEvent.id,
+                internalEventId: newEvent.id,
+                polymarketId: event.polymarketId,
                 yesTokenId: yesTokenId || '',
                 noTokenId: noTokenId || '',
               },
               update: {
+                polymarketId: event.polymarketId,
                 yesTokenId: yesTokenId || '',
                 noTokenId: noTokenId || '',
               },

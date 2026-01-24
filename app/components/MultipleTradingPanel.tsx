@@ -383,7 +383,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                     {outcome.name}
                                 </span>
                                 <span className="text-sm font-bold text-white">
-                                    {Math.round(outcome.probability * 100)}%
+                                    {(outcome.probability * 100).toFixed(1)}%
                                 </span>
                                 {selectedTab === 'sell' && outcomeBalance > 0 && (
                                     <span className="text-[10px] text-gray-500">{outcomeBalance.toFixed(2)} owned</span>
@@ -449,7 +449,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                                     setAmount('1000');
                                                 } else {
                                                     const increment = parseFloat(val.replace('+', ''));
-                                                    setAmount((parseFloat(amount) || 0 + increment).toString());
+                                                    setAmount(((parseFloat(amount) || 0) + increment).toString());
                                                 }
                                             }}
                                             className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
@@ -540,7 +540,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                         <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
                                             <span>If {currentSelectedOutcome.name} wins:</span>
                                             <span className="font-medium text-green-400">
-                                                ${(potentialPayout * currentSelectedOutcome.odds).toFixed(2)}
+                                                ${potentialPayout.toFixed(2)}
                                             </span>
                                         </div>
                                     )}

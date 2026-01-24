@@ -1,29 +1,21 @@
-import { PolymarketRealtimeClient } from '../../lib/polymarket-realtime';
-
-// v2.0.0 - Migrated to official @polymarket/real-time-data-client library
+import { PolymarketRTDSClient } from './lib/rtds';
 
 /**
- * STRIPPED-DOWN POLYMARKET REAL-TIME WORKER
+ * POLYMARKET REAL-TIME WORKER
  * 
- * Logic has been unified in lib/polymarket-realtime.ts for:
- * 1. Automatic Database Sync (Event/Outcome tables)
- * 2. Automated History tracking (OddsHistory)
- * 3. Real-time Broadcasting (Redis/Pusher)
- * 
- * This worker simply acts as the persistent lifecycle manager.
+ * Persistent process that:
+ * 1. Subscribes to live odds from Polymarket RTDS
+ * 2. Updates the Database (Events, Outcomes, History)
+ * 3. Broadcasts via Redis and Pusher
  */
 
 async function startWorker() {
-    console.log('🚀 Initializing Polymarket Real-Time Manager..');
+    console.log('🚀 Initializing Polymarket Real-Time Manager (Standalone Mode)');
 
-    const client = new PolymarketRealtimeClient({
-        autoUpdateDb: true // Library handles all the heavy lifting
-    });
+    const client = new PolymarketRTDSClient();
+    await client.start();
 
-    // Connect to RTDS (Real-Time Data Service)
-    client.connect();
-
-    // Start heartbeat loop
+    // Start heartbeat loop for health monitoring
     const { redis } = await import('../../lib/redis');
     setInterval(async () => {
         try {
@@ -35,10 +27,10 @@ async function startWorker() {
         }
     }, 30000);
 
-    console.log('✅ Worker active. Orchestrating real-time updates via official Polymarket RTDS client.');
+    console.log('✅ Worker active. Connected directly to Polymarket RTDS.');
 }
 
-// Global error handling to prevent silent death
+// Global error handling
 process.on('uncaughtException', (err) => {
     console.error('🔥 UNCAUGHT EXCEPTION:', err);
 });
@@ -46,6 +38,15 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
     console.error('🔥 UNHANDLED REJECTION:', reason);
 });
+
+// Graceful shutdown
+const shutdown = (signal: string) => {
+    console.log(`\n🛑 Received ${signal}. Shutting down worker...`);
+    process.exit(0);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 startWorker().catch(err => {
     console.error('💥 Worker Crashed:', err);

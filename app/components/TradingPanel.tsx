@@ -106,7 +106,50 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     // Use prop data if available, otherwise use fetched data
     const eventData = propEventData || fetchedEventData;
 
-    // Fetch latest odds history to seed prices with freshest point (helps when page loads before ws update)
+    // Refetch when switching to sell tab
+    useEffect(() => {
+        if (selectedTab === 'sell') {
+            refetchBalances();
+        }
+    }, [selectedTab, refetchBalances]);
+
+    // Calculate initial prices from event data on mount and updates
+    useEffect(() => {
+        if (eventData) {
+            // Priority 1: Live prices (WS/dynamic)
+            if (eventData.yesPrice != null || eventData.noPrice != null) {
+                if (eventData.yesPrice != null) setYesPrice(eventData.yesPrice);
+                if (eventData.noPrice != null) setNoPrice(eventData.noPrice);
+            }
+            // Priority 2: Outcomes array (Polymarket structure)
+            else if (eventData.outcomes && Array.isArray(eventData.outcomes)) {
+                const yesOutcome = eventData.outcomes.find((o: any) => /^yes$/i.test(o.name));
+                const noOutcome = eventData.outcomes.find((o: any) => /^no$/i.test(o.name));
+
+                if (yesOutcome && yesOutcome.probability != null) {
+                    const p = yesOutcome.probability > 1 ? yesOutcome.probability / 100 : yesOutcome.probability;
+                    setYesPrice(p);
+                }
+                if (noOutcome && noOutcome.probability != null) {
+                    const p = noOutcome.probability > 1 ? noOutcome.probability / 100 : noOutcome.probability;
+                    setNoPrice(p);
+                }
+
+                // If only one side found, derive the other for binary
+                if (yesOutcome && !noOutcome) setNoPrice(1 - (yesOutcome.probability > 1 ? yesOutcome.probability / 100 : yesOutcome.probability));
+                if (noOutcome && !yesOutcome) setYesPrice(1 - (noOutcome.probability > 1 ? noOutcome.probability / 100 : noOutcome.probability));
+            }
+            // Priority 3: Direct odds columns (DB fallback)
+            else if (eventData.yesOdds != null && eventData.noOdds != null) {
+                setYesPrice(eventData.yesOdds);
+                setNoPrice(eventData.noOdds);
+            }
+        }
+    }, [eventData]);
+
+
+
+    // Fetch latest odds history to seed prices with freshest point (matches EventCard logic)
     const { data: latestHistory } = useQuery({
         queryKey: ['odds-history-latest', eventId],
         enabled: Boolean(eventId),
@@ -121,49 +164,33 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         },
     });
 
-    // Refetch when switching to sell tab
-    useEffect(() => {
-        if (selectedTab === 'sell') {
-            refetchBalances();
-        }
-    }, [selectedTab, refetchBalances]);
-
-    // Calculate initial prices from event data on mount
-    useEffect(() => {
-        if (eventData) {
-            // Priority:
-            // 1. Direct odds columns (favored for A-Book/Polymarket)
-            if (eventData.yesOdds != null && eventData.noOdds != null) {
-                setYesPrice(eventData.yesOdds);
-                setNoPrice(eventData.noOdds);
-            }
-            // 2. LMSR q-positions (legacy B-Book fallback)
-            else if (eventData.qYes !== undefined && eventData.qNo !== undefined) {
-                const b = eventData.liquidityParameter || 10000.0;
-                const odds = calculateLMSROdds(eventData.qYes, eventData.qNo, b);
-                setYesPrice(odds.yesPrice);
-                setNoPrice(odds.noPrice);
-            }
-        }
-    }, [eventData]);
-
     // Seed prices from latest odds history when available
     useEffect(() => {
         if (!latestHistory || latestHistory.length === 0) return;
         const last = latestHistory[latestHistory.length - 1];
+
+        // Handle outcomes array in history (Polymarket style)
+        if (last.outcomes && Array.isArray(last.outcomes)) {
+            const yesOutcome = last.outcomes.find((o: any) => o.name === 'Yes' || o.id === 'YES');
+            if (yesOutcome && yesOutcome.probability != null) {
+                const p = yesOutcome.probability > 1 ? yesOutcome.probability / 100 : yesOutcome.probability;
+                setYesPrice(p);
+                setNoPrice(1 - p);
+                return;
+            }
+        }
+
+        // Handle direct price fields
         const latestYes = typeof last?.yesPrice === 'number' ? last.yesPrice : undefined;
         const latestNo = typeof last?.noPrice === 'number' ? last.noPrice : undefined;
+
         if (latestYes != null) {
             setYesPrice(latestYes);
-            if (latestNo == null) {
-                setNoPrice(1 - latestYes);
-            }
+            if (latestNo == null) setNoPrice(1 - latestYes);
         }
         if (latestNo != null) {
             setNoPrice(latestNo);
-            if (latestYes == null) {
-                setYesPrice(1 - latestNo);
-            }
+            if (latestYes == null) setYesPrice(1 - latestNo);
         }
     }, [latestHistory]);
 
@@ -216,20 +243,35 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         const handler = (update: any) => {
             if (update.eventId !== eventId) return;
 
+            // Handle direct price updates
             if (update.yesPrice !== undefined) {
                 const p = update.yesPrice > 1 ? update.yesPrice / 100 : update.yesPrice;
                 setYesPrice(p);
-                // Ensure noPrice is also kept in sync if not provided
-                if (update.noPrice === undefined) {
-                    setNoPrice(1 - p);
-                }
+                if (update.noPrice === undefined) setNoPrice(1 - p);
             }
             if (update.noPrice !== undefined) {
                 const p = update.noPrice > 1 ? update.noPrice / 100 : update.noPrice;
                 setNoPrice(p);
-                // Ensure yesPrice is also kept in sync if not provided
-                if (update.yesPrice === undefined) {
-                    setYesPrice(1 - p);
+                if (update.yesPrice === undefined) setYesPrice(1 - p);
+            }
+
+            // Handle updates via outcomes array (common for Polymarket events)
+            if (update.outcomes && Array.isArray(update.outcomes)) {
+                const yesOutcome = update.outcomes.find((o: any) => o.name === 'Yes' || o.id === 'YES');
+                const noOutcome = update.outcomes.find((o: any) => o.name === 'No' || o.id === 'NO');
+
+                if (yesOutcome && yesOutcome.probability != null) {
+                    const p = yesOutcome.probability > 1 ? yesOutcome.probability / 100 : yesOutcome.probability;
+                    setYesPrice(p);
+                    // If no explicit No outcome, assume 1-p
+                    if (!noOutcome) setNoPrice(1 - p);
+                }
+
+                if (noOutcome && noOutcome.probability != null) {
+                    const p = noOutcome.probability > 1 ? noOutcome.probability / 100 : noOutcome.probability;
+                    setNoPrice(p);
+                    // If no explicit Yes outcome, assume 1-p
+                    if (!yesOutcome) setYesPrice(1 - p);
                 }
             }
         };
@@ -264,8 +306,8 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const safeYesPrice = Math.max(0, Math.min(1, yesPrice !== undefined ? yesPrice : 0.5));
     const safeNoPrice = Math.max(0, Math.min(1, noPrice !== undefined ? noPrice : 0.5));
 
-    const yesProbability = Math.round(safeYesPrice * 100);
-    const noProbability = Math.round(safeNoPrice * 100);
+    const yesProbability = (safeYesPrice * 100).toFixed(1);
+    const noProbability = (safeNoPrice * 100).toFixed(1);
 
     // Calculate odds from prices (decimal odds = 1 / price)
     const yesOdds = yesPrice > 0 ? (1 / yesPrice) : 1;
@@ -566,7 +608,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                                 setAmount('1000');
                                             } else {
                                                 const increment = parseFloat(val.replace('+', ''));
-                                                setAmount((parseFloat(amount) || 0 + increment).toString());
+                                                setAmount(((parseFloat(amount) || 0) + increment).toString());
                                             }
                                         }}
                                         className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
@@ -661,7 +703,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                     <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
                                         <span>If {selectedOption.toLowerCase()} wins:</span>
                                         <span className="font-medium text-green-400">
-                                            ${(potentialPayout * (selectedOption === 'YES' ? yesOdds : noOdds)).toFixed(2)}
+                                            ${potentialPayout.toFixed(2)}
                                         </span>
                                     </div>
                                 )}

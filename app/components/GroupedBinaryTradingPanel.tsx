@@ -404,16 +404,35 @@ export function GroupedBinaryTradingPanel({
                                 </div>
 
                                 {/* Quick Amount Buttons */}
-                                <div className="grid grid-cols-4 gap-2">
-                                    {[10, 50, 100, 500].map((amt) => (
-                                        <button
-                                            key={amt}
-                                            onClick={() => setAmount(amt.toString())}
-                                            className="py-2 rounded-lg bg-white/5 border border-white/5 text-[10px] font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase"
-                                        >
-                                            ${amt}
-                                        </button>
-                                    ))}
+                                <div className="flex gap-2 mb-2">
+                                    {selectedTab === 'buy' ? (
+                                        ['+1', '+10', '+50', '+100', 'Max'].map((val) => (
+                                            <button
+                                                key={val}
+                                                onClick={() => {
+                                                    if (val === 'Max') {
+                                                        setAmount('1000');
+                                                    } else {
+                                                        const increment = parseFloat(val.replace('+', ''));
+                                                        setAmount(((parseFloat(amount) || 0) + increment).toString());
+                                                    }
+                                                }}
+                                                className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                            >
+                                                {val}
+                                            </button>
+                                        ))
+                                    ) : (
+                                        ['25%', '50%', 'ALL'].map((val) => (
+                                            <button
+                                                key={val}
+                                                onClick={() => setAmountPercentage(val === 'ALL' ? 1 : parseFloat(val) / 100)}
+                                                className="flex-1 py-1 text-xs font-medium bg-white/5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                                            >
+                                                {val}
+                                            </button>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>

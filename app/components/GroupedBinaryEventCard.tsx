@@ -584,9 +584,8 @@ export function GroupedBinaryEventCard({
                             </div>
                         </div>
 
-                        {/* Preset buttons - Compact */}
-                        <div className="grid grid-cols-4 gap-1.5 flex-shrink-0">
-                            {[1, 10, 100].map((val) => (
+                        <div className="grid grid-cols-5 gap-1.5 flex-shrink-0">
+                            {[1, 10, 50, 100].map((val) => (
                                 <button
                                     key={val}
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); incrementAmount(val); }}

@@ -21,7 +21,7 @@ export async function GET(
 
 
         // Use Redis caching with longer TTL (but still low to keep freshness)
-        const cacheKey = `${lookupByPolymarket ? 'poly' : 'evt'}:${id}`;
+        const cacheKey = `${lookupByPolymarket ? 'poly' : 'evt'}:${id}:v3`;
         const eventWithOdds = await getOrSet(
             cacheKey,
             async () => {
@@ -163,14 +163,22 @@ export async function GET(
 
                     // Priority:
                     // 1. If we have direct odds (synced from Polymarket), use them
-                    // 2. If it is a LOCAL event with q positions, use LMSR
-                    // 3. 50/50 fallback
+                    // 2. If we have outcome probabilities (synced via other routes), use them
+                    // 3. If it is a LOCAL event with q positions, use LMSR
+                    // 4. 50/50 fallback
 
                     let finalProbs;
+                    const yesOutcome = (event as any).outcomes?.find((o: any) => /^yes$/i.test(o.name));
+                    const noOutcome = (event as any).outcomes?.find((o: any) => /^no$/i.test(o.name));
+
+
+
                     if (yesOdds != null && noOdds != null && source === 'POLYMARKET') {
+                        finalProbs = { yesPrice: yesOdds, noPrice: noOdds };
+                    } else if (yesOutcome && noOutcome && yesOutcome.probability != null && noOutcome.probability != null) {
                         finalProbs = {
-                            yesPrice: yesOdds,
-                            noPrice: noOdds
+                            yesPrice: yesOutcome.probability,
+                            noPrice: noOutcome.probability
                         };
                     } else {
                         const qYes = (event as any).qYes || 0;

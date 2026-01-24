@@ -2039,37 +2039,20 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
             </div>
 
             {/* Preset buttons - Compact */}
-            <div className="grid grid-cols-4 gap-1.5 flex-shrink-0">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  incrementAmount(1);
-                }}
-                className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
-              >
-                +1
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  incrementAmount(10);
-                }}
-                className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
-              >
-                +10
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  incrementAmount(100);
-                }}
-                className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
-              >
-                +100
-              </button>
+            <div className="grid grid-cols-5 gap-1.5 flex-shrink-0">
+              {[1, 10, 50, 100].map((val) => (
+                <button
+                  key={val}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    incrementAmount(val);
+                  }}
+                  className="h-7 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors flex items-center justify-center"
+                >
+                  +{val}
+                </button>
+              ))}
               <button
                 onClick={(e) => {
                   e.preventDefault();
