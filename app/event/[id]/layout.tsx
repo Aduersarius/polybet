@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getEventImageUrl, getEventCanonicalUrl, truncate, getBaseUrl } from '@/lib/seo';
+import { getEventImageUrl, getEventCanonicalUrl, formatEventTitle, formatEventDescription, getBaseUrl } from '@/lib/seo';
 import { EventSchema } from './EventSchema';
 
 export const runtime = 'nodejs';
@@ -87,8 +87,8 @@ export async function generateMetadata({
     const baseUrl = getBaseUrl();
     const eventUrl = getEventCanonicalUrl(event);
     const imageUrl = getEventImageUrl(event);
-    const title = `${event.title} | Pariflow`;
-    const description = truncate(event.description || event.title, 160);
+    const title = formatEventTitle(event.title);
+    const description = formatEventDescription(event.title, event.resolutionDate);
 
     return {
         title,
@@ -98,7 +98,7 @@ export async function generateMetadata({
         },
         openGraph: {
             type: 'website',
-            title: event.title,
+            title: title, // Use formatted title for OG
             description,
             url: eventUrl,
             siteName: 'Pariflow',
@@ -114,7 +114,7 @@ export async function generateMetadata({
         },
         twitter: {
             card: 'summary_large_image',
-            title: event.title,
+            title: title, // Use formatted title for Twitter
             description,
             images: [imageUrl],
             // site: '@pariflow', // Uncomment if you have Twitter handle

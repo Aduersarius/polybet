@@ -107,3 +107,75 @@ export function getEventCanonicalUrl(event: {
     // Prefer slug-based URLs for better SEO
     return `${baseUrl}/event/${event.slug || event.id}`;
 }
+
+/**
+ * Format event title for SEO (max 60-65 characters)
+ * Format: "[Event Title] — Market Odds"
+ */
+export function formatEventTitle(eventTitle: string): string {
+    const suffix = ' — Market Odds';
+    const maxTitleLength = 62; // Leave room for suffix
+    
+    if (eventTitle.length + suffix.length <= maxTitleLength) {
+        return `${eventTitle}${suffix}`;
+    }
+    
+    // Truncate event title to fit
+    const truncatedTitle = truncate(eventTitle, maxTitleLength - suffix.length);
+    return `${truncatedTitle}${suffix}`;
+}
+
+/**
+ * Format resolution date for display
+ */
+export function formatResolutionDate(date: string | Date | null | undefined): string {
+    if (!date) return 'the resolution date';
+    
+    try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return 'the resolution date';
+        
+        // Format as "Jan 31" or "Jan 31, 2025"
+        const month = d.toLocaleDateString('en-US', { month: 'short' });
+        const day = d.getDate();
+        const year = d.getFullYear();
+        const currentYear = new Date().getFullYear();
+        
+        if (year === currentYear) {
+            return `${month} ${day}`;
+        }
+        return `${month} ${day}, ${year}`;
+    } catch {
+        return 'the resolution date';
+    }
+}
+
+/**
+ * Generate SEO description for event
+ * Format: "Track market odds on whether [event] will occur by [date]. View live probabilities, price history, and trade outcomes on Pariflow."
+ */
+export function formatEventDescription(
+    eventTitle: string,
+    resolutionDate: string | Date | null | undefined
+): string {
+    const dateStr = formatResolutionDate(resolutionDate);
+    const baseDescription = `Track market odds on whether ${eventTitle} will occur by ${dateStr}. View live probabilities, price history, and trade outcomes on Pariflow.`;
+    
+    // Truncate to 160 characters if needed
+    if (baseDescription.length <= 160) {
+        return baseDescription;
+    }
+    
+    // If too long, truncate the event title within the description
+    const prefix = 'Track market odds on whether ';
+    const suffix = ` will occur by ${dateStr}. View live probabilities, price history, and trade outcomes on Pariflow.`;
+    const availableLength = 160 - prefix.length - suffix.length;
+    
+    if (availableLength < 10) {
+        // Fallback: very short description
+        return `Track market odds on ${eventTitle}. View live probabilities and trade outcomes on Pariflow.`;
+    }
+    
+    const truncatedTitle = truncate(eventTitle, availableLength);
+    return `${prefix}${truncatedTitle}${suffix}`;
+}
