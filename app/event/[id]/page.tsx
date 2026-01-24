@@ -379,11 +379,11 @@ export default function EventPage() {
                                                 {!collapsedSections.chart && (
                                                     <div className="h-[260px] sm:h-[340px] lg:h-[460px] w-full transition-[max-height] duration-200">
                                                         <OddsChartV2
-                                                            eventId={eventId.toString()}
+                                                            eventId={liveEvent.id.toString()}
                                                             eventType={liveEvent.type}
                                                             outcomes={liveEvent.outcomes || []}
                                                             liveOutcomes={liveEvent.outcomes || []}
-                                                            currentYesPrice={liveEvent.yesOdds}
+                                                            currentYesPrice={liveEvent.yesPrice ?? liveEvent.yesOdds ?? 0.5}
                                                         />
                                                     </div>
                                                 )}

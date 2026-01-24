@@ -14,7 +14,7 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient; pool: P
 
 function createPrismaClient() {
     if (!isProd && !globalForPrisma.hasLogged) {
-        console.log('[prisma] 🔧 Initializing PrismaClient instance...');
+        // Log removed to reduce noise
         globalForPrisma.hasLogged = true;
     }
 

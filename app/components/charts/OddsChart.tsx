@@ -96,7 +96,16 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
   // Filter outcomes based on selection (only when 4+)
   const visibleOutcomes = useMemo(() => {
     if (!hasMany) return coloredOutcomes;
-    return coloredOutcomes.filter(o => selectedOutcomeIds.has(o.id));
+
+    const filtered = coloredOutcomes.filter(o => selectedOutcomeIds.has(o.id));
+
+    // SAFETY FALLBACK: If filtering results in 0 items, show ALL outcomes instead of a blank chart.
+    // This handles race conditions where selectedOutcomeIds hasn't initialized yet.
+    if (filtered.length === 0 && coloredOutcomes.length > 0) {
+      return coloredOutcomes;
+    }
+
+    return filtered;
   }, [coloredOutcomes, selectedOutcomeIds, hasMany]);
 
   const toggleOutcome = useCallback((id: string) => {
@@ -128,15 +137,21 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   const renderData = useMemo(() => limitPoints(chartData as any[], renderCap), [chartData, renderCap]);
 
+
+
   const outcomeKeys = useMemo(() => visibleOutcomes.map((o) => `outcome_${o.id}`), [visibleOutcomes]);
+
+  const sanitizedId = (id: string) => `id_${id.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
   const yAxisDomain = useMemo(
     () => computeYAxisDomain({ chartData: chartData as any[], isMultipleOutcomes, outcomeKeys }),
     [chartData, isMultipleOutcomes, outcomeKeys],
   );
 
-  const xAxisDomain = useMemo(() => computeXAxisDomain(chartData as any[]), [chartData]);
+  const xAxisDomain = useMemo(() => computeXAxisDomain(renderData as any[]), [renderData]);
   const customTicks = useMemo(() => computeCustomDailyTicks(renderData as any[], period), [renderData, period]);
+
+
 
   const currentValues = useMemo(() => {
     if (!isMultipleOutcomes) return {};
@@ -221,152 +236,140 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
         />
       )}
 
-      <div className="flex-1 relative min-h-0 w-full">
-        {isLoading && history.length === 0 ? (
-          <div className="flex h-full w-full items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#BB86FC]" />
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={renderData as any[]} margin={chartMargin}>
-              <defs>
+      <div className="flex-1 relative w-full" style={{ minHeight: "300px" }}>
+        <div className="absolute inset-0">
+          {isLoading && history.length === 0 ? (
+            <div className="flex h-full w-full items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#BB86FC]" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={renderData as any[]} margin={chartMargin}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical horizontal />
+
+                <XAxis
+                  dataKey="timestamp"
+                  type="number"
+                  domain={xAxisDomain as any}
+                  tick={(props: any) => <TimelineTick {...props} period={period} />}
+                  ticks={customTicks}
+                  padding={{ left: 0, right: 0 }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#3B4048', strokeWidth: 2 }}
+                  height={45}
+                  tickMargin={0}
+                  interval="preserveStartEnd"
+                />
+
+                <YAxis
+                  orientation="right"
+                  domain={yAxisDomain as any}
+                  padding={yAxisPadding}
+                  stroke="#6B7280"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  mirror
+                  tickCount={6}
+                  tick={({ x, y, payload, index, visibleTicksCount }: any) => {
+                    if (index === 0 || index === visibleTicksCount - 1) return null;
+                    return (
+                      <text x={x} y={y} dy={4} textAnchor="end" fill="#6B7280" fontSize={11}>
+                        {payload.value}%
+                      </text>
+                    );
+                  }}
+                />
+
+                <Tooltip
+                  content={
+                    <ChartTooltipBridge
+                      onHover={handleHover}
+                    />
+                  }
+                  cursor={
+                    isMultipleOutcomes ? (
+                      <MultipleOddsCursor
+                        period={period}
+                        yDomain={yAxisDomain as any}
+                        resolveSeriesMeta={resolveSeriesMeta}
+                        padding={yAxisPadding}
+                      />
+                    ) : (
+                      <OddsCursor
+                        period={period}
+                        yDomain={yAxisDomain as any}
+                        resolveSeriesMeta={resolveSeriesMeta}
+                        padding={yAxisPadding}
+                      />
+                    )
+                  }
+                  isAnimationActive={false}
+                  animationDuration={0}
+                />
+
                 {isMultipleOutcomes ? (
                   visibleOutcomes.map((o) => (
-                    <linearGradient key={o.id} id={`gradient_${o.id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={o.color} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={o.color} stopOpacity={0} />
-                    </linearGradient>
+                    <Area
+                      key={o.id}
+                      type="monotone"
+                      dataKey={`outcome_${o.id}`}
+                      stroke={o.color}
+                      strokeWidth={2.5}
+                      fill={o.color}
+                      fillOpacity={0.2}
+                      isAnimationActive={true}
+                      animationDuration={600}
+                      animationEasing="ease-in-out"
+                      dot={false}
+                      activeDot={{ r: 5, strokeWidth: 2, stroke: o.color, fill: '#1a1d29' }}
+                    />
                   ))
                 ) : (
-                  <linearGradient id="gradientValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-                  </linearGradient>
-                )}
-              </defs>
-
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical horizontal />
-
-              <XAxis
-                dataKey="timestamp"
-                type="number"
-                domain={xAxisDomain as any}
-                tick={(props: any) => <TimelineTick {...props} period={period} />}
-                ticks={customTicks}
-                padding={{ left: 0, right: 0 }}
-                tickLine={false}
-                axisLine={{ stroke: '#3B4048', strokeWidth: 2 }}
-                height={45}
-                tickMargin={0}
-                interval="preserveStartEnd"
-              />
-
-              <YAxis
-                orientation="right"
-                domain={yAxisDomain as any}
-                padding={yAxisPadding}
-                stroke="#6B7280"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                mirror
-                tickCount={6}
-                tick={({ x, y, payload, index, visibleTicksCount }: any) => {
-                  if (index === 0 || index === visibleTicksCount - 1) return null;
-                  return (
-                    <text x={x} y={y} dy={4} textAnchor="end" fill="#6B7280" fontSize={11}>
-                      {payload.value}%
-                    </text>
-                  );
-                }}
-              />
-
-              <Tooltip
-                content={
-                  <ChartTooltipBridge
-                    onHover={handleHover}
-                  />
-                }
-                cursor={
-                  isMultipleOutcomes ? (
-                    <MultipleOddsCursor
-                      period={period}
-                      yDomain={yAxisDomain as any}
-                      resolveSeriesMeta={resolveSeriesMeta}
-                      padding={yAxisPadding}
-                    />
-                  ) : (
-                    <OddsCursor
-                      period={period}
-                      yDomain={yAxisDomain as any}
-                      resolveSeriesMeta={resolveSeriesMeta}
-                      padding={yAxisPadding}
-                    />
-                  )
-                }
-                isAnimationActive={false}
-                animationDuration={0}
-              />
-
-              {isMultipleOutcomes ? (
-                visibleOutcomes.map((o) => (
                   <Area
-                    key={o.id}
                     type="monotone"
-                    dataKey={`outcome_${o.id}`}
-                    stroke={o.color}
+                    dataKey="value"
+                    stroke="#8B5CF6"
                     strokeWidth={2.5}
-                    fill={`url(#gradient_${o.id})`}
+                    fill="#8B5CF6"
+                    fillOpacity={0.2}
                     isAnimationActive={true}
                     animationDuration={600}
                     animationEasing="ease-in-out"
                     dot={false}
-                    activeDot={{ r: 5, strokeWidth: 2, stroke: o.color, fill: '#1a1d29' }}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: '#8B5CF6', fill: '#1a1d29' }}
                   />
-                ))
-              ) : (
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#8B5CF6"
-                  strokeWidth={2.5}
-                  fill="url(#gradientValue)"
-                  isAnimationActive={true}
-                  animationDuration={600}
-                  animationEasing="ease-in-out"
-                  dot={false}
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: '#8B5CF6', fill: '#1a1d29' }}
-                />
-              )}
+                )}
 
-              {/* Current point pulse markers (rendered after series so they sit on top) */}
-              {showCurrentPulse && lastPoint ? (
-                isMultipleOutcomes ? (
-                  visibleOutcomes.map((o) => (
+                {/* Current point pulse markers (rendered after series so they sit on top) */}
+                {showCurrentPulse && lastPoint ? (
+                  isMultipleOutcomes ? (
+                    visibleOutcomes.map((o) => (
+                      <ReferenceDot
+                        key={`pulse_${o.id}`}
+                        x={lastPoint.timestamp}
+                        y={lastPoint[`outcome_${o.id}`]}
+                        r={5}
+                        stroke={o.color}
+                        fill="#1a1d29"
+                        shape={PulseDotShape}
+                      />
+                    ))
+                  ) : (
                     <ReferenceDot
-                      key={`pulse_${o.id}`}
                       x={lastPoint.timestamp}
-                      y={lastPoint[`outcome_${o.id}`]}
+                      y={lastPoint.value}
                       r={5}
-                      stroke={o.color}
+                      stroke="#8B5CF6"
                       fill="#1a1d29"
                       shape={PulseDotShape}
                     />
-                  ))
-                ) : (
-                  <ReferenceDot
-                    x={lastPoint.timestamp}
-                    y={lastPoint.value}
-                    r={5}
-                    stroke="#8B5CF6"
-                    fill="#1a1d29"
-                    shape={PulseDotShape}
-                  />
-                )
-              ) : null}
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
+                  )
+                ) : null}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* Internal Overlay Legend (Only for small multiple sets) */}

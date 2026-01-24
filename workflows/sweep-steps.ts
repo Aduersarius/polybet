@@ -1,32 +1,22 @@
 'use step';
 
-import { prisma } from '@/lib/prisma';
-import { ethers } from 'ethers';
-import { Prisma } from '@prisma/client';
-
-const USDC_NATIVE_ADDRESS = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
-const USDC_BRIDGED_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
-
-const ERC20_ABI = [
-    'function balanceOf(address) view returns (uint256)',
-    'function transfer(address to, uint256 amount) returns (bool)',
-];
-
-// Helper to get provider/wallet inside step
-function getBlockchainContext() {
-    const providerUrl = process.env.POLYGON_PROVIDER_URL;
-    const mnemonic = process.env.CRYPTO_MASTER_MNEMONIC;
-    if (!providerUrl || !mnemonic) throw new Error('Missing crypto env vars');
-
-    const provider = new ethers.JsonRpcProvider(providerUrl);
-    const masterNode = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, 'm');
-    const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
-
-    return { provider, masterNode, masterWallet };
-}
+import type { Prisma } from '@prisma/client';
 
 export async function checkBalancesStep(batchOffset: number, batchSize: number) {
-    const { provider } = getBlockchainContext();
+    const { ethers } = await import('ethers');
+    const { prisma } = await import('@/lib/prisma');
+
+    const USDC_NATIVE_ADDRESS = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
+    const USDC_BRIDGED_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+
+    const ERC20_ABI = [
+        'function balanceOf(address) view returns (uint256)',
+        'function transfer(address to, uint256 amount) returns (bool)',
+    ];
+
+    const providerUrl = process.env.POLYGON_PROVIDER_URL;
+    if (!providerUrl) throw new Error('Missing POLYGON_PROVIDER_URL');
+    const provider = new ethers.JsonRpcProvider(providerUrl);
 
     const addresses = await prisma.depositAddress.findMany({
         where: { currency: 'USDC' },
@@ -84,7 +74,23 @@ export async function sweepDepositStep(depositData: {
     tokenAddress: string;
     symbol: string;
 }) {
-    const { provider, masterNode, masterWallet } = getBlockchainContext();
+    const { ethers } = await import('ethers');
+    const { prisma } = await import('@/lib/prisma');
+    const { Prisma } = await import('@prisma/client');
+
+    // Constants must be redefined here to be available
+    const ERC20_ABI = [
+        'function balanceOf(address) view returns (uint256)',
+        'function transfer(address to, uint256 amount) returns (bool)',
+    ];
+
+    const providerUrl = process.env.POLYGON_PROVIDER_URL;
+    const mnemonic = process.env.CRYPTO_MASTER_MNEMONIC;
+    if (!providerUrl || !mnemonic) throw new Error('Missing crypto env vars');
+
+    const provider = new ethers.JsonRpcProvider(providerUrl);
+    const masterNode = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, 'm');
+    const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
     const balance = BigInt(depositData.balance);
     const MASTER_WALLET_ADDRESS = masterWallet.address;
 

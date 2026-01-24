@@ -75,6 +75,15 @@ async function loadPolymarketHistory(eventId: string, period: string) {
     outcomeIdToCanonical.set(o.id, outcomeNameToCanonical.get(normalizedName)!.id);
   }
 
+  // Create reverse map: Canonical ID -> All Raw IDs that map to it
+  const canonicalToRawIds = new Map<string, string[]>();
+  for (const [rawId, canonicalId] of outcomeIdToCanonical.entries()) {
+    if (!canonicalToRawIds.has(canonicalId)) {
+      canonicalToRawIds.set(canonicalId, []);
+    }
+    canonicalToRawIds.get(canonicalId)?.push(rawId);
+  }
+
   // Create deduplicated outcomes list
   const allDeduplicatedOutcomes = Array.from(outcomeNameToCanonical.values());
   const isMultiple = allDeduplicatedOutcomes.length > 2;
@@ -186,33 +195,38 @@ async function loadPolymarketHistory(eventId: string, period: string) {
     const canonicalOutcomeId = outcomeIdToCanonical.get(row.outcomeId) || row.outcomeId;
     const outcomeName = outcomeNames.get(canonicalOutcomeId) || row.outcomeId;
 
-    // Check if we already have this outcome in this timestamp's outcomes array
-    const existingOutcome = entry.outcomes.find((o: any) => o.id === canonicalOutcomeId);
-    if (!existingOutcome) {
-      entry.outcomes.push({
-        id: canonicalOutcomeId,
-        name: outcomeName,
-        probability: row.probability,
-      });
-    } else if (existingOutcome.probability === 0 && row.probability !== 0) {
-      // If existing outcome has 0 probability, prefer non-zero value
-      existingOutcome.probability = row.probability;
+    // BROADCAST: Add entry for ALL raw IDs that map to this canonical ID.
+    // This ensures that whichever ID the frontend is using (even if it's a duplicate),
+    // it will find a matching entry in the data.
+    const targetIds = canonicalToRawIds.get(canonicalOutcomeId) || [canonicalOutcomeId];
+
+    for (const targetId of targetIds) {
+      const existingOutcome = entry.outcomes.find((o: any) => o.id === targetId);
+      if (!existingOutcome) {
+        entry.outcomes.push({
+          id: targetId,
+          name: outcomeName,
+          probability: row.probability,
+        });
+      } else if (existingOutcome.probability === 0 && row.probability !== 0) {
+        existingOutcome.probability = row.probability;
+      }
     }
 
-    // Only derive yes/no helpers for binary markets
-    if (!isMultiple) {
-      const name = outcomeName;
-      if (/yes/i.test(name)) {
-        entry.yesPrice = row.probability;
-      } else if (/no/i.test(name)) {
-        entry.noPrice = row.probability;
-      }
+    // Always try to populate yes/no helpers if name matches, regardless of isMultiple
+    // This provides robustness for Binary charts even if data is dirty (duplicated outcomes)
+    if (/yes/i.test(outcomeName)) {
+      entry.yesPrice = row.probability;
+    } else if (/no/i.test(outcomeName)) {
+      entry.noPrice = row.probability;
     }
   }
 
   const points = Array.from(byTs.values())
     .map((p) => {
       // Binary only: derive missing side to avoid random flips.
+      // Only do this strict inference if we are confident it is binary,
+      // otherwise we might imply relations that don't exist.
       if (!isMultiple) {
         if (p.yesPrice == null && typeof p.noPrice === 'number') {
           p.yesPrice = 1 - p.noPrice;
@@ -233,6 +247,17 @@ async function loadPolymarketHistory(eventId: string, period: string) {
       // Only add if it's more recent than the last historical point
       const lastTs = points.length > 0 ? points[points.length - 1].timestamp : 0;
       if (livePoint.timestamp > lastTs) {
+        // BROADCAST Live Point too
+        if (livePoint.outcomes && livePoint.outcomes.length > 0) {
+          const expandedOutcomes: any[] = [];
+          for (const o of livePoint.outcomes) {
+            const rawIds = canonicalToRawIds.get(o.id) || [o.id];
+            for (const rid of rawIds) {
+              expandedOutcomes.push({ ...o, id: rid });
+            }
+          }
+          livePoint.outcomes = expandedOutcomes;
+        }
         points.push(livePoint);
       }
     }
