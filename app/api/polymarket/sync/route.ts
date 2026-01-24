@@ -63,7 +63,8 @@ async function fetchPolymarketEvents(origin: string, limit: number): Promise<Nor
 export async function POST(request: Request) {
   const start = Date.now();
   const url = new URL(request.url);
-  const origin = process.env.APP_URL || `${url.protocol}//${url.host}`;
+  const origin = process.env.APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 200);
 
   const cronSecret = process.env.CRON_SECRET;

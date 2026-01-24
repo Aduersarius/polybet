@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
         const verificationToken = jwt.sign(
           { affiliateId: affiliate.id, email: affiliate.email },
-          jwtSecret || "dev-secret-key",
+          jwtSecret || (process.env.NODE_ENV === 'development' ? 'dev-secret-key' : ''),
           { expiresIn: '7d' }
         );
 
