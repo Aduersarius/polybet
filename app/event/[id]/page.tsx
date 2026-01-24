@@ -122,17 +122,12 @@ export default function EventPage() {
     useEffect(() => {
         if (event) {
             setLiveEvent(event);
-            // Set dynamic page title
-            document.title = `${event.title} | Pariflow`;
 
             // Redirect to slug if accessing by UUID and slug exists
             if (event.slug && eventId === event.id) {
                 router.replace(`/event/${event.slug}`);
             }
         }
-        return () => {
-            document.title = 'Pariflow | Real-Life Market Forecasting';
-        };
     }, [event, eventId, router]);
 
     // Collapse larger sections by default on mobile, expand on desktop

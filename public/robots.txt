@@ -32,8 +32,8 @@ Disallow: /signup
 Disallow: /reset-password
 Disallow: /verify-email
 
-# Sitemap location (add when you create one)
-# Sitemap: https://polybet.ru/sitemap.xml
+# Sitemap location
+Sitemap: https://pariflow.com/sitemap.xml
 
 # Crawl-delay for respectful crawling
 Crawl-delay: 1
