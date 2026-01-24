@@ -25,25 +25,6 @@ export function Footer() {
                 <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-gray-400">
                         <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-                            {/* Auth buttons for non-authenticated users on mobile only */}
-                            {isMounted && !isAuthenticated && (
-                                <>
-                                    <button
-                                        onClick={() => setShowLoginModal(true)}
-                                        className="md:hidden hover:text-white transition-colors font-medium"
-                                    >
-                                        Login
-                                    </button>
-                                    <span className="md:hidden text-gray-600">•</span>
-                                    <button
-                                        onClick={() => setShowSignupModal(true)}
-                                        className="md:hidden hover:text-white transition-colors font-medium text-blue-400 hover:text-blue-300"
-                                    >
-                                        Sign Up
-                                    </button>
-                                    <span className="md:hidden text-gray-600">•</span>
-                                </>
-                            )}
                             <Link prefetch href="/faq" className="hover:text-white transition-colors">FAQ</Link>
                             <span className="text-gray-600">•</span>
                             <Link prefetch href="/legal/cookie-policy" className="hover:text-white transition-colors">Cookie Policy</Link>
