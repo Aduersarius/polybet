@@ -244,9 +244,9 @@ export async function POST(request: NextRequest) {
       polymarketConditionId: polymarketConditionId ?? null,
       polymarketTokenId: tokenIdForLegacy,
       // CRITICAL: Populate yesTokenId and noTokenId for hedging to work
-      // marketTokens[0] is typically YES, marketTokens[1] is typically NO for binary events
-      yesTokenId: marketTokens[0] || null,
-      noTokenId: marketTokens[1] || null,
+      // Fallback to submitted mapping if CLOB fetch fails or returns empty
+      yesTokenId: marketTokens[0] || normalizedOutcomeMapping[0]?.polymarketTokenId || null,
+      noTokenId: marketTokens[1] || normalizedOutcomeMapping[1]?.polymarketTokenId || null,
       isActive: true,
     };
 
