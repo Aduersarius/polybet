@@ -10,6 +10,7 @@ import { EventCard2 } from "./EventCard";
 import { MobileCTABanner } from "./MobileCTABanner";
 import { SignupModal } from "./auth/SignupModal";
 import { LoginModal } from "./auth/LoginModal";
+import { PromotionalBanners } from "./PromotionalBanners";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DbEvent } from "@/lib/data";
 
@@ -274,7 +275,10 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
 
     return (
         <>
-            {/* Sort Options */}
+            {/* Promotional Banners - First */}
+            <PromotionalBanners />
+
+            {/* Sort Options - After Banners */}
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
