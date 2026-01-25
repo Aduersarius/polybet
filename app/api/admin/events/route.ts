@@ -25,23 +25,7 @@ export async function GET(request: NextRequest) {
         const skip = (page - 1) * limit;
 
         // Build filter conditions array
-        const conditions: Prisma.EventWhereInput[] = [
-            // Exclude sports/esports categories
-            {
-                NOT: {
-                    categories: {
-                        hasSome: ['SPORTS', 'ESPORTS']
-                    }
-                }
-            },
-            {
-                NOT: {
-                    categories: {
-                        hasSome: ['sports', 'esports', 'Sports', 'Esports']
-                    }
-                }
-            }
-        ];
+        const conditions: Prisma.EventWhereInput[] = [];
 
         // Add status filter
         if (status && status !== 'all') {

@@ -63,9 +63,10 @@ export const BulkOrderRequestSchema = z.object({
 // --- Admin & Search Schemas ---
 
 export const EventFilterSchema = z.object({
+    adminId: z.string().optional(),
     status: z.string().optional(),
     type: z.string().optional(),
-    visibility: z.enum(['all', 'visible', 'hidden']).optional().default('all'),
+    visibility: z.enum(['all', 'visible', 'hidden', 'public']).optional().default('all'),
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(10),
     search: z.string().max(200).optional().transform(v => v?.trim()),

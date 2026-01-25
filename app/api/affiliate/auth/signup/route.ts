@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { Resend } from 'resend';
 import jwt from 'jsonwebtoken';
+import { randomInt } from 'crypto';
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -19,7 +20,7 @@ const signupSchema = z.object({
 function generateReferralCode(name: string): string {
   // Take first 4-6 characters of name, uppercase, add random numbers
   const namePart = name.replace(/[^a-zA-Z]/g, '').substring(0, 6).toUpperCase();
-  const randomPart = Math.floor(1000 + Math.random() * 9000); // 4-digit number
+  const randomPart = randomInt(1000, 10000); // Secure random 4-digit number
   return `${namePart}${randomPart}`;
 }
 
@@ -41,7 +42,7 @@ async function generateUniqueReferralCode(name: string): Promise<string> {
   let attempts = 0;
 
   while (!(await isReferralCodeUnique(code)) && attempts < 10) {
-    code = generateReferralCode(name + Math.random().toString());
+    code = generateReferralCode(name + randomInt(0, 1000).toString());
     attempts++;
   }
 
@@ -105,13 +106,19 @@ export async function POST(req: NextRequest) {
       try {
         const jwtSecret = process.env.AFFILIATE_JWT_SECRET || process.env.BETTER_AUTH_SECRET || process.env.JWT_SECRET;
 
-        if (!jwtSecret && process.env.NODE_ENV === 'production') {
-          throw new Error('JWT secret not configured');
+        // Strictly require secret to be present in env
+        if (!jwtSecret) {
+          console.error('[Affiliate Signup] JWT secret not configured. Skipping email verification.');
+          return NextResponse.json({
+            success: true,
+            affiliate: { ...affiliate, emailVerified: false },
+            message: 'Affiliate account created. Please contact support to verify your email.'
+          });
         }
 
         const verificationToken = jwt.sign(
           { affiliateId: affiliate.id, email: affiliate.email },
-          jwtSecret || (process.env.NODE_ENV === 'development' ? 'dev-secret-key' : ''),
+          jwtSecret,
           { expiresIn: '7d' }
         );
 
