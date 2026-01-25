@@ -185,6 +185,23 @@ export class PolymarketRTDSClient {
                 where: { id: event.id },
                 data: { yesOdds: yesPrice, noOdds: noPrice },
             });
+
+            // CRITICAL FIX: Also update the individual Outcome rows so the UI sees the new probabilities
+            const yesOutcome = event.outcomes?.find((o: any) => o.name === 'YES');
+            const noOutcome = event.outcomes?.find((o: any) => o.name === 'NO');
+
+            if (yesOutcome) {
+                await prisma.outcome.update({
+                    where: { id: yesOutcome.id },
+                    data: { probability: yesPrice }
+                });
+            }
+            if (noOutcome) {
+                await prisma.outcome.update({
+                    where: { id: noOutcome.id },
+                    data: { probability: noPrice }
+                });
+            }
         } else {
             const outcome = event.outcomes?.find((o: any) => o.polymarketOutcomeId === asset_id);
             if (outcome) {
@@ -222,7 +239,22 @@ export class PolymarketRTDSClient {
         }
 
         const payload = JSON.stringify({ eventId: event.id, assetId: asset_id, price, yesPrice, noPrice, timestamp: Date.now() });
-        if (redis) await redis.publish(`event-updates:${event.id}`, payload);
+        if (redis) {
+            await redis.publish(`event-updates:${event.id}`, payload);
+
+            // Invalidate API cache so next fetch gets fresh odds (Cache-Look-Aside)
+            // We delete both ID-based and Slug-based keys if possible, but ID is primary.
+            // Key format from app/api/events/[id]/route.ts is `evt:${id}:v3`
+            // We use the raw Redis command to avoid circular dependency with lib/cache
+            try {
+                await redis.del(`event:evt:${event.id}:v3`);
+                if (event.slug) await redis.del(`event:evt:${event.slug}:v3`);
+                if (event.polymarketId) await redis.del(`event:poly:${event.polymarketId}:v3`);
+            } catch (e) {
+                // Ignore cache errors in worker
+            }
+        }
+
         try {
             const pusher = getPusherServer();
             await pusher.trigger(`event-${event.id}`, 'odds-update', JSON.parse(payload));

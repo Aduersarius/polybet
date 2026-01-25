@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Zap, CreditCard, Building2, Repeat, Wallet as WalletIcon, ChevronDown, Copy, Check, Loader2 } from 'lucide-react';
 import { BrandedQRCode } from '@/components/ui/BrandedQRCode';
 import { USDCIcon, USDTIcon, PolygonIcon, EthereumIcon, BNBIcon, ArbitrumIcon } from '@/components/ui/CryptoIcons';
@@ -241,13 +242,26 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
-    if (!isOpen) return null;
+    // Use portal to break out of stacking contexts
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
+
+    if (!isOpen || !mounted) return null;
 
     const selectedNetworkData = cryptoNetworks.find(n => n.id === selectedNetwork);
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4">
-            <div className="relative w-full max-w-md mx-auto">
+    const modalContent = (
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4"
+            onClick={onClose}
+        >
+            <div
+                className="relative w-full max-w-md mx-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Glassmorphism card with gradient border */}
                 <div className="relative p-5 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
                     {/* Subtle gradient overlay */}
@@ -265,7 +279,7 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                             </div>
                         </div>
                         <button
-                            onClick={() => selectedMethod ? setSelectedMethod(null) : onClose()}
+                            onClick={onClose}
                             className="p-1.5 rounded-lg hover:bg-white/10 transition-all"
                         >
                             <X className="w-4 h-4 text-white/50" />
@@ -592,4 +606,6 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 }

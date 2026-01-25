@@ -18,9 +18,10 @@ import { getUserFriendlyError, getBalanceError, getMinimumBetError, getMaximumBe
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { HelpBanner } from '@/components/ui/HelpBanner';
 import { getOutcomeColor } from '@/lib/colors';
-import { DepositModal } from '@/components/wallet/DepositModal';
+import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
 import { SuccessConfetti, useSuccessConfetti } from '@/components/ui/SuccessConfetti';
 import { track } from '@vercel/analytics/react';
+import { PLATFORM_MARKUP, PLATFORM_FEE } from '@/lib/constants';
 
 interface TradingPanelProps {
     eventId?: string;
@@ -317,11 +318,11 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const currentAmount = parseFloat(amount) || 0;
     const currentPrice = orderType === 'limit' && price ? parseFloat(price) : (selectedOption === 'YES' ? yesPrice : noPrice);
 
-    // For buy: payout = amount_spent / price (shares received)
-    // For sell: payout = amount_shares * price (USD received)
+    // For buy: payout = amount_spent / (price * (1 + markup)) = shares received
+    // For sell: payout = amount_shares * (price * (1 - markup)) = USD received
     const potentialPayout = selectedTab === 'buy'
-        ? currentAmount * (1 / currentPrice) // Shares received
-        : currentAmount * currentPrice; // USD received
+        ? currentAmount / (currentPrice * (1 + PLATFORM_MARKUP)) // Net Shares received
+        : currentAmount * (currentPrice * (1 - PLATFORM_MARKUP)); // Net USD received
 
     // Profit calculation (only meaningful for buy orders)
     const potentialProfit = selectedTab === 'buy' ? potentialPayout - currentAmount : 0;
@@ -703,7 +704,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                                     <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
                                         <span>If {selectedOption.toLowerCase()} wins:</span>
                                         <span className="font-medium text-green-400">
-                                            ${potentialPayout.toFixed(2)}
+                                            ${(potentialPayout * (1 - PLATFORM_FEE)).toFixed(2)}
                                         </span>
                                     </div>
                                 )}
@@ -866,9 +867,10 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
             </AnimatePresence>
 
             {/* Deposit Modal */}
-            <DepositModal
+            <EnhancedDepositModal
                 isOpen={isDepositModalOpen}
                 onClose={() => setIsDepositModalOpen(false)}
+                onBalanceUpdate={refetchBalances}
             />
 
             {/* Success Confetti Animation */}

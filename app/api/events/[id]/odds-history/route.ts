@@ -402,20 +402,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const data = await getOrSet(
       `${eventId}:${period}:tsv2`,
       async () => {
-        const event = await prisma.event.findUnique({
+        // Resolve event ID if a slug was provided
+        let event = await prisma.event.findUnique({
           where: { id: eventId },
           select: { id: true, source: true },
         });
 
+        if (!event) {
+          // Fallback: try lookup by slug
+          event = await prisma.event.findUnique({
+            where: { slug: eventId },
+            select: { id: true, source: true },
+          });
+        }
+
         if (!event) return [];
 
+        const trueEventId = event.id;
+
         if (event.source === 'POLYMARKET') {
-          const history = await loadPolymarketHistory(eventId, period);
+          const history = await loadPolymarketHistory(trueEventId, period);
           return history;
         }
 
         // Use real historical odds for local events
-        const oddsHistory = await generateHistoricalOdds(eventId, period);
+        const oddsHistory = await generateHistoricalOdds(trueEventId, period);
         return downsample(oddsHistory);
       },
       { ttl: HISTORY_TTL_SECONDS, prefix: 'odds-history' },

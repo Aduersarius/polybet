@@ -9,8 +9,9 @@ import { RiskManager } from './risk-manager';
 import { settleEventHedges } from './exchange/polymarket';
 import { HedgeManager } from './hedge-manager';
 import { executeTrade } from './trade-orchestrator';
+import { PLATFORM_FEE } from './constants';
 
-const PLATFORM_FEE = 0.02; // 2% commission on winnings
+// const PLATFORM_FEE = 0.02; // Moved to constants
 const TREASURY_USER_ID = 'cminhk477000002s8jld69y1f'; // Using AMM bot/Treasury user for simplicity
 
 // Constants for AMM Bot and Treasury
@@ -278,11 +279,21 @@ export async function placeHybridOrder(
 // Get order book for an event
 export async function getOrderBook(eventId: string, option: string) {
     // 1. Fetch event state to get REAL probability
-    const event = await prisma.event.findUnique({
+    let event = await prisma.event.findUnique({
         where: { id: eventId },
         include: { outcomes: true }
     }) as any;
 
+    if (!event) {
+        event = await prisma.event.findUnique({
+            where: { slug: eventId },
+            include: { outcomes: true }
+        }) as any;
+    }
+
+    if (!event) return { bids: [], asks: [] }; // Silent fallback
+
+    const trueEventId = event.id;
     let currentProb = 0.5;
 
     if (event) {
@@ -294,8 +305,17 @@ export async function getOrderBook(eventId: string, option: string) {
             if (outcome) currentProb = Math.exp((outcome.liquidity || 0) / b) / sumExp;
         } else {
             const sumExp = Math.exp((event.qYes || 0) / b) + Math.exp((event.qNo || 0) / b);
-            const q = option === 'YES' ? event.qYes : event.qNo;
-            currentProb = Math.exp((q || 0) / b) / sumExp;
+            const q = option === 'YES' ? event.qYes : (option === 'NO' ? event.qNo : event.outcomes.find((o: any) => o.id === option)?.probability ?? 0.5);
+
+            // If option is a UUID but it's a binary market, we need to map it back to YES/NO or use its probability
+            if (option !== 'YES' && option !== 'NO') {
+                const outcome = event.outcomes.find((o: any) => o.id === option);
+                if (outcome) {
+                    currentProb = outcome.probability || 0.5;
+                }
+            } else {
+                currentProb = Math.exp((q || 0) / b) / sumExp;
+            }
         }
     }
 

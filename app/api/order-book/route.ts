@@ -19,11 +19,8 @@ export async function GET(request: NextRequest) {
         }, { status: 400 });
     }
 
-    if (option && !['YES', 'NO'].includes(option)) {
-        return NextResponse.json({
-            error: 'Option must be "YES" or "NO"'
-        }, { status: 400 });
-    }
+    // For binary markets, we accept 'YES', 'NO', or the raw outcome ID
+    // The validation is handled in the library based on whether the ID exists.
 
     try {
         // Correctly use the targetOption (which could be a UUID now)

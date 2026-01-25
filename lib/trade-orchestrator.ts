@@ -7,6 +7,7 @@
 
 import { prisma } from './prisma';
 import { polymarketTrading } from './polymarket-trading';
+import { PLATFORM_MARKUP } from './constants';
 
 export interface TradeParams {
     userId: string;
@@ -196,7 +197,6 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
         console.log(`[DirectTrade] ✅ PM Order: ${pmOrder.orderId} - ${pmOrder.size} shares @ $${pmOrder.price}`);
 
         // 8. Apply platform markup (3%)
-        const PLATFORM_MARKUP = 0.03;
         const pmExecutionPrice = Number(pmOrder.price);
         const userPrice = side === 'buy'
             ? pmExecutionPrice * (1 + PLATFORM_MARKUP)

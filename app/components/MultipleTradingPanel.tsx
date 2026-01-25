@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/lib/auth-client';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Slider } from '@/components/ui/slider';
-import { DepositModal } from '@/components/wallet/DepositModal';
+import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
+import { PLATFORM_MARKUP, PLATFORM_FEE } from '@/lib/constants';
 
 interface Outcome {
     id: string;
@@ -46,7 +47,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
     // Fetch user balances for all outcomes in this event
-    const { data: balanceData } = useQuery({
+    const { data: balanceData, refetch: refetchBalances } = useQuery({
         queryKey: ['user-balances', eventId],
         queryFn: async () => {
             const response = await fetch('/api/balance');
@@ -184,8 +185,8 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     // For buy: payout = shares received
     // For sell: payout = USD received
     const potentialPayout = selectedTab === 'buy'
-        ? currentAmount * (1 / currentPrice) // Shares received
-        : currentAmount * currentPrice; // USD received
+        ? currentAmount / (currentPrice * (1 + PLATFORM_MARKUP)) // Net Shares received
+        : currentAmount * (currentPrice * (1 - PLATFORM_MARKUP)); // Net USD received
 
     // Profit calculation (only meaningful for buy orders)
     const potentialProfit = selectedTab === 'buy' ? potentialPayout - currentAmount : 0;
@@ -540,7 +541,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                         <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
                                             <span>If {currentSelectedOutcome.name} wins:</span>
                                             <span className="font-medium text-green-400">
-                                                ${potentialPayout.toFixed(2)}
+                                                ${(potentialPayout * (1 - PLATFORM_FEE)).toFixed(2)}
                                             </span>
                                         </div>
                                     )}
@@ -646,7 +647,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                                 </p>
                                 {selectedTab === 'buy' ? (
                                     <p className="text-green-300 text-xs mt-1">
-                                        If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (currentSelectedOutcome ? currentSelectedOutcome.odds : 1)).toFixed(2)} total
+                                        If {currentSelectedOutcome?.name} wins, you'll receive ${(lastTrade.tokens * (1 - PLATFORM_FEE)).toFixed(2)} total
                                     </p>
                                 ) : (
                                     <p className="text-green-300 text-xs mt-1">
@@ -666,9 +667,10 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
             </div>
 
             {/* Deposit Modal */}
-            <DepositModal
+            <EnhancedDepositModal
                 isOpen={isDepositModalOpen}
                 onClose={() => setIsDepositModalOpen(false)}
+                onBalanceUpdate={refetchBalances}
             />
         </div>
     );

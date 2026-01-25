@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { authClient } from '@/lib/auth-client';
 import { validatePassword, getPasswordErrorMessage } from '@/lib/password-validation';
 import { EmailVerificationModal } from './EmailVerificationModal';
@@ -25,7 +26,13 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
     const [showVerificationModal, setShowVerificationModal] = useState(false);
     const [signedUpEmail, setSignedUpEmail] = useState('');
 
-    if (!isOpen && !showVerificationModal) return null;
+    // Mount check for portal
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted || (!isOpen && !showVerificationModal)) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -92,20 +99,20 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         }
     };
 
-    return (
+    return createPortal(
         <>
             {/* Signup Modal */}
             {isOpen && !showVerificationModal && (
                 <div
-                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+                    className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
                     onClick={onClose}
                 >
                     <div
-                        className="relative w-full sm:max-w-md sm:mx-4 max-h-[90vh] sm:max-h-[85vh] overflow-hidden"
+                        className="relative w-full sm:max-w-md sm:mx-4 overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Mobile: rounded top, Desktop: fully rounded */}
-                        <div className="relative bg-gradient-to-br from-[#1a1f2e]/98 via-[#1a1d2e]/95 to-[#16181f]/98 backdrop-blur-xl rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-white/10 overflow-hidden">
+                        <div className="relative bg-surface border border-white/10 backdrop-blur-xl rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden">
                             {/* Subtle gradient overlay */}
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-t-3xl sm:rounded-2xl pointer-events-none" />
 
@@ -125,7 +132,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                             </button>
 
                             {/* Scrollable content */}
-                            <div className="relative px-5 sm:px-6 pb-6 pt-2 sm:pt-6 max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
+                            <div className="relative px-5 sm:px-6 pb-6 pt-2 sm:pt-6">
                                 {/* Header */}
                                 <div className="mb-5">
                                     <h2 className="text-xl sm:text-2xl font-bold text-white">
@@ -260,7 +267,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                                 {/* Social Login */}
                                 <button
                                     onClick={() => (authClient as any).signIn.social({ provider: 'google', callbackURL: '/' })}
-                                    className="w-full flex items-center justify-center gap-3 px-4 py-2.5 sm:py-3 bg-white text-gray-900 rounded-xl hover:bg-gray-100 transition-colors font-medium"
+                                    className="w-full flex items-center justify-center gap-3 px-4 py-2.5 sm:py-3 bg-white/5 text-white border border-white/10 rounded-xl hover:bg-white/10 transition-colors font-medium"
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 24 24">
                                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -296,6 +303,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
                 }}
                 userEmail={signedUpEmail}
             />
-        </>
+        </>,
+        document.body
     );
 }

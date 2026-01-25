@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { email } from '@/lib/auth-client';
 
 interface ForgotPasswordModalProps {
@@ -14,8 +15,13 @@ export function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: ForgotPa
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
     const [cooldown, setCooldown] = useState(0);
+    const [mounted, setMounted] = useState(false);
 
-    if (!isOpen) return null;
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!isOpen || !mounted) return null;
 
     useEffect(() => {
         if (cooldown <= 0) return;
@@ -49,20 +55,20 @@ export function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: ForgotPa
         }
     };
 
-    return (
-        <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4"
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-200 p-4"
             onClick={onClose}
         >
-            <div 
+            <div
                 className="relative w-full max-w-md mx-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Glassmorphism card with gradient border */}
-                <div className="relative p-6 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1a1d2e]/90 to-[#16181f]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
+                <div className="relative p-6 bg-surface border border-white/10 backdrop-blur-xl rounded-2xl shadow-2xl">
                     {/* Subtle gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-2xl pointer-events-none" />
-                    
+
                     {/* Close Button */}
                     <button
                         onClick={onClose}
@@ -166,6 +172,7 @@ export function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: ForgotPa
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
