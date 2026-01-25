@@ -12,7 +12,6 @@ services:
       - /tmp
     command: ["--config=/etc/otel/config.yaml"] # Changed path to avoid mounting file as dir
     volumes:
-    volumes:
       # --- COOLIFY CONFIGURATION ---
       # 1. Do NOT uncomment the line below if using Coolify UI "Storages"
       # 2. Instead, go to Service -> Storages -> Add File

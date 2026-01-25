@@ -6,15 +6,20 @@ WORKDIR /app
 RUN apk add --no-cache openssl libc6-compat
 
 # Copy worker package files (build context is project root)
+# We copy the root package.json too because it contains the prisma dependencies versions
+COPY package.json ./package-root.json
 COPY workers/sweep-monitor/package*.json ./
 
-# Install ALL dependencies (including devDependencies for prisma CLI and tsc)
-RUN npm install --include=dev
+# Install dependencies
+# We merge dependencies to ensure we have everything needed for prisma generate
+RUN npm install
+RUN npm install prisma @prisma/client typescript ts-node @types/node
 
 # Copy Prisma schema from project root
 COPY prisma/ ./prisma/
 
-# Generate Prisma client (dummy URL for build, real URL comes at runtime)
+# Generate Prisma client
+# Use a dummy URL that is valid structure but local
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
