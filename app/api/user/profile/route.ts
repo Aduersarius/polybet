@@ -1,8 +1,8 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { createErrorResponse } from '@/lib/error-handler';
 
 export async function PATCH(request: NextRequest) {
     try {
@@ -16,17 +16,12 @@ export async function PATCH(request: NextRequest) {
             data: {
                 name,
                 image,
-                // Also update username if name is updated, to keep them in sync or separate?
-                // The schema has both username and name. Better Auth uses 'name'.
-                // Let's update username too if it's empty or we want to sync them.
-                // For now, just update 'name' which is what Better Auth uses.
                 username: name || undefined
             }
         });
 
         return NextResponse.json(updatedUser);
     } catch (error) {
-        console.error('Error updating profile:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return createErrorResponse(error);
     }
 }

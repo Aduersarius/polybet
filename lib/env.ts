@@ -47,12 +47,28 @@ const envSchema = z.object({
  */
 const _env = envSchema.safeParse(process.env);
 
+let parsedEnv;
+
 if (!_env.success) {
-    console.error('❌ Invalid environment variables:', _env.error.format());
-    throw new Error('Invalid environment variables');
+    if (process.env.SKIP_ENV_VALIDATION === 'true') {
+        console.warn('⚠️ Skipping environment validation for build.');
+        // Return mock values to satisfy the schema
+        parsedEnv = {
+            ...process.env,
+            NODE_ENV: process.env.NODE_ENV || 'development',
+            DATABASE_URL: 'postgresql://mock:mock@localhost:5432/mock',
+            REDIS_URL: 'redis://localhost:6379',
+            BETTER_AUTH_SECRET: 'mock_secret_at_least_32_chars_long_xxxxxxxx',
+        };
+    } else {
+        console.error('❌ Invalid environment variables:', _env.error.format());
+        throw new Error('Invalid environment variables');
+    }
+} else {
+    parsedEnv = _env.data;
 }
 
-export const env = _env.data;
+export const env = parsedEnv as z.infer<typeof envSchema>;
 
 // Export individual keys for easy access if needed (optional)
 export const isProd = env.NODE_ENV === 'production';

@@ -16,23 +16,41 @@ export async function GET(
 ) {
     try {
         const { getOrSet } = await import('@/lib/cache');
-        const { id } = await params;
+        const { id: rawId } = await params;
         const { searchParams } = new URL(request.url);
         const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50); // Default 10, max 50
         const cursor = searchParams.get('cursor'); // For pagination
         const before = searchParams.get('before'); // Load messages before this ID
 
-        console.log(`[API] Fetching messages for event: ${id}, limit: ${limit}, cursor: ${cursor}`);
+        // Resolve internal event ID if a slug or polymarket ID was provided
+        let eventId = rawId;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+        if (!isUUID) {
+            const event = await prisma.event.findFirst({
+                where: {
+                    OR: [
+                        { slug: rawId },
+                        { polymarketId: rawId }
+                    ]
+                },
+                select: { id: true }
+            });
+            if (event) {
+                eventId = event.id;
+            }
+        }
 
-        // Create cache key that includes pagination params
-        const cacheKey = `${id}:messages:${limit}:${cursor || 'latest'}:${before || 'none'}`;
+        console.log(`[API] Fetching messages for event: ${eventId} (raw: ${rawId}), limit: ${limit}, cursor: ${cursor}`);
+
+        // Create cache key that includes pagination params - use eventId (resolved) for consistency
+        const cacheKey = `${eventId}:messages:${limit}:${cursor || 'latest'}:${before || 'none'}`;
 
         // Use Redis caching with pagination-aware key
         const result = await getOrSet(
             cacheKey,
             async () => {
                 const whereClause: any = {
-                    eventId: id,
+                    eventId: eventId,
                     isDeleted: false
                 };
 
@@ -62,7 +80,7 @@ export async function GET(
                                 image: true, // Include image field from Better Auth as fallback
                                 address: true,
                                 marketActivity: {
-                                    where: { eventId: id },
+                                    where: { eventId: eventId },
                                     select: {
                                         option: true,
                                         amount: true
@@ -119,26 +137,42 @@ export async function GET(
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error('Error fetching messages:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return createErrorResponse(error);
     }
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const startTime = Date.now();
 
-    assertSameOrigin(req);
-    // Authentication check
-    const user = await requireAuth(req);
-
     try {
+        assertSameOrigin(req);
+        // Authentication check
+        const user = await requireAuth(req);
         const userId = user.id;
 
-        const { id } = await params;
+        const { id: rawId } = await params;
+
+        // Resolve internal event ID if a slug or polymarket ID was provided
+        let eventId = rawId;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+        if (!isUUID) {
+            const event = await prisma.event.findFirst({
+                where: {
+                    OR: [
+                        { slug: rawId },
+                        { polymarketId: rawId }
+                    ]
+                },
+                select: { id: true }
+            });
+            if (event) {
+                eventId = event.id;
+            }
+        }
 
         // Validate event ID (supports both UUID and Polymarket numeric IDs)
         // Note: [id] parameter is not validated via regex here anymore to stay flexible with proxy IDs
-        if (!id || id.length < 1) {
+        if (!eventId || eventId.length < 1) {
             return createClientErrorResponse('Invalid event ID', 400);
         }
 
@@ -150,14 +184,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         if (!parsed.success) {
             const firstError = parsed.error.issues[0];
-            return createClientErrorResponse(`${firstError.path.join('.')}: ${firstError.message}`, 400);
+            const pathPrefix = firstError.path.length > 0 ? `${firstError.path.join('.')}: ` : '';
+            return createClientErrorResponse(`${pathPrefix}${firstError.message}`, 400);
         }
 
         const { text: rawText, parentId } = parsed.data;
 
         // Sanitize text to prevent XSS (consistent with support ticket messages)
         const text = sanitizeText(rawText);
-        const eventId = id;
 
         // Helper for query timeout protection
         const withTimeout = <T>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
@@ -189,7 +223,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 data: {
                     text,
                     userId: user.id,
-                    eventId: id,
+                    eventId: eventId,
                     parentId: parentId || null
                 },
                 include: {
@@ -221,7 +255,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                                 userId: parentMsg.userId,
                                 type: 'REPLY',
                                 message: `${user.name || 'Someone'} replied to your message`,
-                                resourceId: id
+                                resourceId: eventId
                             }
                         });
                     }
@@ -233,7 +267,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         // Publish to WebSocket (non-blocking)
         const { redis } = await import('@/lib/redis');
         const messagePayload = {
-            eventId: id,
+            eventId: eventId,
             message: {
                 id: message.id,
                 text: message.text,
@@ -256,18 +290,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         try {
             const { getPusherServer } = await import('@/lib/pusher-server');
             const pusherServer = getPusherServer();
-            await pusherServer.trigger(`event-${id}`, 'chat-message', messagePayload);
-            console.log(`✅ [API] Message published to Pusher/Soketi for event ${id}`);
+            await pusherServer.trigger(`event-${eventId}`, 'chat-message', messagePayload);
+            console.log(`✅ [API] Message published to Pusher/Soketi for event ${eventId}`);
         } catch (pusherErr) {
             console.error('❌ [API] Pusher publish failed:', pusherErr);
         }
 
         // OPTIMIZATION: Minimal cache invalidation - only this event's messages
         const { invalidatePattern } = await import('@/lib/cache');
-        await invalidatePattern(`event:${id}:messages:*`);
+        await invalidatePattern(`${eventId}:messages:*`);
+        await invalidatePattern(`${rawId}:messages:*`); // Also invalidate by slug just in case
 
         const totalTime = Date.now() - startTime;
-        console.log(`✅ Message posted for event ${id} (${totalTime}ms)`);
+        console.log(`✅ Message posted for event ${eventId} (${totalTime}ms)`);
 
         return NextResponse.json(message);
     } catch (error) {

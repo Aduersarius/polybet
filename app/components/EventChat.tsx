@@ -5,6 +5,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useSession } from '@/lib/auth-client';
+import { toast } from '@/components/ui/use-toast';
 import {
     Discussion,
     DiscussionItem,
@@ -49,8 +51,9 @@ export function EventChat({ eventId }: EventChatProps) {
     const [inputText, setInputText] = useState('');
     const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
 
-    // Mock user for dev - in real app use auth context
-    const user = { id: 'dev-user', username: 'Dev User' };
+    const { data: session } = useSession();
+    const user = session?.user;
+    const isAuthenticated = !!user;
 
     // Fetch latest messages as a simple flat list (no client-side pagination)
     const {
@@ -144,11 +147,13 @@ export function EventChat({ eventId }: EventChatProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text,
-                    userId: user?.id,
                     parentId: replyTo?.id
                 }),
             });
-            if (!res.ok) throw new Error('Failed to send message');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to send message');
+            }
             return res.json();
         },
         onSuccess: () => {
@@ -157,6 +162,14 @@ export function EventChat({ eventId }: EventChatProps) {
             // Refetch to show new message
             refetch();
         },
+        onError: (error: any) => {
+            console.error('[Chat] Failed to send message:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Failed to send message',
+                description: error.message || 'Please try again later.',
+            });
+        }
     });
 
     const handleSend = () => {
@@ -225,13 +238,13 @@ export function EventChat({ eventId }: EventChatProps) {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={replyTo ? "Write a reply..." : "Type a message..."}
+                        placeholder={!isAuthenticated ? "Log in to join the discussion" : (replyTo ? "Write a reply..." : "Type a message...")}
                         className="flex-1 bg-transparent text-sm focus:outline-none text-white placeholder-zinc-500 px-2"
-                        disabled={sendMessageMutation.isPending}
+                        disabled={sendMessageMutation.isPending || !isAuthenticated}
                     />
                     <Button
                         onClick={handleSend}
-                        isDisabled={!inputText.trim() || sendMessageMutation.isPending}
+                        isDisabled={!inputText.trim() || sendMessageMutation.isPending || !isAuthenticated}
                         className="bg-accent-500 text-white hover:bg-accent-600 h-8 px-4 text-sm font-medium"
                         size="sm"
                     >

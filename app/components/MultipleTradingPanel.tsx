@@ -208,8 +208,8 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
             });
 
             if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.error || 'Trade failed');
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Trade failed');
             }
 
             return await res.json();

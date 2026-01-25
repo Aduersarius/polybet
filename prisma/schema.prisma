@@ -23,6 +23,7 @@ model User {
   discord              String?
   isAdmin              Boolean               @default(false)
   isBanned             Boolean               @default(false)
+  isBot                Boolean               @default(false)
   isDeleted            Boolean               @default(false)
   twoFactorEnabled     Boolean?              @default(false)
   telegram             String?
@@ -168,6 +169,7 @@ model Event {
   oddsHistory        OddsHistory[]
   polymarketMapping  PolymarketMarketMapping? @relation("PolymarketMapping")
   hedgeRecords       HedgeRecord[]
+  messages           Message[]
 
   // Sports-specific metadata
   league     String? // "NFL", "NBA", "CSGO", "Dota 2"
@@ -315,6 +317,7 @@ model Message {
   parent    Message?          @relation("Thread", fields: [parentId], references: [id])
   replies   Message[]         @relation("Thread")
   user      User              @relation(fields: [userId], references: [id])
+  event     Event             @relation(fields: [eventId], references: [id])
   reactions MessageReaction[]
 
   @@index([eventId, createdAt])

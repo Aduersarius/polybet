@@ -4,6 +4,13 @@ import { prisma } from './prisma';
 
 const JWT_SECRET = (() => {
   const secret = process.env.JWT_SECRET || process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET;
+
+  // Allow skipping validation for build
+  if (process.env.SKIP_ENV_VALIDATION === 'true') {
+    console.warn('[affiliate-auth] ⚠️ Skipping secret validation for build');
+    return 'mock-secret-for-build-process-only-do-not-use';
+  }
+
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('JWT_SECRET environment variable is required in production for affiliate authentication');

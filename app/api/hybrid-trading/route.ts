@@ -26,17 +26,9 @@ export async function POST(request: Request) {
     try {
         assertSameOrigin(request);
 
-        // Get authenticated user first
-        let sessionUserId: string;
-        try {
-            const user = await requireAuth(request);
-            sessionUserId = user.id;
-        } catch (error) {
-            if (error instanceof Response) {
-                return error;
-            }
-            return createClientErrorResponse('Unauthorized', 401);
-        }
+        // Get authenticated user
+        const user = await requireAuth(request);
+        const sessionUserId = user.id;
 
         // Rate limiting for trading (after auth, before processing)
         const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -57,7 +49,8 @@ export async function POST(request: Request) {
 
         if (!parsed.success) {
             const firstError = parsed.error.issues[0];
-            return createClientErrorResponse(`${firstError.path.join('.')}: ${firstError.message}`, 400);
+            const pathPrefix = firstError.path.length > 0 ? `${firstError.path.join('.')}: ` : '';
+            return createClientErrorResponse(`${pathPrefix}${firstError.message}`, 400);
         }
 
         const {

@@ -6,36 +6,67 @@
 export interface ErrorResponse {
     message: string;
     status: number;
-    details?: string; // Only for client errors (4xx), not server errors
+    details?: string;
+    code?: string;
 }
 
 /**
- * Sanitizes errors for client responses
- * Logs full error details server-side but returns generic messages to clients
+ * Custom application error class for predictable error handling
  */
+export class AppError extends Error {
+    status: number;
+    code?: string;
+    details?: string;
+
+    constructor(message: string, status: number = 500, code?: string, details?: string) {
+        super(message);
+        this.name = 'AppError';
+        this.status = status;
+        this.code = code;
+        this.details = details;
+    }
+}
+
 export function sanitizeError(error: unknown): ErrorResponse {
-    // Log full error server-side for debugging
+    // 1. Handle custom AppError
+    if (error instanceof AppError) {
+        return {
+            message: error.message,
+            status: error.status,
+            code: error.code,
+            details: error.details
+        };
+    }
+
+    // 2. Handle thrown Response objects (common in lib/auth.ts)
+    if (error && typeof error === 'object' && 'status' in error && typeof (error as any).status === 'number') {
+        const status = (error as any).status;
+        console.error(`[ErrorHandler] Caught Response-like error: ${status}`);
+
+        return {
+            message: getClientFriendlyMessage(status),
+            status: status,
+            details: status < 500 ? getClientFriendlyMessage(status) : undefined
+        };
+    }
+
+    // 3. Handle standard Error objects
     if (error instanceof Error) {
-        console.error('Error:', {
+        console.error('[ErrorHandler] Caught Error:', {
             message: error.message,
             stack: error.stack,
             name: error.name
         });
-    } else if (error instanceof Response) {
-        // Better Auth or other Response errors
-        console.error('Response error:', error.status, error.statusText);
+
+        // Don't leak internal error messages for 500s
         return {
-            message: getClientFriendlyMessage(error.status),
-            status: error.status,
-            details: error.status >= 400 && error.status < 500 
-                ? getClientFriendlyMessage(error.status)
-                : undefined
+            message: 'Internal Server Error',
+            status: 500
         };
-    } else {
-        console.error('Unknown error:', error);
     }
 
-    // Return generic message for server errors (5xx)
+    // 4. Handle anything else
+    console.error('[ErrorHandler] Caught unknown error:', error);
     return {
         message: 'Internal Server Error',
         status: 500
@@ -76,7 +107,7 @@ function getClientFriendlyMessage(status: number): string {
 export function createErrorResponse(error: unknown, defaultStatus: number = 500): Response {
     const sanitized = sanitizeError(error);
     return Response.json(
-        { 
+        {
             error: sanitized.message,
             ...(sanitized.details && { details: sanitized.details })
         },

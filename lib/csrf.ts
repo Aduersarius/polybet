@@ -1,5 +1,6 @@
 import { trustedOrigins } from './auth';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { AppError } from './error-handler';
 
 const prod = process.env.NODE_ENV === 'production';
 const allowedOrigins = new Set(trustedOrigins);
@@ -32,20 +33,14 @@ export function assertSameOrigin(request: Request) {
         // In development, we allow missing origin only for same-origin requests (no origin header means same-origin)
         // But we still validate if origin is present
         if (prod) {
-            throw new Response(JSON.stringify({ error: 'Origin required' }), {
-                status: 403,
-                headers: { 'Content-Type': 'application/json' },
-            });
+            throw new AppError('Origin required', 403);
         }
         // In dev, allow same-origin requests (no origin header) but still validate if present
         return;
     }
 
     if (!allowedOrigins.has(candidate)) {
-        throw new Response(JSON.stringify({ error: 'CSRF check failed' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        throw new AppError('CSRF check failed', 403);
     }
 }
 
@@ -125,10 +120,7 @@ export function assertCsrfProtection(request: Request, requireToken: boolean = f
     if (requireToken) {
         const token = request.headers.get('x-csrf-token');
         if (!token || !validateCsrfToken(token)) {
-            throw new Response(JSON.stringify({ error: 'Invalid CSRF token' }), {
-                status: 403,
-                headers: { 'Content-Type': 'application/json' },
-            });
+            throw new AppError('Invalid CSRF token', 403);
         }
     }
 }
