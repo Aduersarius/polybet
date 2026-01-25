@@ -65,14 +65,32 @@ export class PolymarketRTDSClient {
             this.mappingCache.clear();
             const mappings = await prisma.polymarketMarketMapping.findMany({
                 where: { isActive: true },
-                include: { event: { select: { status: true, type: true, id: true } } }
+                include: {
+                    event: {
+                        include: {
+                            outcomes: {
+                                select: { polymarketOutcomeId: true }
+                            }
+                        }
+                    }
+                }
             });
 
             const active = mappings.filter((m: any) => m.event?.status === 'ACTIVE');
             const tokenIds = new Set<string>();
             for (const map of active) {
+                // Legacy fields
                 if (map.yesTokenId) tokenIds.add(map.yesTokenId);
                 if (map.noTokenId) tokenIds.add(map.noTokenId);
+
+                // Collect all outcome-specific tokens for multi-outcome events
+                if (map.event?.outcomes) {
+                    for (const outcome of map.event.outcomes) {
+                        if (outcome.polymarketOutcomeId) {
+                            tokenIds.add(outcome.polymarketOutcomeId);
+                        }
+                    }
+                }
             }
 
             const newTokens = Array.from(tokenIds).filter(id => id && id.length > 10);
@@ -162,10 +180,27 @@ export class PolymarketRTDSClient {
     private async persistUpdate(asset_id: string, price: number) {
         let mapping = this.mappingCache.get(asset_id);
         if (!mapping) {
-            mapping = await prisma.polymarketMarketMapping.findFirst({
-                where: { OR: [{ yesTokenId: asset_id }, { noTokenId: asset_id }] },
-                include: { event: { include: { outcomes: true } } },
+            // Priority 1: Map via Outcomes table (supports all outcomes in MULTIPLE events)
+            const outcome = await prisma.outcome.findUnique({
+                where: { polymarketOutcomeId: asset_id },
+                select: { eventId: true }
             });
+
+            if (outcome) {
+                mapping = await prisma.polymarketMarketMapping.findUnique({
+                    where: { internalEventId: outcome.eventId },
+                    include: { event: { include: { outcomes: true } } },
+                });
+            }
+
+            // Priority 2: Fallback to direct mapping (legacy YES/NO fields)
+            if (!mapping) {
+                mapping = await prisma.polymarketMarketMapping.findFirst({
+                    where: { OR: [{ yesTokenId: asset_id }, { noTokenId: asset_id }] },
+                    include: { event: { include: { outcomes: true } } },
+                });
+            }
+
             if (mapping) this.mappingCache.set(asset_id, mapping);
         }
 

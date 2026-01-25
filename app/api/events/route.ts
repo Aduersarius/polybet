@@ -285,6 +285,9 @@ export async function GET(request: Request) {
                 externalVolume: true,
                 externalBetCount: true,
                 slug: true,
+                source: true,      // Needed to detect Polymarket events
+                yesOdds: true,     // Need stored odds for non-AMM events
+                noOdds: true,
                 outcomes: {
                     select: {
                         id: true,
@@ -384,25 +387,38 @@ export async function GET(request: Request) {
             const qYes = event.qYes || 0;
             const qNo = event.qNo || 0;
             const b = event.liquidityParameter || 10000.0;
+            const isPolymarket = (event as any).source === 'POLYMARKET';
 
-            if (qYes > 0 || qNo > 0) {
+            // PRIORITY 1: Stored odds (Best for Polymarket or synced events)
+            if (isPolymarket && event.yesOdds !== null) {
+                yesOdds = event.yesOdds as number;
+                noOdds = event.noOdds !== null ? event.noOdds as number : 1 - yesOdds;
+            }
+            // PRIORITY 2: Internal AMM (Only if not Polymarket and has liquidity)
+            else if (!isPolymarket && (qYes > 0 || qNo > 0)) {
                 // Calculate odds using actual token positions
                 const diff = (qNo - qYes) / b;
                 const yesPrice = 1 / (1 + Math.exp(diff));
                 yesOdds = yesPrice;
                 noOdds = 1 - yesOdds;
-            } else if (event.type === 'BINARY' && event.outcomes && event.outcomes.length >= 2) {
-                // For binary events with outcomes, use outcome probabilities
+            }
+            // PRIORITY 3: Outcomes probabilities (Binary with outcomes)
+            else if (event.type === 'BINARY' && event.outcomes && event.outcomes.length >= 2) {
                 const yesOutcome = event.outcomes.find((o: any) => /yes/i.test(o.name || ''));
                 const noOutcome = event.outcomes.find((o: any) => /no/i.test(o.name || ''));
                 const yesProb = yesOutcome?.probability ?? 0.5;
                 const noProb = noOutcome?.probability ?? 0.5;
-                // Normalize to ensure they sum to 1
                 const sum = yesProb + noProb;
                 yesOdds = sum > 0 ? yesProb / sum : 0.5;
                 noOdds = sum > 0 ? noProb / sum : 0.5;
-            } else {
-                // Mock odds logic for demo if no bets and no outcomes
+            }
+            // PRIORITY 4: Fallback to stored DB odds if available (even if not Polymarket)
+            else if (event.yesOdds !== null) {
+                yesOdds = event.yesOdds as number;
+                noOdds = event.noOdds !== null ? event.noOdds as number : 1 - yesOdds;
+            }
+            // PRIORITY 5: Mock data (Last resort)
+            else {
                 const mockScenarios = [
                     { yes: 0.60 }, { yes: 0.40 }, { yes: 0.70 }, { yes: 0.30 }, { yes: 0.50 },
                     { yes: 0.75 }, { yes: 0.25 }, { yes: 0.55 }, { yes: 0.45 }, { yes: 0.65 }

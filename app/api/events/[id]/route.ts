@@ -115,7 +115,7 @@ export async function GET(
                     betCount,
                 };
 
-                if (inferredType === 'MULTIPLE') {
+                if (inferredType === 'MULTIPLE' || inferredType === 'GROUPED_BINARY') {
                     // For multiple outcomes: use stored probability first (Polymarket-synced events),
                     // only fall back to LMSR for locally-created events with liquidity positions
                     const { calculateMultipleLMSRProbabilities } = await import('@/lib/amm');

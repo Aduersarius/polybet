@@ -7,6 +7,8 @@ interface Outcome {
     id: string;
     name: string;
     color?: string;
+    price?: number;
+    probability?: number;
 }
 
 interface OrderBookProps {
@@ -28,84 +30,118 @@ type OrderBookState = { bids: Array<{ price: number; amount: number }>; asks: Ar
 
 function generateSyntheticOrderBook(basePrice: number): OrderBookState {
     const numLevels = 10;
-    const tick = 0.005; // 0.5¢ price step for a clean ladder
 
     const bids: OrderBookState['bids'] = [];
     const asks: OrderBookState['asks'] = [];
 
+    let lastBidAmount = 20 + Math.random() * 20;
+    let lastAskAmount = 20 + Math.random() * 20;
+
+    let currentBidPrice = basePrice;
+    let currentAskPrice = basePrice;
+
     for (let i = 1; i <= numLevels; i++) {
-        // Stable price ladder around base price
-        const priceBid = Math.max(0.01, basePrice - tick * (i));
-        const priceAsk = Math.min(0.99, basePrice + tick * (i));
+        // Dynamic tick: 0.1c (0.001) for pennies, 0.5c (0.005) otherwise
+        const bidTick = (currentBidPrice <= 0.011) ? 0.001 : 0.005;
+        const askTick = (currentAskPrice >= 0.989) ? 0.001 : 0.005;
 
-        // Depth profile:
-        // - top 2–3 levels are thick
-        // - then decay quickly
-        // - some deeper levels are effectively empty to create gaps
-        const depthIndex = i - 1; // 0 is best level
+        const priceBid = Math.max(0.001, currentBidPrice - bidTick);
+        const priceAsk = Math.min(0.999, currentAskPrice + askTick);
 
-        const topSize = 160 + Math.random() * 60; // base size near top
-        const decayRate = 0.45; // stronger falloff for tree shape
-        const decayFactor = Math.exp(-decayRate * depthIndex);
-
-        // Random gaps deeper in the book
-        const isDeep = depthIndex >= 5;
-        const gapChance = isDeep ? 0.45 : 0.12;
-        const isGap = Math.random() < gapChance;
-
-        // Occasional big resting order deeper in the book
-        const bigOrderBoost = !isGap && depthIndex >= 3 && Math.random() < 0.15
-            ? 1.8 + Math.random() * 0.7
-            : 1;
-
-        const noiseBid = 1 + (Math.random() - 0.5) * 0.25;  // ±12.5%
-        const noiseAsk = 1 + (Math.random() - 0.5) * 0.25;
-
-        const baseAmount = isGap ? 0 : topSize * decayFactor * bigOrderBoost;
-        const amountBid = Math.max(0, baseAmount * noiseBid);
-        const amountAsk = Math.max(0, baseAmount * noiseAsk);
+        // Exponential growth with noise, but strictly >= previous level
+        const growth = 1.2 + Math.random() * 0.3; // 20-50% growth per level
+        const amountBid = lastBidAmount * growth;
+        const amountAsk = lastAskAmount * growth;
 
         bids.push({ price: priceBid, amount: amountBid });
         asks.push({ price: priceAsk, amount: amountAsk });
+
+        lastBidAmount = amountBid;
+        lastAskAmount = amountAsk;
+        currentBidPrice = priceBid;
+        currentAskPrice = priceAsk;
     }
 
     return { bids, asks };
 }
 
 function jitterOrderBook(prev: OrderBookState, basePrice: number): OrderBookState {
-    // Only jitter sizes; keep prices fixed so ladder looks stable.
-    const jitterSize = (a: number, index: number, side: 'bid' | 'ask') => {
-        // Stronger movement near top-of-book, softer deeper in the book
-        const isTop = index < 3;
-        const baseMaxFactor = isTop ? 0.22 : 0.08;
-        const factor = 1 + (Math.random() - 0.5) * 2 * baseMaxFactor;
-        const minAmount = side === 'bid' ? 15 : 15;
-        return Math.max(minAmount, a * factor);
-    };
+    const numToUpdate = Math.floor(Math.random() * 3) + 2;
+    const getWeight = (index: number) => Math.exp(-0.5 * index);
+    const candidates: Array<{ side: 'bids' | 'asks'; index: number }> = [];
 
-    return {
-        bids: prev.bids.map((b, index) => {
-            // Jitter mostly near top, occasionally deeper levels
-            const shouldMove = index < 3 || Math.random() < 0.25;
-            if (!shouldMove) return b;
-            return { ...b, amount: jitterSize(b.amount, index, 'bid') };
-        }),
-        asks: prev.asks.map((a, index) => {
-            const shouldMove = index < 3 || Math.random() < 0.25;
-            if (!shouldMove) return a;
-            return { ...a, amount: jitterSize(a.amount, index, 'ask') };
-        }),
-    };
+    let attempts = 0;
+    while (candidates.length < numToUpdate && attempts < 100) {
+        attempts++;
+        const side = Math.random() < 0.5 ? 'bids' : 'asks';
+        const index = Math.floor(Math.random() * prev[side].length);
+        if (candidates.some(c => c.side === side && c.index === index)) continue;
+        if (Math.random() < getWeight(index)) {
+            candidates.push({ side, index });
+        }
+    }
+
+    const nextBids = [...prev.bids];
+    const nextAsks = [...prev.asks];
+
+    candidates.forEach(c => {
+        const sideArr = c.side === 'bids' ? nextBids : nextAsks;
+        const factor = 1 + (Math.random() - 0.5) * 0.2;
+        sideArr[c.index] = { ...sideArr[c.index], amount: Math.max(15, sideArr[c.index].amount * factor) };
+    });
+
+    // Enforce strict monotonicity: deeper rows must have >= volume than shallower rows
+    for (let i = 1; i < nextBids.length; i++) {
+        if (nextBids[i].amount < nextBids[i - 1].amount) {
+            nextBids[i].amount = nextBids[i - 1].amount * (1 + Math.random() * 0.1);
+        }
+    }
+    for (let i = 1; i < nextAsks.length; i++) {
+        if (nextAsks[i].amount < nextAsks[i - 1].amount) {
+            nextAsks[i].amount = nextAsks[i - 1].amount * (1 + Math.random() * 0.1);
+        }
+    }
+
+    return { bids: nextBids, asks: nextAsks };
 }
 
-export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', visualMode = false, dataSource = 'synthetic', onOrderSelect }: OrderBookProps) {
-    const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || 'YES');
+export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', visualMode = true, dataSource = 'synthetic', onOrderSelect }: OrderBookProps) {
+    const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || initialOption);
     const [orderBook, setOrderBook] = useState<OrderBookState>({ bids: [], asks: [] });
     const [polymarketBook, setPolymarketBook] = useState<any>(null);
-    const [liveOdds, setLiveOdds] = useState<{ yesOdds: number; noOdds: number } | null>(null);
+    const [liveOdds, setLiveOdds] = useState<{ yesOdds: number; noOdds: number; outcomePrices?: Record<string, number> } | null>(null);
 
-    const isMultiple = eventType === 'MULTIPLE';
+    const isMultiple = eventType === 'MULTIPLE' || eventType === 'GROUPED_BINARY';
     const selectedOption = isMultiple ? selectedOutcomeId : (selectedOutcomeId as 'YES' | 'NO');
+
+    const isYesSelected = useMemo(() => {
+        if (selectedOutcomeId === 'YES') return true;
+        if (selectedOutcomeId === 'NO') return false;
+        const outcome = outcomes.find(o => o.id === selectedOutcomeId);
+        return outcome?.name.toLowerCase() === 'yes';
+    }, [selectedOutcomeId, outcomes]);
+
+    // Sync default selection when outcomes load
+    useEffect(() => {
+        if (outcomes.length > 0) {
+            const isValidSelection = outcomes.some(o => o.id === selectedOutcomeId);
+
+            // If current selection is invalid, or it's the string 'YES' but the first outcome has a different ID
+            if (!isValidSelection) {
+                if (selectedOutcomeId === 'YES') {
+                    // Try to find an outcome named "Yes" or just take the first one
+                    const yesOutcome = outcomes.find(o => o.name.toLowerCase() === 'yes') || outcomes[0];
+                    setSelectedOutcomeId(yesOutcome.id);
+                } else if (selectedOutcomeId === 'NO') {
+                    const noOutcome = outcomes.find(o => o.name.toLowerCase() === 'no') || outcomes[Math.min(1, outcomes.length - 1)];
+                    setSelectedOutcomeId(noOutcome.id);
+                } else {
+                    // Total fallback
+                    setSelectedOutcomeId(outcomes[0].id);
+                }
+            }
+        }
+    }, [outcomes]); // Only run when outcomes change
 
     // Fetch Polymarket orderbook
     useEffect(() => {
@@ -130,7 +166,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                         });
 
                         // Convert Polymarket data to orderbook format
-                        const book = selectedOption === 'YES' ? data.yes : data.no;
+                        const book = isYesSelected ? data.yes : data.no;
                         if (book && book.bids && book.asks) {
                             setOrderBook({
                                 bids: book.bids.slice(0, 10).map((b: any) => ({
@@ -160,9 +196,16 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     const myUpdate = updates?.find((u: any) => u.eventId === eventId);
 
                     if (myUpdate) {
+                        const outcomePrices: Record<string, number> = {};
+                        if (myUpdate.outcomes) {
+                            myUpdate.outcomes.forEach((o: any) => {
+                                outcomePrices[o.id] = o.probability || o.price || 0.5;
+                            });
+                        }
                         setLiveOdds({
                             yesOdds: myUpdate.yesOdds,
-                            noOdds: myUpdate.noOdds
+                            noOdds: myUpdate.noOdds,
+                            outcomePrices
                         });
                     }
                 } catch (error) {
@@ -227,21 +270,41 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     useEffect(() => {
         if (!visualMode) return;
 
-        const basePrice = isMultiple ? 0.5 : (selectedOption === 'YES' ? 0.6 : 0.4);
+        // Determine base price based on selection and available odds
+        let basePrice = 0.4;
+
+        // Try to find price in outcomes prop first (initial data)
+        const outcomeFromProps = outcomes.find(o => o.id === selectedOutcomeId);
+        const priceFromProps = outcomeFromProps?.price || outcomeFromProps?.probability;
+
+        if (isMultiple) {
+            const outcomePrice = liveOdds?.outcomePrices?.[selectedOutcomeId] ?? priceFromProps;
+            if (outcomePrice !== undefined) {
+                basePrice = outcomePrice;
+            } else {
+                // Fallback: vary by index so it's not "fixed" at 40% for all
+                const idx = outcomes.findIndex(o => o.id === selectedOutcomeId);
+                basePrice = idx >= 1 ? Math.max(0.1, 0.4 - (idx * 0.1)) : 0.4;
+            }
+        } else {
+            if (isYesSelected) {
+                basePrice = liveOdds?.yesOdds ?? priceFromProps ?? 0.4;
+            } else {
+                // For NO, use inverse of YES if available
+                const yesPrice = liveOdds?.yesOdds ?? priceFromProps ?? 0.4;
+                basePrice = liveOdds?.noOdds ?? (1 - yesPrice);
+            }
+        }
+
         setOrderBook(generateSyntheticOrderBook(basePrice));
 
         let timeoutId: NodeJS.Timeout | null = null;
 
         const scheduleNext = () => {
-            // Random delay between ~0.3s and 1.8s, sometimes longer pause
-            const baseDelay = 300 + Math.random() * 1500;
-            const extraPause = Math.random() < 0.2 ? 600 + Math.random() * 800 : 0;
-            const delay = baseDelay + extraPause;
-
             timeoutId = setTimeout(() => {
                 setOrderBook(prev => jitterOrderBook(prev, basePrice));
                 scheduleNext();
-            }, delay);
+            }, 5000); // Fixed 5 second interval
         };
 
         scheduleNext();
@@ -249,7 +312,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [visualMode, isMultiple, selectedOption]);
+    }, [visualMode, isMultiple, selectedOption, liveOdds, outcomes, selectedOutcomeId]);
 
     // Breathing effect on top of real data (when not in visual mode)
     useEffect(() => {
@@ -265,10 +328,6 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         let timeoutId: NodeJS.Timeout | null = null;
 
         const scheduleNext = () => {
-            const baseDelay = 400 + Math.random() * 1600;
-            const extraPause = Math.random() < 0.15 ? 800 + Math.random() * 600 : 0;
-            const delay = baseDelay + extraPause;
-
             timeoutId = setTimeout(() => {
                 setOrderBook(prev => {
                     // If no real data yet, don't jitter
@@ -277,7 +336,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     return jitterOrderBook(prev, basePrice);
                 });
                 scheduleNext();
-            }, delay);
+            }, 5000); // Fixed 5 second interval
         };
 
         scheduleNext();
@@ -298,7 +357,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Order Book</h3>
                     {dataSource === 'polymarket' && liveOdds && (
                         <div className="text-[10px] text-blue-400 mt-0.5">
-                            Live: {((selectedOption === 'YES' ? liveOdds.yesOdds : liveOdds.noOdds) * 100).toFixed(1)}¢
+                            Live: {((isYesSelected ? liveOdds.yesOdds : liveOdds.noOdds) * 100).toFixed(1)}¢
                         </div>
                     )}
                 </div>
@@ -320,8 +379,11 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                     ) : (
                         <>
                             <button
-                                onClick={() => setSelectedOutcomeId('YES')}
-                                className={`px-3 py-1 text-[10px] font-medium rounded transition-all ${selectedOutcomeId === 'YES'
+                                onClick={() => {
+                                    const yesId = outcomes.find(o => o.name.toLowerCase() === 'yes')?.id || 'YES';
+                                    setSelectedOutcomeId(yesId);
+                                }}
+                                className={`px-3 py-1 text-[10px] font-medium rounded transition-all ${selectedOutcomeId === (outcomes.find(o => o.name.toLowerCase() === 'yes')?.id || 'YES')
                                     ? 'bg-[#03dac6]/20 text-[#03dac6] shadow-sm'
                                     : 'text-gray-500 hover:text-gray-300'
                                     }`}
@@ -329,8 +391,11 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                                 YES
                             </button>
                             <button
-                                onClick={() => setSelectedOutcomeId('NO')}
-                                className={`px-3 py-1 text-[10px] font-medium rounded transition-all ${selectedOutcomeId === 'NO'
+                                onClick={() => {
+                                    const noId = outcomes.find(o => o.name.toLowerCase() === 'no')?.id || 'NO';
+                                    setSelectedOutcomeId(noId);
+                                }}
+                                className={`px-3 py-1 text-[10px] font-medium rounded transition-all ${selectedOutcomeId === (outcomes.find(o => o.name.toLowerCase() === 'no')?.id || 'NO')
                                     ? 'bg-[#cf6679]/20 text-[#cf6679] shadow-sm'
                                     : 'text-gray-500 hover:text-gray-300'
                                     }`}
