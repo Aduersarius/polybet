@@ -5,7 +5,7 @@
  * Handles all 3 event types: BINARY, MULTIPLE, and GROUPED_BINARY.
  */
 
-import { z } from 'zod';
+
 
 // ============================================================================
 // TYPE DEFINITIONS

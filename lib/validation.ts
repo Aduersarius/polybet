@@ -36,6 +36,8 @@ export const EventIdSchema = z.string()
         return uuidPattern.test(val) || numericPattern.test(val) || cuidPattern.test(val);
     }, { message: 'Invalid event ID format' });
 
+export const OutcomeIdSchema = EventIdSchema; // Use same validation for Outcome IDs
+
 export const SafeUrlSchema = z.string().url().refine((val) => {
     try {
         const parsed = new URL(val);
@@ -60,18 +62,18 @@ export const BetRequestSchema = z.object({
     eventId: EventIdSchema,
     option: z.enum(['YES', 'NO', 'yes', 'no', 'Yes', 'No']).transform(v => v.toUpperCase() as 'YES' | 'NO'),
     amount: z.coerce.number().min(0.01).max(1000),
-    outcomeId: z.string().optional(),
-});
+    outcomeId: OutcomeIdSchema.optional(),
+}).strict();
 
 export const TradeRequestSchema = z.object({
     eventId: EventIdSchema,
     side: z.enum(['buy', 'sell']),
     amount: z.coerce.number().min(0.01).max(1000),
     option: z.enum(['YES', 'NO', 'yes', 'no', 'Yes', 'No']).optional().transform(v => v?.toUpperCase()),
-    outcomeId: z.string().max(50).regex(/^[a-zA-Z0-9_-]+$/).optional(),
+    outcomeId: OutcomeIdSchema.optional(),
     orderType: z.enum(['market', 'limit']).default('market'),
     price: z.coerce.number().min(0.01).max(1).optional(),
-}).refine(data => data.option || data.outcomeId, {
+}).strict().refine(data => data.option || data.outcomeId, {
     message: "Either option or outcomeId is required",
     path: ["option"]
 });
@@ -79,7 +81,7 @@ export const TradeRequestSchema = z.object({
 export const MessageRequestSchema = z.object({
     text: z.string().trim().min(1, 'Message cannot be empty').max(5000, 'Message too long'),
     parentId: UUIDSchema.optional(),
-});
+}).strict();
 
 export const UserUpdateSchema = z.object({
     username: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_\s-]*$/, 'Invalid characters in username').optional(),
@@ -89,7 +91,7 @@ export const UserUpdateSchema = z.object({
     twitter: z.string().max(50).regex(/^[a-zA-Z0-9_]{1,15}$/, 'Invalid Twitter handle').optional().nullable(),
     telegram: z.string().max(50).regex(/^[a-zA-Z0-9_]{5,32}$/, 'Invalid Telegram handle').optional().nullable(),
     discord: z.string().max(50).regex(/^.{2,32}#[0-9]{4}$|^[a-zA-Z0-9_.]{2,32}$/, 'Invalid Discord handle').optional().nullable(),
-});
+}).strict();
 
 export const HedgeConfigSchema = z.object({
     enabled: z.boolean(),
@@ -100,7 +102,7 @@ export const HedgeConfigSchema = z.object({
     hedgeTimeoutMs: z.number().min(1000).max(60000),
     retryAttempts: z.number().min(0).max(10),
     minProfitThreshold: z.number().min(0),
-});
+}).strict();
 
 // --- Sanitization Utilities ---
 

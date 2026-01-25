@@ -10,11 +10,11 @@ export const PaginationSchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(1000).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-});
+}).strict();
 
 export const SearchSchema = z.object({
     search: z.string().max(200).optional().transform(v => v?.trim()),
-});
+}).strict();
 
 // --- Institutional Trading Schemas ---
 
@@ -36,7 +36,7 @@ export const OrderItemSchema = z.object({
     totalDuration: z.coerce.number().int().positive().optional(),
     stopPrice: z.coerce.number().positive().optional(),
     stopType: StopTypeSchema.optional(),
-}).refine(data => {
+}).strict().refine(data => {
     // Logic from bulk order validation
     if (data.orderType === 'iceberg' && (!data.visibleAmount || data.visibleAmount >= data.amount)) {
         return false;
@@ -58,7 +58,7 @@ export const OrderItemSchema = z.object({
 export const BulkOrderRequestSchema = z.object({
     idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
     orders: z.array(OrderItemSchema).min(1, 'At least one order is required').max(100, 'Maximum 100 orders per batch'),
-});
+}).strict();
 
 // --- Admin & Search Schemas ---
 
@@ -69,13 +69,13 @@ export const EventFilterSchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(10),
     search: z.string().max(200).optional().transform(v => v?.trim()),
-});
+}).strict();
 
 export const AdminEventActionSchema = z.object({
     eventId: z.string().min(1),
     action: z.enum(['toggleHide', 'resolve', 'delete']),
-    value: z.any().optional(), // Can be boolean for hide, or outcome ID for resolve
-});
+    value: z.union([z.boolean(), z.string(), z.number()]).optional(), // Can be boolean for hide, or outcome ID for resolve
+}).strict();
 
 // --- User Settings Schemas ---
 
@@ -101,7 +101,7 @@ export const UserSettingsSchema = z.object({
         publicProfile: z.boolean().optional(),
         showActivity: z.boolean().optional(),
     }).optional(),
-});
+}).strict();
 
 // --- Telegram Schemas ---
 
@@ -133,7 +133,7 @@ export const TelegramUpdateSchema = z.object({
         }),
         data: z.string().optional(),
     }).optional(),
-});
+}).strict();
 
 export const CreateEventSchema = z.object({
     title: z.string().min(1, 'Title is required').max(200),
@@ -148,7 +148,7 @@ export const CreateEventSchema = z.object({
         liquidity: z.number().optional(),
     })).optional(),
     isHidden: z.boolean().default(false),
-}).refine(data => {
+}).strict().refine(data => {
     if (data.type === 'MULTIPLE' && (!data.outcomes || data.outcomes.length < 2)) {
         return false;
     }

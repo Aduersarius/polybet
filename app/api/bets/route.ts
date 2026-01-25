@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
 
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { calculateLMSROdds, calculateTokensForCost } from '@/lib/amm';
@@ -13,18 +12,11 @@ import { createErrorResponse, createClientErrorResponse } from '@/lib/error-hand
 import { trackTrade, trackApiLatency, trackError } from '@/lib/metrics';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { polymarketCircuit } from '@/lib/circuit-breaker';
+import { BetRequestSchema } from '@/lib/validation';
 
 // MVP Safety Limits
-const MAX_BET_AMOUNT = 1000; // $1000 max per bet for MVP
 const RATE_LIMIT_BETS = 20;  // 20 bets per minute
 const RATE_LIMIT_WINDOW = 60000; // 1 minute window
-
-const BetRequestSchema = z.object({
-    eventId: z.string().min(1),
-    option: z.enum(['YES', 'NO', 'yes', 'no', 'Yes', 'No']).transform(v => v.toUpperCase() as 'YES' | 'NO'),
-    amount: z.coerce.number().min(0.01).max(MAX_BET_AMOUNT),
-    outcomeId: z.string().uuid().optional(),
-});
 
 export async function POST(request: Request) {
     const startTime = Date.now();

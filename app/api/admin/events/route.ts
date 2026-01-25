@@ -127,11 +127,17 @@ export async function PUT(request: NextRequest) {
 
         let updatedEvent;
         if (action === 'toggleHide') {
+            if (typeof value !== 'boolean') {
+                return NextResponse.json({ error: 'Value must be a boolean for toggleHide' }, { status: 400 });
+            }
             updatedEvent = await prisma.event.update({
                 where: { id: eventId },
                 data: { isHidden: value }
             });
         } else if (action === 'resolve') {
+            if (typeof value !== 'string') {
+                return NextResponse.json({ error: 'Value must be a string (outcomeId) for resolve' }, { status: 400 });
+            }
             // Use the new resolution logic that handles payouts and commissions
             const result = await resolveMarket(eventId, value);
             return NextResponse.json(result);

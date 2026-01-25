@@ -9,8 +9,8 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/sweep",
-      "schedule": "* * * * *"
+      "path": "/api/hedge/snapshot-cron",
+      "schedule": "0 3 * * *"
     }
   ],
   "rewrites": [

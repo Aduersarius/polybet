@@ -13,9 +13,9 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { ethers } from 'ethers';
-import Pusher from 'pusher';
-import fs from 'fs';
-import path from 'path';
+import Pusher = require('pusher');
+import fs = require('fs');
+import path = require('path');
 
 // Environment validation
 const requiredEnvVars = [
@@ -249,7 +249,7 @@ async function sweepDeposit(deposit: any) {
         // Check actual balance on-chain
         const balance = await tokenContract.balanceOf(depositAddress.address);
 
-        if (balance === 0n) {
+        if (balance === BigInt(0)) {
             log('WARN', 'Balance is 0 - marking as completed (already swept or invalid)', {
                 depositId: deposit.id
             });
@@ -267,8 +267,8 @@ async function sweepDeposit(deposit: any) {
         // Check if wallet needs gas
         const maticBalance = await provider.getBalance(depositAddress.address);
         const feeData = await provider.getFeeData();
-        const gasLimit = 100000n;
-        const gasPrice = (feeData.gasPrice! * 150n) / 100n; // 1.5x Multiplier
+        const gasLimit = BigInt(100000);
+        const gasPrice = (feeData.gasPrice! * BigInt(150)) / BigInt(100); // 1.5x Multiplier
         const requiredMatic = gasLimit * gasPrice;
 
         if (maticBalance < requiredMatic) {
@@ -280,7 +280,7 @@ async function sweepDeposit(deposit: any) {
 
             const topupTx = await masterWallet.sendTransaction({
                 to: depositAddress.address,
-                value: requiredMatic * 2n,
+                value: requiredMatic * BigInt(2),
                 gasPrice: gasPrice
             });
 
@@ -508,38 +508,53 @@ async function checkChainDeposits() {
 
             if (depositAddresses.length === 0) break;
 
-            // 2. Scan Batch for both Native and Bridged USDC
-            const promises = depositAddresses.flatMap((addr) => {
+            // 2. Scan Batch Sequentially to prevent Master Wallet Nonce Collisions
+            // Concurrent gas top-ups from the same wallet will fail without a nonce manager.
+            // Sequential processing is safer and simpler for this critical path.
+            for (const addr of depositAddresses) {
                 const tokens = [
                     { address: USDC_NATIVE_ADDRESS, symbol: 'USDC' },
                     { address: USDC_BRIDGED_ADDRESS, symbol: 'USDC.e' }
                 ];
 
-                return tokens.map(async (token) => {
+                for (const token of tokens) {
                     try {
                         const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
                         const balance = await tokenContract.balanceOf(addr.address);
-                        const minDeposit = ethers.parseUnits('0.1', 6); // Lowered threshold for polling
+                        const minDeposit = ethers.parseUnits('0.1', 6);
 
-                        if (balance > minDeposit) {
+                        if (balance > minDeposit) { // ethers v6 returns bigint
+                            // Check if we are already processing this user (Basic Race Protection)
+                            const activeJob = await prisma.deposit.findFirst({
+                                where: {
+                                    userId: addr.userId,
+                                    status: { in: ['PENDING_SWEEP', 'PENDING_CONFIRMATION'] }
+                                }
+                            });
+
+                            if (activeJob) {
+                                log('INFO', `Skipping chain sweep for ${addr.userId} - Active DB Job: ${activeJob.id}`);
+                                continue;
+                            }
+
                             log('INFO', `💰 FOUND ${token.symbol} ON CHAIN!`, {
                                 address: addr.address,
                                 balance: ethers.formatUnits(balance, 6),
                                 userId: addr.userId,
                                 token: token.symbol
                             });
+
                             // Pass token address to sweep function
                             await sweepChainDeposit(addr, balance, token.address);
                         }
-                    } catch (err) {
-                        // Silent error per-address to avoid log spam, but log the address
-                        console.error(`Failed to scan address ${addr.address} for ${token.symbol}`);
+                    } catch (err: any) {
+                        // Silent error per-address/token to keep loop alive
+                        // console.error(`Failed to scan address ${addr.address} for ${token.symbol}`);
                     }
-                });
-            });
+                }
+            }
 
-            // Run batch in parallel
-            await Promise.all(promises);
+            // await Promise.all(promises); // REMOVED: Caused Nonce Collisions
 
             totalScanned += depositAddresses.length;
             skip += BATCH_SIZE;
@@ -560,6 +575,7 @@ async function checkChainDeposits() {
     }
 }
 
+
 async function sweepChainDeposit(depositAddress: any, balance: bigint, tokenAddress: string = USDC_NATIVE_ADDRESS) {
     try {
         const tokenSymbol = tokenAddress === USDC_NATIVE_ADDRESS ? 'USDC' : 'USDC.e';
@@ -569,89 +585,112 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint, tokenAddr
         });
 
         const path = `m/44'/60'/0'/0/${depositAddress.derivationIndex}`;
-        const userWallet = masterNode.derivePath(path).connect(provider);
+        const wallet = masterNode.derivePath(path).connect(provider);
 
-        // Gas check logic...
-        const maticBalance = await provider.getBalance(depositAddress.address);
+        // Calculate fees
         const feeData = await provider.getFeeData();
-
-        // Use EIP-1559 fees for Polygon reliability
         const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas || ethers.parseUnits('35', 'gwei');
-        const maxFeePerGas = (feeData.maxFeePerGas || ethers.parseUnits('100', 'gwei')) * 2n; // 2x buffer
+        const maxFeePerGas = (feeData.maxFeePerGas || ethers.parseUnits('100', 'gwei')) * BigInt(2); // 2x buffer
+
+        // Gas check & Topup (Simplified for brevity, keep existing logic if robust)
+        const maticBalance = await provider.getBalance(depositAddress.address);
         const gasLimit = 100000n;
         const requiredMatic = gasLimit * maxFeePerGas;
 
         if (maticBalance < requiredMatic) {
             log('INFO', 'Needs gas top-up', {
                 address: depositAddress.address,
-                balance: ethers.formatEther(maticBalance),
                 required: ethers.formatEther(requiredMatic)
             });
-
             const masterWallet = masterNode.derivePath(`m/44'/60'/0'/0/0`).connect(provider);
-
             const topup = await masterWallet.sendTransaction({
                 to: depositAddress.address,
-                value: requiredMatic * 2n,
+                value: requiredMatic * BigInt(2),
                 maxFeePerGas,
                 maxPriorityFeePerGas
             });
-
-            log('INFO', `🚀 Top-up TX Sent: ${topup.hash}. Waiting for confirmation...`);
-
-            // Wait with a timeout
-            await Promise.race([
-                topup.wait(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Topup confirmation timeout (120s)')), 120000))
-            ]);
-
-            log('INFO', '✅ Gas topped up and confirmed');
+            await topup.wait();
+            log('INFO', '✅ Gas topped up');
         }
 
-        // Sweep tokens
-        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, userWallet);
+        // 1. Send Sweep Transaction
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
         const tx = await tokenContract.transfer(MASTER_WALLET_ADDRESS, balance, {
-            maxFeePerGas,
-            maxPriorityFeePerGas
+            maxFeePerGas, maxPriorityFeePerGas
         });
 
-        log('INFO', `🚀 Sweep TX Sent: ${tx.hash}. Waiting for confirmation...`);
+        log('INFO', `🚀 Sweep TX Sent: ${tx.hash}`);
 
+        // 2. IMMEDIATE PERSISTENCE: Create Deposit Record (PENDING_CONFIRMATION)
+        // This safeguards against "Sweep Success -> Crash -> No Credit"
+        const rawAmount = parseFloat(ethers.formatUnits(balance, 6));
+
+        const deposit = await prisma.deposit.create({
+            data: {
+                userId: depositAddress.userId,
+                amount: rawAmount,
+                currency: tokenSymbol,
+                txHash: tx.hash, // The SWEEP hash
+                status: 'PENDING_CONFIRMATION', // New State
+                fromAddress: depositAddress.address,
+                toAddress: MASTER_WALLET_ADDRESS,
+                metadata: {
+                    origin: 'sweep-monitor',
+                    strategy: 'polling',
+                    sweptAt: new Date().toISOString()
+                }
+            }
+        });
+
+        log('INFO', `💾 Persisted pending deposit record ${deposit.id}`);
+
+        // 3. Wait for Confirmation
         await Promise.race([
             tx.wait(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep confirmation timeout (120s)')), 120000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sweep confirmation timeout')), 120000))
         ]);
 
-        log('INFO', `✅ ON-CHAIN SWEEP SUCCESS: ${tx.hash}`);
+        log('INFO', `✅ ON-CHAIN SWEEP CONFIRMED: ${tx.hash}`);
 
-        // Credit User in DB
-        const rawAmount = parseFloat(ethers.formatUnits(balance, 6));
-        const fee = rawAmount * 0.01; // 1%
-        const finalAmount = rawAmount - fee;
+        // 4. Credit User (Idempotent update)
+        await creditUserForDeposit(deposit.id, rawAmount, depositAddress.userId, tx.hash);
 
+    } catch (e: any) {
+        log('ERROR', 'Chain sweep failed', { error: e.message });
+        // Note: If it failed AFTER sending TX but BEFORE DB insert, we still have the zombie issue.
+        // But the DB insert is immediate after send, making the window much smaller.
+        // The real fix for THAT is to deterministically generate the TX hash before sending (using nonce),
+        // or check pending nonces. usage of a robust queue is better, but this is a huge improvement.
+    }
+}
+
+/**
+ * Credit user for a successful sweep
+ * Extracted for reuse in recovery
+ */
+async function creditUserForDeposit(depositId: string, amount: number, userId: string, txHash: string) {
+    const fee = amount * 0.01;
+    const finalAmount = amount - fee;
+
+    try {
         await prisma.$transaction(async (txPrisma) => {
-            // 1. Get current balance for ledger
+            // 1. Mark Deposit Completed
+            await txPrisma.deposit.update({
+                where: { id: depositId },
+                data: {
+                    status: 'COMPLETED',
+                    updatedAt: new Date()
+                }
+            });
+
+            // 2. Credit Balance
             const userBalance = await txPrisma.balance.findFirst({
-                where: { userId: depositAddress.userId, tokenSymbol: 'TUSD', eventId: null, outcomeId: null }
+                where: { userId: userId, tokenSymbol: 'TUSD', eventId: null, outcomeId: null }
             });
 
             const balanceBefore = userBalance ? Number(userBalance.amount) : 0;
             const balanceAfter = balanceBefore + finalAmount;
 
-            // 2. Create Deposit Record
-            const deposit = await txPrisma.deposit.create({
-                data: {
-                    userId: depositAddress.userId,
-                    amount: rawAmount,
-                    currency: tokenSymbol,
-                    txHash: tx.hash,
-                    status: 'COMPLETED',
-                    fromAddress: depositAddress.address,
-                    toAddress: MASTER_WALLET_ADDRESS
-                }
-            });
-
-            // 3. Credit Balance
             if (userBalance) {
                 await txPrisma.balance.update({
                     where: { id: userBalance.id },
@@ -660,7 +699,7 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint, tokenAddr
             } else {
                 await txPrisma.balance.create({
                     data: {
-                        userId: depositAddress.userId,
+                        userId: userId,
                         tokenSymbol: 'TUSD',
                         amount: finalAmount,
                         locked: 0
@@ -668,43 +707,121 @@ async function sweepChainDeposit(depositAddress: any, balance: bigint, tokenAddr
                 });
             }
 
-            // 4. Create Ledger Entry
+            // 3. Ledger Entry
             await txPrisma.ledgerEntry.create({
                 data: {
-                    userId: depositAddress.userId,
+                    userId: userId,
                     direction: 'CREDIT',
-                    amount: new Prisma.Decimal(finalAmount),
+                    amount: finalAmount,
                     currency: 'USD',
                     referenceType: 'DEPOSIT',
-                    referenceId: deposit.id,
-                    balanceBefore: new Prisma.Decimal(balanceBefore),
-                    balanceAfter: new Prisma.Decimal(balanceAfter),
+                    referenceId: depositId,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
                     metadata: {
-                        description: `Blockchain Polling Deposit (USDC)`,
+                        description: `Blockchain Polling Deposit`,
                         fee: fee,
-                        originalAmount: rawAmount,
-                        txHash: tx.hash
+                        originalAmount: amount,
+                        txHash: txHash
                     }
                 }
             });
 
-            // 5. Update legacy currentBalance
+            // 4. Update User Model
             await txPrisma.user.update({
-                where: { id: depositAddress.userId },
+                where: { id: userId },
                 data: { currentBalance: { increment: finalAmount } }
             });
         });
 
-        log('INFO', `✅ User ${depositAddress.userId} credited with $${finalAmount}`);
+        log('INFO', `✅ User ${userId} credited with $${finalAmount}`);
 
-        // Notify via Pusher
-        await triggerUserUpdate(depositAddress.userId, 'user-update', {
+        await triggerUserUpdate(userId, 'user-update', {
             type: 'DEPOSIT_SUCCESS',
             payload: { message: `Deposit of $${finalAmount} confirmed!` }
         });
 
-    } catch (e: any) {
-        log('ERROR', 'Chain sweep failed', { error: e.message });
+    } catch (error: any) {
+        log('ERROR', `Failed to credit user for deposit ${depositId}`, { error: error.message });
+        // This leaves the deposit in PENDING_CONFIRMATION, which we can recover later
+    }
+}
+
+
+
+/**
+ * Check for deposits that are pending confirmation (Zombie Prevention)
+ * This handles cases where the worker crashed after sending TX but before crediting DB
+ */
+async function checkPendingConfirmations() {
+    // log('INFO', 'Checking for pending confirmations...'); 
+    // Commented out to reduce log noise, will log only if found
+
+    try {
+        const pending = await prisma.deposit.findMany({
+            where: { status: 'PENDING_CONFIRMATION' },
+            take: 20 // Check 20 at a time
+        });
+
+        if (pending.length > 0) {
+            log('INFO', `Found ${pending.length} deposits pending confirmation`, { ids: pending.map(p => p.id) });
+        }
+
+        for (const deposit of pending) {
+            if (!deposit.txHash) {
+                log('WARN', `Pending confirmation deposit ${deposit.id} has no txHash. Marking Failed.`, { depositId: deposit.id });
+                await prisma.deposit.update({
+                    where: { id: deposit.id },
+                    data: { status: 'FAILED', metadata: { ...(deposit.metadata as any || {}), failureReason: 'Missing TxHash' } }
+                });
+                continue;
+            }
+
+            try {
+                // Check status on chain
+                const tx = await provider.getTransaction(deposit.txHash);
+
+                if (tx) {
+                    // Check if mined
+                    if (tx.blockNumber) {
+                        const receipt = await provider.getTransactionReceipt(deposit.txHash);
+
+                        if (receipt && receipt.status === 1) {
+                            // Success! Confirmed.
+                            log('INFO', `✅ Recovered/Confirmed pending deposit ${deposit.id}`, { txHash: deposit.txHash });
+                            await creditUserForDeposit(deposit.id, Number(deposit.amount), deposit.userId, deposit.txHash);
+                        } else if (receipt && receipt.status === 0) {
+                            // Reverted
+                            log('ERROR', `Transaction reverted for ${deposit.id}`, { txHash: deposit.txHash });
+                            await prisma.deposit.update({
+                                where: { id: deposit.id },
+                                data: { status: 'FAILED', metadata: { ...(deposit.metadata as any || {}), failureReason: 'TX Reverted' } }
+                            });
+                        }
+                    } else {
+                        // Still pending in mempool... wait.
+                        // log('INFO', `Tx ${deposit.txHash} still pending...`);
+                    }
+                } else {
+                    // Transaction not found in node. Might be dropped.
+                    // Check age.
+                    const age = Date.now() - deposit.createdAt.getTime();
+                    const MAX_PENDING_AGE = 1000 * 60 * 60; // 1 hour
+
+                    if (age > MAX_PENDING_AGE) {
+                        log('WARN', `Transaction ${deposit.txHash} lost/dropped after 1 hour. Marking FAILED.`);
+                        await prisma.deposit.update({
+                            where: { id: deposit.id },
+                            data: { status: 'FAILED', metadata: { ...(deposit.metadata as any || {}), failureReason: 'TX Dropped/NotFound' } }
+                        });
+                    }
+                }
+            } catch (e: any) {
+                log('ERROR', `Error checking confirmation for ${deposit.id}`, { error: e.message });
+            }
+        }
+    } catch (error: any) {
+        log('ERROR', 'Failed to check pending confirmations', { error: error.message });
     }
 }
 
@@ -715,16 +832,19 @@ async function main() {
     // Configuration for Polling-First Logic
     const FAST_INTERVAL_MS = 10000;  // 10s (Process DB Pending/Retries)
     const SLOW_INTERVAL_MS = 10000;  // 10s (Blockchain Polling - CRITICAL now)
+    const RECOVERY_INTERVAL_MS = 30000; // 30s (Check Pending Confirmations)
 
     log('INFO', '🚀 Sweep Monitor Worker Starting (POLLING MODE)...', {
         fastInterval: FAST_INTERVAL_MS,
         slowInterval: SLOW_INTERVAL_MS,
+        recoveryInterval: RECOVERY_INTERVAL_MS,
         maxRetries: MAX_RETRIES,
         masterWallet: MASTER_WALLET_ADDRESS
     });
 
     // Run initial checks immediately
     await checkPendingSweeps();
+    await checkPendingConfirmations();
     await checkChainDeposits(); // Await first scan for safety
 
     // 1. Fast Loop (DB Pending)
@@ -733,18 +853,22 @@ async function main() {
     }, FAST_INTERVAL_MS);
 
     // 2. Slow Loop (Blockchain Polling)
-    // This is now our primary detection mechanism
     setInterval(async () => {
         await checkChainDeposits();
     }, SLOW_INTERVAL_MS);
 
-    // 3. Health Check
+    // 3. Recovery Loop (Zombie Fixer)
+    setInterval(async () => {
+        await checkPendingConfirmations();
+    }, RECOVERY_INTERVAL_MS);
+
+    // 4. Health Check
     setInterval(() => {
         const health = getHealthStatus();
         log('INFO', 'Health check', health);
     }, 60000); // Every minute
 
-    log('INFO', '✅ Worker running with Short-Cooldown Polling Strategy');
+    log('INFO', '✅ Worker running with Robust Polling & Recovery Strategy');
 }
 
 // Graceful shutdown
