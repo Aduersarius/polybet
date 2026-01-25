@@ -8,6 +8,7 @@ import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
 import { logger } from "./logger";
 import { trackAuthEvent, trackError } from "./metrics";
+import { generateAvatar } from "./avatar";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl =
@@ -335,16 +336,12 @@ export const auth = betterAuth({
     },
     debug: !isProduction,
     events: {
-        session: {
+        user: {
             created: async ({ user }: { user: any }) => {
-                // If user doesn't have an image, generate a random gradient one
-                // Uses Boring Avatars (gradient type) for a premium, modern look
                 if (!user.image) {
                     const seed = user.email || user.id;
-                    const colors = ["264653", "2a9d8f", "e9c46a", "f4a261", "e76f51"].join(',');
-                    const avatarUrl = `https://source.boringavatars.com/gradient/120/${encodeURIComponent(seed)}?colors=${colors}`;
-
                     try {
+                        const avatarUrl = generateAvatar(seed);
                         await prisma.user.update({
                             where: { id: user.id },
                             data: {
@@ -352,8 +349,31 @@ export const auth = betterAuth({
                                 avatarUrl: avatarUrl
                             }
                         });
-                        logger.info(`[AUTH] Generated gradient avatar for user: ${seed}`);
-                        trackAuthEvent('login', 'success', 'email'); // better-auth mostly uses email or social
+                        logger.info(`[AUTH] Generated blot avatar for user (registration): ${seed}`);
+                    } catch (error) {
+                        logger.error(`[AUTH] Failed to generate avatar on registration:`, error);
+                    }
+                }
+            }
+        },
+        session: {
+            created: async ({ user }: { user: any }) => {
+                // Fallback / Self-healing
+                if (!user.image) {
+                    const seed = user.email || user.id;
+
+                    try {
+                        const avatarUrl = generateAvatar(seed);
+
+                        await prisma.user.update({
+                            where: { id: user.id },
+                            data: {
+                                image: avatarUrl,
+                                avatarUrl: avatarUrl
+                            }
+                        });
+                        logger.info(`[AUTH] Generated blot avatar for user (fallback): ${seed}`);
+                        trackAuthEvent('login', 'success', 'email');
                     } catch (error) {
                         logger.error(`[AUTH] Failed to auto-generate avatar:`, error);
                         trackError(error, { context: 'auth-avatar-gen' });
