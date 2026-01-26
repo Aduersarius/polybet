@@ -440,9 +440,9 @@ async function generateComment() {
                 id: message.id,
                 text: message.text,
                 userId: message.userId,
-                username: message.user.username,
-                avatarUrl: message.user.avatarUrl || message.user.image,
-                address: message.user.address,
+                username: message.user?.username || 'User',
+                avatarUrl: message.user?.avatarUrl || message.user?.image || '',
+                address: message.user?.address || '',
                 createdAt: message.createdAt,
                 parentId: message.parentId,
                 reactions: {}

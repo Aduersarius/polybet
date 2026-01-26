@@ -36,6 +36,7 @@ export interface DbEvent {
     externalVolume?: number;
     externalBetCount?: number;
     liquidity?: number;
+    slug?: string | null; // Added slug
     outcomes?: Array<{
         id: string;
         name: string;
@@ -237,6 +238,7 @@ export async function getInitialEvents(options: GetEventsOptions = {}): Promise<
             id: true,
             title: true,
             description: true,
+            slug: true, // ADDED
             categories: true,
             resolutionDate: true,
             imageUrl: true,
@@ -358,6 +360,7 @@ export async function getInitialEvents(options: GetEventsOptions = {}): Promise<
             yesOdds: Math.round(yesOdds * 100),
             noOdds: Math.round(noOdds * 100),
             type: event.type,
+            slug: event.slug, // ADDED
             outcomes: event.outcomes?.map((o: any) => ({
                 id: o.id,
                 name: o.name,
@@ -383,6 +386,7 @@ export async function getEventById(id: string): Promise<DbEvent | null> {
             id: true,
             title: true,
             description: true,
+            slug: true, // ADDED
             categories: true,
             resolutionDate: true,
             imageUrl: true,
@@ -451,6 +455,7 @@ export async function getEventById(id: string): Promise<DbEvent | null> {
         id: event.id,
         title: event.title,
         description: event.description,
+        slug: event.slug, // ADDED
         category: event.categories?.[0] || 'General',
         categories: event.categories,
         resolutionDate: event.resolutionDate.toISOString(),
