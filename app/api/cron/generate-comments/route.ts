@@ -245,6 +245,7 @@ async function generateComment() {
         },
         orderBy: { amount: 'desc' }
     });
+    console.log('[Cron] Balance check complete for', user.username);
 
     const commentStyles = [
         "STYLE: BULLISH MAXI. You are absolutely convinced this outcome is winning. Be arrogant, use terms like 'free money', 'guaranteed', 'ez'.",
