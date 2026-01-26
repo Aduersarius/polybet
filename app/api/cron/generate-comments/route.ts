@@ -134,20 +134,20 @@ async function generateComment() {
     // 1. Get ALL active events (lightweight fetch for weighted selection)
     const allActiveEvents = await prisma.event.findMany({
         where: { status: 'ACTIVE' },
-        select: { id: true, volume: true }
+        select: { id: true, externalVolume: true }
     });
 
     if (allActiveEvents.length === 0) return null;
 
     // Weighted Random Selection based on volume
-    const totalVolume = allActiveEvents.reduce((sum: number, e: any) => sum + (e.volume || 0), 0);
+    const totalVolume = allActiveEvents.reduce((sum: number, e: any) => sum + (e.externalVolume || 0), 0);
 
     let selectedEventId = allActiveEvents[0].id;
 
     if (totalVolume > 0) {
         let r = Math.random() * totalVolume;
         for (const e of allActiveEvents) {
-            r -= (e.volume || 0);
+            r -= (e.externalVolume || 0);
             if (r <= 0) {
                 selectedEventId = e.id;
                 break;

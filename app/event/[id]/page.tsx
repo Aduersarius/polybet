@@ -123,8 +123,9 @@ export default function EventPage() {
         if (event) {
             setLiveEvent(event);
 
-            // Redirect to slug if accessing by UUID and slug exists
-            if (event.slug && eventId === event.id) {
+            // Redirect to slug if accessing by UUID/ID and slug exists
+            // This ensures canonical URLs for SEO and consistency
+            if (event.slug && eventId !== event.slug) {
                 router.replace(`/event/${event.slug}`);
             }
         }
