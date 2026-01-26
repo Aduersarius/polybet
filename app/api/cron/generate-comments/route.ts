@@ -6,30 +6,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow enough time for LLM generation
 
-// Helper to simulate a trade
-async function simulateTrade() {
+// Reusable trade logic
+async function executeBotTrade(user: any, event: any) {
     try {
-        // 1. Pick a random bot
-        const botCount = await prisma.user.count({ where: { isBot: true } });
-        if (botCount === 0) return;
-        const skipBot = Math.floor(Math.random() * botCount);
-        const bot = await prisma.user.findFirst({
-            where: { isBot: true },
-            skip: skipBot
-        });
-        if (!bot) return;
-
-        // 2. Pick a random active event
-        const eventCount = await prisma.event.count({ where: { status: 'ACTIVE' } });
-        if (eventCount === 0) return;
-        const skipEvent = Math.floor(Math.random() * eventCount);
-        const event = await prisma.event.findFirst({
-            where: { status: 'ACTIVE' },
-            include: { outcomes: true },
-            skip: skipEvent
-        });
-        if (!event) return;
-
         // 3. Pick an outcome
         let outcomeId: string | null = null;
         let option = 'YES';
@@ -38,18 +17,14 @@ async function simulateTrade() {
         if (event.outcomes.length > 0) {
             const randomOutcome = event.outcomes[Math.floor(Math.random() * event.outcomes.length)];
             outcomeId = randomOutcome.id;
-            // Use 'YES' as generic option for multiple outcome items if needed, or the outcome name
-            // For binary, it's usually YES/NO.
-            // Let's rely on event type.
             if (event.type === 'BINARY') {
                 option = Math.random() > 0.5 ? 'YES' : 'NO';
                 price = option === 'YES' ? (event.yesOdds || 0.5) : (event.noOdds || 0.5);
             } else {
-                option = randomOutcome.name; // For multiple, option is the outcome name
+                option = randomOutcome.name;
                 price = randomOutcome.probability || (1 / event.outcomes.length);
             }
         } else {
-            // Fallback for binary without outcomes
             option = Math.random() > 0.5 ? 'YES' : 'NO';
             price = 0.5;
         }
@@ -58,21 +33,17 @@ async function simulateTrade() {
         const amount = 10 + Math.random() * 490;
         const shares = amount / Math.max(0.01, price);
 
-        if (!Number.isFinite(amount) || !Number.isFinite(shares)) {
-            console.error('[Cron] Invalid calculation:', { amount, price, shares });
-            return;
-        }
+        if (!Number.isFinite(amount) || !Number.isFinite(shares)) return;
 
         // 5. Create Order and MarketActivity
         await prisma.$transaction(async (tx: any) => {
-            // Create Order
             const order = await tx.order.create({
                 data: {
-                    userId: bot.id,
+                    userId: user.id,
                     eventId: event.id,
                     outcomeId: outcomeId,
                     option: option,
-                    side: 'buy', // Mostly buy for bots to show support
+                    side: 'buy',
                     price: price,
                     amount: amount,
                     amountFilled: shares,
@@ -82,10 +53,9 @@ async function simulateTrade() {
                 }
             });
 
-            // Create Market Activity (This triggers the chat badge)
             await tx.marketActivity.create({
                 data: {
-                    userId: bot.id,
+                    userId: user.id,
                     eventId: event.id,
                     type: 'TRADE',
                     side: 'buy',
@@ -98,49 +68,45 @@ async function simulateTrade() {
                 }
             });
 
-            // Update/Create Balance (The Portfolio)
             const tokenSymbol = outcomeId ? `OUT_${outcomeId}` : option;
+            const balanceWhere = {
+                userId: user.id,
+                tokenSymbol: tokenSymbol,
+                eventId: event.id,
+                outcomeId: outcomeId || null
+            };
 
-            // Upsert Balance logic
-            // We use findFirst + upsert approach or just upsert if we are confident on the unique key
-            // The unique key is @@unique([userId, tokenSymbol, eventId, outcomeId])
-            // Note: outcomeId is nullable. Prisma requires explicit null if it's part of the key.
+            const existingBalance = await tx.balance.findFirst({ where: balanceWhere });
 
-            await tx.balance.upsert({
-                where: {
-                    userId_tokenSymbol_eventId_outcomeId: {
-                        userId: bot.id,
+            if (existingBalance) {
+                await tx.balance.update({
+                    where: { id: existingBalance.id },
+                    data: { amount: { increment: shares } }
+                });
+            } else {
+                await tx.balance.create({
+                    data: {
+                        userId: user.id,
                         tokenSymbol: tokenSymbol,
                         eventId: event.id,
-                        outcomeId: outcomeId || null as any // force null if undefined/empty
+                        outcomeId: outcomeId || null,
+                        amount: shares,
+                        locked: 0
                     }
-                },
-                update: {
-                    amount: { increment: shares }
-                },
-                create: {
-                    userId: bot.id,
-                    tokenSymbol: tokenSymbol,
-                    eventId: event.id,
-                    outcomeId: outcomeId || null,
-                    amount: shares,
-                    locked: 0
-                }
-            });
+                });
+            }
 
-            // Update User Total Balance (Simulate spending)
             await tx.user.update({
-                where: { id: bot.id },
+                where: { id: user.id },
                 data: {
                     currentBalance: { decrement: amount },
-                    totalDeposited: { increment: amount } // Fake deposit to keep balance positive maybe?
+                    totalDeposited: { increment: amount }
                 }
             });
         });
 
-        console.log(`[Cron] Simulated trade: ${bot.username} bought $${amount.toFixed(0)} of ${option} on "${event.title}"`);
+        console.log(`[Cron] Executed trade: ${user.username} bought $${amount.toFixed(0)} of ${option}`);
 
-        // Realtime trigger for the trade
         try {
             const { getPusherServer } = await import('@/lib/pusher-server');
             const pusherServer = getPusherServer();
@@ -148,25 +114,53 @@ async function simulateTrade() {
                 type: 'TRADE',
                 amount: amount,
                 side: 'buy',
-                username: bot.username,
+                username: user.username,
                 timestamp: Date.now()
             });
         } catch (e) { }
 
     } catch (err) {
-        console.error('[Cron] Trade simulation failed:', err);
+        console.error('[Cron] Trade execution failed:', err);
     }
+}
+
+// Deprecated: old random simulator
+async function simulateTrade() {
+    // Only kept if needed for legacy manual triggers
 }
 
 // Extracted from original GET to keep things clean
 async function generateComment() {
-    // 1. Get a random active event
-    const activeEventsCount = await prisma.event.count({ where: { status: 'ACTIVE' } });
-    if (activeEventsCount === 0) return null;
-
-    const skip = Math.floor(Math.random() * activeEventsCount);
-    const activeEvents = await prisma.event.findMany({
+    // 1. Get ALL active events (lightweight fetch for weighted selection)
+    const allActiveEvents = await prisma.event.findMany({
         where: { status: 'ACTIVE' },
+        select: { id: true, volume: true }
+    });
+
+    if (allActiveEvents.length === 0) return null;
+
+    // Weighted Random Selection based on volume
+    const totalVolume = allActiveEvents.reduce((sum: number, e: any) => sum + (e.volume || 0), 0);
+
+    let selectedEventId = allActiveEvents[0].id;
+
+    if (totalVolume > 0) {
+        let r = Math.random() * totalVolume;
+        for (const e of allActiveEvents) {
+            r -= (e.volume || 0);
+            if (r <= 0) {
+                selectedEventId = e.id;
+                break;
+            }
+        }
+    } else {
+        // Fallback to pure random if no volume
+        selectedEventId = allActiveEvents[Math.floor(Math.random() * allActiveEvents.length)].id;
+    }
+
+    // 2. Fetch full details for the selected event only
+    const event = await prisma.event.findUnique({
+        where: { id: selectedEventId },
         include: {
             outcomes: true,
             messages: {
@@ -174,11 +168,10 @@ async function generateComment() {
                 orderBy: { createdAt: 'desc' },
                 take: 5
             }
-        },
-        take: 1,
-        skip: skip
+        }
     });
-    const event = activeEvents[0];
+
+    if (!event) return null;
 
     // 2. Get random bot user
     const botUsersCount = await prisma.user.count({ where: { isBot: true } });
@@ -191,6 +184,11 @@ async function generateComment() {
         skip: skipBot
     });
     const user = botUser[0];
+
+    // ** NEW: Execute Trade with 60% Probability BEFORE generating comment **
+    if (Math.random() < 0.60) {
+        await executeBotTrade(user, event);
+    }
 
     // 3. Decide if this is a new comment or a reply
     const recentMessages = event.messages;
@@ -324,7 +322,7 @@ async function generateComment() {
         selectedStyle = pool[idx];
     }
 
-    // Append portfolio context to prompt if relevant 
+    // Append portfolio context to prompt if relevant
     // (We will add it in the prompt construction below)
 
     let prompt = `
@@ -334,7 +332,7 @@ async function generateComment() {
  Current Odds/Probabilities: ${outcomesStr}
  Your Persona: "${user.username}"
  ${portfolioContext}
- 
+
  Guidelines:
  - Tone: Use crypto/betting culture slang. Be concise.
  - Imperfections: lowercase, no punctuation, or minor typos are expected to look like a real person typing on mobile.
@@ -342,22 +340,57 @@ async function generateComment() {
  - YOUR ASSIGNED BEHAVIOR: ${selectedStyle}
  `;
 
+    // Randomize Tone and Imperfections for variety
+    const tones = [
+        "Aggressive", "Passionate", "Detached/Cool", "Sarcastic",
+        "Desperate", "Euphoric", "Analytical", "Confused", "Lazy", "Hyper"
+    ];
+    const pickedTone = tones[Math.floor(Math.random() * tones.length)];
+
+    const imperfections = [
+        "USE ALL LOWERCASE. No punctuation.",
+        "Use perfect grammar but very short sentences.",
+        "Make 1-2 minor typos (e.g., 'teh', 'cuz', 'wont').",
+        "Use excessive exclamation marks!!!!",
+        "Use no punctuation at all run on sentences are fine",
+        "Use internet slang heavily (fr, ngl, tbh, rn).",
+        "Write in fragments. Not full sentences.",
+        "Use all caps (SHOUTING)."
+    ];
+    let pickedImperfection = imperfections[Math.floor(Math.random() * imperfections.length)];
+
+    // Force stricter adherence to imperfections
+    if (pickedTone === "Lazy") pickedImperfection = "USE ALL LOWERCASE. No punctuation. minimal words.";
+    if (pickedTone === "Aggressive") pickedImperfection = "Use excessive caps or exclamation points.";
+
+    const sharedInstructions = `
+ CRITICAL INSTRUCTIONS FOR REALISM:
+ 1. TONE: ${pickedTone}. match this tone exactly.
+ 2. STYLE: ${selectedStyle}
+ 3. IMPERFECTIONS: ${pickedImperfection}
+ 4. Length: Keep it short (under 280 characters like a tweet).
+ 5. Content: Be specific to the market odds or trend. Don't be generic.
+ `;
+
     if (isReply && parentMessage) {
         prompt += `
  You are replying to this message: "${parentMessage.text}"
  Your goal: Write a realistic REPLY based on your assigned behavior style.
+ Context: You are replying to user "${parentMessage.user.username}". React purely to their take.
+ ${sharedInstructions}
  `;
     } else {
         prompt += `
  Your goal: Write a new comment or observation about this market based on your assigned behavior style.
+ ${sharedInstructions}
  `;
     }
 
-    prompt += `\nRequirement: Return ONLY the text of the comment. No quotes, no preamble.`;
+    prompt += `\nRequirement: Return ONLY the text of the comment on english language. No quotes, no preamble.`;
 
     const commentText = await promptLLM(prompt, {
         operation: 'generate_comment',
-        temperature: 1.0,
+        temperature: 0.8,
         maxTokens: 80
     });
 
@@ -430,18 +463,51 @@ async function generateComment() {
 async function simulateReaction() {
     try {
         // 1. Pick a random active event with messages
+        // Include reactions to calculate "virality" weight
         const events = await prisma.event.findMany({
             where: { status: 'ACTIVE' },
-            include: { messages: { take: 20, orderBy: { createdAt: 'desc' } } },
-            take: 5
+            include: {
+                messages: {
+                    take: 50, // Look at more history 
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        reactions: { select: { type: true } }
+                    }
+                }
+            },
+            take: 10
         });
         if (events.length === 0) return;
 
+        // Weighted event selection (reuse volume logic or just random for now? Random for reaction spread is fine)
         const randomEvent = events[Math.floor(Math.random() * events.length)];
         if (randomEvent.messages.length === 0) return;
 
-        // 2. Pick a random recent message
-        const randomMessage = randomEvent.messages[Math.floor(Math.random() * randomEvent.messages.length)];
+        // 2. "Rich Get Richer" Selection Algorithm
+        // We want a Pareto distribution: specific comments should snowball likes.
+        // Weight = Base(1) + (ExistingReactions^2)
+        // This gives massive preference to messages that already have traction.
+
+        const weightedMessages = randomEvent.messages.map((msg: any) => {
+            const reactionCount = msg.reactions.length;
+            // High exponent (2.5) ensures extreme favoritism for popular comments
+            const weight = 1 + Math.pow(reactionCount, 2.5);
+            return { msg, weight };
+        });
+
+        const totalWeight = weightedMessages.reduce((sum: number, item: any) => sum + item.weight, 0);
+
+        let randomMessage = weightedMessages[0].msg;
+        if (totalWeight > 0) {
+            let r = Math.random() * totalWeight;
+            for (const item of weightedMessages) {
+                r -= item.weight;
+                if (r <= 0) {
+                    randomMessage = item.msg;
+                    break;
+                }
+            }
+        }
 
         // 3. Pick a random bot
         const botCount = await prisma.user.count({ where: { isBot: true } });
@@ -454,25 +520,52 @@ async function simulateReaction() {
         // Prevent self-reaction
         if (bot.id === randomMessage.userId) return;
 
-        // Random reaction type (80% LIKE, 20% DISLIKE)
-        const type = Math.random() > 0.2 ? 'LIKE' : 'DISLIKE';
-
-        await prisma.messageReaction.upsert({
+        // Check if already reacted
+        const existingReaction = await prisma.messageReaction.findUnique({
             where: {
                 userId_messageId: {
                     userId: bot.id,
                     messageId: randomMessage.id
                 }
-            },
-            create: {
+            }
+        });
+
+        if (existingReaction) return; // Don't toggle, just skip if already reacted
+
+        // 4. Determine Reaction Type
+        // If the message is popular (lots of existing likes), likely to get MORE likes.
+        // If mixed, maybe controversial.
+        // Simple heuristic: 90% chance to follow the crowd (majority reaction type), 10% contrarian.
+
+        let type = 'LIKE';
+        const likes = randomMessage.reactions.filter((r: any) => r.type === 'LIKE').length;
+        const dislikes = randomMessage.reactions.filter((r: any) => r.type === 'DISLIKE').length;
+        const totalReactions = likes + dislikes;
+
+        if (totalReactions > 0) {
+            const likeRatio = likes / totalReactions;
+            // If mostly likes, 90% chance to LIKE.
+            // If mostly dislikes, 90% chance to DISLIKE.
+            const trendReview = Math.random() < 0.90;
+            if (trendReview) {
+                type = likeRatio >= 0.5 ? 'LIKE' : 'DISLIKE';
+            } else {
+                type = likeRatio >= 0.5 ? 'DISLIKE' : 'LIKE';
+            }
+        } else {
+            // New message (0 reactions): 85% chance to be positive initiation
+            type = Math.random() > 0.15 ? 'LIKE' : 'DISLIKE';
+        }
+
+        await prisma.messageReaction.create({
+            data: {
                 userId: bot.id,
                 messageId: randomMessage.id,
                 type: type
-            },
-            update: {
-                type: type
             }
         });
+
+        console.log(`[Cron] Bot ${bot.username} ${type}D message "${randomMessage.text.substring(0, 20)}..." (Total: ${totalReactions + 1})`);
 
     } catch (e) {
         console.error('[Cron] Reaction simulation failed:', e);
@@ -489,14 +582,12 @@ export async function GET(req: NextRequest) {
     try {
         console.log('[Cron] Starting job...');
 
-        // 1. Generate Comment (Existing Logic)
+        // 1. Generate Comment AND Trade (Combined Logic)
         const commentResult = await generateComment();
 
-        // 2. Simulate Trading Activity (New Logic)
-        await simulateTrade();
-        await simulateTrade();
+        // 2. Simulate trading calls REMOVED - trading is now part of generateComment.
 
-        // 3. Simulate Reactions (New Logic)
+        // 3. Simulate Reactions (Keep this for liveliness)
         await simulateReaction();
         await simulateReaction();
         await simulateReaction();
@@ -504,7 +595,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             success: true,
             comment: commentResult,
-            message: 'Cron job completed'
+            message: 'Cron job completed with synchronized trading'
         });
 
     } catch (error) {

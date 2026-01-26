@@ -67,7 +67,8 @@ export function EventChat({ eventId }: EventChatProps) {
         refetch,
     } = useInfiniteQuery({
         queryKey: ['messages', eventId],
-        queryFn: async ({ pageParam = undefined }) => {
+        queryFn: async ({ pageParam }) => {
+            if (!eventId) return { messages: [] };
             const params = new URLSearchParams({
                 limit: '10', // Pagination limit
             });
@@ -78,13 +79,14 @@ export function EventChat({ eventId }: EventChatProps) {
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
-        getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
+        getNextPageParam: (lastPage) => lastPage?.nextCursor,
         initialPageParam: undefined,
+        enabled: !!eventId,
     });
 
     // Flatten pages into a single array
     const messages = useMemo(() => {
-        return data?.pages.flatMap(page => page.messages) || [];
+        return data?.pages?.flatMap(page => page?.messages || []) || [];
     }, [data?.pages]);
 
     // Real-time updates
@@ -366,7 +368,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                                                     }`}
                                                             >
                                                                 <span>{latestBet.option}</span>
-                                                                <span>${latestBet.amount.toFixed(2)}</span>
+                                                                <span>${Number(latestBet.amount).toFixed(2)}</span>
                                                             </span>
                                                         )}
                                                     </div>

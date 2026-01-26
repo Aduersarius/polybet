@@ -113,7 +113,7 @@ export async function GET(
                         // Flatten market activity into a simple bets array for the UI
                         bets: (msg.user.marketActivity || []).map((bet: any) => ({
                             option: bet.option,
-                            amount: bet.amount,
+                            amount: Number(bet.amount),
                         })),
                     },
                     replyCount: msg.replies.length,

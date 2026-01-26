@@ -34,6 +34,7 @@ interface DbEvent {
     probability: number;
     color?: string;
   }>;
+  slug?: string | null;
 }
 
 interface EventCard2Props {
@@ -983,7 +984,7 @@ export function EventCard2({ event, isEnded = false, onTradeClick, onMultipleTra
           transition={{ duration: 0.2 }}
         >
           <Link
-            href={`/event/${(event as any).slug || event.id}`}
+            href={`/event/${event.slug || event.id}`}
             scroll={false}
             onClick={() => {
               if (typeof window !== 'undefined') {

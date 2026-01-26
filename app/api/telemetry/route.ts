@@ -43,10 +43,14 @@ export async function POST(request: NextRequest) {
         });
 
         return NextResponse.json({ ok: true });
-    } catch (error) {
+    } catch (error: any) {
         // requireAuth throws a Response object when authentication fails
         if (error instanceof Response) {
             return error;
+        }
+        // Handle explicit auth errors (AppError)
+        if (error.status === 401 || error.message === 'Authentication required') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         console.error('[telemetry] handler error', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

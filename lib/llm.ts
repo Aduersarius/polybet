@@ -76,85 +76,111 @@ export async function callLLM(
             'ai.prompt_preview': messages[messages.length - 1]?.content?.substring(0, 200) || '',
         }
     }, async (span: Span) => {
-        try {
-            const body: Record<string, unknown> = {
-                model,
-                messages,
-            };
+        let attempts = 0;
+        const maxRetries = 2; // Total 3 attempts
+        let lastError: Error | null = null;
+        let lastStatus: number | null = null;
 
-            if (maxTokens !== undefined) body.max_tokens = maxTokens;
-            if (temperature !== undefined) body.temperature = temperature;
-
-            const res = await fetch(OPENROUTER_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': referer,
-                },
-                body: JSON.stringify(body),
-            });
-
-            const durationMs = performance.now() - startTime;
-
-            if (!res.ok) {
-                const errorText = await res.text().catch(() => 'Unknown error');
-                console.warn('[LLM] API request failed: %s %s', res.status, res.statusText, errorText);
-
-                span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${res.status}` });
-                span.setAttribute('ai.error', errorText.substring(0, 500));
-
-                trackExternalApi('openrouter', operation, durationMs, false);
-                trackError(new Error(`OpenRouter API error: ${res.status}`), {
+        while (attempts <= maxRetries) {
+            attempts++;
+            try {
+                const body: Record<string, unknown> = {
                     model,
-                    operation,
-                    statusCode: res.status,
-                    errorText: errorText.substring(0, 1000)
+                    messages,
+                };
+
+                if (maxTokens !== undefined) body.max_tokens = maxTokens;
+                if (temperature !== undefined) body.temperature = temperature;
+
+                const res = await fetch(OPENROUTER_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': referer,
+                    },
+                    body: JSON.stringify(body),
                 });
 
-                return { content: '', model, durationMs };
-            }
+                const durationMs = performance.now() - startTime;
 
-            const json = await res.json();
-            const content = json.choices?.[0]?.message?.content ?? '';
-            const usage = json.usage
-                ? {
-                    promptTokens: json.usage.prompt_tokens ?? 0,
-                    completionTokens: json.usage.completion_tokens ?? 0,
-                    totalTokens: json.usage.total_tokens ?? 0,
+                if (!res.ok) {
+                    lastStatus = res.status;
+                    const errorText = await res.text().catch(() => 'Unknown error');
+
+                    // Retry on 429 (Rate Limit) or 5xx (Server Error)
+                    if (attempts <= maxRetries && (res.status === 429 || res.status >= 500)) {
+                        console.warn(`[LLM] API attempt ${attempts} failed (${res.status}), retrying...`);
+                        const delay = Math.min(1000 * Math.pow(2, attempts - 1), 5000);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+
+                    console.warn('[LLM] API request failed: %s %s', res.status, res.statusText, errorText);
+
+                    span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${res.status}` });
+                    span.setAttribute('ai.error', errorText.substring(0, 500));
+
+                    trackExternalApi('openrouter', operation, durationMs, false);
+                    trackError(new Error(`OpenRouter API error: ${res.status}`), {
+                        model,
+                        operation,
+                        statusCode: res.status,
+                        errorText: errorText.substring(0, 1000)
+                    });
+
+                    return { content: '', model, durationMs };
                 }
-                : undefined;
 
-            span.setStatus({ code: SpanStatusCode.OK });
-            span.setAttribute('ai.response_length', content.length);
-            if (usage) {
-                span.setAttribute('ai.prompt_tokens', usage.promptTokens);
-                span.setAttribute('ai.completion_tokens', usage.completionTokens);
-                span.setAttribute('ai.total_tokens', usage.totalTokens);
+                const json = await res.json();
+                const content = json.choices?.[0]?.message?.content ?? '';
+                const usage = json.usage
+                    ? {
+                        promptTokens: json.usage.prompt_tokens ?? 0,
+                        completionTokens: json.usage.completion_tokens ?? 0,
+                        totalTokens: json.usage.total_tokens ?? 0,
+                    }
+                    : undefined;
+
+                span.setStatus({ code: SpanStatusCode.OK });
+                span.setAttribute('ai.response_length', content.length);
+                if (usage) {
+                    span.setAttribute('ai.prompt_tokens', usage.promptTokens);
+                    span.setAttribute('ai.completion_tokens', usage.completionTokens);
+                    span.setAttribute('ai.total_tokens', usage.totalTokens);
+                }
+
+                trackExternalApi('openrouter', operation, durationMs, true);
+
+                return {
+                    content: typeof content === 'string' ? content : '',
+                    model: json.model ?? model,
+                    usage,
+                    durationMs,
+                };
+            } catch (err) {
+                lastError = err as Error;
+                // Retry on network errors
+                if (attempts <= maxRetries) {
+                    console.warn(`[LLM] Network attempt ${attempts} failed, retrying...`, err);
+                    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 5000);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
             }
-
-            trackExternalApi('openrouter', operation, durationMs, true);
-
-            return {
-                content: typeof content === 'string' ? content : '',
-                model: json.model ?? model,
-                usage,
-                durationMs,
-            };
-        } catch (err) {
-            const durationMs = performance.now() - startTime;
-            console.error('[LLM] API call failed:', err);
-
-            span.setStatus({ code: SpanStatusCode.ERROR, message: 'Exception' });
-            span.recordException(err as Error);
-
-            trackError(err, { model, operation, messageCount: messages.length });
-            trackExternalApi('openrouter', operation, durationMs, false);
-
-            return { content: '', model, durationMs };
-        } finally {
-            span.end();
         }
+
+        // Final failure handling after retries exhausted
+        const durationMs = performance.now() - startTime;
+        console.error('[LLM] All API attempts failed:', lastError);
+
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'Exception' });
+        if (lastError) span.recordException(lastError);
+
+        trackError(lastError || new Error('Unknown LLM error'), { model, operation, messageCount: messages.length });
+        trackExternalApi('openrouter', operation, durationMs, false);
+
+        return { content: '', model: model || '', durationMs };
     });
 }
 

@@ -19,7 +19,7 @@ Requirements:
 - Return ONLY the slug string, no explanation or quotes`;
 
         const content = await promptLLM(prompt, { maxTokens: 50, operation: 'generate_slug' });
-        if (!content) return '';
+        if (!content) throw new Error('No content returned from LLM');
 
         const slug = content.trim()
             .toLowerCase()
@@ -30,7 +30,11 @@ Requirements:
         console.log(`[LLM] Generated slug for "${title.slice(0, 30)}...": "${slug}"`);
         return slug;
     } catch (err) {
-        console.warn("[LLM] Slug generation failed", err);
-        return '';
+        console.warn("[LLM] Slug generation failed, using fallback", err);
+        // Fallback: strict sanitization of title
+        return title.trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphen
+            .replace(/^-+|-+$/g, '');     // Trim leading/trailing hyphens
     }
 }
