@@ -1,3 +1,4 @@
+import 'newrelic';
 import { registerOTel } from '@vercel/otel';
 import type { MetricReader } from '@opentelemetry/sdk-metrics';
 
