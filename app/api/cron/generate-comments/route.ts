@@ -580,7 +580,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        console.log('[Cron] Starting job...');
+        console.log('[Cron] Starting job (v2 - externalVolume)...');
 
         // 1. Generate Comment AND Trade (Combined Logic)
         const commentResult = await generateComment();
