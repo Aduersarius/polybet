@@ -10,9 +10,17 @@ export const dynamic = 'force-dynamic';
 // GET /api/user/favorites - List user's favorite events
 export async function GET(request: Request) {
     try {
-        const user = await requireAuth(request);
+        let user;
+        try {
+            user = await requireAuth(request);
+        } catch (e) {
+            // If auth fails, treat as guest
+            user = null;
+        }
+
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            // Guests have zero favorites, not an error
+            return NextResponse.json({ data: [] });
         }
 
         const eventSelect = {
@@ -55,10 +63,6 @@ export async function GET(request: Request) {
             data: favorites.map(fav => fav.event)
         });
     } catch (error: any) {
-        // If requireAuth throws, it returns a Response object
-        if (error instanceof Response) {
-            return error;
-        }
         console.error('Get favorites error:', error);
         return NextResponse.json({ error: error.message || 'Failed to get favorites' }, { status: 500 });
     }

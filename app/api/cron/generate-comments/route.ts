@@ -243,8 +243,7 @@ async function generateComment() {
             eventId: event.id,
             amount: { gt: 5 } // Ignore dust (< 5 shares)
         },
-        orderBy: { amount: 'desc' },
-        include: { outcome: true }
+        orderBy: { amount: 'desc' }
     });
 
     const commentStyles = [
@@ -305,11 +304,16 @@ async function generateComment() {
 
         // SKIN IN THE GAME CHECK
         if (userBalance) {
-            const holdingName = userBalance.outcome ? userBalance.outcome.name : userBalance.tokenSymbol;
+            let holdingName = userBalance.tokenSymbol;
+            if (userBalance.outcomeId) {
+                const outcome = event.outcomes.find((o: any) => o.id === userBalance.outcomeId);
+                if (outcome) holdingName = outcome.name;
+            }
+
             const amount = Math.round(Number(userBalance.amount));
             portfolioContext = `YOUR PORTFOLIO: You possess ${amount} shares of "${holdingName}". You are financially incentivized to have this outcome win.`;
 
-            const isNo = (userBalance.outcome?.name?.toUpperCase() === 'NO') || (userBalance.tokenSymbol?.toUpperCase().includes('NO'));
+            // (Filtered logic removed)
 
             // No filtering - let the prompt handle the conflict between Persona and Portfolio.
             // This allows for "Bullish Skeptics" (hedgers) or "Bearish Maxis", which is more realistic.
