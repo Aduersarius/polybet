@@ -687,27 +687,27 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                         </div>
 
                         {/* Payout Display */}
+                        {/* Payout Display */}
                         {currentAmount > 0 && (
-                            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-400">
-                                        {selectedTab === 'buy' ? 'You will receive:' : 'You will receive:'}
-                                    </span>
+                            <div className="p-4 bg-black/40 rounded-xl border border-white/5 space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500">Avg. Price</span>
                                     <span className="text-white font-bold">
-                                        {selectedTab === 'buy'
-                                            ? `${potentialPayout.toFixed(2)} shares`
-                                            : `$${potentialPayout.toFixed(2)}`
-                                        }
+                                        {currentPrice.toFixed(4)}
                                     </span>
                                 </div>
-                                {selectedTab === 'buy' && (
-                                    <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
-                                        <span>If {selectedOption.toLowerCase()} wins:</span>
-                                        <span className="font-medium text-green-400">
-                                            ${(potentialPayout * (1 - PLATFORM_FEE)).toFixed(2)}
-                                        </span>
-                                    </div>
-                                )}
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500">Estimated Payout</span>
+                                    <span className="text-emerald-400 font-bold">
+                                        {potentialPayout.toFixed(2)} USD
+                                    </span>
+                                </div>
+                                <div className="pt-2 border-t border-white/5 flex justify-between text-sm">
+                                    <span className="text-gray-300 font-bold uppercase tracking-tighter">Total Cost</span>
+                                    <span className="text-white font-black">
+                                        {currentAmount.toFixed(2)} {selectedTab === 'buy' ? 'USD' : 'Shares'}
+                                    </span>
+                                </div>
                             </div>
                         )}
 

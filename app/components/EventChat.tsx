@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { useRef, useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useRef, useState, useEffect, useMemo } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,7 +18,7 @@ import {
 } from '@/components/molecule-ui/discussion';
 import { Button } from '@/components/ui/button';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/solid';
-import { ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 
 interface Message {
     id: string;
@@ -48,31 +48,44 @@ interface EventChatProps {
 
 export function EventChat({ eventId }: EventChatProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const observerTarget = useRef<HTMLDivElement>(null);
     const [inputText, setInputText] = useState('');
     const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
 
     const { data: session } = useSession();
     const user = session?.user;
     const isAuthenticated = !!user;
+    const queryClient = useQueryClient();
 
-    // Fetch latest messages as a simple flat list (no client-side pagination)
+    // Fetch messages with infinite scrolling
     const {
         data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
         isLoading,
         refetch,
-    } = useQuery<{ messages: Message[] }>({
+    } = useInfiniteQuery({
         queryKey: ['messages', eventId],
-        queryFn: async () => {
+        queryFn: async ({ pageParam = undefined }) => {
             const params = new URLSearchParams({
-                limit: '50', // Load up to 50 latest messages
+                limit: '10', // Pagination limit
             });
+            if (pageParam) {
+                params.set('cursor', pageParam as string);
+            }
             const res = await fetch(`/api/events/${eventId}/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
+        getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
+        initialPageParam: undefined,
     });
 
-    const messages: Message[] = data?.messages || [];
+    // Flatten pages into a single array
+    const messages = useMemo(() => {
+        return data?.pages.flatMap(page => page.messages) || [];
+    }, [data?.pages]);
 
     // Real-time updates
     useEffect(() => {
@@ -80,8 +93,9 @@ export function EventChat({ eventId }: EventChatProps) {
         const channel = socket.subscribe(`event-${eventId}`);
 
         function onMessage() {
-            // Refetch first page to get new messages
-            refetch();
+            // Refetch queries to update the list
+            // We use queryClient to invalidate to be safe with infinite query state
+            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
         }
 
         channel.bind('chat-message', onMessage);
@@ -90,39 +104,79 @@ export function EventChat({ eventId }: EventChatProps) {
             channel.unbind('chat-message', onMessage);
             socket.unsubscribe(`event-${eventId}`);
         };
-    }, [eventId, refetch]);
+    }, [eventId, queryClient]);
 
-    // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
+    // Intersection Observer for infinite scrolling
     useEffect(() => {
-        if (!data || isLoading) return;
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+                    fetchNextPage();
+                }
+            },
+            { threshold: 0.5 }
+        );
 
-        const scrollArea = scrollContainerRef.current?.closest('[data-radix-scroll-area-root]');
-        const viewport = scrollArea?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
-
-        if (viewport) {
-            // Check if user is near bottom (within 100px)
-            const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
-
-            if (isNearBottom) {
-                // Scroll to bottom
-                setTimeout(() => {
-                    viewport.scrollTop = viewport.scrollHeight;
-                }, 100);
-            }
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
         }
-    }, [messages.length, isLoading]);
 
-    // Group messages
-    const rootMessages = messages.filter(m => !m.parentId);
-    const messageMap = new Map<string, Message[]>();
-    messages.forEach(msg => {
-        if (msg.parentId) {
-            if (!messageMap.has(msg.parentId)) {
-                messageMap.set(msg.parentId, []);
+        return () => observer.disconnect();
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+
+    // Map for quick lookup
+    const msgMap = useMemo(() => new Map<string, Message>(messages.map(m => [m.id, m])), [messages]);
+
+    // Group messages logic
+    const { rootMessages, repliesMap } = useMemo(() => {
+        const roots: Message[] = [];
+        const replies = new Map<string, Message[]>();
+
+        messages.forEach(msg => {
+            // Find effective root
+            let current = msg;
+            let root = msg;
+            let isOrphan = false;
+
+            // Simple loop protection
+            let depth = 0;
+            while (current.parentId && depth < 10) {
+                const parent = msgMap.get(current.parentId);
+                if (!parent) {
+                    // Parent not in current list (orphan or parent not loaded yet).
+                    // Treat as root for now
+                    if (current === msg) isOrphan = true;
+                    break;
+                }
+                current = parent;
+                root = parent;
+                depth++;
             }
-            messageMap.get(msg.parentId)!.push(msg);
-        }
-    });
+
+            if (!msg.parentId || isOrphan) {
+                roots.push(msg);
+            } else {
+                if (!replies.has(root.id)) {
+                    replies.set(root.id, []);
+                }
+                if (msg.id !== root.id) {
+                    replies.get(root.id)!.push(msg);
+                }
+            }
+        });
+
+        // Sort root messages by date desc (newest first)
+        roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        // Sort replies by date asc
+        replies.forEach(reps => {
+            reps.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        });
+
+        return { rootMessages: roots, repliesMap: replies };
+    }, [messages, msgMap]);
+
 
     const reactMutation = useMutation({
         mutationFn: async ({ messageId, type }: { messageId: string; type: 'LIKE' | 'DISLIKE' }) => {
@@ -135,7 +189,7 @@ export function EventChat({ eventId }: EventChatProps) {
             return res.json();
         },
         onSuccess: () => {
-            // Refresh messages so reaction counts stay in sync
+            // Refresh
             refetch();
         },
     });
@@ -159,7 +213,6 @@ export function EventChat({ eventId }: EventChatProps) {
         onSuccess: () => {
             setInputText('');
             setReplyTo(null);
-            // Refetch to show new message
             refetch();
         },
         onError: (error: any) => {
@@ -208,10 +261,8 @@ export function EventChat({ eventId }: EventChatProps) {
         return isNaN(parseInt(initial)) ? initial : 'U';
     };
 
-    // Helper function to get avatar URL with fallback
     const getAvatarUrl = (userObj: Message['user']): string | undefined => {
         const url = userObj.avatarUrl || userObj.image;
-        // Return undefined if url is null, empty string, or undefined
         return url && url.trim() !== '' ? url : undefined;
     };
 
@@ -220,7 +271,7 @@ export function EventChat({ eventId }: EventChatProps) {
             {/* Header - Comments count */}
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-medium text-zinc-300">
-                    Comments ({rootMessages.length})
+                    Comments ({messages.length}{hasNextPage ? '+' : ''})
                 </span>
             </div>
 
@@ -253,20 +304,23 @@ export function EventChat({ eventId }: EventChatProps) {
                 </div>
             </div>
 
-            {/* Messages Area - compact height */}
-            <ScrollArea className="max-h-[280px] pr-2">
-                <div ref={scrollContainerRef} className="flex flex-col">
-                    {isLoading ? (
+            {/* Messages Area - Native Scroll with fixed height */}
+            <div
+                ref={scrollContainerRef}
+                className="max-h-[500px] min-h-[150px] overflow-y-auto pr-2 custom-scrollbar border border-white/5 rounded-md bg-zinc-900/30"
+            >
+                <div className="flex flex-col min-h-0 px-2 pt-2">
+                    {messages.length === 0 && isLoading ? (
                         <div className="flex justify-center items-center h-24">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent-500"></div>
+                            <Loader2 className="animate-spin h-6 w-6 text-accent-500" />
                         </div>
-                    ) : rootMessages.length === 0 ? (
+                    ) : messages.length === 0 ? (
                         <div className="text-center text-zinc-500 py-8 text-sm">No messages yet. Be the first to say hi!</div>
                     ) : (
                         <>
                             <Discussion type="multiple" className="space-y-4">
                                 {rootMessages.map((msg) => {
-                                    const replies = messageMap.get(msg.id) || [];
+                                    const replies = repliesMap.get(msg.id) || [];
                                     const isMe = msg.userId === user?.id;
                                     const displayName = formatDisplayName(msg.user, msg.userId);
                                     const avatarFallback = getAvatarFallback(msg.user, msg.userId);
@@ -275,7 +329,6 @@ export function EventChat({ eventId }: EventChatProps) {
 
                                     const profileAddress = msg.user.address || msg.userId;
 
-                                    // Use the most recent bet for this event if available
                                     const latestBet = msg.user.bets && msg.user.bets.length > 0
                                         ? msg.user.bets[0]
                                         : null;
@@ -370,6 +423,8 @@ export function EventChat({ eventId }: EventChatProps) {
                                                         {replies.map(reply => {
                                                             const replyDisplayName = formatDisplayName(reply.user, reply.userId);
                                                             const replyAvatarFallback = getAvatarFallback(reply.user, reply.userId);
+                                                            const isReplyMe = reply.userId === user?.id;
+
                                                             return (
                                                                 <div key={reply.id} className="flex gap-2">
                                                                     <UserHoverCard address={reply.user.address || reply.userId}>
@@ -385,7 +440,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                                                     <div>
                                                                         <div className="flex items-center gap-2">
                                                                             <UserHoverCard address={reply.user.address || reply.userId}>
-                                                                                <span className="text-xs font-bold text-zinc-300 cursor-pointer hover:underline">{replyDisplayName}</span>
+                                                                                <span className={`text-xs font-bold cursor-pointer hover:underline ${isReplyMe ? 'text-accent-400' : 'text-zinc-300'}`}>{replyDisplayName}</span>
                                                                             </UserHoverCard>
                                                                             <span className="text-[10px] text-zinc-600">{formatTime(reply.createdAt)}</span>
                                                                         </div>
@@ -401,10 +456,15 @@ export function EventChat({ eventId }: EventChatProps) {
                                     );
                                 })}
                             </Discussion>
+
+                            {/* Sentinel for Infinite Scroll - Load More Trigger */}
+                            <div ref={observerTarget} className="h-4 w-full flex justify-center py-2">
+                                {isFetchingNextPage && <Loader2 className="animate-spin h-4 w-4 text-zinc-500" />}
+                            </div>
                         </>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
         </div>
     );
 }

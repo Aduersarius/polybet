@@ -253,18 +253,18 @@ export default function EventPage() {
             <Navbar selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
             <div className="relative z-10 flex flex-col h-screen">
-
-                {/* Main content area with independent scrolling columns */}
+                {/* Main content area - Independent Scrolling with Expanded Hit Areas */}
                 <div className="flex-1 overflow-hidden">
-                    <div className="h-full px-4 sm:px-5 max-w-7xl mx-auto">
+                    <div className="h-full max-w-7xl mx-auto w-full"> {/* Removed padding from here to expand hit area */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="h-full"
                         >
-                            <div className="h-full flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_24rem] lg:items-stretch">
+                            <div className="h-full flex flex-col lg:grid lg:grid-cols-[1fr_24rem] lg:items-stretch">
                                 {/* Left Column - Scrollable */}
-                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 lg:pr-2 space-y-6 order-1 no-scrollbar pt-[var(--navbar-height)]">
+                                {/* Added padding HERE so proper scrolling works on the edges */}
+                                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 lg:pr-2 px-4 sm:px-5 space-y-6 order-1 no-scrollbar pt-[var(--navbar-height)]">
                                     <div className="space-y-6 pt-4">
                                         {/* Header Section - With Image on Right */}
                                         <div className="relative">
@@ -461,7 +461,7 @@ export default function EventPage() {
                                 </div>
 
                                 {/* Right Column - Scrollable */}
-                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 order-2 hidden lg:block z-10 no-scrollbar pt-[var(--navbar-height)]">
+                                <aside className="flex-1 overflow-y-auto overflow-x-hidden lg:pl-2 px-4 pb-12 order-2 hidden lg:block z-10 no-scrollbar pt-[var(--navbar-height)]">
                                     <div className="space-y-6 trading-panel pb-6 pt-4">
                                         {liveEvent.type === 'GROUPED_BINARY' ? (
                                             <GroupedBinaryTradingPanel
