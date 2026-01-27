@@ -166,6 +166,14 @@ export async function GET() {
         data: rows,
         skipDuplicates: true,
       });
+
+      // Trigger background refresh of the hourly materialized view
+      try {
+        const { triggerBackgroundRefresh } = await import('@/lib/odds-history-refresh');
+        triggerBackgroundRefresh();
+      } catch (err) {
+        console.warn('[Polymarket] Failed to trigger view refresh:', err);
+      }
     }
 
     return NextResponse.json({ ingested: rows.length, durationMs: Date.now() - start });

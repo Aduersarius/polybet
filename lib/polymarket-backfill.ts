@@ -172,5 +172,13 @@ export function triggerBackgroundBackfill(params: Array<{
                 console.error(`[Polymarket-Lib] Background job failed for ${param.tokenId}:`, err);
             }
         }
+
+        // After all outcomes are backfilled, refresh the optimized view
+        try {
+            const { triggerBackgroundRefresh } = await import('./odds-history-refresh');
+            triggerBackgroundRefresh();
+        } catch (err) {
+            console.warn('[Polymarket-Lib] Failed to trigger view refresh:', err);
+        }
     });
 }
