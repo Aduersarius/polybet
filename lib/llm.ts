@@ -13,7 +13,7 @@ import { trace, Span, SpanStatusCode } from '@opentelemetry/api';
 import { trackExternalApi, trackError } from '@/lib/metrics';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'tngtech/tng-r1t-chimera:free';
+const DEFAULT_MODEL = 'tngtech/deepseek-r1t2-chimera:free';
 const DEFAULT_REFERER = 'https://pariflow.com';
 
 export interface LLMMessage {

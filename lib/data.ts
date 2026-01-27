@@ -80,7 +80,8 @@ export async function getInitialEvents(options: GetEventsOptions = {}): Promise<
             'TECH': 'Tech',
             'WORLD': 'World',
         };
-        effectiveCategory = categoryMap[category] || category;
+        const categoryKey = category.toUpperCase();
+        effectiveCategory = categoryMap[categoryKey] || category;
     }
 
     let effectiveSortBy = sortBy;
@@ -117,7 +118,8 @@ export async function getInitialEvents(options: GetEventsOptions = {}): Promise<
         const searchFilter = {
             OR: [
                 { title: { contains: searchQuery, mode: 'insensitive' as const } },
-                { description: { contains: searchQuery, mode: 'insensitive' as const } }
+                { description: { contains: searchQuery, mode: 'insensitive' as const } },
+                { categories: { has: searchQuery } }
             ]
         };
         if (where.OR && source === 'POLYMARKET') {

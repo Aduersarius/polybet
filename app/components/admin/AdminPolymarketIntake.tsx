@@ -73,6 +73,7 @@ export function AdminPolymarketIntake() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'unmapped' | 'approved' | 'rejected'>('all');
   const [eventTypeFilters, setEventTypeFilters] = useState<Set<string>>(new Set(['BINARY', 'MULTIPLE', 'SPORTS', 'GROUPED_BINARY']));
   const [outcomeRange, setOutcomeRange] = useState([0, 8]); // Default 0-8 outcomes per request
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [sortBy, setSortBy] = useState<'volume' | 'date' | 'title'>('volume');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -334,6 +335,16 @@ export function AdminPolymarketIntake() {
       return count >= outcomeRange[0] && count <= outcomeRange[1];
     });
 
+    // Filter by active status if enabled
+    if (showActiveOnly) {
+      const now = new Date();
+      result = result.filter((item) => {
+        const isActive = item.acceptingOrders === true;
+        const isNotExpired = !item.endDate || new Date(item.endDate) > now;
+        return isActive && isNotExpired;
+      });
+    }
+
     // Status is now filtered server-side, but we keep this for sorting/consistency
     // Sort
     result.sort((a, b) => {
@@ -350,8 +361,7 @@ export function AdminPolymarketIntake() {
     });
 
     return result;
-    return result;
-  }, [items, sortBy, sortOrder, outcomeRange, eventTypeFilters, forcedTypes]);
+  }, [items, sortBy, sortOrder, outcomeRange, eventTypeFilters, forcedTypes, showActiveOnly]);
 
   const totalItems = filteredAndSorted.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -598,6 +608,23 @@ export function AdminPolymarketIntake() {
           {/* Divider */}
           <div className="h-6 w-px bg-white/10" />
 
+          {/* Active Only Toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowActiveOnly(!showActiveOnly); setCurrentPage(1); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border flex items-center gap-2 ${showActiveOnly
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-zinc-200'
+                }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${showActiveOnly ? 'bg-amber-400 animate-pulse' : 'bg-zinc-600'}`} />
+              Active Only
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-white/10" />
+
           {/* Outcome Range Filter */}
           <div className="flex items-center gap-4 min-w-[200px] px-2">
             <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider whitespace-nowrap">
@@ -729,7 +756,7 @@ export function AdminPolymarketIntake() {
               </th>
               <th className="px-4 py-3 text-left">Market</th>
               <th className="px-4 py-3 text-left">Categories</th>
-              <th className="px-4 py-3 text-left">Outcomes & Prices</th>
+              <th className="px-4 py-3 text-left">Outcomes &amp; Prices</th>
               <th className="px-4 py-3 text-left">Volume</th>
               <th className="px-4 py-3 text-left">Change</th>
               <th className="px-4 py-3 text-left">End</th>

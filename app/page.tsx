@@ -1,4 +1,5 @@
 // Server Component - fetches data on server for instant LCP
+export const dynamic = 'force-dynamic';
 import { Suspense } from 'react';
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
@@ -37,7 +38,7 @@ export default async function Home({
   searchParams: Promise<{ category?: string }>
 }) {
   const params = await searchParams;
-  const category = params.category || 'ALL';
+  const category = (params.category || 'ALL').toUpperCase();
 
   // Fetch initial events on server
   const { events: initialEvents } = await getInitialEvents({

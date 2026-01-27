@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { TradingPanelModal } from "./TradingPanelModal";
 import { MultipleTradingPanelModal } from "./MultipleTradingPanelModal";
@@ -39,8 +39,9 @@ interface EventFeedClientProps {
     initialCategory?: string;
 }
 
-export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: EventFeedClientProps) {
-    const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+export function EventFeedClient({ initialEvents, initialCategory: serverCategory = 'ALL' }: EventFeedClientProps) {
+    const searchParams = useSearchParams();
+    const selectedCategory = (searchParams.get('category') || serverCategory).toUpperCase();
     const [timeHorizon, setTimeHorizon] = useState<'all' | '1d' | '1w' | '1m'>('all');
     const [sortBy, setSortBy] = useState<'newest' | 'volume_high' | 'volume_low' | 'liquidity_high' | 'ending_soon'>('volume_high');
     const [searchQuery, setSearchQuery] = useState('');
@@ -61,8 +62,8 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
     const router = useRouter();
 
     const handleCategoryChange = (category: string) => {
-        router.push(`?category=${category}`);
-        setSelectedCategory(category);
+        const id = category.toUpperCase();
+        router.push(`?category=${id}`);
     };
 
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
@@ -84,8 +85,14 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
     } = useInfiniteQuery({
         queryKey: ['events-feed', selectedCategory, timeHorizon, sortBy, debouncedSearchQuery],
         queryFn: async ({ pageParam = 0 }) => {
-            // Skip first page if pageParam is 0 and we have initialEvents
-            if (pageParam === 0 && initialEvents.length > 0) {
+            // Only use initialEvents if we're on the first page AND the current state matches the initial state
+            const isInitialState =
+                selectedCategory === serverCategory &&
+                timeHorizon === 'all' &&
+                sortBy === 'volume_high' &&
+                debouncedSearchQuery === '';
+
+            if (pageParam === 0 && initialEvents.length > 0 && isInitialState) {
                 return {
                     events: initialEvents,
                     nextOffset: EVENTS_PER_PAGE,
@@ -127,7 +134,7 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
         if (!eventsPages) {
             // Only show initialEvents if the user is still on the initial filters
             const isDefaultState =
-                selectedCategory === initialCategory &&
+                selectedCategory === serverCategory &&
                 timeHorizon === 'all' &&
                 sortBy === 'volume_high' &&
                 searchQuery === '';
@@ -141,7 +148,7 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
             seen.add(event.id);
             return true;
         });
-    }, [eventsPages, initialEvents, selectedCategory, initialCategory, timeHorizon, sortBy, searchQuery]);
+    }, [eventsPages, initialEvents, selectedCategory, serverCategory, timeHorizon, sortBy, searchQuery]);
 
     // Fetch favorites
     const { data: favoriteEvents } = useQuery<DbEvent[]>({
@@ -183,24 +190,10 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
         }
     }, [selectedCategory]);
 
-    // Restore category and scroll
+
+    // Restore scroll after navigation
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const category = urlParams.get('category');
-            if (category) {
-                setSelectedCategory(category);
-            } else {
-                let saved = null;
-                try {
-                    saved = getCookie('selectedCategory');
-                } catch (e) {
-                    console.log('Cookies not available:', e);
-                }
-                if (saved) {
-                    setSelectedCategory(saved);
-                }
-            }
             const scrollPos = sessionStorage.getItem('scrollPos');
             if (scrollPos) {
                 setTimeout(() => {
@@ -296,12 +289,12 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
             >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-center gap-4">
-                        <h2 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent flex items-center gap-4 flex-1 tracking-tight uppercase" style={{ letterSpacing: '0.03em' }}>
+                        <h2 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent flex items-center gap-4 flex-1 tracking-tight" style={{ letterSpacing: '0.01em' }}>
                             {selectedCategory === 'FAVORITES' ? 'My Favorites' :
                                 selectedCategory === 'ALL' ? 'All Markets' :
                                     selectedCategory === 'NEW' ? 'New Markets' :
                                         selectedCategory === 'TRENDING' ? 'Trending Markets' :
-                                            `${selectedCategory} Markets`}
+                                            `${selectedCategory.charAt(0).toUpperCase()}${selectedCategory.slice(1).toLowerCase()} Markets`}
                             <div className="h-px bg-gradient-to-r from-transparent via-blue-400/30 to-transparent flex-1 hidden sm:block" />
                         </h2>
                     </div>
