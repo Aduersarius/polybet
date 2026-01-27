@@ -319,7 +319,7 @@ export async function POST(request: NextRequest) {
     let type: string;
     if (requestedMarketType === 'GROUPED_BINARY' || isGroupedBinary === true) {
       type = 'GROUPED_BINARY';
-    } else if (requestedMarketType === 'MULTIPLE' || requestedMarketType === 'BINARY') {
+    } else if (requestedMarketType === 'MULTIPLE' || requestedMarketType === 'BINARY' || requestedMarketType === 'SPORTS') {
       type = requestedMarketType;
     } else {
       // Fallback to inference based on outcome count

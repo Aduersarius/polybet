@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { sanitizeUrl } from '@/lib/utils';
 import { Pagination } from './Pagination';
+import * as Slider from '@radix-ui/react-slider';
 
 type IntakeItem = {
   polymarketId: string;
@@ -40,7 +41,7 @@ type IntakeItem = {
   internalSlug?: string | null;
   notes?: string | null;
   // Event type classification
-  marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
+  marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY' | 'SPORTS';
   isGroupedBinary?: boolean;
 };
 
@@ -59,7 +60,7 @@ export function AdminPolymarketIntake() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const [forcedTypes, setForcedTypes] = useState<Record<string, 'MULTIPLE' | 'GROUPED_BINARY'>>({});
+  const [forcedTypes, setForcedTypes] = useState<Record<string, 'MULTIPLE' | 'GROUPED_BINARY' | 'SPORTS' | 'BINARY'>>({});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -70,7 +71,8 @@ export function AdminPolymarketIntake() {
 
   // Pagination, Filtering, Sorting state
   const [statusFilter, setStatusFilter] = useState<'all' | 'unmapped' | 'approved' | 'rejected'>('all');
-  const [outcomeFilter, setOutcomeFilter] = useState<'all' | '2' | '3-5' | '6+'>('all');
+  const [eventTypeFilters, setEventTypeFilters] = useState<Set<string>>(new Set(['BINARY', 'MULTIPLE', 'SPORTS', 'GROUPED_BINARY']));
+  const [outcomeRange, setOutcomeRange] = useState([0, 8]); // Default 0-8 outcomes per request
   const [sortBy, setSortBy] = useState<'volume' | 'date' | 'title'>('volume');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -317,16 +319,20 @@ export function AdminPolymarketIntake() {
   const filteredAndSorted = useMemo(() => {
     let result = [...items];
 
-    // Filter by outcome count
-    if (outcomeFilter !== 'all') {
-      result = result.filter((item) => {
-        const count = item.outcomes?.length || 0;
-        if (outcomeFilter === '2') return count === 2;
-        if (outcomeFilter === '3-5') return count >= 3 && count <= 5;
-        if (outcomeFilter === '6+') return count >= 6;
-        return true;
-      });
-    }
+
+    // Filter by event type
+
+    // Filter by event type
+    result = result.filter((item) => {
+      const type = forcedTypes[item.polymarketId] || item.marketType || 'BINARY';
+      return eventTypeFilters.has(type);
+    });
+
+    // Filter by outcome count range
+    result = result.filter((item) => {
+      const count = item.outcomes?.length || 0;
+      return count >= outcomeRange[0] && count <= outcomeRange[1];
+    });
 
     // Status is now filtered server-side, but we keep this for sorting/consistency
     // Sort
@@ -344,7 +350,8 @@ export function AdminPolymarketIntake() {
     });
 
     return result;
-  }, [items, sortBy, sortOrder, outcomeFilter]);
+    return result;
+  }, [items, sortBy, sortOrder, outcomeRange, eventTypeFilters, forcedTypes]);
 
   const totalItems = filteredAndSorted.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -559,21 +566,65 @@ export function AdminPolymarketIntake() {
           {/* Divider */}
           <div className="h-6 w-px bg-white/10" />
 
-          {/* Outcome Count Filter */}
+          {/* Event Type Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mr-2">Outcomes</span>
-            {(['all', '2', '3-5', '6+'] as const).map((o) => (
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mr-2">Type</span>
+            {(['BINARY', 'MULTIPLE', 'SPORTS', 'GROUPED_BINARY'] as const).map((t) => (
               <button
-                key={o}
-                onClick={() => { setOutcomeFilter(o); setCurrentPage(1); }}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${outcomeFilter === o
+                key={t}
+                onClick={() => {
+                  setEventTypeFilters((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(t)) {
+                      next.delete(t);
+                    } else {
+                      next.add(t);
+                    }
+                    if (next.size === 0) return new Set(['BINARY', 'MULTIPLE', 'SPORTS', 'GROUPED_BINARY']);
+                    return next;
+                  });
+                  setCurrentPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${eventTypeFilters.has(t)
                   ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                   : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-zinc-200'
                   }`}
               >
-                {o === 'all' ? 'All' : o === '2' ? '2 (Binary)' : o}
+                {t === 'GROUPED_BINARY' ? 'Sub-Groups' : t.charAt(0) + t.slice(1).toLowerCase()}
               </button>
             ))}
+          </div>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-white/10" />
+
+          {/* Outcome Range Filter */}
+          <div className="flex items-center gap-4 min-w-[200px] px-2">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider whitespace-nowrap">
+              Outcomes: {outcomeRange[0]} - {outcomeRange[1]}
+            </span>
+            <Slider.Root
+              className="relative flex items-center select-none touch-none w-[120px] h-5"
+              defaultValue={[0, 8]}
+              value={outcomeRange}
+              max={100}
+              min={0}
+              step={1}
+              minStepsBetweenThumbs={1}
+              onValueChange={(val) => { setOutcomeRange(val); setCurrentPage(1); }}
+            >
+              <Slider.Track className="bg-white/10 relative grow rounded-full h-[3px]">
+                <Slider.Range className="absolute bg-emerald-500 rounded-full h-full" />
+              </Slider.Track>
+              <Slider.Thumb
+                className="block w-3 h-3 bg-white shadow-[0_2px_10px] shadow-black/50 rounded-full hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 transition-transform hover:scale-110"
+                aria-label="Min outcomes"
+              />
+              <Slider.Thumb
+                className="block w-3 h-3 bg-white shadow-[0_2px_10px] shadow-black/50 rounded-full hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 transition-transform hover:scale-110"
+                aria-label="Max outcomes"
+              />
+            </Slider.Root>
           </div>
         </div>
 
@@ -733,8 +784,6 @@ export function AdminPolymarketIntake() {
                           <button
                             type="button"
                             onClick={(e) => {
-                              // Only allow toggling for relevant types (not strict BINARY)
-                              if (item.marketType === 'BINARY') return;
                               e.preventDefault();
                               e.stopPropagation();
                               setOpenDropdownId(openDropdownId === item.polymarketId ? null : item.polymarketId);
@@ -743,20 +792,25 @@ export function AdminPolymarketIntake() {
                               ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                               : (forcedTypes[item.polymarketId] || item.marketType) === 'MULTIPLE'
                                 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                /* Fixed transparency and added Sports style */
+                                : (forcedTypes[item.polymarketId] || item.marketType) === 'SPORTS'
+                                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                               }`}
                           >
                             {(forcedTypes[item.polymarketId] || item.marketType) === 'GROUPED_BINARY'
                               ? `🧩 Sub-Bets (${item.variantCount || 'N/A'})`
                               : (forcedTypes[item.polymarketId] || item.marketType) === 'MULTIPLE'
                                 ? '📊 Multi'
-                                : '✅ Binary'}
-                            {item.marketType !== 'BINARY' && <span className="ml-1 text-[8px] opacity-70">▼</span>}
+                                : (forcedTypes[item.polymarketId] || item.marketType) === 'SPORTS'
+                                  ? '🏀 Sports'
+                                  : '✅ Binary'}
+                            <span className="ml-1 text-[8px] opacity-70">▼</span>
                           </button>
 
                           {/* Dropdown Menu */}
                           {openDropdownId === item.polymarketId && (
-                            <div className="absolute top-full left-0 mt-1 w-40 rounded-md border border-white/5 bg-surface-elevated shadow-xl z-50 overflow-hidden">
+                            <div className="absolute top-full left-0 mt-1 w-40 rounded-md border border-white/5 bg-zinc-900 shadow-xl z-50 overflow-hidden">
                               <button
                                 onClick={() => {
                                   setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'MULTIPLE' }));
@@ -768,12 +822,30 @@ export function AdminPolymarketIntake() {
                               </button>
                               <button
                                 onClick={() => {
+                                  setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'SPORTS' }));
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-zinc-100 flex items-center gap-2"
+                              >
+                                <span className="text-orange-400">🏀</span> Sports
+                              </button>
+                              <button
+                                onClick={() => {
                                   setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'GROUPED_BINARY' }));
                                   setOpenDropdownId(null);
                                 }}
                                 className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-zinc-100 flex items-center gap-2"
                               >
                                 <span className="text-purple-400">🧩</span> Sub-Bets (Indep.)
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setForcedTypes((prev) => ({ ...prev, [item.polymarketId]: 'BINARY' }));
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-zinc-100 flex items-center gap-2"
+                              >
+                                <span className="text-emerald-400">✅</span> Binary
                               </button>
                             </div>
                           )}

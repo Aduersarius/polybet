@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/csrf';
+import { invalidatePattern } from '@/lib/cache';
 
 export async function GET(
     request: NextRequest,
@@ -120,6 +121,7 @@ export async function PUT(
                 username: username || undefined,
                 description: description || undefined,
                 avatarUrl: avatarUrl || undefined,
+                image: avatarUrl || undefined, // Sync image for BetterAuth compatibility
                 twitter: twitter || undefined,
                 discord: discord || undefined,
                 telegram: telegram || undefined,
@@ -131,12 +133,25 @@ export async function PUT(
                 username: username || undefined,
                 description: description || undefined,
                 avatarUrl: avatarUrl || undefined,
+                image: avatarUrl || undefined, // Sync image for BetterAuth compatibility
                 twitter: twitter || undefined,
                 discord: discord || undefined,
                 telegram: telegram || undefined,
                 website: website || undefined,
             },
         });
+
+        // Invalidate caches to ensure the new avatar/name is reflected immediately
+        try {
+            console.log(`[Profile] Invalidating caches for user address ${address}`);
+            // Invalidate message caches for all events
+            await invalidatePattern('*:messages:*');
+            // Invalidate public profile stats/avatar cache (using both key types found)
+            await invalidatePattern(`user-stats:user:stats:${updatedUser.id}`);
+            await invalidatePattern(`user:${updatedUser.id}:*`);
+        } catch (cacheError) {
+            console.error('[Profile] Cache invalidation failed:', cacheError);
+        }
 
         return NextResponse.json(updatedUser);
     } catch (error) {

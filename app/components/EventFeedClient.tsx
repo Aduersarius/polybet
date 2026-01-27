@@ -124,7 +124,16 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
 
     // Flatten all pages
     const eventsData = useMemo(() => {
-        if (!eventsPages) return initialEvents;
+        if (!eventsPages) {
+            // Only show initialEvents if the user is still on the initial filters
+            const isDefaultState =
+                selectedCategory === initialCategory &&
+                timeHorizon === 'all' &&
+                sortBy === 'volume_high' &&
+                searchQuery === '';
+
+            return isDefaultState ? initialEvents : [];
+        }
         const all = eventsPages.pages.flatMap(page => page.events);
         const seen = new Set<string>();
         return all.filter(event => {
@@ -132,7 +141,7 @@ export function EventFeedClient({ initialEvents, initialCategory = 'ALL' }: Even
             seen.add(event.id);
             return true;
         });
-    }, [eventsPages, initialEvents]);
+    }, [eventsPages, initialEvents, selectedCategory, initialCategory, timeHorizon, sortBy, searchQuery]);
 
     // Fetch favorites
     const { data: favoriteEvents } = useQuery<DbEvent[]>({

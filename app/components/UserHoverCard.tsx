@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { generateAvatarDataUri } from '@/lib/avatar';
 
 interface UserHoverCardProps {
     address: string;
@@ -157,12 +158,10 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                                         {/* Header */}
                                         <Link href={`/profile?address=${address}`} className="flex items-center gap-3 mb-4">
                                             <Avatar className="w-12 h-12 border-2 border-white/10">
-                                                {(user.avatarUrl || user.image) && (
-                                                    <AvatarImage
-                                                        src={user.avatarUrl || user.image || undefined}
-                                                        alt={user.username || formatAddress(address)}
-                                                    />
-                                                )}
+                                                <AvatarImage
+                                                    src={user.avatarUrl || user.image || generateAvatarDataUri(user.username || address, 120)}
+                                                    alt={user.username || formatAddress(address)}
+                                                />
                                                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg">
                                                     {(user.username?.[0] || (typeof address === 'string' && address.length > 3 ? address.slice(2, 3) : 'U')).toUpperCase()}
                                                 </AvatarFallback>

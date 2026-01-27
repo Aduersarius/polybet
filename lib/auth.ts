@@ -8,8 +8,8 @@ import { Resend } from "resend";
 import { recordTelemetryEvent, updateUserTelemetry } from "./user-telemetry";
 import { logger } from "./logger";
 import { trackAuthEvent, trackError } from "./metrics";
-import { generateAvatar } from "./avatar";
 import { AppError } from "./error-handler";
+import { put } from "@vercel/blob";
 
 const isProduction = process.env.NODE_ENV === 'production';
 const baseUrl =
@@ -298,6 +298,10 @@ export const auth = betterAuth({
                 type: "boolean",
                 defaultValue: false,
             },
+            avatarUrl: {
+                type: "string",
+                required: false,
+            },
         },
     },
     socialProviders: process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? {
@@ -339,49 +343,12 @@ export const auth = betterAuth({
     events: {
         user: {
             created: async ({ user }: { user: any }) => {
-                if (!user.image) {
-                    const seed = user.email || user.id;
-                    try {
-                        const avatarUrl = generateAvatar(seed);
-                        await prisma.user.update({
-                            where: { id: user.id },
-                            data: {
-                                image: avatarUrl,
-                                avatarUrl: avatarUrl
-                            }
-                        });
-                        logger.info(`[AUTH] Generated blot avatar for user (registration): ${seed}`);
-                    } catch (error) {
-                        logger.error(`[AUTH] Failed to generate avatar on registration:`, error);
-                    }
-                }
+                // No action needed for avatar - frontend handles fallback
             }
         },
         session: {
             created: async ({ user }: { user: any }) => {
-                // Fallback / Self-healing
-                if (!user.image) {
-                    const seed = user.email || user.id;
-
-                    try {
-                        const avatarUrl = generateAvatar(seed);
-
-                        await prisma.user.update({
-                            where: { id: user.id },
-                            data: {
-                                image: avatarUrl,
-                                avatarUrl: avatarUrl
-                            }
-                        });
-                        logger.info(`[AUTH] Generated blot avatar for user (fallback): ${seed}`);
-                        trackAuthEvent('login', 'success', 'email');
-                    } catch (error) {
-                        logger.error(`[AUTH] Failed to auto-generate avatar:`, error);
-                        trackError(error, { context: 'auth-avatar-gen' });
-                    }
-                } else {
-                    trackAuthEvent('login', 'success', 'session_refresh');
-                }
+                trackAuthEvent('login', 'success', 'session_refresh');
             }
         }
     }

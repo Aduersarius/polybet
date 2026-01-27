@@ -10,6 +10,7 @@ import { Footer } from '../components/Footer';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, Trophy, Activity, Wallet, BarChart3, Clock, Lock } from 'lucide-react';
+import { generateAvatarDataUri } from '@/lib/avatar';
 import EditProfileModal from '@/app/components/EditProfileModal';
 import { Button } from '@/components/ui/button';
 import PnLChart from '@/app/components/PnLChart';
@@ -22,11 +23,16 @@ interface UserStats {
     totalProfit: number;
     winRate?: number;
     balance?: number;
-    // Fields from public API
     volume?: number;
     profit?: number;
     positions?: number;
     betCount?: number;
+    // Authoritative user profile fields
+    name?: string | null;
+    username?: string | null;
+    image?: string | null;
+    avatarUrl?: string | null;
+    createdAt?: string | null;
 }
 
 interface PublicProfile {
@@ -66,6 +72,25 @@ interface Position {
     unrealizedPnL: number;
 }
 
+const GRADIENTS = [
+    "bg-gradient-to-br from-pink-500 to-purple-600",
+    "bg-gradient-to-br from-blue-400 to-emerald-400",
+    "bg-gradient-to-br from-indigo-400 to-cyan-400",
+    "bg-gradient-to-br from-orange-400 to-pink-500",
+    "bg-gradient-to-br from-purple-500 to-indigo-500",
+    "bg-gradient-to-br from-emerald-400 to-cyan-500",
+    "bg-gradient-to-br from-teal-400 to-yellow-200",
+    "bg-gradient-to-br from-rose-400 to-orange-300"
+];
+
+const getProfileGradient = (identifier: string) => {
+    let hash = 0;
+    for (let i = 0; i < identifier.length; i++) {
+        hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
+};
+
 export const dynamic = 'force-dynamic';
 
 function ProfileContent() {
@@ -89,6 +114,7 @@ function ProfileContent() {
     });
     const [isSaving, setIsSaving] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [imageError, setImageError] = useState(false);
 
     // Initial check for redirect
     useEffect(() => {
@@ -124,6 +150,30 @@ function ProfileContent() {
         },
         enabled: !isOwnProfile && !!addressParam
     });
+
+    // Determine data to display
+    const displayUser = isOwnProfile ? {
+        // Prefer authoritative data from the stats API if available to avoid session staleness
+        name: ownStats?.name || user?.name || 'Anonymous',
+        username: ownStats?.username || (user as any)?.username,
+        email: user?.email,
+        createdAt: ownStats?.createdAt || user?.createdAt,
+        isAdmin: user?.isAdmin || false,
+        // Match EventChat priority: avatarUrl -> image -> fallback generator
+        image: ownStats?.avatarUrl || ownStats?.image || (user as any)?.avatarUrl || user?.image || (user ? generateAvatarDataUri(user.email || user.id || '?', 120) : null)
+    } : {
+        name: publicProfile?.username || 'Unknown User',
+        // Match EventChat priority: avatarUrl -> image -> fallback generator
+        image: publicProfile?.avatarUrl || publicProfile?.image || (publicProfile ? generateAvatarDataUri(publicProfile.username || '?', 120) : null),
+        email: null, // Don't show email for public
+        createdAt: publicProfile?.joinedAt,
+        isAdmin: false
+    };
+
+    // Reset image error when image changes
+    useEffect(() => {
+        setImageError(false);
+    }, [displayUser?.image]);
 
     // Set page title
     useEffect(() => {
@@ -216,7 +266,9 @@ function ProfileContent() {
 
             return smoothedData;
         }
-        return undefined;
+
+        // Default for new users (No bets) - Flat line at 0
+        return [{ date: 'Start', value: 0 }, { date: 'Now', value: 0 }];
     })() : undefined;
 
 
@@ -241,14 +293,7 @@ function ProfileContent() {
         }
     };
 
-    // Determine data to display
-    const displayUser = isOwnProfile ? user : {
-        name: publicProfile?.username || 'Unknown User',
-        image: publicProfile?.image || publicProfile?.avatarUrl,
-        email: null, // Don't show email for public
-        createdAt: publicProfile?.joinedAt,
-        isAdmin: false
-    };
+
 
     const displayStats: UserStats = isOwnProfile && ownStats ? ownStats : {
         totalProfit: publicProfile?.stats.profit || 0,
@@ -291,11 +336,16 @@ function ProfileContent() {
                             {/* Avatar */}
                             <div className="relative group/avatar shrink-0">
                                 <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-blue-500 p-0.5 shadow-lg group-hover/avatar:shadow-2xl transition-all duration-300">
-                                    <div className="w-full h-full rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border-2 border-[#1e1e1e]">
-                                        {displayUser?.image ? (
-                                            <img src={sanitizeUrl(displayUser.image)} alt={displayUser.name || 'User'} className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />
+                                    <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden border-2 border-[#1e1e1e] ${!displayUser?.image || imageError ? getProfileGradient(displayUser?.name || 'User') : 'bg-zinc-800'}`}>
+                                        {displayUser?.image && !imageError ? (
+                                            <img
+                                                src={sanitizeUrl(displayUser.image)}
+                                                alt={displayUser.name || 'User'}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
+                                                onError={() => setImageError(true)}
+                                            />
                                         ) : (
-                                            <span className="text-4xl font-bold text-gray-400">
+                                            <span className="text-4xl font-bold text-white drop-shadow-md">
                                                 {(displayUser?.name?.charAt(0) || displayUser?.email?.charAt(0) || '?').toUpperCase()}
                                             </span>
                                         )}
@@ -437,7 +487,7 @@ function ProfileContent() {
                             <span className="text-[10px] uppercase tracking-wider text-gray-500 group-hover:text-cyan-400 transition-colors">Active</span>
                         </div>
                         <div className="text-2xl font-bold text-white mb-1">
-                            {displayStats.activeBets !== undefined ? displayStats.activeBets : '---'}
+                            {displayStats.activeBets !== undefined ? Number(displayStats.activeBets).toFixed(2) : '---'}
                         </div>
                         <div className="text-xs text-gray-500">Open positions</div>
                     </motion.div>

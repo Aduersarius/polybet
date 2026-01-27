@@ -44,8 +44,10 @@ export async function POST(request: NextRequest) {
             access: 'public',
         });
 
+        console.log(`✅ Avatar uploaded successfully: ${blob.url} for user ${userId}`);
         return NextResponse.json({ url: blob.url });
     } catch (error) {
+        console.error('❌ Avatar upload failed:', error);
         return createErrorResponse(error);
     }
 }

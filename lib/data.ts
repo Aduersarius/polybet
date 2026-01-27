@@ -139,6 +139,7 @@ export async function getInitialEvents(options: GetEventsOptions = {}): Promise<
         const catFilter: any = {};
 
         if (catDef) {
+            // DB-side Tag Filtering
             if (effectiveCategory === 'Sports') {
                 catFilter.OR = [
                     { isEsports: true },
@@ -146,25 +147,13 @@ export async function getInitialEvents(options: GetEventsOptions = {}): Promise<
                     { categories: { has: 'SPORTS' } },
                     { categories: { has: 'Esports' } },
                     { categories: { has: 'ESPORTS' } },
-                    ...catDef.keywords.map((kw: string) => ({
-                        title: { contains: kw, mode: 'insensitive' as const }
-                    })),
-                    ...catDef.keywords.map((kw: string) => ({
-                        description: { contains: kw, mode: 'insensitive' as const }
-                    }))
                 ];
             } else {
-                catFilter.OR = [
-                    { categories: { has: effectiveCategory } },
-                    ...catDef.keywords.map((kw: string) => ({
-                        title: { contains: kw, mode: 'insensitive' as const }
-                    })),
-                    ...catDef.keywords.map((kw: string) => ({
-                        description: { contains: kw, mode: 'insensitive' as const }
-                    }))
-                ];
+                // Precise tag matching (case-sensitive as per DB storage, but mapped from frontend)
+                catFilter.categories = { has: effectiveCategory };
             }
         } else {
+            // Legacy / Exact match
             catFilter.categories = { has: effectiveCategory };
         }
 

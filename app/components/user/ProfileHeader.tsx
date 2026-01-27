@@ -9,6 +9,7 @@ interface User {
     username?: string;
     description?: string;
     avatarUrl?: string;
+    image?: string; // Add image field
     twitter?: string;
     discord?: string;
     telegram?: string;
@@ -29,7 +30,7 @@ function getSafeUrl(url: string | undefined): string | null {
     if (!url) return null;
     try {
         const parsed = new URL(url);
-        return ['http:', 'https:'].includes(parsed.protocol) ? url : null;
+        return ['http:', 'https:', 'data:'].includes(parsed.protocol) ? url : null;
     } catch {
         return null;
     }
@@ -51,7 +52,8 @@ export function ProfileHeader({ user, isOwner, onUpdate }: ProfileHeaderProps) {
 
     // Memoize validated URLs and handles for security
     const safeWebsite = useMemo(() => getSafeUrl(user.website), [user.website]);
-    const safeAvatarUrl = useMemo(() => getSafeUrl(user.avatarUrl), [user.avatarUrl]);
+    const avatarToUse = user.avatarUrl || user.image;
+    const safeAvatarUrl = useMemo(() => getSafeUrl(avatarToUse), [avatarToUse]);
     const safeTwitter = useMemo(() => getSafeHandle(user.twitter), [user.twitter]);
     const safeTelegram = useMemo(() => getSafeHandle(user.telegram), [user.telegram]);
 

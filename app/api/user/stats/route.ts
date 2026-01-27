@@ -10,6 +10,20 @@ export async function GET(request: NextRequest) {
         const user = await requireAuth(request);
         const userId = user.id;
 
+        // Fetch authoritative user data from DB to avoid session staleness
+        const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                name: true,
+                username: true,
+                image: true,
+                avatarUrl: true,
+                createdAt: true,
+            }
+        });
+
+        if (!dbUser) throw new Error('User not found in database');
+
         // Get user's balance from Balance table (be tolerant of older schemas without event/outcome columns)
         let balanceRecord: { amount: any } | null = null;
         try {
@@ -88,6 +102,11 @@ export async function GET(request: NextRequest) {
         const winRate = totalBets > 0 ? (wonBets / totalBets) * 100 : 0;
 
         return NextResponse.json({
+            name: dbUser.name,
+            username: dbUser.username,
+            image: dbUser.image,
+            avatarUrl: dbUser.avatarUrl,
+            createdAt: dbUser.createdAt,
             balance: balanceRecord?.amount || 0,
             totalBets,
             activeBets,

@@ -4,6 +4,7 @@
  * Single source of truth for converting Polymarket API responses into our DB format.
  * Handles all 3 event types: BINARY, MULTIPLE, and GROUPED_BINARY.
  */
+import { parseTeams } from './sports-classifier';
 
 
 
@@ -11,7 +12,7 @@
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type EventType = 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
+export type EventType = 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY' | 'SPORTS';
 
 export interface NormalizedOutcome {
     id: string;
@@ -124,8 +125,34 @@ function toArray<T = any>(raw: unknown): T[] {
  */
 export function classifyEventType(
     outcomes: NormalizedOutcome[],
-    isGroupedBinaryMarket: boolean = false
+    isGroupedBinaryMarket: boolean = false,
+    marketData?: any
 ): EventType {
+    // Sports Detection: Check for specific Polymarket sports fields
+    if (marketData) {
+        if (marketData.sportsMarketType || marketData.gameId || marketData.gameStatus) {
+            return 'SPORTS';
+        }
+
+        // Keywords in question/title
+        const title = (marketData.question || marketData.title || '').toLowerCase();
+
+        // Check for matchup via parseTeams (e.g. "Team A vs Team B")
+        const matchup = parseTeams(title);
+        if (matchup.teamA && matchup.teamB) {
+            return 'SPORTS';
+        }
+
+        const sportsKeywords = ['nfl', 'nba', 'mlb', 'nhl', 'ufc', 'tennis', 'soccer', 'esports', 'csgo', 'dota', 'match', 'winner'];
+        if (sportsKeywords.some(k => title.includes(k)) && outcomes.length === 2) {
+            const names = outcomes.map(o => o.name.toLowerCase().trim());
+            if (!names.includes('yes') && !names.includes('no')) {
+                // If it has sports keywords and non-yes/no outcomes, it's likely a sports match winner market
+                return 'SPORTS';
+            }
+        }
+    }
+
     // Binary: exactly 2 outcomes
     if (outcomes.length === 2) {
         const names = outcomes.map(o => o.name.toLowerCase().trim());
@@ -204,7 +231,7 @@ export function normalizePolymarketMarket(
 
     // Classify event type
     const isGrouped = Boolean(market.groupItemTitle);
-    const type = classifyEventType(outcomes, isGrouped);
+    const type = classifyEventType(outcomes, isGrouped, market);
 
     // Extract binary probabilities
     let yesOdds: number | undefined;

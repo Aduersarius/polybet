@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { authClient } from '@/lib/auth-client';
 
 interface User {
     address: string;
@@ -88,6 +89,15 @@ export function EditProfileModal({ user, isOpen, onClose, onSuccess }: EditProfi
 
             const data = await res.json();
             console.log('Update success:', data);
+
+            // Refresh session to update client-side state
+            try {
+                await authClient.getSession();
+                console.log('Session refreshed successfully');
+            } catch (sessionError) {
+                console.warn('Failed to refresh session:', sessionError);
+            }
+
             onSuccess();
         } catch (error) {
             console.error('Submit error:', error);

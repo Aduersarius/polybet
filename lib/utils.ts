@@ -16,7 +16,8 @@ export function sanitizeUrl(url: string | null | undefined): string {
         trimmed.startsWith('http://') ||
         trimmed.startsWith('/') ||
         trimmed.startsWith('mailto:') ||
-        trimmed.startsWith('tel:')
+        trimmed.startsWith('tel:') ||
+        trimmed.startsWith('data:image/')
     ) {
         return trimmed;
     }

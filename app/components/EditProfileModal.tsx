@@ -5,6 +5,7 @@ import { Camera, Save, User, Mail, FileText } from 'lucide-react';
 import { FileTrigger } from '@/components/ui/file-trigger';
 import { Button } from '@/components/ui/button';
 import { sanitizeUrl } from '@/lib/utils';
+import { authClient } from '@/lib/auth-client';
 
 import { TextField } from '@/components/ui/text-field';
 import { Input } from '@/components/ui/input';
@@ -106,11 +107,19 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
             }
 
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
+
+            // Refresh session to get updated user data
+            try {
+                await authClient.getSession();
+            } catch (err) {
+                console.warn('Failed to refresh session:', err);
+            }
+
             setTimeout(() => {
                 onSaved?.();
                 onClose(); // Close dialog on success
                 window.location.reload();
-            }, 1000);
+            }, 500);
         } catch (error) {
             console.error('Error updating profile:', error);
             setMessage({ type: 'error', text: 'Failed to update profile.' });

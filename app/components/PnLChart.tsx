@@ -10,16 +10,12 @@ interface PnLChartProps {
     title?: string;
 }
 
-// Mock data if none provided
-const mockData = Array.from({ length: 30 }, (_, i) => {
-    const value = 1000 + Math.random() * 500 - 250 + (i * 50); // Upward trend
-    return {
-        date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toLocaleDateString(),
-        value
-    };
-});
+const emptyData = [
+    { date: 'Start', value: 0 },
+    { date: 'Now', value: 0 }
+];
 
-export default function PnLChart({ data = mockData, color = colors.success, className, title = "PROFIT/LOSS (30D)" }: PnLChartProps) {
+export default function PnLChart({ data = emptyData, color = colors.success, className, title = "PROFIT/LOSS (30D)" }: PnLChartProps) {
     const isPositive = (data[data.length - 1]?.value || 0) >= (data[0]?.value || 0);
     const chartColor = isPositive ? colors.success : colors.error;
     const startValue = data[0]?.value || 0;

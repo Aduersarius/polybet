@@ -136,14 +136,12 @@ export async function GET(request: Request) {
             }
         }
 
-        // 2. Category filtering (Keyword-based or Legacy)
         if (effectiveCategory && effectiveCategory !== 'ALL') {
             const catDef = getCategoryByName(effectiveCategory);
             const catFilter: any = {};
 
             if (catDef) {
-                // DB-side Keyword Filtering
-                // Sports needs special handling to include isEsports or specific categories
+                // DB-side Tag Filtering
                 if (effectiveCategory === 'Sports') {
                     catFilter.OR = [
                         { isEsports: true },
@@ -151,23 +149,12 @@ export async function GET(request: Request) {
                         { categories: { has: 'SPORTS' } },
                         { categories: { has: 'Esports' } },
                         { categories: { has: 'ESPORTS' } },
-                        ...catDef.keywords.map((kw: string) => ({
-                            title: { contains: kw, mode: 'insensitive' as const }
-                        })),
-                        ...catDef.keywords.map((kw: string) => ({
-                            description: { contains: kw, mode: 'insensitive' as const }
-                        }))
+                        { categories: { has: 'sports' } },
+                        { categories: { has: 'esports' } },
                     ];
                 } else {
-                    catFilter.OR = [
-                        { categories: { has: effectiveCategory } },
-                        ...catDef.keywords.map((kw: string) => ({
-                            title: { contains: kw, mode: 'insensitive' as const }
-                        })),
-                        ...catDef.keywords.map((kw: string) => ({
-                            description: { contains: kw, mode: 'insensitive' as const }
-                        }))
-                    ];
+                    // Precise tag matching (case-sensitive as per DB storage, but mapped from frontend)
+                    catFilter.categories = { has: effectiveCategory };
                 }
             } else {
                 // Legacy / Exact match

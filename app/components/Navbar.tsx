@@ -19,6 +19,7 @@ import { CreateEventModal } from './admin/CreateEventModal';
 import { CategoryBar } from './CategoryBar';
 import { useSupportChat } from '@/contexts/SupportChatContext';
 import { useBalance } from '@/hooks/use-balance';
+import { generateAvatarDataUri } from '@/lib/avatar';
 
 
 interface NavbarProps {
@@ -180,11 +181,11 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
             {/* Extended background for navbar overscroll */}
             <div className="fixed inset-x-0 top-0 -translate-y-full h-screen bg-black/40 backdrop-blur-xl backdrop-saturate-150 pointer-events-none -z-10" />
 
-            <nav 
-                className="border-b border-blue-400/10 bg-black/40 backdrop-blur-xl backdrop-saturate-150 fixed left-0 right-0 z-[90] shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition-all duration-300" 
-                style={{ 
+            <nav
+                className="border-b border-blue-400/10 bg-black/40 backdrop-blur-xl backdrop-saturate-150 fixed left-0 right-0 z-[90] shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition-all duration-300"
+                style={{
                     top: bannerVisible ? '72px' : '0',
-                    boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.4), 0 4px 24px rgba(0, 0, 0, 0.3)' 
+                    boxShadow: '0 -100vh 0 100vh rgba(0, 0, 0, 0.4), 0 4px 24px rgba(0, 0, 0, 0.3)'
                 }}
             >
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10">
@@ -241,11 +242,11 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                     < div className="relative group" >
                                         <button className="flex items-center gap-1.5 focus:outline-none">
                                             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black font-bold text-sm overflow-hidden border border-white/20 hover:bg-gray-100 transition-all">
-                                                {(session as any).user?.image ? (
-                                                    <img src={(session as any).user.image} alt="User" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    (session as any).user?.name?.charAt(0).toUpperCase() || (session as any).user?.email?.charAt(0).toUpperCase()
-                                                )}
+                                                <img
+                                                    src={(session as any).user?.image || (session as any).user?.avatarUrl || generateAvatarDataUri((session as any).user?.email || (session as any).user?.id || '?', 120)}
+                                                    alt="User"
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
                                             <svg
                                                 className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white transition-colors"

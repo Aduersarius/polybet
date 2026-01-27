@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { normalizeProbability } from '@/lib/polymarket-normalization';
+import { normalizeProbability, classifyEventType } from '@/lib/polymarket-normalization';
+import { isEsports, detectLeague, detectSport, parseTeams } from '@/lib/sports-classifier';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -48,7 +49,7 @@ type IntakeMarket = {
   internalSlug?: string | null;
   notes?: string | null;
   // Event type classification
-  marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY';
+  marketType?: 'BINARY' | 'MULTIPLE' | 'GROUPED_BINARY' | 'SPORTS';
   isGroupedBinary?: boolean;
 };
 
@@ -294,6 +295,7 @@ export async function GET(request: Request) {
             status: 'unmapped',
             internalEventId: undefined,
             notes: undefined,
+            marketType: classifyEventType(outcomes.map(o => ({ id: o.id || '', name: o.name })), false, m),
           } as IntakeMarket;
         });
     });
@@ -487,7 +489,11 @@ export async function GET(request: Request) {
       const isBinary = outcomeCount === 2 &&
         primary.outcomes?.some(o => o.name?.toLowerCase() === 'yes') &&
         primary.outcomes?.some(o => o.name?.toLowerCase() === 'no');
-      const inferredType = isBinary ? 'BINARY' : (outcomeCount > 2 ? 'MULTIPLE' : 'BINARY');
+      const isSportsMarket = primary.marketType === 'SPORTS' ||
+        isEsports({ title: primary.title, description: primary.description, categories: primary.categories }) ||
+        (detectSport({ title: primary.title, description: primary.description, categories: primary.categories }) !== 'other');
+
+      const inferredType = isSportsMarket ? 'SPORTS' : (isBinary ? 'BINARY' : (outcomeCount > 2 ? 'MULTIPLE' : 'BINARY'));
 
       results.push({
         ...primary,
@@ -499,7 +505,7 @@ export async function GET(request: Request) {
         internalEventId: mapping?.internalEventId ?? undefined,
         internalSlug: (mapping as any)?.internalSlug || null,
         notes: mapping?.notes,
-        marketType: inferredType as 'BINARY' | 'MULTIPLE',
+        marketType: inferredType as 'BINARY' | 'MULTIPLE' | 'SPORTS',
         isGroupedBinary: false,
       });
     }

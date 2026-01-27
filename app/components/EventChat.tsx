@@ -4,7 +4,6 @@ import { useRef, useState, useEffect, useMemo } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSession } from '@/lib/auth-client';
 import { toast } from '@/components/ui/use-toast';
 import {
@@ -19,53 +18,41 @@ import {
 import { Button } from '@/components/ui/button';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/solid';
 import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
+import { generateAvatarDataUri } from '@/lib/avatar';
 
 interface Message {
     id: string;
     text: string;
     createdAt: string;
-    editedAt?: string | null;
-    isDeleted?: boolean;
-    parentId?: string | null;
     userId: string;
     user: {
         address?: string;
         username: string | null;
         avatarUrl: string | null;
         image: string | null;
-        bets?: {
-            option: string;
-            amount: number;
-        }[];
+        bets?: { option: string; amount: number; }[];
     };
     reactions: Record<string, string[]>;
-    replyCount: number;
+    parentId?: string | null;
 }
 
-interface EventChatProps {
-    eventId: string;
-}
-
-export function EventChat({ eventId: propEventId }: EventChatProps) {
-    // Resolve event ID if slug provided
-    const [resolvedEventId, setResolvedEventId] = useState<string>(propEventId);
+export function EventChat({ eventId: propEventId }: { eventId: string }) {
+    const [mounted, setMounted] = useState(false);
+    const [resolvedEventId, setResolvedEventId] = useState<string>(
+        typeof propEventId === 'string' && propEventId.length === 36 ? propEventId : ''
+    );
 
     useEffect(() => {
-        if (!propEventId || typeof propEventId !== 'string' || propEventId.length === 0) return;
-        if (propEventId.length === 36) { // Assume UUID
-            setResolvedEventId(propEventId);
-            return;
-        }
+        setMounted(true);
+        if (!propEventId || propEventId.length === 36) return;
 
-        // Try to fetch event data to get the ID
-        fetch(`/api/events/${propEventId}`)
+        const controller = new AbortController();
+        fetch(`/api/events/${propEventId}`, { signal: controller.signal })
             .then(res => res.json())
-            .then(data => {
-                if (data && data.id) {
-                    setResolvedEventId(data.id);
-                }
-            })
-            .catch(err => console.error('[EventChat] ID resolution failed:', err));
+            .then(data => data?.id && setResolvedEventId(data.id))
+            .catch(err => err.name !== 'AbortError' && console.error('[EventChat] ID resolution failed:', err));
+
+        return () => controller.abort();
     }, [propEventId]);
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -74,254 +61,137 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
     const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
 
     const { data: session } = useSession();
-    const user = session?.user;
-    const isAuthenticated = Boolean(user?.id);
     const queryClient = useQueryClient();
+    const stableId = resolvedEventId || (typeof propEventId === 'string' && propEventId.length === 36 ? propEventId : '');
 
-    // Ensure we always have a string ID for the query
-    const stableEventId = typeof resolvedEventId === 'string' ? resolvedEventId : '';
-
-    // Fetch messages with infinite scrolling
     const {
         data,
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
         isLoading,
-        refetch,
+        refetch
     } = useInfiniteQuery({
-        queryKey: ['messages', stableEventId || 'none'],
+        // UNIQUE KEY IS THE FIX: Prevents collision with flat 'messages' cache
+        queryKey: ['infinite-messages', stableId || 'none'],
         queryFn: async ({ pageParam }) => {
-            if (!stableEventId) return { messages: [], nextCursor: null };
-            const params = new URLSearchParams({
-                limit: '10',
-            });
-            if (pageParam) {
-                params.set('cursor', String(pageParam));
-            }
-            const res = await fetch(`/api/events/${stableEventId}/messages?${params}`);
+            if (!stableId) return { messages: [], nextCursor: null };
+            const res = await fetch(`/api/events/${stableId}/messages?limit=10${pageParam ? `&cursor=${pageParam}` : ''}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
-            const data = await res.json();
+            const d = await res.json();
             return {
-                messages: Array.isArray(data?.messages) ? data.messages : [],
-                nextCursor: data?.nextCursor ?? null
+                messages: Array.isArray(d?.messages) ? d.messages : [],
+                nextCursor: d?.nextCursor ?? null
             };
         },
-        getNextPageParam: (lastPage: any) => lastPage?.nextCursor ?? undefined,
+        getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
         initialPageParam: null,
-        enabled: Boolean(stableEventId && stableEventId.length > 0),
+        enabled: mounted && !!stableId,
     });
 
-    // Flatten pages into a single array
-    const messages = useMemo(() => {
-        if (!data?.pages || !Array.isArray(data.pages)) return [];
-        try {
-            return data.pages.flatMap(page => (page && Array.isArray(page.messages) ? page.messages : []));
-        } catch (e) {
-            console.error('[EventChat] Flattening failed:', e);
-            return [];
-        }
-    }, [data?.pages]);
+    const messages = useMemo(() => data?.pages.flatMap(p => p.messages) ?? [], [data]);
 
-    // Real-time updates
+    // Real-time invalidation
     useEffect(() => {
+        if (!stableId) return;
         const { socket } = require('@/lib/socket');
-        const channel = socket.subscribe(`event-${resolvedEventId}`);
-
-        function onMessage() {
-            // Refetch queries to update the list
-            // We use queryClient to invalidate to be safe with infinite query state
-            queryClient.invalidateQueries({ queryKey: ['messages', resolvedEventId] });
-        }
-
+        const channel = socket.subscribe(`event-${stableId}`);
+        const onMessage = () => queryClient.invalidateQueries({ queryKey: ['infinite-messages', stableId] });
         channel.bind('chat-message', onMessage);
-
         return () => {
             channel.unbind('chat-message', onMessage);
-            socket.unsubscribe(`event-${resolvedEventId}`);
+            socket.unsubscribe(`event-${stableId}`);
         };
-    }, [resolvedEventId, queryClient]);
+    }, [stableId, queryClient]);
 
-    // Intersection Observer for infinite scrolling
+    // Infinite scroll observer
     useEffect(() => {
-        const observer = new IntersectionObserver(
-            entries => {
-                if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-                    fetchNextPage();
-                }
-            },
-            { threshold: 0.5 }
-        );
-
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current);
-        }
-
+        if (!mounted || !observerTarget.current || !hasNextPage || isFetchingNextPage) return;
+        const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && fetchNextPage(), { threshold: 0.5 });
+        observer.observe(observerTarget.current);
         return () => observer.disconnect();
-    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [mounted, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-
-    // Map for quick lookup
-    const msgMap = useMemo(() => {
-        if (!Array.isArray(messages)) return new Map<string, Message>();
-        return new Map<string, Message>(messages.map(m => [m.id, m]));
-    }, [messages]);
-
-    // Group messages logic
+    // Message organization (Grouping replies under roots)
     const { rootMessages, repliesMap } = useMemo(() => {
         const roots: Message[] = [];
         const replies = new Map<string, Message[]>();
+        const msgMap = new Map<string, Message>(messages.map(m => [m.id, m]));
 
-        if (Array.isArray(messages)) {
-            messages.forEach(msg => {
-                // Find effective root
-                let current = msg;
-                let root = msg;
-                let isOrphan = false;
-
-                // Simple loop protection
-                let depth = 0;
-                while (current.parentId && depth < 10) {
-                    const parent = msgMap.get(current.parentId);
-                    if (!parent) {
-                        // Parent not in current list (orphan or parent not loaded yet).
-                        // Treat as root for now
-                        if (current === msg) isOrphan = true;
-                        break;
-                    }
-                    current = parent;
-                    root = parent;
-                    depth++;
-                }
-
-                if (!msg.parentId || isOrphan) {
-                    roots.push(msg);
-                } else {
-                    if (!replies.has(root.id)) {
-                        replies.set(root.id, []);
-                    }
-                    if (msg.id !== root.id) {
-                        replies.get(root.id)!.push(msg);
-                    }
-                }
-            });
-        }
-
-        // Sort root messages by date desc (newest first)
-        roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // Sort replies by date asc
-        replies.forEach(reps => {
-            reps.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        messages.forEach(msg => {
+            let root = msg;
+            let depth = 0;
+            while (root.parentId && depth < 5) {
+                const parent = msgMap.get(root.parentId);
+                if (!parent) break;
+                root = parent;
+                depth++;
+            }
+            if (!msg.parentId || root === msg) {
+                roots.push(msg);
+            } else {
+                if (!replies.has(root.id)) replies.set(root.id, []);
+                replies.get(root.id)!.push(msg);
+            }
         });
 
+        roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        replies.forEach(reps => reps.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
         return { rootMessages: roots, repliesMap: replies };
-    }, [messages, msgMap]);
-
+    }, [messages]);
 
     const reactMutation = useMutation({
         mutationFn: async ({ messageId, type }: { messageId: string; type: 'LIKE' | 'DISLIKE' }) => {
-            const res = await fetch(`/api/messages/${messageId}/react`, {
+            await fetch(`/api/messages/${messageId}/react`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type }),
             });
-            if (!res.ok) throw new Error('Failed to react to message');
-            return res.json();
         },
-        onSuccess: () => {
-            // Refresh
-            refetch();
-        },
+        onSuccess: () => refetch(),
     });
 
-    const sendMessageMutation = useMutation({
+    const sendMutation = useMutation({
         mutationFn: async (text: string) => {
-            const res = await fetch(`/api/events/${resolvedEventId}/messages`, {
+            const res = await fetch(`/api/events/${stableId}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text,
-                    parentId: replyTo?.id
-                }),
+                body: JSON.stringify({ text, parentId: replyTo?.id }),
             });
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to send message');
-            }
-            return res.json();
+            if (!res.ok) throw new Error((await res.json()).error || 'Failed to send');
         },
         onSuccess: () => {
             setInputText('');
             setReplyTo(null);
             refetch();
         },
-        onError: (error: any) => {
-            console.error('[Chat] Failed to send message:', error);
-            toast({
-                variant: 'destructive',
-                title: 'Failed to send message',
-                description: error.message || 'Please try again later.',
-            });
-        }
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Error', description: err.message }),
     });
 
-    const handleSend = () => {
-        if (!inputText.trim() || !user?.id) return;
-        sendMessageMutation.mutate(inputText);
+    const formatDisplayName = (u: Message['user'], id: string) =>
+        u.username || (u.address?.length ? `${u.address.slice(0, 4)}...${u.address.slice(-4)}` : `User ${id.slice(0, 4)}`);
+
+    const formatTime = (ts: string) => {
+        const diff = Date.now() - new Date(ts).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
+        return new Date(ts).toLocaleDateString();
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
-
-    const formatTime = (dateString: string) => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diff = now.getTime() - date.getTime();
-        const minutes = Math.floor(diff / 60000);
-        if (minutes < 1) return 'Just now';
-        if (minutes < 60) return `${minutes}m ago`;
-        if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
-        return date.toLocaleDateString();
-    };
-
-    const formatDisplayName = (userObj: Message['user'] | null | undefined, userId: string) => {
-        if (userObj?.username) return userObj.username;
-        const address = (userObj as any)?.address;
-        if (address && typeof address === 'string' && address.length >= 8) {
-            return `${address.slice(0, 4)}...${address.slice(-4)}`;
-        }
-        return `User ${(userId || '').slice(0, 4) || 'Unknown'}`;
-    };
-
-    const getAvatarFallback = (userObj: Message['user'] | null | undefined, userId: string) => {
-        if (userObj?.username && userObj.username.length > 0) return userObj.username[0].toUpperCase();
-        const address = (userObj as any)?.address;
-        if (address && typeof address === 'string' && address.length > 3) return address.slice(2, 3).toUpperCase();
-        const initial = (userId?.[0] || 'U').toUpperCase();
-        return isNaN(parseInt(initial)) ? initial : 'U';
-    };
-
-    const getAvatarUrl = (userObj: Message['user'] | null | undefined): string | undefined => {
-        if (!userObj) return undefined;
-        const url = userObj.avatarUrl || userObj.image;
-        return url && typeof url === 'string' && url.trim() !== '' ? url : undefined;
-    };
+    if (!mounted) return (
+        <div className="flex flex-col h-[150px] items-center justify-center">
+            <Loader2 className="animate-spin h-6 w-6 text-accent-500" />
+        </div>
+    );
 
     return (
         <div className="flex flex-col">
-            {/* Header - Comments count */}
-            <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-medium text-zinc-300">
-                    Comments ({(messages?.length ?? 0)}{hasNextPage ? '+' : ''})
-                </span>
+            <div className="flex items-center gap-2 mb-3 text-sm font-medium text-zinc-300">
+                Comments ({(messages.length)}{hasNextPage ? '+' : ''})
             </div>
 
-            {/* Input Area */}
             <div className="relative mb-4">
                 {replyTo && (
                     <div className="flex items-center justify-between bg-zinc-700/50 px-3 py-1.5 rounded-t-lg border-b border-white/5 text-xs text-zinc-400">
@@ -334,183 +204,102 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder={!isAuthenticated ? "Log in to join the discussion" : (replyTo ? "Write a reply..." : "Type a message...")}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMutation.mutate(inputText))}
+                        placeholder={!session ? "Log in to join the discussion" : "Type a message..."}
                         className="flex-1 bg-transparent text-sm focus:outline-none text-white placeholder-zinc-500 px-2"
-                        disabled={sendMessageMutation.isPending || !isAuthenticated}
+                        disabled={sendMutation.isPending || !session}
                     />
                     <Button
-                        onClick={handleSend}
-                        isDisabled={!inputText.trim() || sendMessageMutation.isPending || !isAuthenticated}
+                        onClick={() => sendMutation.mutate(inputText)}
+                        isDisabled={!inputText.trim() || sendMutation.isPending || !session}
                         className="bg-accent-500 text-white hover:bg-accent-600 h-8 px-4 text-sm font-medium"
                         size="sm"
                     >
-                        {sendMessageMutation.isPending ? '...' : 'Send'}
+                        {sendMutation.isPending ? '...' : 'Send'}
                     </Button>
                 </div>
             </div>
 
-            {/* Messages Area - Native Scroll with fixed height */}
-            <div
-                ref={scrollContainerRef}
-                className="max-h-[500px] min-h-[150px] overflow-y-auto pr-2 custom-scrollbar border border-white/5 rounded-md bg-zinc-900/30"
-            >
-                <div className="flex flex-col min-h-0 px-2 pt-2">
-                    {!messages || messages.length === 0 ? (
-                        isLoading ? (
-                            <div className="flex justify-center items-center h-24">
-                                <Loader2 className="animate-spin h-6 w-6 text-accent-500" />
-                            </div>
-                        ) : (
-                            <div className="text-center text-zinc-500 py-8 text-sm">No messages yet. Be the first to say hi!</div>
-                        )
+            <div ref={scrollContainerRef} className="max-h-[500px] min-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="flex flex-col px-2 pt-2">
+                    {messages.length === 0 && !isLoading ? (
+                        <div className="text-center text-zinc-500 py-8 text-sm">No messages yet. Be the first to say hi!</div>
                     ) : (
-                        <>
-                            <Discussion type="multiple" defaultValue={[]} className="space-y-4">
-                                {rootMessages.map((msg) => {
-                                    const replies = repliesMap.get(msg.id) || [];
-                                    const isMe = msg.userId === user?.id;
-                                    const displayName = formatDisplayName(msg.user, msg.userId);
-                                    const avatarFallback = getAvatarFallback(msg.user, msg.userId);
-                                    const likeCount = (msg.reactions?.LIKE as string[] | undefined)?.length || 0;
-                                    const dislikeCount = (msg.reactions?.DISLIKE as string[] | undefined)?.length || 0;
+                        <Discussion type="multiple" className="space-y-4">
+                            {rootMessages.map((msg) => {
+                                const replies = repliesMap.get(msg.id) || [];
+                                const name = formatDisplayName(msg.user, msg.userId);
+                                const profile = msg.user.address || msg.userId;
+                                const bet = msg.user.bets?.[0];
 
-                                    const profileAddress = msg.user?.address || msg.userId;
+                                return (
+                                    <DiscussionItem key={msg.id} value={msg.id}>
+                                        <DiscussionContent className="gap-3 items-start">
+                                            <UserHoverCard address={profile}>
+                                                <Link href={`/profile?address=${profile}`}>
+                                                    <Avatar className="w-7 h-7 border border-zinc-700 cursor-pointer">
+                                                        <AvatarImage src={msg.user.avatarUrl || msg.user.image || generateAvatarDataUri(msg.user.address || msg.user.username || msg.userId, 120)} />
+                                                        <AvatarFallback className="bg-gradient-to-br from-primary-500 to-accent-600 text-white font-bold text-xs">{(name[0] || 'U').toUpperCase()}</AvatarFallback>
+                                                    </Avatar>
+                                                </Link>
+                                            </UserHoverCard>
 
-                                    const latestBet = (msg.user?.bets && Array.isArray(msg.user.bets) && msg.user.bets.length > 0)
-                                        ? msg.user.bets[0]
-                                        : null;
-
-                                    return (
-                                        <DiscussionItem key={msg.id} value={msg.id}>
-                                            <DiscussionContent className="gap-3 items-start">
-                                                <UserHoverCard address={profileAddress}>
-                                                    <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
-                                                        <Avatar className="w-7 h-7 border border-zinc-700">
-                                                            {getAvatarUrl(msg.user) && (
-                                                                <AvatarImage src={getAvatarUrl(msg.user)!} alt={displayName} />
-                                                            )}
-                                                            <AvatarFallback className="bg-gradient-to-br from-primary-500 to-accent-600 text-white font-bold text-xs">{avatarFallback}</AvatarFallback>
-                                                        </Avatar>
-                                                    </Link>
-                                                </UserHoverCard>
-
-                                                <div className="flex flex-col gap-1 w-full min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <UserHoverCard address={profileAddress}>
-                                                            <Link href={`/profile?address=${profileAddress}`} className="cursor-pointer">
-                                                                <DiscussionTitle className={`hover:underline text-sm font-semibold ${isMe ? 'text-accent-400' : 'text-zinc-100'}`}>
-                                                                    {displayName}
-                                                                </DiscussionTitle>
-                                                            </Link>
-                                                        </UserHoverCard>
-                                                        <span className="text-[10px] text-zinc-500">{formatTime(msg.createdAt)}</span>
-
-                                                        {latestBet && (
-                                                            <span
-                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${latestBet.option === 'YES'
-                                                                    ? 'bg-secondary-500/10 text-secondary-400 border-secondary-500/40'
-                                                                    : 'bg-error-500/10 text-error-400 border-error-500/40'
-                                                                    }`}
-                                                            >
-                                                                <span>{latestBet.option}</span>
-                                                                <span>${Number(latestBet.amount).toFixed(2)}</span>
-                                                            </span>
-                                                        )}
+                                            <div className="flex flex-col gap-1 w-full min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <UserHoverCard address={profile}>
+                                                        <Link href={`/profile?address=${profile}`}>
+                                                            <DiscussionTitle className={`hover:underline text-sm font-semibold cursor-pointer ${msg.userId === session?.user?.id ? 'text-accent-400' : 'text-zinc-100'}`}>{name}</DiscussionTitle>
+                                                        </Link>
+                                                    </UserHoverCard>
+                                                    <span className="text-[10px] text-zinc-500">{formatTime(msg.createdAt)}</span>
+                                                    {bet && (
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${bet.option === 'YES' ? 'bg-secondary-500/10 text-secondary-400 border-secondary-500/40' : 'bg-error-500/10 text-error-400 border-error-500/40'}`}>
+                                                            {bet.option} ${Number(bet.amount).toFixed(2)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <DiscussionBody className="text-sm text-zinc-300">{msg.text}</DiscussionBody>
+                                                <div className="flex items-center pt-1 text-xs text-zinc-500 gap-4">
+                                                    <button onClick={() => setReplyTo({ id: msg.id, username: name })} className="hover:text-white flex items-center gap-1"><ArrowUturnLeftIcon className="w-3 h-3" /> Reply</button>
+                                                    <div className="flex items-center gap-3">
+                                                        <button onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })} className="hover:text-secondary-400 flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> {(msg.reactions?.LIKE?.length || 0) || ''}</button>
+                                                        <button onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })} className="hover:text-error-400 flex items-center gap-1"><ThumbsDown className="h-3 w-3" /> {(msg.reactions?.DISLIKE?.length || 0) || ''}</button>
                                                     </div>
-
-                                                    <DiscussionBody className="text-sm text-zinc-300">
-                                                        {msg.text}
-                                                    </DiscussionBody>
-
-                                                    <div className="flex items-center pt-1 text-xs text-zinc-500">
-                                                        <button
-                                                            onClick={() => setReplyTo({ id: msg.id, username: displayName })}
-                                                            className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 group"
-                                                        >
-                                                            <ArrowUturnLeftIcon className="w-3 h-3 group-hover:text-accent-400" />
-                                                            Reply
-                                                        </button>
-
-                                                        <div className="flex items-center gap-3 ml-4">
-                                                            <div className="flex items-center gap-1">
-                                                                <button
-                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'LIKE' })}
-                                                                    className="inline-flex items-center justify-center h-5 w-5 rounded-md border border-transparent hover:border-zinc-700 bg-transparent text-zinc-500 hover:text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                                    disabled={reactMutation.isPending}
-                                                                >
-                                                                    <ThumbsUp className="h-3 w-3" />
-                                                                </button>
-                                                                {likeCount > 0 && <span className="text-[10px]">{likeCount}</span>}
-                                                            </div>
-
-                                                            <div className="flex items-center gap-1">
-                                                                <button
-                                                                    onClick={() => reactMutation.mutate({ messageId: msg.id, type: 'DISLIKE' })}
-                                                                    className="inline-flex items-center justify-center h-5 w-5 rounded-md border border-transparent hover:border-zinc-700 bg-transparent text-zinc-500 hover:text-error-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                                    disabled={reactMutation.isPending}
-                                                                >
-                                                                    <ThumbsDown className="h-3 w-3" />
-                                                                </button>
-                                                                {dislikeCount > 0 && <span className="text-[10px]">{dislikeCount}</span>}
+                                                    {replies.length > 0 && <DiscussionExpand />}
+                                                </div>
+                                            </div>
+                                        </DiscussionContent>
+                                        {replies.length > 0 && (
+                                            <DiscussionReplies>
+                                                <div className="space-y-3 py-2 pl-3 border-l border-zinc-700/50 ml-3">
+                                                    {replies.map(r => (
+                                                        <div key={r.id} className="flex gap-2">
+                                                            <UserHoverCard address={r.user.address || r.userId}>
+                                                                <Avatar className="w-5 h-5 border border-zinc-700 shrink-0 cursor-pointer">
+                                                                    <AvatarImage src={r.user.avatarUrl || r.user.image || generateAvatarDataUri(r.user.address || r.user.username || r.userId, 120)} />
+                                                                    <AvatarFallback className="bg-zinc-700 text-white font-bold text-[9px]">{(formatDisplayName(r.user, r.userId)[0] || 'U').toUpperCase()}</AvatarFallback>
+                                                                </Avatar>
+                                                            </UserHoverCard>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <UserHoverCard address={r.user.address || r.userId}><span className={`text-xs font-bold cursor-pointer hover:underline ${r.userId === session?.user?.id ? 'text-accent-400' : 'text-zinc-300'}`}>{formatDisplayName(r.user, r.userId)}</span></UserHoverCard>
+                                                                    <span className="text-[10px] text-zinc-600">{formatTime(r.createdAt)}</span>
+                                                                </div>
+                                                                <p className="text-sm text-zinc-400 mt-0.5">{r.text}</p>
                                                             </div>
                                                         </div>
-
-                                                        {(replies?.length || 0) > 0 && (
-                                                            <div className="ml-3">
-                                                                <DiscussionExpand />
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    ))}
                                                 </div>
-                                            </DiscussionContent>
-
-                                            {(replies?.length || 0) > 0 && (
-                                                <DiscussionReplies>
-                                                    <div className="space-y-3 py-2 pl-3 border-l border-zinc-700/50 ml-3">
-                                                        {replies.map(reply => {
-                                                            const replyDisplayName = formatDisplayName(reply.user || {}, reply.userId);
-                                                            const replyAvatarFallback = getAvatarFallback(reply.user || {}, reply.userId);
-                                                            const isReplyMe = reply.userId === user?.id;
-
-                                                            return (
-                                                                <div key={reply.id} className="flex gap-2">
-                                                                    <UserHoverCard address={reply.user?.address || reply.userId}>
-                                                                        <div className="cursor-pointer shrink-0">
-                                                                            <Avatar className="w-5 h-5 border border-zinc-700">
-                                                                                {reply.user && getAvatarUrl(reply.user) && (
-                                                                                    <AvatarImage src={getAvatarUrl(reply.user)!} alt={replyDisplayName} />
-                                                                                )}
-                                                                                <AvatarFallback className="bg-zinc-700 text-white font-bold text-[9px]">{replyAvatarFallback}</AvatarFallback>
-                                                                            </Avatar>
-                                                                        </div>
-                                                                    </UserHoverCard>
-                                                                    <div>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <UserHoverCard address={reply.user?.address || reply.userId}>
-                                                                                <span className={`text-xs font-bold cursor-pointer hover:underline ${isReplyMe ? 'text-accent-400' : 'text-zinc-300'}`}>{replyDisplayName}</span>
-                                                                            </UserHoverCard>
-                                                                            <span className="text-[10px] text-zinc-600">{formatTime(reply.createdAt)}</span>
-                                                                        </div>
-                                                                        <p className="text-sm text-zinc-400 mt-0.5">{reply.text}</p>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </DiscussionReplies>
-                                            )}
-                                        </DiscussionItem>
-                                    );
-                                })}
-                            </Discussion>
-
-                            {/* Sentinel for Infinite Scroll - Load More Trigger */}
-                            <div ref={observerTarget} className="h-4 w-full flex justify-center py-2">
-                                {isFetchingNextPage && <Loader2 className="animate-spin h-4 w-4 text-zinc-500" />}
-                            </div>
-                        </>
+                                            </DiscussionReplies>
+                                        )}
+                                    </DiscussionItem>
+                                );
+                            })}
+                        </Discussion>
                     )}
+                    <div ref={observerTarget} className="h-8 w-full flex justify-center items-center">
+                        {(isFetchingNextPage || isLoading) && <Loader2 className="animate-spin h-5 w-5 text-accent-500" />}
+                    </div>
                 </div>
             </div>
         </div>
