@@ -93,6 +93,8 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
     };
 
     const formatAddress = (addr: string) => {
+        if (!addr || typeof addr !== 'string') return 'Unknown';
+        if (addr.length <= 10) return addr;
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     };
 
@@ -156,13 +158,13 @@ export function UserHoverCard({ address, children, className = '' }: UserHoverCa
                                         <Link href={`/profile?address=${address}`} className="flex items-center gap-3 mb-4">
                                             <Avatar className="w-12 h-12 border-2 border-white/10">
                                                 {(user.avatarUrl || user.image) && (
-                                                    <AvatarImage 
-                                                        src={user.avatarUrl || user.image || undefined} 
+                                                    <AvatarImage
+                                                        src={user.avatarUrl || user.image || undefined}
                                                         alt={user.username || formatAddress(address)}
                                                     />
                                                 )}
                                                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg">
-                                                    {(user.username?.[0] || address.slice(2, 3)).toUpperCase()}
+                                                    {(user.username?.[0] || (typeof address === 'string' && address.length > 3 ? address.slice(2, 3) : 'U')).toUpperCase()}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div>

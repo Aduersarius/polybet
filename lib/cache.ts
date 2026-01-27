@@ -36,8 +36,8 @@ export async function getOrSet<T>(
         return await fn();
     }
 
+    // 1. Try to read from cache
     try {
-        // Try to get from cache as buffer to handle compressed data
         const cached = await (redis as any).getBuffer(fullKey);
 
         if (cached && cached.length > 0) {
@@ -47,18 +47,32 @@ export async function getOrSet<T>(
                     const decompressed = gunzipSync(cached).toString();
                     return JSON.parse(decompressed) as T;
                 }
-                return JSON.parse(cached.toString()) as T;
+                const result = JSON.parse(cached.toString());
+                if (result !== undefined && result !== null) {
+                    return result as T;
+                }
             } catch (err) {
                 console.warn('Failed to parse cached value for', fullKey, ', falling back to fetch', err);
-                // Fall through to miss logic
             }
         }
+    } catch (error: any) {
+        const isConnectionError = error?.message?.includes('Connection is closed') ||
+            error?.message?.includes('connect') ||
+            error?.message?.includes('ECONNREFUSED');
 
-        // Cache miss - execute function
-        const result = await fn();
+        // Only log non-connection errors or connection errors in production
+        if (!isConnectionError || process.env.NODE_ENV === 'production') {
+            console.error('Redis read error for', fullKey, ':', error);
+        }
+    }
 
-        // Store in cache with optimized TTL
-        if (ttl > 0 && result !== undefined) {
+    // 2. Cache miss or error - execute the factory function
+    // This is purposefully outside of any catch blocks that would log "cache error"
+    const result = await fn();
+
+    // 3. Try to store in cache (best effort)
+    if (ttl > 0 && result !== undefined && result !== null) {
+        try {
             // Increase TTL for search results to reduce database load
             const optimizedTtl = prefix === 'search' ? Math.max(ttl, 1800) : ttl;
             const json = JSON.stringify(result);
@@ -75,30 +89,13 @@ export async function getOrSet<T>(
             } else {
                 await redis.setex(fullKey, optimizedTtl, json);
             }
+        } catch (error: any) {
+            // Just log and continue, don't fail the request if cache write fails
+            console.warn('Redis write error for', fullKey, ':', error);
         }
-
-        return result;
-    } catch (error: any) {
-        // Don't log expected connection errors in development - we gracefully fall back
-        const isConnectionError = error?.message?.includes('Connection is closed') ||
-            error?.message?.includes('connect') ||
-            error?.message?.includes('ECONNREFUSED');
-
-        const isProd = process.env.NODE_ENV === 'production';
-
-        if (isConnectionError && !isProd) {
-            // Silently fall back in development
-            return await fn();
-        }
-
-        // Log unexpected errors or all errors in production
-        if (!isConnectionError || isProd) {
-            console.error('Redis cache error for', fullKey, ':', error);
-        }
-
-        // On error, fall back to executing the function
-        return await fn();
     }
+
+    return result;
 }
 
 /**

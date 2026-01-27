@@ -51,7 +51,7 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
     const [resolvedEventId, setResolvedEventId] = useState<string>(propEventId);
 
     useEffect(() => {
-        if (!propEventId || typeof propEventId !== 'string') return;
+        if (!propEventId || typeof propEventId !== 'string' || propEventId.length === 0) return;
         if (propEventId.length === 36) { // Assume UUID
             setResolvedEventId(propEventId);
             return;
@@ -75,8 +75,11 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
 
     const { data: session } = useSession();
     const user = session?.user;
-    const isAuthenticated = !!user;
+    const isAuthenticated = Boolean(user?.id);
     const queryClient = useQueryClient();
+
+    // Ensure we always have a string ID for the query
+    const stableEventId = typeof resolvedEventId === 'string' ? resolvedEventId : '';
 
     // Fetch messages with infinite scrolling
     const {
@@ -87,28 +90,37 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
         isLoading,
         refetch,
     } = useInfiniteQuery({
-        queryKey: ['messages', resolvedEventId],
+        queryKey: ['messages', stableEventId || 'none'],
         queryFn: async ({ pageParam }) => {
-            if (!resolvedEventId) return { messages: [] };
+            if (!stableEventId) return { messages: [], nextCursor: null };
             const params = new URLSearchParams({
-                limit: '10', // Pagination limit
+                limit: '10',
             });
             if (pageParam) {
-                params.set('cursor', pageParam as string);
+                params.set('cursor', String(pageParam));
             }
-            const res = await fetch(`/api/events/${resolvedEventId}/messages?${params}`);
+            const res = await fetch(`/api/events/${stableEventId}/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
-            return res.json();
+            const data = await res.json();
+            return {
+                messages: Array.isArray(data?.messages) ? data.messages : [],
+                nextCursor: data?.nextCursor ?? null
+            };
         },
-        getNextPageParam: (lastPage) => lastPage?.nextCursor,
+        getNextPageParam: (lastPage: any) => lastPage?.nextCursor ?? undefined,
         initialPageParam: null,
-        enabled: !!resolvedEventId,
+        enabled: Boolean(stableEventId && stableEventId.length > 0),
     });
 
     // Flatten pages into a single array
     const messages = useMemo(() => {
-        const pages = data?.pages || [];
-        return pages.flatMap(page => page?.messages || []) || [];
+        if (!data?.pages || !Array.isArray(data.pages)) return [];
+        try {
+            return data.pages.flatMap(page => (page && Array.isArray(page.messages) ? page.messages : []));
+        } catch (e) {
+            console.error('[EventChat] Flattening failed:', e);
+            return [];
+        }
     }, [data?.pages]);
 
     // Real-time updates
@@ -150,45 +162,50 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
 
 
     // Map for quick lookup
-    const msgMap = useMemo(() => new Map<string, Message>(messages.map(m => [m.id, m])), [messages]);
+    const msgMap = useMemo(() => {
+        if (!Array.isArray(messages)) return new Map<string, Message>();
+        return new Map<string, Message>(messages.map(m => [m.id, m]));
+    }, [messages]);
 
     // Group messages logic
     const { rootMessages, repliesMap } = useMemo(() => {
         const roots: Message[] = [];
         const replies = new Map<string, Message[]>();
 
-        messages.forEach(msg => {
-            // Find effective root
-            let current = msg;
-            let root = msg;
-            let isOrphan = false;
+        if (Array.isArray(messages)) {
+            messages.forEach(msg => {
+                // Find effective root
+                let current = msg;
+                let root = msg;
+                let isOrphan = false;
 
-            // Simple loop protection
-            let depth = 0;
-            while (current.parentId && depth < 10) {
-                const parent = msgMap.get(current.parentId);
-                if (!parent) {
-                    // Parent not in current list (orphan or parent not loaded yet).
-                    // Treat as root for now
-                    if (current === msg) isOrphan = true;
-                    break;
+                // Simple loop protection
+                let depth = 0;
+                while (current.parentId && depth < 10) {
+                    const parent = msgMap.get(current.parentId);
+                    if (!parent) {
+                        // Parent not in current list (orphan or parent not loaded yet).
+                        // Treat as root for now
+                        if (current === msg) isOrphan = true;
+                        break;
+                    }
+                    current = parent;
+                    root = parent;
+                    depth++;
                 }
-                current = parent;
-                root = parent;
-                depth++;
-            }
 
-            if (!msg.parentId || isOrphan) {
-                roots.push(msg);
-            } else {
-                if (!replies.has(root.id)) {
-                    replies.set(root.id, []);
+                if (!msg.parentId || isOrphan) {
+                    roots.push(msg);
+                } else {
+                    if (!replies.has(root.id)) {
+                        replies.set(root.id, []);
+                    }
+                    if (msg.id !== root.id) {
+                        replies.get(root.id)!.push(msg);
+                    }
                 }
-                if (msg.id !== root.id) {
-                    replies.get(root.id)!.push(msg);
-                }
-            }
-        });
+            });
+        }
 
         // Sort root messages by date desc (newest first)
         roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -272,22 +289,27 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
         return date.toLocaleDateString();
     };
 
-    const formatDisplayName = (userObj: Message['user'], userId: string) => {
-        if (userObj.username) return userObj.username;
-        if (userObj.address) return `${userObj.address.slice(0, 4)}...${userObj.address.slice(-4)}`;
-        return `User ${userId.slice(0, 4)}`;
+    const formatDisplayName = (userObj: Message['user'] | null | undefined, userId: string) => {
+        if (userObj?.username) return userObj.username;
+        const address = (userObj as any)?.address;
+        if (address && typeof address === 'string' && address.length >= 8) {
+            return `${address.slice(0, 4)}...${address.slice(-4)}`;
+        }
+        return `User ${(userId || '').slice(0, 4) || 'Unknown'}`;
     };
 
-    const getAvatarFallback = (userObj: Message['user'], userId: string) => {
-        if (userObj.username) return userObj.username[0].toUpperCase();
-        if (userObj.address) return userObj.address.slice(2, 3).toUpperCase();
-        const initial = userId[0].toUpperCase();
+    const getAvatarFallback = (userObj: Message['user'] | null | undefined, userId: string) => {
+        if (userObj?.username && userObj.username.length > 0) return userObj.username[0].toUpperCase();
+        const address = (userObj as any)?.address;
+        if (address && typeof address === 'string' && address.length > 3) return address.slice(2, 3).toUpperCase();
+        const initial = (userId?.[0] || 'U').toUpperCase();
         return isNaN(parseInt(initial)) ? initial : 'U';
     };
 
-    const getAvatarUrl = (userObj: Message['user']): string | undefined => {
+    const getAvatarUrl = (userObj: Message['user'] | null | undefined): string | undefined => {
+        if (!userObj) return undefined;
         const url = userObj.avatarUrl || userObj.image;
-        return url && url.trim() !== '' ? url : undefined;
+        return url && typeof url === 'string' && url.trim() !== '' ? url : undefined;
     };
 
     return (
@@ -295,7 +317,7 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
             {/* Header - Comments count */}
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-medium text-zinc-300">
-                    Comments ({(messages?.length || 0)}{hasNextPage ? '+' : ''})
+                    Comments ({(messages?.length ?? 0)}{hasNextPage ? '+' : ''})
                 </span>
             </div>
 
@@ -334,26 +356,28 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
                 className="max-h-[500px] min-h-[150px] overflow-y-auto pr-2 custom-scrollbar border border-white/5 rounded-md bg-zinc-900/30"
             >
                 <div className="flex flex-col min-h-0 px-2 pt-2">
-                    {messages.length === 0 && isLoading ? (
-                        <div className="flex justify-center items-center h-24">
-                            <Loader2 className="animate-spin h-6 w-6 text-accent-500" />
-                        </div>
-                    ) : messages.length === 0 ? (
-                        <div className="text-center text-zinc-500 py-8 text-sm">No messages yet. Be the first to say hi!</div>
+                    {!messages || messages.length === 0 ? (
+                        isLoading ? (
+                            <div className="flex justify-center items-center h-24">
+                                <Loader2 className="animate-spin h-6 w-6 text-accent-500" />
+                            </div>
+                        ) : (
+                            <div className="text-center text-zinc-500 py-8 text-sm">No messages yet. Be the first to say hi!</div>
+                        )
                     ) : (
                         <>
-                            <Discussion type="multiple" className="space-y-4">
+                            <Discussion type="multiple" defaultValue={[]} className="space-y-4">
                                 {rootMessages.map((msg) => {
                                     const replies = repliesMap.get(msg.id) || [];
                                     const isMe = msg.userId === user?.id;
                                     const displayName = formatDisplayName(msg.user, msg.userId);
                                     const avatarFallback = getAvatarFallback(msg.user, msg.userId);
-                                    const likeCount = msg.reactions?.LIKE?.length || 0;
-                                    const dislikeCount = msg.reactions?.DISLIKE?.length || 0;
+                                    const likeCount = (msg.reactions?.LIKE as string[] | undefined)?.length || 0;
+                                    const dislikeCount = (msg.reactions?.DISLIKE as string[] | undefined)?.length || 0;
 
                                     const profileAddress = msg.user?.address || msg.userId;
 
-                                    const latestBet = msg.user?.bets && msg.user.bets.length > 0
+                                    const latestBet = (msg.user?.bets && Array.isArray(msg.user.bets) && msg.user.bets.length > 0)
                                         ? msg.user.bets[0]
                                         : null;
 
@@ -445,16 +469,16 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
                                                 <DiscussionReplies>
                                                     <div className="space-y-3 py-2 pl-3 border-l border-zinc-700/50 ml-3">
                                                         {replies.map(reply => {
-                                                            const replyDisplayName = formatDisplayName(reply.user, reply.userId);
-                                                            const replyAvatarFallback = getAvatarFallback(reply.user, reply.userId);
+                                                            const replyDisplayName = formatDisplayName(reply.user || {}, reply.userId);
+                                                            const replyAvatarFallback = getAvatarFallback(reply.user || {}, reply.userId);
                                                             const isReplyMe = reply.userId === user?.id;
 
                                                             return (
                                                                 <div key={reply.id} className="flex gap-2">
-                                                                    <UserHoverCard address={reply.user.address || reply.userId}>
+                                                                    <UserHoverCard address={reply.user?.address || reply.userId}>
                                                                         <div className="cursor-pointer shrink-0">
                                                                             <Avatar className="w-5 h-5 border border-zinc-700">
-                                                                                {getAvatarUrl(reply.user) && (
+                                                                                {reply.user && getAvatarUrl(reply.user) && (
                                                                                     <AvatarImage src={getAvatarUrl(reply.user)!} alt={replyDisplayName} />
                                                                                 )}
                                                                                 <AvatarFallback className="bg-zinc-700 text-white font-bold text-[9px]">{replyAvatarFallback}</AvatarFallback>
@@ -463,7 +487,7 @@ export function EventChat({ eventId: propEventId }: EventChatProps) {
                                                                     </UserHoverCard>
                                                                     <div>
                                                                         <div className="flex items-center gap-2">
-                                                                            <UserHoverCard address={reply.user.address || reply.userId}>
+                                                                            <UserHoverCard address={reply.user?.address || reply.userId}>
                                                                                 <span className={`text-xs font-bold cursor-pointer hover:underline ${isReplyMe ? 'text-accent-400' : 'text-zinc-300'}`}>{replyDisplayName}</span>
                                                                             </UserHoverCard>
                                                                             <span className="text-[10px] text-zinc-600">{formatTime(reply.createdAt)}</span>

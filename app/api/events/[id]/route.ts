@@ -80,7 +80,7 @@ export async function GET(
 
 
                 if (!event) {
-                    throw new Error('Event not found');
+                    return null;
                 }
 
                 const eventId = (event as any).id;
@@ -205,6 +205,10 @@ export async function GET(
         );
 
         const queryTime = Date.now() - startTime;
+        if (!eventWithOdds) {
+            console.log('ℹ️ Event', (await params).id, 'not found in', queryTime, 'ms');
+            return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+        }
         console.log('✅ Event', (await params).id, 'fetched in', queryTime, 'ms');
 
         // If inferred MULTIPLE but cached payload still binary, bust cache and retry once
@@ -227,12 +231,15 @@ export async function GET(
                             outcomes: true,
                         },
                     });
-                    if (!freshEvent) throw new Error('Event not found');
+                    if (!freshEvent) return null;
                     const inferred = (freshEvent as any).outcomes?.length > 2 ? 'MULTIPLE' : (freshEvent as any).type;
                     return { ...freshEvent, type: inferred };
                 },
                 { ttl: 60, prefix: 'event' },
             );
+            if (!refreshed) {
+                return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+            }
             return NextResponse.json(refreshed);
         }
 

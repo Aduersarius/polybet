@@ -111,7 +111,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
 
     useEffect(() => {
         if (!eventId) return;
-        if (eventId.length === 36) { // Assume UUID
+        if (eventId && typeof eventId === 'string' && eventId.length === 36) { // Assume UUID
             setResolvedEventId(eventId);
             return;
         }
