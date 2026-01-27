@@ -105,12 +105,12 @@ async function executeBotTrade(user: any, event: any) {
             });
         });
 
-        console.log(`[Cron] Executed trade: ${user.username} bought $${amount.toFixed(0)} of ${option}`);
+        console.log(`[Cron] Executed trade: \${user.username} bought \$\${amount.toFixed(0)} of \${option}`);
 
         try {
             const { getPusherServer } = await import('@/lib/pusher-server');
             const pusherServer = getPusherServer();
-            await pusherServer.trigger(`event-${event.id}`, 'odds-update', {
+            await pusherServer.trigger(`event-\${event.id}`, 'odds-update', {
                 type: 'TRADE',
                 amount: amount,
                 side: 'buy',
@@ -228,12 +228,12 @@ async function generateComment() {
             const diff = currentProb - oldProb;
             const pctChange = (diff / Math.max(oldProb, 0.01)) * 100;
 
-            if (pctChange > 5) trendInfo = ` (Tier: 🚀 UP ${pctChange.toFixed(0)}% in 24h)`;
-            else if (pctChange < -5) trendInfo = ` (Tier: 🔻 DOWN ${Math.abs(pctChange).toFixed(0)}% in 24h)`;
+            if (pctChange > 5) trendInfo = ` (Tier: 🚀 UP \${pctChange.toFixed(0)}% in 24h)`;
+            else if (pctChange < -5) trendInfo = ` (Tier: 🔻 DOWN \${Math.abs(pctChange).toFixed(0)}% in 24h)`;
             else trendInfo = ` (Stable)`;
         }
 
-        return `${o.name} (${Math.round(currentProb * 100)}%)${trendInfo}`;
+        return `\${o.name} (\${Math.round(currentProb * 100)}%)\${trendInfo}`;
     }).join(', ');
 
     // 3b. Check Holdings (Skin in the Game)
@@ -255,7 +255,7 @@ async function generateComment() {
         "STYLE: LAZY MINIMALIST. You assume everyone is an idiot. Use 1-3 words. lowercase. 'clown market', 'no', 'boring', 'mid'.",
         "STYLE: EMOTIONAL HYPE. ALL CAPS or lots of exclamation marks. You are very excited or very scared. 'OMFG', 'LFG', 'PANIC'.",
         "STYLE: TROLL. Mock the market concept or other users. Be sarcastic. 'Imagine betting on this', 'cope harder'.",
-        "STYLE: CONFUSED NEWBIE. You don't understand how this market works. 'Wait so if it hits $1 does it resolve?', 'how do i sell?'.",
+        "STYLE: CONFUSED NEWBIE. You don't understand how this market works. 'Wait so if it hits \$1 does it resolve?', 'how do i sell?'.",
         "STYLE: INSIDER. Claim to have private info. 'My sources say', 'Trust me bro', 'Insiders dumping'.",
         "STYLE: NEWS AGGREGATOR. Just state a relevant-sounding fact or rumor as if it settles it. 'Did you see the latest tweet?', 'News just dropped'.",
         "STYLE: WHALE WATCHER. You are obsessed with large trades. 'Someone just loaded up on No', 'Whale alert!', 'Follow the smart money'.",
@@ -312,7 +312,7 @@ async function generateComment() {
             }
 
             const amount = Math.round(Number(userBalance.amount));
-            portfolioContext = `YOUR PORTFOLIO: You possess ${amount} shares of "${holdingName}". You are financially incentivized to have this outcome win.`;
+            portfolioContext = `YOUR PORTFOLIO: You possess \${amount} shares of "\${holdingName}". You are financially incentivized to have this outcome win.`;
 
             // (Filtered logic removed)
 
@@ -328,19 +328,19 @@ async function generateComment() {
     // (We will add it in the prompt construction below)
 
     let prompt = `
- You are a realistic user on a crypto prediction market platform (like Polymarket).
- Market: "${event.title}"
- Description: "${event.description}"
- Current Odds/Probabilities: ${outcomesStr}
- Your Persona: "${user.username}"
- ${portfolioContext}
+  You are a realistic user on a crypto prediction market platform (like Polymarket).
+  Market: "\${event.title}"
+  Description: "\${event.description}"
+  Current Odds/Probabilities: \${outcomesStr}
+  Your Persona: "\${user.username}"
+  \${portfolioContext}
 
- Guidelines:
- - Tone: Use crypto/betting culture slang. Be concise.
- - Imperfections: lowercase, no punctuation, or minor typos are expected to look like a real person typing on mobile.
- - No hashtags!!
- - YOUR ASSIGNED BEHAVIOR: ${selectedStyle}
- `;
+  Guidelines:
+  - Tone: Use crypto/betting culture slang. Be concise.
+  - Imperfections: lowercase, no punctuation, or minor typos are expected to look like a real person typing on mobile.
+  - No hashtags!!
+  - YOUR ASSIGNED BEHAVIOR: \${selectedStyle}
+  `;
 
     // Randomize Tone and Imperfections for variety
     const tones = [
@@ -366,26 +366,26 @@ async function generateComment() {
     if (pickedTone === "Aggressive") pickedImperfection = "Use excessive caps or exclamation points.";
 
     const sharedInstructions = `
- CRITICAL INSTRUCTIONS FOR REALISM:
- 1. TONE: ${pickedTone}. match this tone exactly.
- 2. STYLE: ${selectedStyle}
- 3. IMPERFECTIONS: ${pickedImperfection}
- 4. Length: Keep it short (under 280 characters like a tweet).
- 5. Content: Be specific to the market odds or trend. Don't be generic.
- `;
+  CRITICAL INSTRUCTIONS FOR REALISM:
+  1. TONE: \${pickedTone}. match this tone exactly.
+  2. STYLE: \${selectedStyle}
+  3. IMPERFECTIONS: \${pickedImperfection}
+  4. Length: Keep it short (under 280 characters like a tweet).
+  5. Content: Be specific to the market odds or trend. Don't be generic.
+  `;
 
     if (isReply && parentMessage) {
         prompt += `
- You are replying to this message: "${parentMessage.text}"
- Your goal: Write a realistic REPLY based on your assigned behavior style.
- Context: You are replying to user "${parentMessage.user.username}". React purely to their take.
- ${sharedInstructions}
- `;
+  You are replying to this message: "\${parentMessage.text}"
+  Your goal: Write a realistic REPLY based on your assigned behavior style.
+  Context: You are replying to user "\${parentMessage.user.username}". React purely to their take.
+  \${sharedInstructions}
+  `;
     } else {
         prompt += `
- Your goal: Write a new comment or observation about this market based on your assigned behavior style.
- ${sharedInstructions}
- `;
+  Your goal: Write a new comment or observation about this market based on your assigned behavior style.
+  \${sharedInstructions}
+  `;
     }
 
     prompt += `\nRequirement: Return ONLY the text of the comment on english language. No quotes, no preamble.`;
@@ -426,7 +426,7 @@ async function generateComment() {
             data: {
                 userId: parentMessage.userId,
                 type: 'REPLY',
-                message: `${user.username || 'Someone'} replied to your message`,
+                message: `\${user.username || 'Someone'} replied to your message`,
                 resourceId: event.id
             }
         }).catch((err: any) => { });
@@ -450,13 +450,13 @@ async function generateComment() {
                 reactions: {}
             }
         };
-        await pusherServer.trigger(`event-${event.id}`, 'chat-message', messagePayload);
+        await pusherServer.trigger(`event-\${event.id}`, 'chat-message', messagePayload);
     } catch (err: any) { }
 
     // 8. Invalidate cache
     try {
         const { invalidatePattern } = await import('@/lib/cache');
-        await invalidatePattern(`${event.id}:messages:*`);
+        await invalidatePattern(`\${event.id}:messages:*`);
     } catch (err: any) { }
 
     return { event: event.title, user: user.username, comment: finalComment };
@@ -567,7 +567,7 @@ async function simulateReaction() {
             }
         });
 
-        console.log(`[Cron] Bot ${bot.username} ${type}D message "${randomMessage.text.substring(0, 20)}..." (Total: ${totalReactions + 1})`);
+        console.log(`[Cron] Bot \${bot.username} \${type}D message "\${randomMessage.text.substring(0, 20)}..." (Total: \${totalReactions + 1})`);
 
     } catch (e) {
         console.error('[Cron] Reaction simulation failed:', e);
@@ -577,7 +577,7 @@ async function simulateReaction() {
 export async function GET(req: NextRequest) {
     // Basic security check
     const authHeader = req.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (process.env.CRON_SECRET && authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
