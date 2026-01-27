@@ -63,22 +63,50 @@ export async function POST(request: Request) {
             price
         } = parsed.data;
 
-        // Fetch event to determine type for correct parameter handling
-        const event = await prisma.event.findUnique({
+        // Resolve internal event ID if a slug or polymarket ID was provided
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+        let targetEventId = eventId;
+        let eventType: string;
+
+        // Try direct ID lookup first (supports both UUID and numeric IDs)
+        const eventById = await prisma.event.findUnique({
             where: { id: eventId },
-            select: { type: true }
+            select: { id: true, type: true }
         });
 
-        if (!event) {
+        if (eventById) {
+            targetEventId = eventById.id;
+            eventType = eventById.type;
+        } else if (!isUUID) {
+            // If not found by ID and not a UUID, check slug and polymarketId
+            const resolvedEvent = await prisma.event.findFirst({
+                where: {
+                    OR: [
+                        { slug: eventId },
+                        { polymarketId: eventId }
+                    ]
+                },
+                select: { id: true, type: true }
+            });
+            if (!resolvedEvent) {
+                return createClientErrorResponse('Event not found', 404);
+            }
+            targetEventId = resolvedEvent.id;
+            eventType = resolvedEvent.type;
+        } else {
+            // Was a UUID but not found in DB
             return createClientErrorResponse('Event not found', 404);
         }
+
+        // Use the resolved event ID for all subsequent operations
+        const resolvedEventId = targetEventId;
 
         // Determine targetOption from option or outcomeId
         let targetOption: string;
         if (option) {
             targetOption = option.toUpperCase();
         } else if (outcomeId) {
-            if (event.type === 'MULTIPLE') {
+            if (eventType === 'MULTIPLE') {
                 // For MULTIPLE, the 'option' IS the outcomeId
                 targetOption = outcomeId;
             } else {
@@ -102,7 +130,7 @@ export async function POST(request: Request) {
         // Execute hybrid order via Orchestrator
         const result = await executeTrade({
             userId: sessionUserId,
-            eventId,
+            eventId: resolvedEventId,
             side: side as 'buy' | 'sell',
             option: targetOption,
             amount,
@@ -129,7 +157,7 @@ export async function POST(request: Request) {
         try {
             // Fetch event title and image for richer notification
             const eventData = await prisma.event.findUnique({
-                where: { id: eventId },
+                where: { id: resolvedEventId },
                 select: { title: true, imageUrl: true }
             });
 

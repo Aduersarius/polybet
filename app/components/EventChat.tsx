@@ -46,7 +46,28 @@ interface EventChatProps {
     eventId: string;
 }
 
-export function EventChat({ eventId }: EventChatProps) {
+export function EventChat({ eventId: propEventId }: EventChatProps) {
+    // Resolve event ID if slug provided
+    const [resolvedEventId, setResolvedEventId] = useState<string>(propEventId);
+
+    useEffect(() => {
+        if (!propEventId || typeof propEventId !== 'string') return;
+        if (propEventId.length === 36) { // Assume UUID
+            setResolvedEventId(propEventId);
+            return;
+        }
+
+        // Try to fetch event data to get the ID
+        fetch(`/api/events/${propEventId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.id) {
+                    setResolvedEventId(data.id);
+                }
+            })
+            .catch(err => console.error('[EventChat] ID resolution failed:', err));
+    }, [propEventId]);
+
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const observerTarget = useRef<HTMLDivElement>(null);
     const [inputText, setInputText] = useState('');
@@ -66,47 +87,48 @@ export function EventChat({ eventId }: EventChatProps) {
         isLoading,
         refetch,
     } = useInfiniteQuery({
-        queryKey: ['messages', eventId],
+        queryKey: ['messages', resolvedEventId],
         queryFn: async ({ pageParam }) => {
-            if (!eventId) return { messages: [] };
+            if (!resolvedEventId) return { messages: [] };
             const params = new URLSearchParams({
                 limit: '10', // Pagination limit
             });
             if (pageParam) {
                 params.set('cursor', pageParam as string);
             }
-            const res = await fetch(`/api/events/${eventId}/messages?${params}`);
+            const res = await fetch(`/api/events/${resolvedEventId}/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
         },
         getNextPageParam: (lastPage) => lastPage?.nextCursor,
-        initialPageParam: undefined,
-        enabled: !!eventId,
+        initialPageParam: null,
+        enabled: !!resolvedEventId,
     });
 
     // Flatten pages into a single array
     const messages = useMemo(() => {
-        return data?.pages?.flatMap(page => page?.messages || []) || [];
+        const pages = data?.pages || [];
+        return pages.flatMap(page => page?.messages || []) || [];
     }, [data?.pages]);
 
     // Real-time updates
     useEffect(() => {
         const { socket } = require('@/lib/socket');
-        const channel = socket.subscribe(`event-${eventId}`);
+        const channel = socket.subscribe(`event-${resolvedEventId}`);
 
         function onMessage() {
             // Refetch queries to update the list
             // We use queryClient to invalidate to be safe with infinite query state
-            queryClient.invalidateQueries({ queryKey: ['messages', eventId] });
+            queryClient.invalidateQueries({ queryKey: ['messages', resolvedEventId] });
         }
 
         channel.bind('chat-message', onMessage);
 
         return () => {
             channel.unbind('chat-message', onMessage);
-            socket.unsubscribe(`event-${eventId}`);
+            socket.unsubscribe(`event-${resolvedEventId}`);
         };
-    }, [eventId, queryClient]);
+    }, [resolvedEventId, queryClient]);
 
     // Intersection Observer for infinite scrolling
     useEffect(() => {
@@ -198,7 +220,7 @@ export function EventChat({ eventId }: EventChatProps) {
 
     const sendMessageMutation = useMutation({
         mutationFn: async (text: string) => {
-            const res = await fetch(`/api/events/${eventId}/messages`, {
+            const res = await fetch(`/api/events/${resolvedEventId}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -273,7 +295,7 @@ export function EventChat({ eventId }: EventChatProps) {
             {/* Header - Comments count */}
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-medium text-zinc-300">
-                    Comments ({messages.length}{hasNextPage ? '+' : ''})
+                    Comments ({(messages?.length || 0)}{hasNextPage ? '+' : ''})
                 </span>
             </div>
 
@@ -329,9 +351,9 @@ export function EventChat({ eventId }: EventChatProps) {
                                     const likeCount = msg.reactions?.LIKE?.length || 0;
                                     const dislikeCount = msg.reactions?.DISLIKE?.length || 0;
 
-                                    const profileAddress = msg.user.address || msg.userId;
+                                    const profileAddress = msg.user?.address || msg.userId;
 
-                                    const latestBet = msg.user.bets && msg.user.bets.length > 0
+                                    const latestBet = msg.user?.bets && msg.user.bets.length > 0
                                         ? msg.user.bets[0]
                                         : null;
 
@@ -410,7 +432,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                                             </div>
                                                         </div>
 
-                                                        {replies.length > 0 && (
+                                                        {(replies?.length || 0) > 0 && (
                                                             <div className="ml-3">
                                                                 <DiscussionExpand />
                                                             </div>
@@ -419,7 +441,7 @@ export function EventChat({ eventId }: EventChatProps) {
                                                 </div>
                                             </DiscussionContent>
 
-                                            {replies.length > 0 && (
+                                            {(replies?.length || 0) > 0 && (
                                                 <DiscussionReplies>
                                                     <div className="space-y-3 py-2 pl-3 border-l border-zinc-700/50 ml-3">
                                                         {replies.map(reply => {

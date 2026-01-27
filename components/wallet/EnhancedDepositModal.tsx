@@ -175,7 +175,8 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
             // Start Polling
             pollIntervalRef.current = setInterval(async () => {
                 try {
-                    const res = await fetch('/api/user/deposits/latest');
+                    // Add timestamp to prevent caching
+                    const res = await fetch(`/api/user/deposits/latest?t=${Date.now()}`);
                     if (!res.ok) return;
                     const data = await res.json();
                     const deposit = data.deposit;
@@ -204,6 +205,13 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                                     chain: 'Polygon',
                                     status: 'confirmed'
                                 });
+                            } else if (deposit.status === 'FAILED') {
+                                setDepositStatus('idle'); // Or show error state
+                                toast({
+                                    title: "Deposit Failed",
+                                    description: "There was an issue processing your deposit. Please contact support.",
+                                    variant: "destructive",
+                                });
                             } else {
                                 setDepositStatus('detected');
                                 toast({
@@ -227,6 +235,13 @@ export function EnhancedDepositModal({ isOpen, onClose, onBalanceUpdate }: Enhan
                                 currency: 'USDC',
                                 chain: 'Polygon',
                                 status: 'confirmed'
+                            });
+                        } else if (deposit.status === 'FAILED') {
+                            setDepositStatus('idle');
+                            toast({
+                                title: "Deposit Failed",
+                                description: "There was an issue processing your deposit. Please contact support.",
+                                variant: "destructive",
                             });
                         }
                     }

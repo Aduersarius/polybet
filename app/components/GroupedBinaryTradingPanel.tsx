@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { calculateLMSROdds } from '@/lib/amm';
+import { useSession } from '@/lib/auth-client';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Search, ChevronRight, ChevronLeft, TrendingUp, TrendingDown, Info, AlertCircle } from 'lucide-react';
 import { DepositModal } from '@/components/wallet/DepositModal';
@@ -39,7 +40,7 @@ interface GroupedBinaryTradingPanelProps {
 }
 
 export function GroupedBinaryTradingPanel({
-    eventId,
+    eventId: propEventId,
     outcomes,
     liveOutcomes: propsLiveOutcomes,
     onTradeSuccess,
@@ -64,7 +65,23 @@ export function GroupedBinaryTradingPanel({
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
     const queryClient = useQueryClient();
+    const { data: session } = useSession();
+    const isAuthenticated = Boolean((session as any)?.user);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Fetch correctly formatted event ID if slug provided
+    const { data: eventData } = useQuery({
+        queryKey: ['event', propEventId],
+        queryFn: async () => {
+            const res = await fetch(`/api/events/${propEventId}`);
+            if (!res.ok) return null;
+            return await res.json();
+        },
+        enabled: !!propEventId,
+        staleTime: 60000,
+    });
+
+    const resolvedEventId = eventData?.id || propEventId;
 
     // Initial outcome selection
     useEffect(() => {
@@ -76,10 +93,10 @@ export function GroupedBinaryTradingPanel({
     // WebSocket listener for real-time updates
     useEffect(() => {
         const { socket } = require('@/lib/socket');
-        const channel = socket.subscribe(`event-${eventId}`);
+        const channel = socket.subscribe(`event-${resolvedEventId}`);
 
         function onOddsUpdate(update: any) {
-            if (update.eventId !== eventId) return;
+            if (update.eventId !== resolvedEventId) return;
 
             if (update.outcomes) {
                 setHotOutcomes(update.outcomes);
@@ -90,9 +107,9 @@ export function GroupedBinaryTradingPanel({
 
         return () => {
             channel.unbind('odds-update', onOddsUpdate);
-            socket.unsubscribe(`event-${eventId}`);
+            socket.unsubscribe(`event-${resolvedEventId}`);
         };
-    }, [eventId]);
+    }, [resolvedEventId]);
 
     // Effectively used outcomes (prefer WebSocket data)
     const effectiveOutcomes = useMemo(() => {
@@ -132,14 +149,15 @@ export function GroupedBinaryTradingPanel({
     }, [selectedOutcomeId, filteredOutcomes]);
 
     // Fetch user balance
-    const { data: balanceData } = useQuery({
-        queryKey: ['user-balances'],
+    const { data: balanceData, isLoading: isBalanceLoading } = useQuery({
+        queryKey: ['user-balances', session?.user?.id],
         queryFn: async () => {
             const res = await fetch('/api/balance');
             if (!res.ok) return [];
             const json = await res.json();
             return json.balances || [];
         },
+        enabled: isAuthenticated,
         staleTime: 5000,
     });
 
@@ -150,10 +168,10 @@ export function GroupedBinaryTradingPanel({
             return tusd ? Number(tusd.amount) : 0;
         } else {
             const tokenSymbol = `${selectedOutcomeId}_${selectedOption}`;
-            const shares = balanceData.find((b: any) => b.tokenSymbol === tokenSymbol && b.eventId === eventId);
+            const shares = balanceData.find((b: any) => b.tokenSymbol === tokenSymbol && b.eventId === resolvedEventId);
             return shares ? Number(shares.amount) : 0;
         }
-    }, [balanceData, selectedTab, selectedOutcomeId, selectedOption, eventId]);
+    }, [balanceData, selectedTab, selectedOutcomeId, selectedOption, resolvedEventId]);
 
     // Calculate current market price for selected outcome
     const marketPrice = useMemo(() => {
@@ -178,7 +196,7 @@ export function GroupedBinaryTradingPanel({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    eventId,
+                    eventId: resolvedEventId,
                     outcomeId: selectedOutcomeId,
                     option: selectedOption,
                     side: selectedTab,
@@ -200,7 +218,7 @@ export function GroupedBinaryTradingPanel({
                 description: `Successfully placed ${orderType} order for ${amount} ${selectedOption} on ${selectedOutcome?.name}`,
             });
             queryClient.invalidateQueries({ queryKey: ['user-balances'] });
-            queryClient.invalidateQueries({ queryKey: ['orders', eventId] });
+            queryClient.invalidateQueries({ queryKey: ['orders', resolvedEventId] });
             if (onTradeSuccess) onTradeSuccess();
             if (onTrade) onTrade();
         },
@@ -461,8 +479,20 @@ export function GroupedBinaryTradingPanel({
                             </div>
                         )}
 
-                        {/* Trade Button or Deposit Button */}
-                        {currentBalance < 1 && selectedTab === 'buy' ? (
+                        {/* Trade Button or Register/Deposit Button */}
+                        {!isAuthenticated ? (
+                            <button
+                                onClick={() => {
+                                    const url = new URL(window.location.href);
+                                    url.searchParams.set('auth', 'signup');
+                                    window.history.pushState({}, '', url.toString());
+                                    window.dispatchEvent(new PopStateEvent('popstate'));
+                                }}
+                                className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-500/20"
+                            >
+                                Register
+                            </button>
+                        ) : (isAuthenticated && !isBalanceLoading && currentBalance < 1 && selectedTab === 'buy') ? (
                             <button
                                 onClick={() => setIsDepositModalOpen(true)}
                                 className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500"

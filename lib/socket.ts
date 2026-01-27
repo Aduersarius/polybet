@@ -10,11 +10,6 @@ const USE_TLS = process.env.NEXT_PUBLIC_SOKETI_USE_TLS !== 'false';
  * Soketi / Pusher Client Instance
  * Replacing the old Socket.io setup for a "bulletproof" real-time experience.
  */
-// Enable verbose logging in development
-if (process.env.NODE_ENV === 'development') {
-    Pusher.logToConsole = true;
-}
-
 export const socket = new Pusher(PUSHER_KEY, {
     wsHost: PUSHER_HOST,
     wsPort: PUSHER_PORT,
@@ -27,30 +22,12 @@ export const socket = new Pusher(PUSHER_KEY, {
 
 // Log connection status in development
 if (process.env.NODE_ENV === 'development') {
-    console.log('[Pusher] Initializing with config:', {
-        wsHost: PUSHER_HOST,
-        wsPort: PUSHER_PORT,
-        forceTLS: USE_TLS,
-    });
-
     socket.connection.bind('connected', () => {
-        console.log('[Pusher] ✅ Connected to Soketi');
+        console.log('[Pusher] ✅ Connected');
     });
 
     socket.connection.bind('error', (err: any) => {
-        // Detailed error logging to debug "Connection error: {}"
-        console.error('[Pusher] ❌ Connection error object:', err);
-        if (err?.error?.data) {
-            console.error('[Pusher] ❌ Error detail:', err.error.data);
-        }
-    });
-
-    socket.connection.bind('state_change', (states: any) => {
-        console.log('[Pusher] 🔄 State change:', states.previous, '->', states.current);
-    });
-
-    socket.connection.bind('failed', () => {
-        console.error('[Pusher] ❌ Connection failed');
+        console.error('[Pusher] ❌ Connection error:', err?.error?.data || err);
     });
 }
 

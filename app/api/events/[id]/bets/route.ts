@@ -20,7 +20,36 @@ export async function GET(
 
     try {
         const { getOrSet } = await import('@/lib/cache');
-        const { id: eventId } = await params;
+        // Resolve internal event ID if a slug or polymarket ID was provided
+        const { id: rawId } = await params;
+
+        let eventId = rawId;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+
+        // Try direct ID lookup first (supports both UUID and numeric IDs)
+        const eventById = await prisma.event.findUnique({
+            where: { id: rawId },
+            select: { id: true }
+        });
+
+        if (eventById) {
+            eventId = eventById.id;
+        } else if (!isUUID) {
+            // Find by slug or polymarketId fallback
+            const event = await prisma.event.findFirst({
+                where: {
+                    OR: [
+                        { slug: rawId },
+                        { polymarketId: rawId }
+                    ]
+                },
+                select: { id: true }
+            });
+            if (event) {
+                eventId = event.id;
+            }
+        }
+
         const { searchParams } = new URL(request.url);
         const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
         const cursor = searchParams.get('cursor');

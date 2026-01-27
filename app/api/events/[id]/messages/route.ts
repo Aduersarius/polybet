@@ -25,7 +25,17 @@ export async function GET(
         // Resolve internal event ID if a slug or polymarket ID was provided
         let eventId = rawId;
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
-        if (!isUUID) {
+
+        // Try direct ID lookup first (supports both UUID and numeric IDs)
+        const eventById = await prisma.event.findUnique({
+            where: { id: rawId },
+            select: { id: true }
+        });
+
+        if (eventById) {
+            eventId = eventById.id;
+        } else if (!isUUID) {
+            // Find by slug or polymarketId fallback
             const event = await prisma.event.findFirst({
                 where: {
                     OR: [
@@ -118,8 +128,10 @@ export async function GET(
                     },
                     replyCount: msg.replies.length,
                     reactions: msg.reactions.reduce((acc: Record<string, string[]>, r: any) => {
-                        if (!acc[r.type]) acc[r.type] = [];
-                        acc[r.type].push(r.user.address);
+                        if (r.user?.address) {
+                            if (!acc[r.type]) acc[r.type] = [];
+                            acc[r.type].push(r.user.address);
+                        }
                         return acc;
                     }, {} as Record<string, string[]>)
                 }));
@@ -155,7 +167,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         // Resolve internal event ID if a slug or polymarket ID was provided
         let eventId = rawId;
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
-        if (!isUUID) {
+
+        // Try direct ID lookup first (supports both UUID and numeric IDs)
+        const eventById = await prisma.event.findUnique({
+            where: { id: rawId },
+            select: { id: true }
+        });
+
+        if (eventById) {
+            eventId = eventById.id;
+        } else if (!isUUID) {
+            // Find by slug or polymarketId fallback
             const event = await prisma.event.findFirst({
                 where: {
                     OR: [

@@ -36,6 +36,8 @@ interface MultipleTradingPanelProps {
 export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutcomes, creationDate, resolutionDate, onTrade, onTradeSuccess, tradeIntent }: MultipleTradingPanelProps) {
     const params = useParams();
     const eventId = propEventId || (params.id as string);
+
+    // State for the trading form
     const [selectedTab, setSelectedTab] = useState<'buy' | 'sell'>('buy');
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || '');
     const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
@@ -46,22 +48,38 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     const [balancePct, setBalancePct] = useState<number>(0);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
+    // Fetch correctly formatted event ID if slug provided
+    const { data: eventData } = useQuery({
+        queryKey: ['event', eventId],
+        queryFn: async () => {
+            const res = await fetch(`/api/events/${eventId}`);
+            if (!res.ok) return null;
+            return await res.json();
+        },
+        enabled: !!eventId,
+        staleTime: 60000,
+    });
+
+    const { data: session } = useSession();
+    const isAuthenticated = Boolean((session as any)?.user);
+    const resolvedEventId = eventData?.id || eventId;
+
     // Fetch user balances for all outcomes in this event
-    const { data: balanceData, refetch: refetchBalances } = useQuery({
-        queryKey: ['user-balances', eventId],
+    const { data: balanceData, refetch: refetchBalances, isLoading: isBalanceLoading } = useQuery({
+        queryKey: ['user-balances', resolvedEventId, session?.user?.id],
         queryFn: async () => {
             const response = await fetch('/api/balance');
             if (!response.ok) return { balances: [] };
             return await response.json();
         },
-        enabled: !!eventId
+        enabled: !!resolvedEventId && isAuthenticated
     });
 
     const userBalances = balanceData?.balances?.filter((b: any) =>
-        b.eventId === eventId && b.tokenSymbol !== 'TUSD'
+        b.eventId === resolvedEventId && b.tokenSymbol !== 'TUSD'
     ) || [];
 
-    const stablecoinBalance = parseFloat(balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount || '0');
+    const stablecoinBalance = parseFloat(balanceData?.balance || balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount || '0');
 
     // Auto-fill from trade intent (Order Book click)
     useEffect(() => {
@@ -117,10 +135,10 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
     // Listen for real-time odds updates via WebSocket
     useEffect(() => {
         const { socket } = require('@/lib/socket');
-        const channel = socket.subscribe(`event-${eventId}`);
+        const channel = socket.subscribe(`event-${resolvedEventId}`);
 
         const handler = (update: any) => {
-            if (update.eventId !== eventId) return;
+            if (update.eventId !== resolvedEventId) return;
 
             // If we have an outcomes array in the update, use it
             if (update.outcomes) {
@@ -145,9 +163,9 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
 
         return () => {
             channel.unbind('odds-update', handler);
-            socket.unsubscribe(`event-${eventId}`);
+            socket.unsubscribe(`event-${resolvedEventId}`);
         };
-    }, [eventId]);
+    }, [resolvedEventId]);
 
     // Update hotOutcomes if props change
     useEffect(() => {
@@ -197,7 +215,7 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    eventId,
+                    eventId: resolvedEventId,
                     side: selectedTab,
                     outcomeId: selectedOutcomeId,
                     amount: parseFloat(amount),
@@ -579,8 +597,20 @@ export function MultipleTradingPanel({ eventId: propEventId, outcomes, liveOutco
                             )}
                         </div>
 
-                        {/* Trade Button or Deposit Button */}
-                        {stablecoinBalance < 1 && selectedTab === 'buy' ? (
+                        {/* Trade Button or Register/Deposit Button */}
+                        {!isAuthenticated ? (
+                            <button
+                                onClick={() => {
+                                    const url = new URL(window.location.href);
+                                    url.searchParams.set('auth', 'signup');
+                                    window.history.pushState({}, '', url.toString());
+                                    window.dispatchEvent(new PopStateEvent('popstate'));
+                                }}
+                                className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-500/20"
+                            >
+                                Register
+                            </button>
+                        ) : (isAuthenticated && !isBalanceLoading && stablecoinBalance < 1 && selectedTab === 'buy') ? (
                             <button
                                 onClick={() => setIsDepositModalOpen(true)}
                                 className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500"

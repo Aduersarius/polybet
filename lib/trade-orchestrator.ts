@@ -6,6 +6,7 @@
  */
 
 import { prisma } from './prisma';
+import { Prisma } from '@prisma/client';
 import { polymarketTrading } from './polymarket-trading';
 import { PLATFORM_MARKUP } from './constants';
 
@@ -37,8 +38,14 @@ export interface TradeResult {
 export async function executeTrade(params: TradeParams): Promise<TradeResult> {
     const { userId, eventId, side, option, amount, price } = params;
 
+    // 1. Validate event & Minimum Amount
+    if (amount < 1.1) {
+        console.warn(`[DirectTrade] Amount $${amount} is below Polymarket $1.00 minimum + buffer. Bumping to $1.10`);
+    }
+    const effectiveAmount = Math.max(1.1, amount);
+
     try {
-        console.log(`[DirectTrade] ${side.toUpperCase()} $${amount} ${option} on ${eventId}`);
+        console.log(`[DirectTrade] ${side.toUpperCase()} $${effectiveAmount} ${option} on ${eventId}`);
 
         // 1. Validate event
         const event = await prisma.event.findUnique({
@@ -149,10 +156,10 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
             const availableFunds = userBalance?.amount ? Number(userBalance.amount) : 0;
             balanceBefore = availableFunds;
 
-            if (availableFunds < amount) {
+            if (availableFunds < effectiveAmount) {
                 return {
                     success: false,
-                    error: `Insufficient balance. You need $${amount.toFixed(2)} but have $${availableFunds.toFixed(2)}`,
+                    error: `Insufficient balance. You need $${effectiveAmount.toFixed(2)} but have $${availableFunds.toFixed(2)}`,
                     totalFilled: 0,
                     averagePrice: 0,
                     executionModule: 'polymarket',
@@ -177,10 +184,10 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
         } else {
             // Market order - use aggressive pricing
             const aggressivePrice = pmSide === 'BUY'
-                ? Math.min(0.99, (levels[0]?.price || 0.5) * 1.02)
-                : Math.max(0.01, (levels[0]?.price || 0.5) * 0.98);
+                ? Math.min(0.99, (levels[0]?.price || 0.5) * 1.05) // 5% buffer for market order to ensure success
+                : Math.max(0.01, (levels[0]?.price || 0.5) * 0.95);
 
-            const adjustedShares = side === 'sell' ? sharesToTrade : amount / aggressivePrice;
+            const adjustedShares = side === 'sell' ? sharesToTrade : effectiveAmount / aggressivePrice;
 
             pmOrder = await polymarketTrading.placeOrder({
                 marketId: mapping.polymarketId,
@@ -249,12 +256,12 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
                     data: {
                         userId,
                         direction: 'DEBIT',
-                        amount: new prisma.Prisma.Decimal(userCost),
+                        amount: new Prisma.Decimal(userCost),
                         currency: 'USD',
                         referenceType: 'TRADE',
                         referenceId: internalOrder.id,
-                        balanceBefore: new prisma.Prisma.Decimal(balanceBefore),
-                        balanceAfter: new prisma.Prisma.Decimal(balanceAfter),
+                        balanceBefore: new Prisma.Decimal(balanceBefore),
+                        balanceAfter: new Prisma.Decimal(balanceAfter),
                         metadata: { description: `Buy ${option} on ${eventId}`, shares: filledSize, price: userPrice }
                     }
                 });
@@ -278,12 +285,12 @@ export async function executeTrade(params: TradeParams): Promise<TradeResult> {
                     data: {
                         userId,
                         direction: 'CREDIT',
-                        amount: new prisma.Prisma.Decimal(userCost),
+                        amount: new Prisma.Decimal(userCost),
                         currency: 'USD',
                         referenceType: 'TRADE',
                         referenceId: internalOrder.id,
-                        balanceBefore: new prisma.Prisma.Decimal(tusdBefore),
-                        balanceAfter: new prisma.Prisma.Decimal(tusdAfter),
+                        balanceBefore: new Prisma.Decimal(tusdBefore),
+                        balanceAfter: new Prisma.Decimal(tusdAfter),
                         metadata: { description: `Sell ${option} on ${eventId}`, shares: filledSize, price: userPrice }
                     }
                 });

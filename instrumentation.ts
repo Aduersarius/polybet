@@ -5,6 +5,11 @@ export async function register() {
     const metricReaders: MetricReader[] = [];
 
     if (process.env.NEXT_RUNTIME === 'nodejs') {
+        // Only start New Relic if a license key is provided to avoid startup crashes
+        if (process.env.NEW_RELIC_LICENSE_KEY) {
+            await import('newrelic');
+        }
+
         const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
         const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
         const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');

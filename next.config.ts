@@ -26,8 +26,8 @@ const nextConfig: NextConfig = {
       'date-fns',
     ],
   },
-  // Force Prisma to be external to avoid bundling the wrong engine (WASM vs Native)
-  serverExternalPackages: ['@prisma/client', '.prisma/client'],
+  // Force packages to be external to avoid bundling Node.js internals
+  serverExternalPackages: ['@prisma/client', '.prisma/client', 'newrelic'],
   // Ensure geoip-lite data files are traced into the serverless output
   outputFileTracingIncludes: {
     '*': ['node_modules/geoip-lite/data/**'],

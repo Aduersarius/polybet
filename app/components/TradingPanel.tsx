@@ -38,6 +38,21 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const params = useParams();
     const routeEventId = (params as any)?.id as string | undefined;
     const eventId = (propEventId || routeEventId) as string | undefined;
+
+    // Fetch event if not provided
+    const { data: fetchedEventData } = useQuery({
+        queryKey: ['event', eventId],
+        queryFn: async () => {
+            const response = await fetch(`/api/events/${eventId}`);
+            if (!response.ok) throw new Error('Failed to fetch event');
+            return response.json();
+        },
+        enabled: !propEventData && !!eventId, // Only fetch if not provided as prop
+        staleTime: 60000,
+    });
+
+    const eventData = propEventData || fetchedEventData;
+    const resolvedEventId = eventData?.id || eventId;
     const { data: session } = useSession();
     const isAuthenticated = Boolean((session as any)?.user);
 
@@ -68,15 +83,15 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     const { settings, formatCurrency, formatOdds } = useSettings();
 
     // Fetch user balances - fetch when sell tab is selected
-    const { data: balanceData, refetch: refetchBalances } = useQuery({
-        queryKey: ['user-balances', eventId],
+    const { data: balanceData, refetch: refetchBalances, isLoading: isBalanceLoading } = useQuery({
+        queryKey: ['user-balances', resolvedEventId, session?.user?.id],
         queryFn: async () => {
-            const response = await fetch('/api/balance');
-            if (!response.ok) return { balances: [] };
-            return await response.json();
+            const res = await fetch(`/api/balance?eventId=${resolvedEventId}`);
+            if (!res.ok) return { balances: [] };
+            return await res.json();
         },
-        enabled: !!eventId,
-        staleTime: 0,
+        enabled: !!resolvedEventId && isAuthenticated,
+        staleTime: 5000,
     });
 
     // Auto-fill from trade intent (Order Book click)
@@ -92,20 +107,6 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
         }
     }, [tradeIntent]);
 
-    // Fetch event data for initial odds calculation (only if not provided via props)
-    const { data: fetchedEventData } = useQuery({
-        queryKey: ['event', eventId],
-        queryFn: async () => {
-            const response = await fetch(`/api/events/${eventId}`);
-            if (!response.ok) throw new Error('Failed to fetch event');
-            return await response.json();
-        },
-        enabled: !propEventData && !!eventId, // Only fetch if not provided as prop
-        staleTime: 30000, // 30 seconds
-    });
-
-    // Use prop data if available, otherwise use fetched data
-    const eventData = propEventData || fetchedEventData;
 
     // Refetch when switching to sell tab
     useEffect(() => {
@@ -196,30 +197,29 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
     }, [latestHistory]);
 
     // Find balance for the selected outcome
-    // For binary events, tokenSymbol is `YES_${eventId}` or `NO_${eventId}`
-    const expectedTokenSymbol = `${selectedOption}_${eventId}`;
+    // For binary events, tokenSymbol is `YES_${resolvedEventId}` or `NO_${resolvedEventId}`
+    const expectedTokenSymbol = `${selectedOption}_${resolvedEventId}`;
 
-    // Try both matching strategies
-    let selectedOutcomeBalance = balanceData?.balances?.find((b: any) =>
-        b.tokenSymbol === expectedTokenSymbol && b.eventId === eventId
+    const userBalanceEntry = balanceData?.balances?.find((b: any) =>
+        b.tokenSymbol === expectedTokenSymbol && b.eventId === resolvedEventId
     );
 
     // Fallback: match by eventId and tokenSymbol starting with selectedOption
-    if (!selectedOutcomeBalance) {
-        selectedOutcomeBalance = balanceData?.balances?.find((b: any) =>
-            b.eventId === eventId && b.tokenSymbol?.startsWith(selectedOption)
-        );
-    }
-
+    const userTokensForOutcome = userBalanceEntry ? parseFloat(userBalanceEntry.amount) : parseFloat(
+        balanceData?.balances?.find((b: any) =>
+            b.eventId === resolvedEventId && b.tokenSymbol?.startsWith(selectedOption)
+        )?.amount || '0'
+    );
     const toNum = (v: any) => {
         const n = Number(v);
         return Number.isFinite(n) ? n : 0;
     };
 
-    const availableShares = toNum(selectedOutcomeBalance?.amount);
+    const availableShares = toNum(userTokensForOutcome);
 
     // Stablecoin balance (TUSD) for buy-side percentage slider
     const stablecoinBalance = toNum(
+        balanceData?.balance ||
         balanceData?.balances?.find((b: any) => b.tokenSymbol === 'TUSD')?.amount
     );
 
@@ -239,10 +239,10 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
     // Real-time odds updates via WebSocket
     useEffect(() => {
-        const channel = socket.subscribe(`event-${eventId}`);
+        const channel = socket.subscribe(`event-${resolvedEventId}`);
 
         const handler = (update: any) => {
-            if (update.eventId !== eventId) return;
+            if (update.eventId !== resolvedEventId) return;
 
             // Handle direct price updates
             if (update.yesPrice !== undefined) {
@@ -281,9 +281,9 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
         return () => {
             channel.unbind('odds-update', handler);
-            socket.unsubscribe(`event-${eventId}`);
+            socket.unsubscribe(`event-${resolvedEventId}`);
         };
-    }, [eventId]);
+    }, [resolvedEventId]);
 
     // Handle Enter key to confirm trade in dialog
     useEffect(() => {
@@ -329,7 +329,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
     const tradeMutation = useMutation({
         mutationFn: async () => {
-            if (!eventId) {
+            if (!resolvedEventId) {
                 throw new Error('Missing event id');
             }
 
@@ -337,7 +337,7 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    eventId,
+                    eventId: resolvedEventId,
                     side: selectedTab,
                     option: selectedOption,
                     amount: parseFloat(amount),
@@ -745,8 +745,21 @@ export function TradingPanel({ eventId: propEventId, creationDate, resolutionDat
 
                 </div>
 
-                {/* Trade Button or Deposit Button */}
-                {stablecoinBalance < 1 && selectedTab === 'buy' ? (
+                {/* Trade Button or Register/Deposit Button */}
+                {!isAuthenticated ? (
+                    <button
+                        onClick={() => {
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('auth', 'signup');
+                            window.history.pushState({}, '', url.toString());
+                            // Dispatch an event so Navbar can pick up the change if needed
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                        }}
+                        className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-500/20"
+                    >
+                        Register
+                    </button>
+                ) : (isAuthenticated && !isBalanceLoading && stablecoinBalance < 1 && selectedTab === 'buy') ? (
                     <button
                         onClick={() => setIsDepositModalOpen(true)}
                         className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-500 hover:to-green-500"

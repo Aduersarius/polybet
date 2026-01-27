@@ -320,7 +320,7 @@ export default function EventPage() {
                                         <div className="lg:hidden">
                                             {liveEvent.type === 'GROUPED_BINARY' ? (
                                                 <GroupedBinaryTradingPanel
-                                                    eventId={eventId.toString()}
+                                                    eventId={liveEvent.id.toString()}
                                                     outcomes={liveEvent.outcomes || []}
                                                     liveOutcomes={liveEvent.outcomes || []}
                                                     creationDate={liveEvent.createdAt || liveEvent.creationDate}
@@ -329,6 +329,7 @@ export default function EventPage() {
                                                 />
                                             ) : isMultiOutcomeEvent(liveEvent.type) ? (
                                                 <MultipleTradingPanel
+                                                    eventId={liveEvent.id.toString()}
                                                     outcomes={liveEvent.outcomes || []}
                                                     liveOutcomes={liveEvent.outcomes || []}
                                                     creationDate={liveEvent.createdAt || liveEvent.creationDate}
@@ -404,7 +405,7 @@ export default function EventPage() {
                                             {!collapsedSections.orderbook && (
                                                 <div className="h-[260px] sm:h-[320px] lg:h-[400px] w-full">
                                                     <OrderBook
-                                                        eventId={eventId.toString()}
+                                                        eventId={liveEvent.id.toString()}
                                                         outcomes={liveEvent.outcomes}
                                                         eventType={liveEvent.type}
                                                         onOrderSelect={setTradeIntent}
@@ -449,7 +450,7 @@ export default function EventPage() {
                                             </button>
                                             {!collapsedSections.chat && (
                                                 <div className="px-4 pb-4">
-                                                    <EventChat eventId={eventId.toString()} />
+                                                    <EventChat eventId={liveEvent.id.toString()} />
                                                 </div>
                                             )}
                                         </div>
@@ -466,7 +467,7 @@ export default function EventPage() {
                                     <div className="space-y-6 trading-panel pb-6 pt-4">
                                         {liveEvent.type === 'GROUPED_BINARY' ? (
                                             <GroupedBinaryTradingPanel
-                                                eventId={eventId.toString()}
+                                                eventId={liveEvent.id.toString()}
                                                 outcomes={liveEvent.outcomes || []}
                                                 liveOutcomes={liveEvent.outcomes || []}
                                                 creationDate={liveEvent.createdAt || liveEvent.creationDate}
@@ -475,6 +476,7 @@ export default function EventPage() {
                                             />
                                         ) : isMultiOutcomeEvent(liveEvent.type) ? (
                                             <MultipleTradingPanel
+                                                eventId={liveEvent.id.toString()}
                                                 outcomes={liveEvent.outcomes || []}
                                                 liveOutcomes={liveEvent.outcomes || []}
                                                 creationDate={liveEvent.createdAt || liveEvent.creationDate}

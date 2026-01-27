@@ -70,7 +70,28 @@ function renderCapForPeriod(period: OddsPeriod) {
   }
 }
 
-export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, currentYesPrice }: OddsChartV2Props) {
+export function OddsChartV2({ eventId: propEventId, eventType, outcomes, liveOutcomes, currentYesPrice }: OddsChartV2Props) {
+  // Resolve event ID if slug provided
+  const [resolvedEventId, setResolvedEventId] = useState<string>(propEventId);
+
+  useEffect(() => {
+    if (!propEventId) return;
+    if (propEventId.length === 36) { // Assume UUID
+      setResolvedEventId(propEventId);
+      return;
+    }
+
+    // Try to fetch event data to get the ID
+    fetch(`/api/events/${propEventId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.id) {
+          setResolvedEventId(data.id);
+        }
+      })
+      .catch(err => console.error('[OddsChartV2] ID resolution failed:', err));
+  }, [propEventId]);
+
   const [period, setPeriod] = useState<OddsPeriod>('all');
   const [hoveredDataPoint, setHoveredDataPoint] = useState<any | null>(null);
   const [selectedOutcomeIds, setSelectedOutcomeIds] = useState<Set<string>>(new Set());
@@ -125,8 +146,8 @@ export function OddsChartV2({ eventId, eventType, outcomes, liveOutcomes, curren
 
   const renderCap = useMemo(() => renderCapForPeriod(period), [period]);
 
-  const { data: history, setData, isLoading } = useOddsHistory(eventId, period);
-  useOddsRealtime({ eventId, eventType, isMultipleOutcomes, setData, maxPoints: 500 });
+  const { data: history, setData, isLoading } = useOddsHistory(resolvedEventId, period);
+  useOddsRealtime({ eventId: resolvedEventId, eventType, isMultipleOutcomes, setData, maxPoints: 500 });
 
   const chartData = useMemo(() => {
     if (isMultipleOutcomes) {

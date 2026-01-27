@@ -106,6 +106,27 @@ function jitterOrderBook(prev: OrderBookState, basePrice: number): OrderBookStat
 }
 
 export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outcomes = [], eventType = 'BINARY', visualMode = true, dataSource = 'synthetic', onOrderSelect }: OrderBookProps) {
+    // Resolve event ID if slug provided
+    const [resolvedEventId, setResolvedEventId] = useState<string>(eventId);
+
+    useEffect(() => {
+        if (!eventId) return;
+        if (eventId.length === 36) { // Assume UUID
+            setResolvedEventId(eventId);
+            return;
+        }
+
+        // Try to fetch event data to get the ID
+        fetch(`/api/events/${eventId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.id) {
+                    setResolvedEventId(data.id);
+                }
+            })
+            .catch(err => console.error('[OrderBook] ID resolution failed:', err));
+    }, [eventId]);
+
     const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id || initialOption);
     const [orderBook, setOrderBook] = useState<OrderBookState>({ bids: [], asks: [] });
     const [polymarketBook, setPolymarketBook] = useState<any>(null);
@@ -146,7 +167,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
     // Fetch Polymarket orderbook
     useEffect(() => {
         if (dataSource === 'polymarket') {
-            fetch(`/api/sports/orderbook?eventId=${eventId}`)
+            fetch(`/api/sports/orderbook?eventId=${resolvedEventId}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
@@ -183,7 +204,7 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                 })
                 .catch(err => console.error('[OrderBook] Failed to fetch:', err));
         }
-    }, [eventId, selectedOption, dataSource]);
+    }, [resolvedEventId, selectedOption, dataSource]);
 
     // Subscribe to SSE for real-time updates
     useEffect(() => {
@@ -230,8 +251,8 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
                 // For multiple outcomes, selectedOption is actually a UUID (outcomeId)
                 // For binary, selectedOption is 'YES' or 'NO'
                 const params = isMultiple
-                    ? `eventId=${eventId}&outcomeId=${selectedOption}`
-                    : `eventId=${eventId}&option=${selectedOption}`;
+                    ? `eventId=${resolvedEventId}&outcomeId=${selectedOption}`
+                    : `eventId=${resolvedEventId}&option=${selectedOption}`;
                 const response = await fetch(`/api/order-book?${params}`);
                 if (response.ok) {
                     const data = await response.json();
@@ -243,16 +264,16 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
         };
 
         fetchOrderBook();
-    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
+    }, [resolvedEventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
 
     // Real-time updates via WebSocket (disabled in visual mode and Polymarket mode)
     useEffect(() => {
         if (visualMode || dataSource === 'polymarket') return;
         const { socket } = require('@/lib/socket');
-        const channel = socket.subscribe(`event-${eventId}`);
+        const channel = socket.subscribe(`event-${resolvedEventId}`);
 
         function onOrderbookUpdate(update: any) {
-            if (update.eventId !== eventId) return;
+            if (update.eventId !== resolvedEventId) return;
             if (isMultiple && update.option !== selectedOutcomeId) return;
             if (!isMultiple && update.option !== selectedOption) return;
             setOrderBook({ bids: update.bids, asks: update.asks });
@@ -262,9 +283,9 @@ export function OrderBook({ eventId, selectedOption: initialOption = 'YES', outc
 
         return () => {
             channel.unbind('orderbook-update', onOrderbookUpdate);
-            socket.unsubscribe(`event-${eventId}`);
+            socket.unsubscribe(`event-${resolvedEventId}`);
         };
-    }, [eventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
+    }, [resolvedEventId, selectedOutcomeId, isMultiple, selectedOption, visualMode, dataSource]);
 
     // Visual-only synthetic orderbook dynamics
     useEffect(() => {

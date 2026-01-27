@@ -7,7 +7,26 @@
  * API Documentation: https://docs.polymarket.com
  */
 
-import { Wallet } from 'ethers';
+import { ethers, Wallet } from 'ethers';
+import { Contract } from 'ethers';
+
+// Polygon Constants
+const USDC_E_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+const SPENDERS = [
+  '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E', // CTF Exchange
+  '0xC5d862fC449E5a72C41103EAc83109a1506048fc', // NegRisk Adapter
+];
+
+const ERC20_ABI = [
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)'
+];
+
+const ERC1155_ABI = [
+  'function isApprovedForAll(address account, address operator) view returns (bool)',
+  'function setApprovalForAll(address operator, bool approved)'
+];
 import { ClobClient, Side as ClobSide, OrderType, TickSize } from '@polymarket/clob-client';
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -211,6 +230,13 @@ class PolymarketTradingService {
   }
 
   /**
+   * Get the current wallet address safely
+   */
+  getAddress(): string {
+    return this.wallet?.address || '';
+  }
+
+  /**
    * Wrap an ethers v6 wallet with v5 compatibility methods
    */
   private wrapWalletForV5Compat(wallet: Wallet): Wallet {
@@ -264,12 +290,25 @@ class PolymarketTradingService {
     if (!this.wallet) return;
 
     // signatureType: 1 = magic/email/proxy, 0 = direct EOA.
-    // If we have a funder address (Proxy), we MUST use signatureType 1.
-    const signatureType = this.funderAddress ? 1 : 0;
+    // If we have a funder address (Proxy) DIFFERENT from our wallet, we MUST use signatureType 1.
+    const walletAddress = this.wallet.address.toLowerCase();
+    const funder = (this.funderAddress || '').toLowerCase().trim();
+    const isProxy = funder && funder !== walletAddress;
+    const signatureType = isProxy ? 1 : 0;
+    const activeFunder = isProxy ? this.funderAddress : undefined;
 
+    console.log('[Polymarket] Wallet Address:', this.wallet.address);
+    console.log('[Polymarket] Funder Address Configured:', this.funderAddress || 'NONE');
     console.log('[Polymarket] Initializing CLOB client (Chain ID:', this.chainId, ', SigType:', signatureType, ')');
 
+    if (activeFunder) {
+      console.log('[Polymarket] Using Proxy/Funder:', activeFunder);
+    } else if (this.funderAddress) {
+      console.log('[Polymarket] Funder Address ignored (matches wallet) - Using direct EOA mode');
+    }
+
     // Try to use provided credentials from env vars first
+    // Note: We'll still check if they work later and potentially derive if they don't
     const hasProvidedCreds = this.apiKey && this.apiSecret && this.passphrase;
 
     if (hasProvidedCreds) {
@@ -287,7 +326,7 @@ class PolymarketTradingService {
             passphrase: this.passphrase,
           },
           signatureType,
-          this.funderAddress || undefined
+          activeFunder || undefined
         );
 
         this.credentialsReady = true;
@@ -307,7 +346,7 @@ class PolymarketTradingService {
         this.wallet as any,
         undefined, // No creds yet
         signatureType,
-        this.funderAddress || undefined
+        activeFunder || undefined
       );
 
       this.clobClient = tempClient;
@@ -343,6 +382,12 @@ class PolymarketTradingService {
       console.log('[Polymarket]   API Key:', key.substring(0, 12), '...');
 
       // Create a new client with the derived credentials
+      const walletAddress = this.wallet.address.toLowerCase();
+      const funder = (this.funderAddress || '').toLowerCase().trim();
+      const isProxy = funder && funder !== walletAddress;
+      const finalSigType = isProxy ? 1 : 0;
+      const activeFunder = isProxy ? this.funderAddress : undefined;
+
       this.clobClient = new ClobClient(
         this.apiUrl,
         this.chainId,
@@ -352,12 +397,12 @@ class PolymarketTradingService {
           secret: creds.secret,
           passphrase: creds.passphrase,
         },
-        signatureType,
-        this.funderAddress || undefined
+        finalSigType,
+        activeFunder || undefined
       );
 
       this.credentialsReady = true;
-      console.log('[Polymarket] ✓ CLOB Client upgraded with derived credentials');
+      console.log('[Polymarket] ✓ CLOB Client upgraded with derived credentials (SigType:', finalSigType, ')');
     } catch (error) {
       console.error('[Polymarket] Failed to derive API credentials:', error);
       // Keep the temp client - it may still work for some operations
@@ -536,6 +581,58 @@ class PolymarketTradingService {
   }
 
   /**
+   * Diagnostic / Self-Healing: Check and fix allowances if needed
+   */
+  public async ensureAllowances(side: 'BUY' | 'SELL'): Promise<boolean> {
+    if (!this.wallet) return false;
+
+    try {
+      console.log(`[Polymarket] 🛡️ Checking allowances for ${side}...`);
+      let didApprove = false;
+
+      if (side === 'BUY') {
+        // Check USDC.e
+        const usdc = new Contract(USDC_E_ADDRESS, ERC20_ABI, this.wallet);
+        for (const spender of SPENDERS) {
+          const allowance = await usdc.allowance(this.wallet.address, spender);
+          // Check if allowance < 1000 USDC (arbitrary safe threshold, usually we want MaxUint)
+          if (BigInt(allowance) < BigInt(1000 * 1e6)) {
+            console.log(`[Polymarket] 🔧 Approving USDC.e for ${spender}...`);
+            const tx = await usdc.approve(spender, ethers.MaxUint256);
+            console.log(`[Polymarket] ⏳ Tx sent: ${tx.hash}`);
+            await tx.wait();
+            console.log(`[Polymarket] ✅ Approved USDC.e`);
+            didApprove = true;
+          }
+        }
+      } else {
+        // Check CTF (ERC1155)
+        const ctf = new Contract(CTF_ADDRESS, ERC1155_ABI, this.wallet);
+        for (const operator of SPENDERS) {
+          const isApproved = await ctf.isApprovedForAll(this.wallet.address, operator);
+          if (!isApproved) {
+            console.log(`[Polymarket] 🔧 Approving CTF for ${operator}...`);
+            const tx = await ctf.setApprovalForAll(operator, true);
+            console.log(`[Polymarket] ⏳ Tx sent: ${tx.hash}`);
+            await tx.wait();
+            console.log(`[Polymarket] ✅ Approved CTF`);
+            didApprove = true;
+          }
+        }
+      }
+
+      if (!didApprove) {
+        console.log(`[Polymarket] ✨ Allowances are already sufficient.`);
+      }
+      return didApprove;
+
+    } catch (error: any) {
+      console.error('[Polymarket] ⚠️ Failed to auto-heal allowances:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Place a limit order on Polymarket
    */
   async placeOrder(request: PolymarketOrderRequest): Promise<PolymarketOrder> {
@@ -626,6 +723,66 @@ class PolymarketTradingService {
       trackExternalApi('polymarket', 'place_order', Date.now() - start, true);
       return result;
     } catch (error: any) {
+      const responseData = error.response?.data || {};
+      const responseText = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
+      const errorMessage = error.message || '';
+
+      console.log('[Polymarket] placeOrder caught error. Message:', errorMessage, 'Status:', error.response?.status);
+
+      // SELF-HEALING 1: Credentials (401)
+      const isUnauthorized =
+        error.response?.status === 401 ||
+        responseText.includes('Unauthorized') ||
+        responseText.includes('Invalid api key') ||
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('Invalid api key');
+
+      const safeRequest = request as any;
+      if (isUnauthorized && !safeRequest._isRetry && this.wallet) {
+        console.warn('[Polymarket] 🔄 401 Unauthorized detected. Attempting to derive fresh credentials and retry...');
+
+        try {
+          // Re-initialize with derivation
+          const walletAddress = this.wallet.address.toLowerCase();
+          const funder = (this.funderAddress || '').toLowerCase().trim();
+          const isProxy = funder && funder !== walletAddress;
+          const sigType = isProxy ? 1 : 0;
+
+          await this.deriveAndUpgradeCredentials(sigType);
+
+          if (this.credentialsReady) {
+            console.log('[Polymarket] ✓ Credentials refreshed. Retrying order...');
+            const retryRequest = { ...request, _isRetry: true };
+            return await this.placeOrder(retryRequest);
+          }
+        } catch (derivationError: any) {
+          console.error('[Polymarket] Failed to self-heal credentials or retry failed:', derivationError.message);
+          throw derivationError;
+        }
+      }
+
+      // SELF-HEALING 2: Allowances (400 - "not enough balance / allowance")
+      const isBalanceOrAllowance =
+        responseText.includes('not enough balance') ||
+        responseText.includes('allowance') ||
+        errorMessage.includes('not enough balance') ||
+        errorMessage.includes('allowance');
+      if (isBalanceOrAllowance && !safeRequest._isAllowanceRetry && this.wallet) {
+        console.warn('[Polymarket] 🔄 Balance/Allowance error detected. Checking on-chain allowances...');
+
+        // Determine side from request
+        const side = request.side.toUpperCase() as 'BUY' | 'SELL';
+        const fixed = await this.ensureAllowances(side);
+
+        if (fixed) {
+          console.log('[Polymarket] 🔄 Allowances updated. Retrying order...');
+          const retryRequest = { ...request, _isAllowanceRetry: true };
+          return await this.placeOrder(retryRequest);
+        } else {
+          console.log('[Polymarket] ❌ Allowances were already OK. This is a real Insufficient Funds error.');
+        }
+      }
+
       // detailed error logging for proxy debugging
       if (error.response) {
         console.error('[Polymarket] Order failed with status', error.response.status, ':', error.response.statusText);
@@ -869,12 +1026,33 @@ class PolymarketTradingService {
     if (!this.clobClient) return [];
     try {
       await this.ensureReady();
-      // Use "any" cast because the SDK types might be restrictive/outdated
-      const response = await (this.clobClient as any).getOpenOrders({ next_cursor: '' });
-      // Depending on SDK version, it returns array directly or {data: [], next_cursor}
+      // Pass undefined for next_cursor instead of empty string to be safer
+      const response = await (this.clobClient as any).getOpenOrders({ next_cursor: undefined });
       return Array.isArray(response) ? response : (response?.data || []);
-    } catch (error) {
-      console.error('[Polymarket] Failed to get open orders:', error);
+    } catch (error: any) {
+      // SDK might throw "response.data is not iterable" when it receives a 401/Error instead of a list
+      // So we must catch that specific TypeError to trigger self-healing
+      const isAuthError =
+        error?.response?.status === 401 ||
+        error?.message?.includes('Unauthorized') ||
+        error?.message?.includes('not iterable') ||
+        error?.message?.includes('property \'data\' of undefined');
+
+      if (isAuthError) {
+        console.warn(`[Polymarket] 🔄 Auth/SDK error (${error.message}) in getOpenOrders. Self-healing credentials...`);
+        try {
+          const walletAddress = this.wallet?.address?.toLowerCase() || '';
+          const funder = (this.funderAddress || '').toLowerCase().trim();
+          const isProxy = funder && funder !== walletAddress;
+          await this.deriveAndUpgradeCredentials(isProxy ? 1 : 0);
+          // Retry once
+          const retryResponse = await (this.clobClient as any).getOpenOrders({ next_cursor: undefined });
+          return Array.isArray(retryResponse) ? retryResponse : (retryResponse?.data || []);
+        } catch (retryError) {
+          console.error('[Polymarket] Failed to self-heal in getOpenOrders:', retryError);
+        }
+      }
+      console.error('[Polymarket] Failed to get open orders:', error.message || error);
       return [];
     }
   }
@@ -886,24 +1064,38 @@ class PolymarketTradingService {
     if (!this.clobClient) return [];
     try {
       await this.ensureReady();
-      const response = await (this.clobClient as any).getTrades({ next_cursor: '' });
+      const response = await (this.clobClient as any).getTrades({ next_cursor: undefined });
       return Array.isArray(response) ? response : (response?.data || []);
-    } catch (error) {
-      console.error('[Polymarket] Failed to get trades:', error);
+    } catch (error: any) {
+      const isAuthError =
+        error?.response?.status === 401 ||
+        error?.message?.includes('Unauthorized') ||
+        error?.message?.includes('not iterable') ||
+        error?.message?.includes('property \'data\' of undefined');
+
+      if (isAuthError) {
+        console.warn(`[Polymarket] 🔄 Auth/SDK error (${error.message}) in getTrades. Self-healing credentials...`);
+        try {
+          const walletAddress = this.wallet?.address?.toLowerCase() || '';
+          const funder = (this.funderAddress || '').toLowerCase().trim();
+          const isProxy = funder && funder !== walletAddress;
+          await this.deriveAndUpgradeCredentials(isProxy ? 1 : 0);
+          // Retry once
+          const retryResponse = await (this.clobClient as any).getTrades({ next_cursor: '' });
+          return Array.isArray(retryResponse) ? retryResponse : (retryResponse?.data || []);
+        } catch (retryError) {
+          console.error('[Polymarket] Failed to self-heal in getTrades:', retryError);
+        }
+      }
+      console.error('[Polymarket] Failed to get trades:', error.message || error);
       return [];
     }
   }
 }
 
 
-// Singleton pattern for dev mode persistence
-const globalForPolymarket = global as unknown as { polymarketTrading: PolymarketTradingService };
-
-export const polymarketTrading = globalForPolymarket.polymarketTrading || new PolymarketTradingService();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPolymarket.polymarketTrading = polymarketTrading;
-}
+// Export a fresh instance on every reload to ensure code changes are picked up
+export const polymarketTrading = new PolymarketTradingService();
 
 // Helper function to estimate fees
 export function estimatePolymarketFees(size: number, price: number): number {

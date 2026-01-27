@@ -33,7 +33,8 @@ export const EventIdSchema = z.string()
         const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const numericPattern = /^\d+$/;
         const cuidPattern = /^[a-z0-9]{20,30}$/i;
-        return uuidPattern.test(val) || numericPattern.test(val) || cuidPattern.test(val);
+        const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/i; // Alphanumeric with hyphens
+        return uuidPattern.test(val) || numericPattern.test(val) || cuidPattern.test(val) || slugPattern.test(val);
     }, { message: 'Invalid event ID format' });
 
 export const OutcomeIdSchema = EventIdSchema; // Use same validation for Outcome IDs

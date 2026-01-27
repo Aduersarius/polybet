@@ -74,13 +74,24 @@ export async function GET(request: Request) {
     }
 
     // 1. Get event from database with Polymarket mapping
-    const event = await prisma.event.findUnique({
+    let event = await prisma.event.findUnique({
       where: { id: eventId },
       include: {
         polymarketMapping: true,
         outcomes: true,
       },
     });
+
+    if (!event) {
+      // Fallback: lookup by slug
+      event = await prisma.event.findUnique({
+        where: { slug: eventId },
+        include: {
+          polymarketMapping: true,
+          outcomes: true,
+        },
+      });
+    }
 
     if (!event) {
       return NextResponse.json(

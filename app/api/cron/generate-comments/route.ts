@@ -166,7 +166,8 @@ async function generateComment() {
             messages: {
                 where: { isDeleted: false },
                 orderBy: { createdAt: 'desc' },
-                take: 5
+                take: 5,
+                include: { user: { select: { username: true } } }
             }
         }
     });
@@ -178,12 +179,13 @@ async function generateComment() {
     if (botUsersCount === 0) return null;
 
     const skipBot = Math.floor(Math.random() * botUsersCount);
-    const botUser = await prisma.user.findMany({
+    const user = await prisma.user.findFirst({
         where: { isBot: true },
-        take: 1,
-        skip: skipBot
+        skip: skipBot,
+        orderBy: { id: 'asc' }
     });
-    const user = botUser[0];
+
+    if (!user) return null;
 
     // ** NEW: Execute Trade with 60% Probability BEFORE generating comment **
     if (Math.random() < 0.60) {

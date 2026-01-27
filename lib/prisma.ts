@@ -35,14 +35,14 @@ function createPrismaClient() {
 
     const pool = new Pool({
         connectionString: dbUrl,
-        max: isProd ? 10 : 5, // Increased for Next.js 16 Turbopack hot-reloads
-        idleTimeoutMillis: 10000, // Faster cleanup in dev
-        connectionTimeoutMillis: 5000,
+        max: isProd ? 15 : 8, // Increased for Next.js 16 Turbopack hot-reloads
+        idleTimeoutMillis: 30000, // Increased to 30s to prevent premature termination
+        connectionTimeoutMillis: 10000, // Increased to 10s to allow slower connections
         ssl: sslConfig,
         // Aggressively clean up connections in dev to prevent exhaustion
         ...(isDev && {
             allowExitOnIdle: false,
-            maxUses: 7500, // Recycle connections after many queries
+            //Removed maxUses to see if it stabilizes connection reuse
         }),
     });
 
