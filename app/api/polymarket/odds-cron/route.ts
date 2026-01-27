@@ -60,9 +60,24 @@ async function fetchTokenPrice(tokenId: string): Promise<number | null> {
         const bids = data.bids || [];
         const asks = data.asks || [];
 
-        // Calculate mid price
-        const bestBid = bids.length > 0 ? Number(bids[0]?.price ?? bids[0]?.[0]) : null;
-        const bestAsk = asks.length > 0 ? Number(asks[0]?.price ?? asks[0]?.[0]) : null;
+        // Calculate mid price correctly by finding MAX bid and MIN ask
+        // Polymarket sometimes returns bids/asks sorted by time or in arbitrary order
+        let bestBid: number | null = null;
+        let bestAsk: number | null = null;
+
+        for (const bid of bids) {
+            const p = Number(bid?.price ?? bid?.[0]);
+            if (Number.isFinite(p)) {
+                if (bestBid === null || p > bestBid) bestBid = p;
+            }
+        }
+
+        for (const ask of asks) {
+            const p = Number(ask?.price ?? ask?.[0]);
+            if (Number.isFinite(p)) {
+                if (bestAsk === null || p < bestAsk) bestAsk = p;
+            }
+        }
 
         if (bestBid != null && bestAsk != null) {
             return (bestBid + bestAsk) / 2;
@@ -99,6 +114,45 @@ async function fetchMarketPrices(polymarketId: string): Promise<MarketData | nul
             return data[0];
         }
 
+        // Fallback: try events API if market API returned nothing
+        // This is common for GROUPED_BINARY events where we store the event ID
+        const eventResponse = await fetch(
+            `${GAMMA_API_BASE}/events?id=${polymarketId}`,
+            {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' },
+            }
+        );
+
+        if (eventResponse.ok) {
+            const eventData = await eventResponse.json();
+            if (Array.isArray(eventData) && eventData.length > 0) {
+                const evt = eventData[0];
+                // For aggregated event view, consolidate outcome prices from its markets
+                const markets = Array.isArray(evt.markets) ? evt.markets : [];
+                const consolidatedTokenPrices: Array<{ tokenId: string, price: number }> = [];
+                const consolidatedOutcomePrices: number[] = [];
+
+                for (const mkt of markets) {
+                    const mktPrices = parseOutcomePrices(mkt.outcomePrices);
+                    if (mktPrices.length > 0) {
+                        consolidatedOutcomePrices.push(mktPrices[0]); // Typically Yes price
+                    }
+                    if (Array.isArray(mkt.clobTokenIds) && mkt.clobTokenIds.length > 0) {
+                        consolidatedTokenPrices.push({
+                            tokenId: mkt.clobTokenIds[0],
+                            price: mktPrices[0] || Number(mkt.lastTradePrice) || 0.5
+                        });
+                    }
+                }
+
+                return {
+                    tokens: consolidatedTokenPrices.map(tp => ({ tokenId: tp.tokenId, price: tp.price })),
+                    outcomePrices: consolidatedOutcomePrices,
+                    outcomes: evt.outcomes
+                };
+            }
+        }
         return null;
     } catch (error) {
         console.warn('[Odds Cron] Failed to fetch market', polymarketId, ':', error);
@@ -206,21 +260,27 @@ export async function POST(request: Request) {
                 const outcomeMapping = mapping.outcomeMapping as any;
                 const outcomes = outcomeMapping?.outcomes || [];
 
-                // Try to get prices from CLOB API first (most accurate)
+                // Try to get prices from CLOB API in parallel (most accurate)
+                // Use a small chunk size to avoid overwhelming the API
                 const pricesFromClob: Map<string, number> = new Map();
-
-                for (const outcome of outcomes) {
+                const pricePromises = outcomes.map(async (outcome: any) => {
                     const tokenId = outcome.polymarketId || outcome.polymarketTokenId;
                     if (tokenId) {
                         const price = await fetchTokenPrice(tokenId);
-                        if (price !== null) {
-                            pricesFromClob.set(tokenId, price);
-                        }
+                        return { tokenId, price };
+                    }
+                    return null;
+                });
+
+                const results = await Promise.all(pricePromises);
+                for (const res of results) {
+                    if (res && res.price !== null) {
+                        pricesFromClob.set(res.tokenId, res.price);
                     }
                 }
 
-                // Fallback to Gamma API if CLOB didn't return prices
-                if (pricesFromClob.size === 0) {
+                // Fallback to Gamma API if CLOB didn't return (all) prices
+                if (pricesFromClob.size < outcomes.length) {
                     const marketData = await fetchMarketPrices(mapping.polymarketId);
                     if (marketData) {
                         const prices = parseOutcomePrices(marketData.outcomePrices);
@@ -231,7 +291,7 @@ export async function POST(request: Request) {
                                 const token = marketData.tokens[i];
                                 const tokenId = token.token_id || token.tokenId;
                                 const price = Number(token.price || prices[i]);
-                                if (tokenId && Number.isFinite(price)) {
+                                if (tokenId && Number.isFinite(price) && !pricesFromClob.has(tokenId)) {
                                     pricesFromClob.set(tokenId, price);
                                 }
                             }
@@ -239,7 +299,7 @@ export async function POST(request: Request) {
                             // Use position-based mapping for outcomes
                             for (let i = 0; i < Math.min(outcomes.length, prices.length); i++) {
                                 const tokenId = outcomes[i]?.polymarketId || outcomes[i]?.polymarketTokenId;
-                                if (tokenId) {
+                                if (tokenId && !pricesFromClob.has(tokenId)) {
                                     pricesFromClob.set(tokenId, prices[i]);
                                 }
                             }
@@ -340,6 +400,12 @@ export async function POST(request: Request) {
                     }
                 }
 
+                // Update mapping's lastSyncedAt
+                await prisma.polymarketMarketMapping.update({
+                    where: { id: mapping.id },
+                    data: { lastSyncedAt: new Date() },
+                });
+
                 // Broadcast updates via Redis for real-time clients
                 if (redis && updates.length > 0) {
                     const lastUpdate = updates[updates.length - 1];
@@ -355,17 +421,10 @@ export async function POST(request: Request) {
                         // Push to Frontend via Soketi
                         const { getPusherServer } = await import('@/lib/pusher-server');
                         const pusher = getPusherServer();
-                        // For odds-cron, we might want to trigger event-specific or sports-wide updates
-                        // This mirrors redis 'sports-odds' channel which seems to be consumed by clients?
-                        // Actually 'sports-odds' redis channel is legacy. The new system uses 'event-${id}'
+
                         await pusher.trigger(`event-${event.id}`, 'odds-update', {
                             eventId: event.id,
                             timestamp: payload.timestamp,
-                            // If it's single probability update, we might need more info?
-                            // The updates[] array has tokenId, price, probability.
-                            // If updates contains multiple outcomes, we should broadcast all?
-                            // But here we only take lastUpdate?
-                            // Let's improve this to broadcast all updates for this event
                             outcomes: updates.filter(u => u.eventId === event.id).map(u => ({
                                 id: u.outcomeId,
                                 probability: u.probability

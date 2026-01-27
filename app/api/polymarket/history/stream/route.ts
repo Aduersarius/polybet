@@ -76,12 +76,32 @@ function extractMidPrices(msg: any): Array<{ tokenId: string; price: number }> {
   const asks = candidate?.asks || payload?.asks;
 
   if ((type === 'orderbook' || bids || asks) && tokenId) {
-    const bestBid = Array.isArray(bids) && bids.length ? Number(bids[0]?.price ?? bids[0]?.[0]) : undefined;
-    const bestAsk = Array.isArray(asks) && asks.length ? Number(asks[0]?.price ?? asks[0]?.[0]) : undefined;
+    let bestBid: number | undefined;
+    let bestAsk: number | undefined;
+
+    if (Array.isArray(bids)) {
+      for (const b of bids) {
+        const p = Number(b?.price ?? b?.[0]);
+        if (Number.isFinite(p)) {
+          if (bestBid === undefined || p > bestBid) bestBid = p;
+        }
+      }
+    }
+
+    if (Array.isArray(asks)) {
+      for (const a of asks) {
+        const p = Number(a?.price ?? a?.[0]);
+        if (Number.isFinite(p)) {
+          if (bestAsk === undefined || p < bestAsk) bestAsk = p;
+        }
+      }
+    }
+
     let mid: number | undefined;
     if (bestBid != null && bestAsk != null) mid = (bestBid + bestAsk) / 2;
     else if (bestAsk != null) mid = bestAsk;
     else if (bestBid != null) mid = bestBid;
+
     if (Number.isFinite(mid)) {
       results.push({ tokenId: String(tokenId), price: mid as number });
     }
@@ -166,6 +186,19 @@ export async function GET() {
         data: rows,
         skipDuplicates: true,
       });
+
+      // Also update current probability in Outcome table for live trading updates
+      // This ensures the trading panel matches the chart/CLOB price
+      for (const row of rows) {
+        try {
+          await prisma.outcome.update({
+            where: { id: row.outcomeId },
+            data: { probability: row.probability },
+          });
+        } catch {
+          // Ignore individual update errors
+        }
+      }
 
       // Trigger background refresh of the hourly materialized view
       try {
