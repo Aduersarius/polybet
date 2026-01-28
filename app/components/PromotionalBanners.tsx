@@ -104,7 +104,6 @@ export function PromotionalBanners() {
             buttonText: 'Get Started',
             onClick: handleDemoBalance,
             imageUrl: null,
-            bannerImage: null,
         },
         {
             id: 'suggest',
@@ -114,7 +113,6 @@ export function PromotionalBanners() {
             buttonText: 'Suggest Event',
             onClick: handleSuggestEvent,
             imageUrl: null,
-            bannerImage: '/banners/create-market-3d.png',
         },
     ];
 
@@ -261,51 +259,38 @@ export function PromotionalBanners() {
                                 </div>
                             )}
 
-                            {/* 3D Banner Image (for suggest/create market) */}
-                            {currentBanner?.type === 'promo' && currentBanner?.bannerImage && (
-                                <div className="absolute right-0 top-0 bottom-0 w-2/3 sm:w-1/2 lg:w-1/2 flex items-center justify-end">
-                                    <div className="relative w-full h-full">
-                                        <Image
-                                            src={currentBanner.bannerImage}
-                                            alt={currentBanner.title}
-                                            fill
-                                            unoptimized
-                                            sizes="(max-width: 640px) 250px, (max-width: 1024px) 350px, 450px"
-                                            priority
-                                            className="object-contain object-right scale-110"
-                                        />
+                            {/* Atmospheric style for Create Your Market */}
+                            {currentBanner?.type === 'promo' && currentBanner?.id === 'suggest' && (
+                                <>
+                                    {/* Atmospheric glow orbs */}
+                                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-purple-500/25 rounded-full blur-3xl animate-pulse" />
+                                    <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-violet-500/20 rounded-full blur-3xl" />
+                                    <div className="absolute top-1/3 right-1/3 w-32 h-32 bg-fuchsia-400/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
+                                    
+                                    {/* Decorative lightbulb/idea icon */}
+                                    <div className="absolute right-6 sm:right-12 lg:right-20 top-1/2 -translate-y-1/2 opacity-15">
+                                        <svg className="w-32 h-32 sm:w-44 sm:h-44 lg:w-56 lg:h-56 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
                                     </div>
-                                </div>
+                                </>
                             )}
 
-                            {/* 3D CSS graphic for demo balance */}
+                            {/* Atmospheric style for Demo Balance */}
                             {currentBanner?.type === 'promo' && currentBanner?.id === 'demo' && (
-                                <div className="absolute right-2 sm:right-4 lg:right-12 top-1/2 -translate-y-1/2">
-                                    <div className="relative w-24 h-24 sm:w-36 sm:h-36 lg:w-48 lg:h-48">
-                                        {/* Outer glow */}
-                                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-purple-500/20 rounded-full blur-3xl animate-pulse" />
-                                        
-                                        {/* 3D Coin stack */}
-                                        <div className="absolute inset-4 flex items-center justify-center">
-                                            {/* Bottom coins (stack effect) */}
-                                            <div className="absolute w-16 h-16 sm:w-24 sm:h-24 lg:w-32 lg:h-32">
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-3 sm:w-20 sm:h-4 lg:w-28 lg:h-5 bg-gradient-to-b from-blue-600 to-blue-800 rounded-full transform -translate-y-0" />
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-3 sm:w-20 sm:h-4 lg:w-28 lg:h-5 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full transform -translate-y-2 sm:-translate-y-3 lg:-translate-y-4" />
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-3 sm:w-20 sm:h-4 lg:w-28 lg:h-5 bg-gradient-to-b from-blue-400 to-blue-600 rounded-full transform -translate-y-4 sm:-translate-y-6 lg:-translate-y-8" />
-                                            </div>
-                                            
-                                            {/* Main coin */}
-                                            <div 
-                                                className="relative w-14 h-14 sm:w-20 sm:h-20 lg:w-28 lg:h-28 bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 rounded-full shadow-2xl flex items-center justify-center border-2 sm:border-4 border-blue-300/50"
-                                                style={{ transform: 'translateY(-8px)' }}
-                                            >
-                                                <div className="absolute inset-1 sm:inset-2 rounded-full border border-blue-200/30" />
-                                                <span className="text-white font-black text-sm sm:text-lg lg:text-2xl">$10K</span>
-                                                <div className="absolute top-1 left-1/4 w-4 h-1 sm:w-6 sm:h-2 bg-white/40 rounded-full blur-sm transform -rotate-45" />
-                                            </div>
-                                        </div>
+                                <>
+                                    {/* Atmospheric glow orbs */}
+                                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-cyan-500/25 rounded-full blur-3xl animate-pulse" />
+                                    <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl" />
+                                    <div className="absolute top-1/2 right-1/3 w-32 h-32 bg-teal-400/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+                                    
+                                    {/* Decorative rocket icon - launch your journey */}
+                                    <div className="absolute right-6 sm:right-12 lg:right-20 top-1/2 -translate-y-1/2 opacity-15">
+                                        <svg className="w-32 h-32 sm:w-44 sm:h-44 lg:w-56 lg:h-56 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                                            <path d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
                                     </div>
-                                </div>
+                                </>
                             )}
 
                             {/* Text Background Gradient - for better readability on mobile (only for non-event banners) */}
@@ -389,80 +374,82 @@ export function PromotionalBanners() {
                     {/* Mini Banners: Side by side on mobile, stacked on desktop */}
                     <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 order-2">
                         
-                        {/* Mini Banner 1: Discord */}
+                        {/* Mini Banner 1: Discord - Atmospheric style */}
                         <div 
                             onClick={() => window.open('https://discord.gg/zdm8sVgg', '_blank', 'noopener,noreferrer')}
                             className="relative flex-1 h-32 sm:h-40 lg:h-[calc(50%-0.5rem)] rounded-2xl overflow-hidden cursor-pointer group"
                         >
-                            {/* Background */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-[#1a2744] via-[#0d1a2d] to-[#0a1628]">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-[#5865F2]/20 rounded-full blur-2xl" />
+                            {/* Atmospheric Background */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-[#5865F2]/20 via-[#0d1a2d] to-[#0a1628]">
+                                {/* Animated glow orbs */}
+                                <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#5865F2]/40 rounded-full blur-3xl animate-pulse" />
+                                <div className="absolute bottom-0 left-1/4 w-24 h-24 bg-[#5865F2]/20 rounded-full blur-2xl" />
+                                <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-indigo-400/30 rounded-full blur-xl animate-pulse" style={{ animationDelay: '1s' }} />
                             </div>
 
-                            {/* 3D Discord Image */}
-                            <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-3/5 flex items-center justify-end">
-                                <div className="relative w-full h-full">
-                                    <Image
-                                        src="/banners/discord-3d.png"
-                                        alt="Join Discord"
-                                        fill
-                                        unoptimized
-                                        sizes="(max-width: 640px) 180px, (max-width: 1024px) 180px, 200px"
-                                        className="object-contain object-right scale-125 sm:scale-100"
-                                    />
-                                </div>
+                            {/* Decorative Discord icon */}
+                            <div className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity">
+                                <svg className="w-20 h-20 sm:w-28 sm:h-28 text-[#5865F2]" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                                </svg>
                             </div>
 
-                            {/* Text Background - for mobile readability */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#1a2744] via-[#1a2744]/90 to-transparent w-2/5 sm:w-1/2 z-[5]" />
+                            {/* Gradient overlay for text */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#0d1a2d] via-[#0d1a2d]/70 to-transparent" />
 
                             {/* Content */}
-                            <div className="relative z-10 h-full flex flex-col justify-center p-3 sm:p-5 max-w-[40%] sm:max-w-[50%]">
-                                <span className="text-[10px] sm:text-xs font-semibold text-[#5865F2] uppercase tracking-wider mb-0.5 sm:mb-1">Community</span>
-                                <h3 className="text-sm sm:text-lg font-bold text-white mb-0.5 sm:mb-1">Join Discord</h3>
-                                <p className="text-[10px] sm:text-xs text-blue-100/70 hidden sm:block">Stay updated & connect</p>
+                            <div className="relative z-10 h-full flex flex-col justify-center p-4 sm:p-5">
+                                <span className="text-[10px] sm:text-xs font-semibold text-[#5865F2] uppercase tracking-wider mb-1">Community</span>
+                                <h3 className="text-base sm:text-xl font-bold text-white mb-1">Join Discord</h3>
+                                <p className="text-[10px] sm:text-xs text-white/60">Connect with traders</p>
                             </div>
 
-                            {/* Hover overlay */}
-                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-[15]" />
+                            {/* Hover effect */}
+                            <div className="absolute inset-0 bg-[#5865F2]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-[15]" />
+                            
+                            {/* Arrow indicator */}
+                            <div className="absolute right-4 bottom-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-1 z-20">
+                                <ChevronRight className="w-4 h-4 text-white" />
+                            </div>
                         </div>
 
-                        {/* Mini Banner 2: Referral */}
+                        {/* Mini Banner 2: Referral - Atmospheric style */}
                         <div 
                             onClick={handleReferral}
                             className="relative flex-1 h-32 sm:h-40 lg:h-[calc(50%-0.5rem)] rounded-2xl overflow-hidden cursor-pointer group"
                         >
-                            {/* Background */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-[#1a2744] via-[#0d1a2d] to-[#0a1628]">
-                                <div className="absolute bottom-0 right-0 w-40 h-40 bg-blue-500/15 rounded-full blur-2xl" />
+                            {/* Atmospheric Background */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/15 via-[#0d1a2d] to-[#0a1628]">
+                                {/* Animated glow orbs */}
+                                <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/30 rounded-full blur-3xl animate-pulse" />
+                                <div className="absolute bottom-0 left-1/3 w-20 h-20 bg-green-400/20 rounded-full blur-2xl" />
+                                <div className="absolute top-1/3 right-1/3 w-12 h-12 bg-teal-400/25 rounded-full blur-xl animate-pulse" style={{ animationDelay: '0.5s' }} />
                             </div>
 
-                            {/* 3D Referral Image */}
-                            <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-3/5 flex items-center justify-end">
-                                <div className="relative w-full h-full">
-                                    <Image
-                                        src="/banners/referral-3d.png"
-                                        alt="Refer Friends"
-                                        fill
-                                        unoptimized
-                                        sizes="(max-width: 640px) 180px, (max-width: 1024px) 180px, 200px"
-                                        className="object-contain object-right scale-125 sm:scale-100"
-                                    />
-                                </div>
+                            {/* Decorative gift/money icon */}
+                            <div className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity">
+                                <svg className="w-20 h-20 sm:w-28 sm:h-28 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
                             </div>
 
-                            {/* Text Background - for mobile readability */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#0d1a2d] via-[#0d1a2d]/90 to-transparent w-2/5 sm:w-1/2 z-[5]" />
+                            {/* Gradient overlay for text */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#0d1a2d] via-[#0d1a2d]/70 to-transparent" />
 
                             {/* Content */}
-                            <div className="relative z-10 h-full flex flex-col justify-center p-3 sm:p-5 max-w-[40%] sm:max-w-[50%]">
-                                <span className="text-[10px] sm:text-xs font-semibold text-blue-400 uppercase tracking-wider mb-0.5 sm:mb-1">Earn Rewards</span>
-                                <h3 className="text-sm sm:text-lg font-bold text-white mb-0.5 sm:mb-1">Refer Friends</h3>
-                                <p className="text-[10px] sm:text-xs text-blue-100/70 hidden sm:block">Get % from their trades</p>
+                            <div className="relative z-10 h-full flex flex-col justify-center p-4 sm:p-5">
+                                <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">Earn Rewards</span>
+                                <h3 className="text-base sm:text-xl font-bold text-white mb-1">Refer Friends</h3>
+                                <p className="text-[10px] sm:text-xs text-white/60">Get % from their trades</p>
                             </div>
 
-                            {/* Hover overlay */}
-                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-[15]" />
+                            {/* Hover effect */}
+                            <div className="absolute inset-0 bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-[15]" />
+                            
+                            {/* Arrow indicator */}
+                            <div className="absolute right-4 bottom-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-1 z-20">
+                                <ChevronRight className="w-4 h-4 text-white" />
+                            </div>
                         </div>
                     </div>
                 </div>
