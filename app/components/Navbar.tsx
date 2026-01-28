@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
-import { Wallet, Trophy } from 'lucide-react';
+import { Wallet, Trophy, User, Settings, HelpCircle, Headphones, Lightbulb, Shield, LogOut } from 'lucide-react';
 import { authClient, useSession, signOut } from '@/lib/auth-client';
 import { LoginModal } from './auth/LoginModal';
 import { SignupModal } from './auth/SignupModal';
@@ -44,8 +44,9 @@ function SupportLink() {
                 console.log('Support button clicked, opening chat...');
                 openChat();
             }}
-            className="block w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-emerald-500/10 rounded-xl transition-all duration-200 font-medium"
+            className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-emerald-500/10 rounded-xl transition-all duration-200 font-medium"
         >
+            <Headphones className="w-4 h-4 text-gray-400" />
             Support
         </button>
     );
@@ -256,28 +257,33 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                 <p className="text-xs text-white/60 truncate mt-1">{(session as any).user?.email}</p>
                                             </div>
                                             <div className="py-2 px-2">
-                                                <Link href="/profile" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                <Link href="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                    <User className="w-4 h-4 text-gray-400" />
                                                     Profile
                                                 </Link>
-                                                <Link href="/leaderboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
-                                                    <Trophy className="w-4 h-4" />
+                                                <Link href="/leaderboard" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                    <Trophy className="w-4 h-4 text-gray-400" />
                                                     Leaderboard
                                                 </Link>
-                                                <Link href="/settings" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                <Link href="/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                    <Settings className="w-4 h-4 text-gray-400" />
                                                     Settings
                                                 </Link>
-                                                <Link href="/faq" className="block px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-purple-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                <Link href="/faq" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-purple-500/10 rounded-xl transition-all duration-200 font-medium">
+                                                    <HelpCircle className="w-4 h-4 text-gray-400" />
                                                     Help &amp; FAQ
                                                 </Link>
                                                 <SupportLink />
                                                 <button
                                                     onClick={() => setShowSuggestModal(true)}
-                                                    className="block w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium"
+                                                    className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-blue-500/10 rounded-xl transition-all duration-200 font-medium"
                                                 >
+                                                    <Lightbulb className="w-4 h-4 text-gray-400" />
                                                     Suggest event
                                                 </button>
                                                 {(session as any).user?.isAdmin && (
-                                                    <Link href="/admin" className="block px-4 py-2.5 text-sm text-white hover:bg-purple-500/10 rounded-xl transition-all duration-200 font-semibold">
+                                                    <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-purple-500/10 rounded-xl transition-all duration-200 font-semibold">
+                                                        <Shield className="w-4 h-4 text-purple-400" />
                                                         Admin Panel
                                                     </Link>
                                                 )}
@@ -285,8 +291,9 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                             <div className="border-t border-blue-400/10 py-2 px-2">
                                                 <button
                                                     onClick={handleSignOut}
-                                                    className="block w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200 font-medium"
+                                                    className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200 font-medium"
                                                 >
+                                                    <LogOut className="w-4 h-4" />
                                                     Sign Out
                                                 </button>
                                             </div>
