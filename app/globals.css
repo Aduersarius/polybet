@@ -285,9 +285,3 @@ input[type="number"] {
 .animate-slide-up {
   animation: slideUp 0.3s ease-out;
 }
-
-/* Launch Banner - Adjust page padding when banner is visible */
-/* Banner height: ~72px (compact design) */
-body[data-banner-visible="true"] main > div > div > div[class*="pt-32"] {
-  padding-top: calc(8rem + 72px); /* 128px (pt-32) + 72px (banner + navbar spacing) */
-}
