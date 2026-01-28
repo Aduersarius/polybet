@@ -444,7 +444,7 @@ export function MobileBottomNav({ onSearchClick }: MobileBottomNavProps) {
                                             </svg>
                                         </a>
                                         <a 
-                                            href="https://discord.gg/zdm8sVgg" 
+                                            href="https://discord.gg/59cv7Mjx" 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-xl transition-colors"

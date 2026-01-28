@@ -376,7 +376,7 @@ export function PromotionalBanners() {
                         
                         {/* Mini Banner 1: Discord - Atmospheric style */}
                         <div 
-                            onClick={() => window.open('https://discord.gg/zdm8sVgg', '_blank', 'noopener,noreferrer')}
+                            onClick={() => window.open('https://discord.gg/59cv7Mjx', '_blank', 'noopener,noreferrer')}
                             className="relative flex-1 h-32 sm:h-40 lg:h-[calc(50%-0.5rem)] rounded-2xl overflow-hidden cursor-pointer group"
                         >
                             {/* Atmospheric Background */}
