@@ -356,24 +356,24 @@ export function PromotionalBanners() {
                             </div>
 
                             {/* 3D Discord Image */}
-                            <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-3/5 flex items-center justify-end">
+                            <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-3/5 flex items-center justify-end">
                                 <div className="relative w-full h-full">
                                     <Image
                                         src="/banners/discord-3d.png"
                                         alt="Join Discord"
                                         fill
                                         unoptimized
-                                        sizes="(max-width: 640px) 120px, (max-width: 1024px) 180px, 200px"
-                                        className="object-contain object-right scale-110 sm:scale-100"
+                                        sizes="(max-width: 640px) 180px, (max-width: 1024px) 180px, 200px"
+                                        className="object-contain object-right scale-125 sm:scale-100"
                                     />
                                 </div>
                             </div>
 
                             {/* Text Background - for mobile readability */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#1a2744] via-[#1a2744]/90 to-transparent w-2/3 sm:w-1/2 z-[5]" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#1a2744] via-[#1a2744]/90 to-transparent w-2/5 sm:w-1/2 z-[5]" />
 
                             {/* Content */}
-                            <div className="relative z-10 h-full flex flex-col justify-center p-3 sm:p-5 max-w-[55%] sm:max-w-[50%]">
+                            <div className="relative z-10 h-full flex flex-col justify-center p-3 sm:p-5 max-w-[40%] sm:max-w-[50%]">
                                 <span className="text-[10px] sm:text-xs font-semibold text-[#5865F2] uppercase tracking-wider mb-0.5 sm:mb-1">Community</span>
                                 <h3 className="text-sm sm:text-lg font-bold text-white mb-0.5 sm:mb-1">Join Discord</h3>
                                 <p className="text-[10px] sm:text-xs text-blue-100/70 hidden sm:block">Stay updated & connect</p>
@@ -394,24 +394,24 @@ export function PromotionalBanners() {
                             </div>
 
                             {/* 3D Referral Image */}
-                            <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-3/5 flex items-center justify-end">
+                            <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-3/5 flex items-center justify-end">
                                 <div className="relative w-full h-full">
                                     <Image
                                         src="/banners/referral-3d.png"
                                         alt="Refer Friends"
                                         fill
                                         unoptimized
-                                        sizes="(max-width: 640px) 120px, (max-width: 1024px) 180px, 200px"
-                                        className="object-contain object-right scale-110 sm:scale-100"
+                                        sizes="(max-width: 640px) 180px, (max-width: 1024px) 180px, 200px"
+                                        className="object-contain object-right scale-125 sm:scale-100"
                                     />
                                 </div>
                             </div>
 
                             {/* Text Background - for mobile readability */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#0d1a2d] via-[#0d1a2d]/90 to-transparent w-2/3 sm:w-1/2 z-[5]" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#0d1a2d] via-[#0d1a2d]/90 to-transparent w-2/5 sm:w-1/2 z-[5]" />
 
                             {/* Content */}
-                            <div className="relative z-10 h-full flex flex-col justify-center p-3 sm:p-5 max-w-[55%] sm:max-w-[50%]">
+                            <div className="relative z-10 h-full flex flex-col justify-center p-3 sm:p-5 max-w-[40%] sm:max-w-[50%]">
                                 <span className="text-[10px] sm:text-xs font-semibold text-blue-400 uppercase tracking-wider mb-0.5 sm:mb-1">Earn Rewards</span>
                                 <h3 className="text-sm sm:text-lg font-bold text-white mb-0.5 sm:mb-1">Refer Friends</h3>
                                 <p className="text-[10px] sm:text-xs text-blue-100/70 hidden sm:block">Get % from their trades</p>

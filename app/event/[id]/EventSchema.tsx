@@ -16,6 +16,7 @@ interface EventSchemaProps {
 
 /**
  * JSON-LD structured data component for Event schema
+ * Following Google's guidelines: https://developers.google.com/search/docs/appearance/structured-data/event
  */
 export function EventSchema({ event }: EventSchemaProps) {
     const baseUrl = getBaseUrl();
@@ -38,11 +39,16 @@ export function EventSchema({ event }: EventSchemaProps) {
         ? new Date(event.resolutionDate).toISOString()
         : undefined;
     
-    // Determine event status
-    let eventStatus = 'EventScheduled';
+    // Determine event status - must be a schema.org URL
+    let eventStatus = 'https://schema.org/EventScheduled';
     if (event.status === 'RESOLVED') {
-        eventStatus = 'EventPostponed'; // Or EventCancelled if cancelled
+        eventStatus = 'https://schema.org/EventCancelled';
+    } else if (event.status === 'CANCELLED') {
+        eventStatus = 'https://schema.org/EventCancelled';
     }
+
+    // Determine event attendance mode - online prediction market
+    const eventAttendanceMode = 'https://schema.org/OnlineEventAttendanceMode';
 
     const schema = {
         '@context': 'https://schema.org',
@@ -53,19 +59,34 @@ export function EventSchema({ event }: EventSchemaProps) {
         url: eventUrl,
         startDate: startDate,
         ...(endDate && { endDate: endDate }),
-        eventStatus: {
-            '@type': 'EventStatusType',
-            name: eventStatus,
-        },
+        eventStatus: eventStatus,
+        eventAttendanceMode: eventAttendanceMode,
         organizer: {
             '@type': 'Organization',
             name: 'Pariflow',
             url: baseUrl,
         },
+        // VirtualLocation for online events - only url is required
         location: {
             '@type': 'VirtualLocation',
-            name: 'Pariflow Prediction Market',
+            url: eventUrl,
+        },
+        // Optional: Add performer as Pariflow platform
+        performer: {
+            '@type': 'Organization',
+            name: 'Pariflow',
             url: baseUrl,
+        },
+        // Optional: Add offers schema for prediction market participation
+        offers: {
+            '@type': 'Offer',
+            url: eventUrl,
+            price: '0',
+            priceCurrency: 'USD',
+            availability: event.status === 'RESOLVED' 
+                ? 'https://schema.org/SoldOut' 
+                : 'https://schema.org/InStock',
+            validFrom: startDate,
         },
         ...(event.categories && event.categories.length > 0 && {
             about: event.categories.map(cat => ({
