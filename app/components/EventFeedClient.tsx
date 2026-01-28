@@ -276,13 +276,16 @@ export function EventFeedClient({ initialEvents, initialCategory: serverCategory
         };
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+    // Show banners only on main page (ALL category)
+    const isMainPage = selectedCategory === 'ALL';
+
     return (
         <>
-            {/* Promotional Banners - First */}
-            <PromotionalBanners />
+            {/* Promotional Banners - Only on main page */}
+            {isMainPage && <PromotionalBanners />}
 
-            {/* Mentioned In - Social Proof */}
-            <MentionedIn />
+            {/* Mentioned In - Social Proof - Only on main page */}
+            {isMainPage && <MentionedIn />}
 
             {/* Sort Options - After Banners */}
             <motion.div

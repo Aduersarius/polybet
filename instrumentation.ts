@@ -6,9 +6,15 @@ export async function register() {
     const metricReaders: MetricReader[] = [];
 
     if (process.env.NEXT_RUNTIME === 'nodejs') {
-        // Only start New Relic if a license key is provided to avoid startup crashes
+        // Only start New Relic if a license key is provided and module is installed
         if (process.env.NEW_RELIC_LICENSE_KEY) {
-            await import('newrelic');
+            try {
+                // Use dynamic path to prevent bundler from resolving at build time
+                const moduleName = 'newrelic';
+                await import(/* webpackIgnore: true */ moduleName);
+            } catch (e) {
+                console.warn('[OTEL] New Relic module not found, skipping');
+            }
         }
 
         const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');

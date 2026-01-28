@@ -27,20 +27,29 @@ export function PromotionalBanners() {
     const [showSuggestModal, setShowSuggestModal] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
 
-    // Fetch featured event by ID
-    const FEATURED_EVENT_ID = '415643617';
-    
-    const { data: topEvent } = useQuery<DbEvent>({
-        queryKey: ['featured-event', FEATURED_EVENT_ID],
+    // Fetch top 3 events by volume (real events from the platform)
+    const { data: topEvents } = useQuery<DbEvent[]>({
+        queryKey: ['top-events-banners'],
         queryFn: async () => {
-            const res = await fetch(`/api/events/${FEATURED_EVENT_ID}`);
-            if (!res.ok) return null;
-            const data = await res.json();
-            // Don't use event image - we'll use CSS graphic instead
-            return { ...data, imageUrl: null };
+            try {
+                const res = await fetch('/api/events?sortBy=volume_high&limit=3');
+                if (!res.ok) {
+                    console.error('Failed to fetch events:', res.status);
+                    return [];
+                }
+                const json = await res.json();
+                // API returns { data: [...] } format
+                const events = Array.isArray(json) ? json : (json.data || []);
+                console.log('Fetched events for banners:', events.length);
+                return events;
+            } catch (e) {
+                console.error('Failed to fetch events for banners:', e);
+                return [];
+            }
         },
         staleTime: 60_000,
         gcTime: 5 * 60 * 1000,
+        retry: 2,
     });
 
     const handleDemoBalance = () => {
@@ -63,48 +72,53 @@ export function PromotionalBanners() {
         }
     };
 
-    const handlePromoEvent = () => {
-        if (topEvent?.id) {
-            const path = topEvent.slug ? `/event/${topEvent.slug}` : `/event/${topEvent.id}`;
+    const handleEventClick = (event: DbEvent) => {
+        if (event?.id) {
+            const path = event.slug ? `/event/${event.slug}` : `/event/${event.id}`;
             router.push(path);
         }
     };
 
+    // Create event banners from top events (only if we have real events)
+    const eventBanners = (topEvents || []).map((event, index) => ({
+        id: `event-${event.id}`,
+        type: 'event' as const,
+        title: event.title,
+        subtitle: `#${index + 1} Trending • ${event.volume ? `$${(event.volume / 1000).toFixed(0)}K Volume` : 'Hot Market'}`,
+        buttonText: 'Trade Now',
+        onClick: () => handleEventClick(event),
+        imageUrl: event.imageUrl,
+        event: event,
+    }));
+
     // Main slider banners (rotate through these)
     const mainBanners = [
-        {
-            id: 'promo-event',
-            title: topEvent?.title || 'Trending Market',
-            subtitle: 'Most popular by trading volume',
-            buttonText: 'Trade Now',
-            onClick: handlePromoEvent,
-            imageUrl: topEvent?.imageUrl,
-            bannerImage: null,
-            disabled: !topEvent,
-        },
+        // Top events first
+        ...eventBanners,
+        // Then promotional banners
         {
             id: 'demo',
+            type: 'promo' as const,
             title: 'Start with $10,000',
             subtitle: 'Practice trading with demo funds - zero risk, full experience',
             buttonText: 'Get Started',
             onClick: handleDemoBalance,
             imageUrl: null,
-            bannerImage: null, // Could add a demo balance image here
-            disabled: false,
+            bannerImage: null,
         },
         {
             id: 'suggest',
+            type: 'promo' as const,
             title: 'Create Your Market',
             subtitle: 'Propose an event and let the community trade on it',
             buttonText: 'Suggest Event',
             onClick: handleSuggestEvent,
             imageUrl: null,
             bannerImage: '/banners/create-market-3d.png',
-            disabled: false,
         },
     ];
 
-    const validMainBanners = mainBanners.filter(b => !b.disabled);
+    const validMainBanners = mainBanners;
 
     const nextSlide = () => {
         setCurrentSlide((prev) => (prev + 1) % validMainBanners.length);
@@ -139,8 +153,36 @@ export function PromotionalBanners() {
                                 <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-cyan-400/20 rounded-full blur-2xl" />
                             </div>
 
-                            {/* Featured Event 3D Graphic */}
-                            {currentBanner?.id === 'promo-event' && (
+                            {/* Event Image - Netflix-style full bleed with smooth fade */}
+                            {currentBanner?.type === 'event' && currentBanner?.imageUrl && (
+                                <>
+                                    {/* Full background image */}
+                                    <div className="absolute inset-0">
+                                        <Image
+                                            src={currentBanner.imageUrl}
+                                            alt={currentBanner.title}
+                                            fill
+                                            unoptimized
+                                            className="object-cover"
+                                            priority
+                                        />
+                                    </div>
+                                    
+                                    {/* Smooth gradient overlays for text readability */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-[#0a1628] via-[#0a1628]/80 via-40% to-transparent" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a1628]/90 via-transparent to-[#0a1628]/40" />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-[#0a1628]/60 to-transparent" />
+                                    
+                                    {/* Live indicator badge */}
+                                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/30 backdrop-blur-md rounded-full px-3 py-1.5 z-20">
+                                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                        <span className="text-white text-xs font-semibold">LIVE</span>
+                                    </div>
+                                </>
+                            )}
+                            
+                            {/* Fallback graphic for events without images */}
+                            {currentBanner?.type === 'event' && !currentBanner?.imageUrl && (
                                 <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 flex items-center justify-center">
                                     <div className="relative w-32 h-32 sm:w-44 sm:h-44 lg:w-56 lg:h-56">
                                         {/* Outer glow */}
@@ -220,7 +262,7 @@ export function PromotionalBanners() {
                             )}
 
                             {/* 3D Banner Image (for suggest/create market) */}
-                            {currentBanner?.bannerImage && !currentBanner?.imageUrl && (
+                            {currentBanner?.type === 'promo' && currentBanner?.bannerImage && (
                                 <div className="absolute right-0 top-0 bottom-0 w-2/3 sm:w-1/2 lg:w-1/2 flex items-center justify-end">
                                     <div className="relative w-full h-full">
                                         <Image
@@ -236,8 +278,8 @@ export function PromotionalBanners() {
                                 </div>
                             )}
 
-                            {/* Fallback 3D CSS graphic for demo balance (no image provided) */}
-                            {!currentBanner?.imageUrl && !currentBanner?.bannerImage && currentBanner?.id === 'demo' && (
+                            {/* 3D CSS graphic for demo balance */}
+                            {currentBanner?.type === 'promo' && currentBanner?.id === 'demo' && (
                                 <div className="absolute right-2 sm:right-4 lg:right-12 top-1/2 -translate-y-1/2">
                                     <div className="relative w-24 h-24 sm:w-36 sm:h-36 lg:w-48 lg:h-48">
                                         {/* Outer glow */}
@@ -266,8 +308,10 @@ export function PromotionalBanners() {
                                 </div>
                             )}
 
-                            {/* Text Background Gradient - for better readability on mobile */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#0a1628] via-[#0a1628]/90 to-transparent w-3/4 sm:w-2/3 lg:w-1/2 z-[5]" />
+                            {/* Text Background Gradient - for better readability on mobile (only for non-event banners) */}
+                            {currentBanner?.type !== 'event' && (
+                                <div className="absolute inset-0 bg-gradient-to-r from-[#0a1628] via-[#0a1628]/90 to-transparent w-3/4 sm:w-2/3 lg:w-1/2 z-[5]" />
+                            )}
 
                             {/* Content */}
                             <div className="relative z-10 h-full flex flex-col justify-center p-4 sm:p-6 lg:p-10">
