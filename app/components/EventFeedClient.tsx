@@ -11,6 +11,7 @@ import { MobileCTABanner } from "./MobileCTABanner";
 import { SignupModal } from "./auth/SignupModal";
 import { LoginModal } from "./auth/LoginModal";
 import { PromotionalBanners } from "./PromotionalBanners";
+import { MentionedIn } from "./MentionedIn";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DbEvent } from "@/lib/data";
 
@@ -279,6 +280,9 @@ export function EventFeedClient({ initialEvents, initialCategory: serverCategory
         <>
             {/* Promotional Banners - First */}
             <PromotionalBanners />
+
+            {/* Mentioned In - Social Proof */}
+            <MentionedIn />
 
             {/* Sort Options - After Banners */}
             <motion.div

@@ -1,0 +1,9 @@
+<svg viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(0, 8)">
+    <!-- Binance diamond logo -->
+    <polygon points="12,0 20,8 12,16 4,8" fill="#F3BA2F"/>
+    <polygon points="12,4 16,8 12,12 8,8" fill="#0B0E11"/>
+    <!-- Text -->
+    <text x="28" y="14" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#F3BA2F">Binance</text>
+  </g>
+</svg>
