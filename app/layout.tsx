@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from '@vercel/analytics/react';
@@ -42,19 +43,21 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://vitals.vercel-insights.com" />
       </head>
       <body>
-        <Providers>
-          <div className="min-h-screen flex flex-col bg-transparent text-white relative z-10 overflow-x-hidden">
-            <div className="flex-1 flex flex-col overflow-x-hidden pb-14 md:pb-0">
-              {children}
+        <NuqsAdapter>
+          <Providers>
+            <div className="min-h-screen flex flex-col bg-transparent text-white relative z-10 overflow-x-hidden">
+              <div className="flex-1 flex flex-col overflow-x-hidden pb-14 md:pb-0">
+                {children}
+              </div>
+              {/* Mobile Bottom Navigation */}
+              <MobileBottomNav />
             </div>
-            {/* Mobile Bottom Navigation */}
-            <MobileBottomNav />
-          </div>
-          <Analytics />
-          <SpeedInsights />
-          <DeferredScripts />
-        </Providers>
-        <Toaster />
+            <Analytics />
+            <SpeedInsights />
+            <DeferredScripts />
+          </Providers>
+          <Toaster />
+        </NuqsAdapter>
       </body>
     </html>
   );

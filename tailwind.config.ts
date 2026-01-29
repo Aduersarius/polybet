@@ -39,6 +39,28 @@ const config: Config = {
                 success: { ...colorTokens.success, DEFAULT: colorTokens.success[500] },
                 gray: { ...colorTokens.gray, DEFAULT: colorTokens.gray[800] },
                 zinc: { ...colorTokens.zinc, DEFAULT: colorTokens.zinc[800] },
+
+                // Shadcn Semantic Colors - Mapped to Tokens
+                border: colorTokens.zinc[700], // zinc-700
+                input: colorTokens.zinc[700], // zinc-700
+                ring: colorTokens.primary[500],
+                foreground: colorTokens.text.primary,
+                destructive: {
+                    DEFAULT: colorTokens.error[500],
+                    foreground: '#ffffff',
+                },
+                muted: {
+                    DEFAULT: colorTokens.zinc[800],
+                    foreground: colorTokens.text.muted,
+                },
+                popover: {
+                    DEFAULT: colorTokens.surface,
+                    foreground: colorTokens.text.primary,
+                },
+                card: {
+                    DEFAULT: colorTokens.surface,
+                    foreground: colorTokens.text.primary,
+                },
             },
         },
     },

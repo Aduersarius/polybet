@@ -12,8 +12,7 @@ export function useBalance() {
         queryFn: async () => {
             const res = await fetch('/api/balance');
             if (!res.ok) throw new Error('Failed to fetch balance');
-            const data = await res.json();
-            return data.balance as number;
+            return await res.json();
         },
         enabled: !!userId,
         staleTime: 10000, // Balance stays fresh for 10 seconds

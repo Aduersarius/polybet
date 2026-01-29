@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { FileUpload } from './FileUpload';
 import { sanitizeUrl } from '@/lib/utils';
+import { generateAvatarDataUri } from '@/lib/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface Attachment {
   id: string;
@@ -235,9 +237,15 @@ export function TicketDetail({ ticketId, onClose }: TicketDetailProps) {
                   className={`flex gap-3 ${isCurrentUser && !isAgent ? 'flex-row-reverse' : ''}`}
                 >
                   {/* Avatar */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                    <User className="w-4 h-4" />
-                  </div>
+                  <Avatar className="w-8 h-8 flex-shrink-0">
+                    <AvatarImage
+                      src={message.user.avatarUrl || generateAvatarDataUri(message.user.username || message.user.name || message.user.id, 80)}
+                      alt={message.user.username || message.user.name || 'User'}
+                    />
+                    <AvatarFallback className={isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}>
+                      {(message.user.username?.[0] || message.user.name?.[0] || (isAgent ? 'A' : 'U')).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
 
                   {/* Message Content */}
                   <div className={`flex-1 max-w-[70%] ${isCurrentUser && !isAgent ? 'items-end' : ''}`}>

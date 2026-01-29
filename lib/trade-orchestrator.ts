@@ -32,12 +32,208 @@ export interface TradeResult {
 }
 
 /**
+ * Execute DEMO trade - simple local bookkeeping only
+ * No Polymarket, no hedging, just record the order and update balances
+ */
+async function executeDemoTrade(params: TradeParams): Promise<TradeResult> {
+    const { userId, eventId, side, option, amount } = params;
+
+    try {
+        console.log(`[DEMO Trade] ${side.toUpperCase()} $${amount} ${option} on ${eventId}`);
+
+        // 1. Validate event exists
+        const event = await prisma.event.findUnique({
+            where: { id: eventId },
+            select: { id: true, status: true, type: true }
+        });
+
+        if (!event) {
+            return { success: false, error: 'Event not found', totalFilled: 0, averagePrice: 0, executionModule: 'bbook' };
+        }
+
+        if (event.status !== 'ACTIVE') {
+            return { success: false, error: 'Event is not active', totalFilled: 0, averagePrice: 0, executionModule: 'bbook' };
+        }
+
+        // 2. Get outcome for proper outcomeId
+        const outcome = await prisma.outcome.findFirst({
+            where: { eventId, name: { equals: option, mode: 'insensitive' } },
+        });
+
+        // 3. Simple pricing: assume 50/50 odds for demo (or could fetch real odds)
+        const demoPrice = 0.50; // Simplified - could use real odds from event
+        const shares = amount / demoPrice;
+
+        // 4. Execute in transaction
+        const result = await prisma.$transaction(async (tx: any) => {
+            // A. For BUY: Check and deduct DEMO TUSD balance
+            if (side === 'buy') {
+                const balance = await tx.balance.findFirst({
+                    where: { userId, tokenSymbol: 'TUSD', eventId: null, accountType: 'DEMO' }
+                });
+
+                const available = balance?.amount ? Number(balance.amount) : 0;
+
+                if (available < amount) {
+                    throw new Error(`Insufficient DEMO balance. You need $${amount.toFixed(2)} but have $${available.toFixed(2)}`);
+                }
+
+                // Deduct TUSD
+                if (balance) {
+                    await tx.balance.update({
+                        where: { id: balance.id },
+                        data: { amount: { decrement: amount } }
+                    });
+                } else {
+                    throw new Error('DEMO balance not initialized');
+                }
+
+                // Credit shares
+                const shareSymbol = `${option}_TOKEN`;
+                await tx.balance.upsert({
+                    where: {
+                        userId_tokenSymbol_eventId_outcomeId_accountType: {
+                            userId,
+                            tokenSymbol: shareSymbol,
+                            eventId,
+                            outcomeId: outcome?.id || '',
+                            accountType: 'DEMO'
+                        }
+                    },
+                    update: { amount: { increment: shares } },
+                    create: {
+                        userId,
+                        tokenSymbol: shareSymbol,
+                        eventId,
+                        outcomeId: outcome?.id,
+                        amount: shares,
+                        accountType: 'DEMO'
+                    }
+                });
+            } else {
+                // SELL: Check shares, credit TUSD
+                const shareSymbol = `${option}_TOKEN`;
+                const shareBalance = await tx.balance.findFirst({
+                    where: { userId, tokenSymbol: shareSymbol, eventId, accountType: 'DEMO' }
+                });
+
+                const availableShares = shareBalance?.amount ? Number(shareBalance.amount) : 0;
+
+                if (availableShares < shares) {
+                    throw new Error(`Insufficient shares. You need ${shares.toFixed(2)} but have ${availableShares.toFixed(2)}`);
+                }
+
+                // Deduct shares
+                await tx.balance.update({
+                    where: { id: shareBalance!.id },
+                    data: { amount: { decrement: shares } }
+                });
+
+                // Credit TUSD
+                await tx.balance.upsert({
+                    where: {
+                        userId_tokenSymbol_eventId_outcomeId_accountType: {
+                            userId,
+                            tokenSymbol: 'TUSD',
+                            eventId: null,
+                            outcomeId: null,
+                            accountType: 'DEMO'
+                        }
+                    },
+                    update: { amount: { increment: amount } },
+                    create: {
+                        userId,
+                        tokenSymbol: 'TUSD',
+                        amount,
+                        accountType: 'DEMO'
+                    }
+                });
+            }
+
+            // B. Create order record
+            const order = await tx.order.create({
+                data: {
+                    userId,
+                    eventId,
+                    outcomeId: outcome?.id ?? null,
+                    option,
+                    side,
+                    price: demoPrice,
+                    amount,
+                    amountFilled: shares,
+                    status: 'filled',
+                    orderType: 'market',
+                    accountType: 'DEMO'
+                }
+            });
+
+            // C. Create market activity
+            await tx.marketActivity.create({
+                data: {
+                    userId,
+                    eventId,
+                    outcomeId: outcome?.id,
+                    type: 'TRADE',
+                    option,
+                    side: side.toUpperCase(),
+                    amount,
+                    price: demoPrice,
+                    isAmmInteraction: true,
+                    orderId: order.id,
+                    accountType: 'DEMO'
+                }
+            });
+
+            return { orderId: order.id };
+        });
+
+        console.log(`[DEMO Trade] ✅ Order ${result.orderId} - ${shares.toFixed(2)} shares @ $${demoPrice}`);
+
+        return {
+            success: true,
+            orderId: result.orderId,
+            totalFilled: shares,
+            averagePrice: demoPrice,
+            executionModule: 'bbook',
+            trades: [{
+                price: demoPrice,
+                amount: shares,
+                makerUserId: 'DEMO_AMM',
+                isAmmTrade: true
+            }]
+        };
+
+    } catch (error: any) {
+        console.error('[DEMO Trade] Failed:', error.message);
+        return {
+            success: false,
+            error: error.message || 'DEMO trade failed',
+            totalFilled: 0,
+            averagePrice: 0,
+            executionModule: 'bbook'
+        };
+    }
+}
+
+/**
  * Execute a trade directly on Polymarket.
  * Simple flow: validate → get PM mapping → place order on PM → create internal order
  */
 export async function executeTrade(params: TradeParams): Promise<TradeResult> {
     const { userId, eventId, side, option, amount, price } = params;
 
+    // 0. Check if user is in DEMO mode
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { accountMode: true }
+    });
+
+    if (user?.accountMode === 'DEMO') {
+        // DEMO MODE: Simple local bookkeeping only, NO Polymarket
+        return executeDemoTrade(params);
+    }
+
+    // LIVE MODE: Full Polymarket trading flow
     // 1. Validate event & Minimum Amount
     if (amount < 1.1) {
         console.warn(`[DirectTrade] Amount $${amount} is below Polymarket $1.00 minimum + buffer. Bumping to $1.10`);

@@ -15,6 +15,7 @@ import EditProfileModal from '@/app/components/EditProfileModal';
 import { Button } from '@/components/ui/button';
 import PnLChart from '@/app/components/PnLChart';
 import { sanitizeUrl } from '@/lib/utils';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface UserStats {
     totalBets?: number;
@@ -336,20 +337,17 @@ function ProfileContent() {
                             {/* Avatar */}
                             <div className="relative group/avatar shrink-0">
                                 <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-blue-500 p-0.5 shadow-lg group-hover/avatar:shadow-2xl transition-all duration-300">
-                                    <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden border-2 border-[#1e1e1e] ${!displayUser?.image || imageError ? getProfileGradient(displayUser?.name || 'User') : 'bg-zinc-800'}`}>
-                                        {displayUser?.image && !imageError ? (
-                                            <img
-                                                src={sanitizeUrl(displayUser.image)}
-                                                alt={displayUser.name || 'User'}
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
-                                                onError={() => setImageError(true)}
-                                            />
-                                        ) : (
-                                            <span className="text-4xl font-bold text-white drop-shadow-md">
-                                                {(displayUser?.name?.charAt(0) || displayUser?.email?.charAt(0) || '?').toUpperCase()}
-                                            </span>
-                                        )}
-                                    </div>
+                                    <Avatar className={`w-full h-full rounded-full border-2 border-[#1e1e1e] ${!displayUser?.image || imageError ? getProfileGradient(displayUser?.name || 'User') : 'bg-zinc-800'}`}>
+                                        <AvatarImage
+                                            src={sanitizeUrl(displayUser?.image)}
+                                            alt={displayUser?.name || 'User'}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
+                                            onError={() => setImageError(true)}
+                                        />
+                                        <AvatarFallback className="text-4xl font-bold text-white drop-shadow-md bg-transparent">
+                                            {(displayUser?.name?.charAt(0) || displayUser?.email?.charAt(0) || '?').toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
                                 </div>
                                 {isOwnProfile && isEditing && (
                                     <div className="absolute -bottom-2 w-full">
@@ -681,8 +679,8 @@ function ProfileContent() {
                                 <div className="flex justify-between items-center mb-4">
                                     <h2 className="text-lg font-bold text-white">Account Details</h2>
                                     <Button
-                                        intent="outline"
-                                        size="xs"
+                                        variant="outline"
+                                        size="sm"
                                         onClick={() => setIsEditModalOpen(true)}
                                         className="!h-5 !min-h-0 !px-2 !text-[9px] border-white/20 hover:bg-white/10 hover:text-white uppercase tracking-wider font-bold"
                                     >

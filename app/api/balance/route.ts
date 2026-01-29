@@ -14,10 +14,19 @@ export async function GET(req: NextRequest) {
 
         const userId = session.user.id;
 
-        // Get all user's balances (including outcome tokens)
+        // Get user's current account mode
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { accountMode: true }
+        });
+
+        const accountMode = user?.accountMode || 'LIVE';
+
+        // Get all user's balances for current mode (including outcome tokens)
         const balances = await prisma.balance.findMany({
             where: {
                 userId,
+                accountType: accountMode,
                 amount: { not: 0 } // Return all non-zero balances
             },
             select: {
@@ -37,10 +46,11 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
             balance: tusdBalance?.amount || 0,
-            balances: balances
+            balances: balances,
+            accountMode // Include current mode in response
         });
     } catch (error) {
         console.error('Error fetching balance:', error);
-        return NextResponse.json({ balance: 0, balances: [] });
+        return NextResponse.json({ balance: 0, balances: [], accountMode: 'LIVE' });
     }
 }

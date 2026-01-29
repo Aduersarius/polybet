@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { EditProfileModal } from './EditProfileModal';
+import { generateAvatarDataUri } from '@/lib/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface User {
     address: string;
@@ -72,18 +74,17 @@ export function ProfileHeader({ user, isOwner, onUpdate }: ProfileHeaderProps) {
                         animate={{ scale: 1, opacity: 1 }}
                         className="relative"
                     >
-                        <div className="w-32 h-32 rounded-xl bg-black border-4 border-black overflow-hidden shadow-2xl">
-                            {safeAvatarUrl ? (
-                                <img
-                                    src={safeAvatarUrl}
+                        <div className="w-32 h-32 rounded-xl bg-black border-4 border-black shadow-2xl overflow-hidden">
+                            <Avatar className="w-full h-full rounded-none">
+                                <AvatarImage
+                                    src={safeAvatarUrl || generateAvatarDataUri(user.username || user.address, 120)}
                                     alt={user.username || 'User'}
                                     className="w-full h-full object-cover"
                                 />
-                            ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-4xl font-bold text-white">
+                                <AvatarFallback className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-purple-600">
                                     {(user.username?.[0] || user.address.slice(2, 3)).toUpperCase()}
-                                </div>
-                            )}
+                                </AvatarFallback>
+                            </Avatar>
                         </div>
                     </motion.div>
 

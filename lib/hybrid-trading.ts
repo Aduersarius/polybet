@@ -81,14 +81,21 @@ function calculateSharesForCost(
     return qNew - currentShares[targetIndex];
 }
 // --- HELPER: Update User Balance ---
-async function updateBalance(prisma: any, userId: string, tokenSymbol: string, eventId: string | null, amountDelta: number) {
+async function updateBalance(
+    prisma: any,
+    userId: string,
+    tokenSymbol: string,
+    eventId: string | null,
+    amountDelta: number,
+    accountType: string = 'LIVE'
+) {
     // Revert to findFirst + update/create because native upsert with nullable fields in compound unique
     // is not supported by Prisma Client generated types (requires strict non-null matching).
     // Performance is acceptable now that AMM updates are async and RiskManager is optimized.
 
     // Check for existing balance
     const existing = await prisma.balance.findFirst({
-        where: { userId, tokenSymbol, eventId, outcomeId: null },
+        where: { userId, tokenSymbol, eventId, outcomeId: null, accountType },
         select: { id: true, amount: true },
     });
 
@@ -102,7 +109,7 @@ async function updateBalance(prisma: any, userId: string, tokenSymbol: string, e
         });
     } else {
         await prisma.balance.create({
-            data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta }
+            data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta, accountType }
         });
     }
 }
@@ -112,10 +119,11 @@ async function getBalanceAmount(
     prisma: any,
     userId: string,
     tokenSymbol: string,
-    eventId: string | null
+    eventId: string | null,
+    accountType: string = 'LIVE'
 ): Promise<number> {
     const record = await prisma.balance.findFirst({
-        where: { userId, tokenSymbol, eventId, outcomeId: null },
+        where: { userId, tokenSymbol, eventId, outcomeId: null, accountType },
         select: { amount: true },
     });
     if (!record) return 0;
@@ -129,9 +137,10 @@ async function ensureSufficientBalance(
     tokenSymbol: string,
     eventId: string | null,
     required: number,
-    assetLabel: string
+    assetLabel: string,
+    accountType: string = 'LIVE'
 ) {
-    const available = await getBalanceAmount(prisma, userId, tokenSymbol, eventId);
+    const available = await getBalanceAmount(prisma, userId, tokenSymbol, eventId, accountType);
     if (available < required) {
         throw new Error(`Insufficient ${assetLabel}. Available: ${available.toFixed(4)}, Required: ${required.toFixed(4)}`);
     }

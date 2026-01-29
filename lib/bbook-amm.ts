@@ -276,10 +276,11 @@ async function updateBalance(
     userId: string,
     tokenSymbol: string,
     eventId: string | null,
-    amountDelta: number
+    amountDelta: number,
+    accountType: string = 'LIVE'
 ): Promise<void> {
     const existing = await tx.balance.findFirst({
-        where: { userId, tokenSymbol, eventId, outcomeId: null },
+        where: { userId, tokenSymbol, eventId, outcomeId: null, accountType },
         select: { id: true }
     });
 
@@ -290,7 +291,7 @@ async function updateBalance(
         });
     } else {
         await tx.balance.create({
-            data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta }
+            data: { userId, tokenSymbol, eventId, outcomeId: null, amount: amountDelta, accountType }
         });
     }
 }

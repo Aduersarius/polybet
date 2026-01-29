@@ -9,6 +9,8 @@ import { useSupportChat } from '@/contexts/SupportChatContext';
 import { FileUpload } from './FileUpload';
 import { toast } from '@/components/ui/use-toast';
 import { sanitizeUrl } from '@/lib/utils';
+import { generateAvatarDataUri } from '@/lib/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 type View = 'list' | 'create' | 'chat';
 
@@ -852,9 +854,15 @@ export function SupportChatWidget() {
                         key={message.id}
                         className={`flex gap-2 ${isCurrentUser && !isAgent ? 'flex-row-reverse' : ''}`}
                       >
-                        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${isAgent ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/80'}`}>
-                          <User className="w-3.5 h-3.5" />
-                        </div>
+                        <Avatar className="w-7 h-7 flex-shrink-0">
+                          <AvatarImage
+                            src={message.user.avatarUrl || generateAvatarDataUri(message.user.username || message.user.name || message.user.id, 80)}
+                            alt={message.user.username || message.user.name || 'User'}
+                          />
+                          <AvatarFallback className={isAgent ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/80'}>
+                            {(message.user.username?.[0] || message.user.name?.[0] || (isAgent ? 'A' : 'U')).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className={`flex-1 max-w-[75%] ${isCurrentUser && !isAgent ? 'items-end' : ''}`}>
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-xs font-medium text-white">

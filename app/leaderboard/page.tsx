@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, TrendingUp, Medal, Crown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Navbar } from '@/app/components/Navbar';
 import { Footer } from '@/app/components/Footer';
+import { generateAvatarDataUri } from '@/lib/avatar';
 import Link from 'next/link';
 
 type TimePeriod = 'today' | 'week' | 'month' | 'year' | 'all';
@@ -90,12 +91,12 @@ function generateFakeLeaderboard(period: TimePeriod): LeaderboardEntry[] {
         const hashB = hashString(b.name + period);
         return hashA - hashB;
     });
-    
+
     return shuffled.slice(0, 20).map((user, index) => {
         // Deterministic values based on user name and period
         const userSeed = hashString(user.name + period);
         const userRandom = seededRandom(userSeed);
-        
+
         // Top traders have higher profits, exponential decay
         // Reduced base profit range: $15-120 (much more realistic for single bets)
         const rankFactor = Math.pow(0.8, index);
@@ -165,9 +166,9 @@ export default function LeaderboardPage() {
     // Filter and sort
     const filteredLeaderboard = useMemo(() => {
         let result = [...leaderboard];
-        
+
         if (searchQuery) {
-            result = result.filter(entry => 
+            result = result.filter(entry =>
                 entry.name.toLowerCase().includes(searchQuery.toLowerCase())
             );
         }
@@ -201,7 +202,7 @@ export default function LeaderboardPage() {
     return (
         <div className="min-h-screen text-white">
             <Navbar />
-            
+
             <main className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-6xl mx-auto">
                     {/* Header */}
@@ -232,8 +233,12 @@ export default function LeaderboardPage() {
                                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-8 bg-[#1a1d28] border border-purple-400/30 rounded-full flex items-center justify-center">
                                         <span className="text-purple-400 font-bold text-sm">2</span>
                                     </div>
-                                    <div className={`w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full bg-gradient-to-br ${getAvatarGradient(topThree[1].name)} flex items-center justify-center text-white font-bold text-xl mb-3`}>
-                                        {topThree[1].name.charAt(0)}
+                                    <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full overflow-hidden shadow-lg mb-3 ring-2 ring-white/10 group-hover:ring-purple-400/30 transition-all">
+                                        <img
+                                            src={generateAvatarDataUri(topThree[1].name, 120)}
+                                            alt={topThree[1].name}
+                                            className="w-full h-full object-cover"
+                                        />
                                     </div>
                                     <p className="font-semibold text-white text-sm sm:text-base truncate">{topThree[1].name}</p>
                                     <p className="text-emerald-400 font-bold text-lg sm:text-xl mt-1">+{formatCurrency(topThree[1].profit)}</p>
@@ -253,8 +258,12 @@ export default function LeaderboardPage() {
                                     <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                                         <Crown className="w-8 h-8 text-blue-400" />
                                     </div>
-                                    <div className={`w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-gradient-to-br ${getAvatarGradient(topThree[0].name)} flex items-center justify-center text-white font-bold text-2xl mb-3 ring-2 ring-blue-400/30`}>
-                                        {topThree[0].name.charAt(0)}
+                                    <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full overflow-hidden shadow-lg mb-3 ring-2 ring-blue-400/30 group-hover:ring-blue-400/50 transition-all">
+                                        <img
+                                            src={generateAvatarDataUri(topThree[0].name, 160)}
+                                            alt={topThree[0].name}
+                                            className="w-full h-full object-cover"
+                                        />
                                     </div>
                                     <p className="font-bold text-white text-base sm:text-lg truncate">{topThree[0].name}</p>
                                     <p className="text-emerald-400 font-bold text-xl sm:text-2xl mt-1">+{formatCurrency(topThree[0].profit)}</p>
@@ -275,8 +284,12 @@ export default function LeaderboardPage() {
                                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-8 bg-[#1a1d28] border border-emerald-400/30 rounded-full flex items-center justify-center">
                                         <span className="text-emerald-400 font-bold text-sm">3</span>
                                     </div>
-                                    <div className={`w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-gradient-to-br ${getAvatarGradient(topThree[2].name)} flex items-center justify-center text-white font-bold text-lg mb-3`}>
-                                        {topThree[2].name.charAt(0)}
+                                    <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full overflow-hidden shadow-lg mb-3 ring-2 ring-white/10 group-hover:ring-emerald-400/30 transition-all">
+                                        <img
+                                            src={generateAvatarDataUri(topThree[2].name, 120)}
+                                            alt={topThree[2].name}
+                                            className="w-full h-full object-cover"
+                                        />
                                     </div>
                                     <p className="font-semibold text-white text-sm truncate">{topThree[2].name}</p>
                                     <p className="text-emerald-400 font-bold text-base sm:text-lg mt-1">+{formatCurrency(topThree[2].profit)}</p>
@@ -295,11 +308,10 @@ export default function LeaderboardPage() {
                                     <button
                                         key={p.id}
                                         onClick={() => { setPeriod(p.id); setPage(1); }}
-                                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                                            period === p.id
+                                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${period === p.id
                                                 ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
                                                 : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                                        }`}
+                                            }`}
                                     >
                                         {p.label}
                                     </button>
@@ -310,21 +322,19 @@ export default function LeaderboardPage() {
                             <div className="flex items-center gap-2 bg-white/5 rounded-xl p-1">
                                 <button
                                     onClick={() => setSortBy('profit')}
-                                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                        sortBy === 'profit'
+                                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${sortBy === 'profit'
                                             ? 'bg-white/10 text-white'
                                             : 'text-white/60 hover:text-white'
-                                    }`}
+                                        }`}
                                 >
                                     Profit
                                 </button>
                                 <button
                                     onClick={() => setSortBy('volume')}
-                                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                        sortBy === 'volume'
+                                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${sortBy === 'volume'
                                             ? 'bg-white/10 text-white'
                                             : 'text-white/60 hover:text-white'
-                                    }`}
+                                        }`}
                                 >
                                     Volume
                                 </button>
@@ -390,8 +400,12 @@ export default function LeaderboardPage() {
 
                                             {/* Trader */}
                                             <div className="col-span-10 sm:col-span-4 flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarGradient(entry.name)} flex items-center justify-center text-white font-bold flex-shrink-0`}>
-                                                    {entry.name.charAt(0)}
+                                                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-white/5 ring-1 ring-white/5">
+                                                    <img
+                                                        src={generateAvatarDataUri(entry.name, 80)}
+                                                        alt={entry.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="font-semibold text-white truncate">{entry.name}</p>
@@ -453,11 +467,10 @@ export default function LeaderboardPage() {
                                         <button
                                             key={p}
                                             onClick={() => setPage(p)}
-                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                                                page === p
+                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${page === p
                                                     ? 'bg-blue-500 text-white'
                                                     : 'text-white/60 hover:text-white hover:bg-white/10'
-                                            }`}
+                                                }`}
                                         >
                                             {p}
                                         </button>

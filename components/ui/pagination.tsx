@@ -1,7 +1,6 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
-// @ts-ignore
-import { ButtonProps, buttonStyles } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, DotsHorizontalIcon } from "@radix-ui/react-icons"
 
 const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
@@ -36,21 +35,19 @@ PaginationItem.displayName = "PaginationItem"
 
 type PaginationLinkProps = {
   isActive?: boolean
-} & Pick<ButtonProps, "size"> &
-  React.ComponentProps<"a">
+} & { size?: "default" | "sm" | "lg" | "icon" } & React.ComponentProps<"a">
 
 const PaginationLink = ({
   className,
   isActive,
-  size = "sq-sm",
+  size = "icon",
   ...props
 }: PaginationLinkProps) => (
   <a
     aria-current={isActive ? "page" : undefined}
     className={cn(
-      // @ts-ignore
-      buttonStyles({
-        intent: isActive ? "outline" : "plain",
+      buttonVariants({
+        variant: isActive ? "outline" : "ghost",
         size,
       }),
       className
@@ -66,7 +63,7 @@ const PaginationPrevious = ({
 }: React.ComponentProps<typeof PaginationLink>) => (
   <PaginationLink
     aria-label="Go to previous page"
-    size="sm"
+    size="default"
     className={cn("gap-1 pl-2.5", className)}
     {...props}
   >
@@ -82,7 +79,7 @@ const PaginationNext = ({
 }: React.ComponentProps<typeof PaginationLink>) => (
   <PaginationLink
     aria-label="Go to next page"
-    size="sm"
+    size="default"
     className={cn("gap-1 pr-2.5", className)}
     {...props}
   >

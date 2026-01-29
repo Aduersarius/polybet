@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/lib/auth-client';
 import { SignupModal } from './auth/SignupModal';
 import { LoginModal } from './auth/LoginModal';
 import { CreateEventModal } from './admin/CreateEventModal';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
+import { SwitchToDemoDialog } from './SwitchToDemoDialog';
 
 interface DbEvent {
     id: string;
@@ -22,14 +23,17 @@ interface DbEvent {
 export function PromotionalBanners() {
     const { data: session } = useSession();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [showSignupModal, setShowSignupModal] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showSuggestModal, setShowSuggestModal] = useState(false);
+    const [showDemoDialog, setShowDemoDialog] = useState(false);
+    const [isSwitching, setIsSwitching] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
 
     // Fetch featured event by ID
     const FEATURED_EVENT_ID = '415643617';
-    
+
     const { data: topEvent } = useQuery<DbEvent>({
         queryKey: ['featured-event', FEATURED_EVENT_ID],
         queryFn: async () => {
@@ -45,9 +49,45 @@ export function PromotionalBanners() {
 
     const handleDemoBalance = () => {
         if (session?.user) {
-            router.push('/');
+            const skip = typeof window !== 'undefined' ? localStorage.getItem('skipModeConfirmation_DEMO') : null;
+            if (skip === 'true') {
+                confirmSwitchToDemo(false);
+            } else {
+                setShowDemoDialog(true);
+            }
         } else {
             setShowSignupModal(true);
+        }
+    };
+
+    const confirmSwitchToDemo = async (dontShowAgain: boolean = false) => {
+        setIsSwitching(true);
+
+        if (dontShowAgain && typeof window !== 'undefined') {
+            localStorage.setItem('skipModeConfirmation_DEMO', 'true');
+        }
+
+        try {
+            const response = await fetch('/api/account/toggle-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'DEMO' })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Invalidate queries to refetch fresh data
+                await queryClient.invalidateQueries({ queryKey: ['balance'] });
+                await queryClient.invalidateQueries({ queryKey: ['userBalance'] });
+
+                setShowDemoDialog(false);
+                router.push('/');
+            }
+        } catch (error) {
+            console.error('Error switching to demo mode:', error);
+        } finally {
+            setIsSwitching(false);
         }
     };
 
@@ -127,7 +167,7 @@ export function PromotionalBanners() {
                 {/* Mobile Layout: Main banner on top, two mini banners side by side below */}
                 {/* Desktop Layout: Main banner 2/3 + mini banners stacked 1/3 */}
                 <div className="flex flex-col lg:grid lg:grid-cols-3 gap-3 lg:gap-4">
-                    
+
                     {/* Large Main Banner (full width on mobile, 2/3 on desktop) */}
                     <div className="lg:col-span-2 relative group order-1">
                         <div className="relative h-44 sm:h-56 lg:h-64 rounded-2xl overflow-hidden">
@@ -145,10 +185,10 @@ export function PromotionalBanners() {
                                     <div className="relative w-32 h-32 sm:w-44 sm:h-44 lg:w-56 lg:h-56">
                                         {/* Outer glow */}
                                         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-purple-500/20 rounded-full blur-3xl animate-pulse" />
-                                        
+
                                         {/* Main floating card */}
                                         <div className="absolute inset-4 sm:inset-6">
-                                            <div 
+                                            <div
                                                 className="absolute inset-0 bg-gradient-to-br from-[#1e3a5f] to-[#0f2744] rounded-2xl shadow-2xl border border-blue-400/20 overflow-hidden"
                                                 style={{ transform: 'rotateY(-8deg) rotateX(5deg)' }}
                                             >
@@ -157,18 +197,18 @@ export function PromotionalBanners() {
                                                     <svg className="w-full h-full opacity-70" viewBox="0 0 100 60" preserveAspectRatio="none">
                                                         <defs>
                                                             <linearGradient id="trendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                                <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.6"/>
-                                                                <stop offset="100%" stopColor="#3B82F6" stopOpacity="0"/>
+                                                                <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.6" />
+                                                                <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
                                                             </linearGradient>
                                                         </defs>
-                                                        <path 
-                                                            d="M 0 45 Q 15 40, 25 35 T 45 28 T 65 20 T 85 25 T 100 15" 
-                                                            fill="none" 
-                                                            stroke="#3B82F6" 
+                                                        <path
+                                                            d="M 0 45 Q 15 40, 25 35 T 45 28 T 65 20 T 85 25 T 100 15"
+                                                            fill="none"
+                                                            stroke="#3B82F6"
                                                             strokeWidth="2.5"
                                                         />
-                                                        <path 
-                                                            d="M 0 45 Q 15 40, 25 35 T 45 28 T 65 20 T 85 25 T 100 15 L 100 60 L 0 60 Z" 
+                                                        <path
+                                                            d="M 0 45 Q 15 40, 25 35 T 45 28 T 65 20 T 85 25 T 100 15 L 100 60 L 0 60 Z"
                                                             fill="url(#trendGradient)"
                                                         />
                                                     </svg>
@@ -182,15 +222,15 @@ export function PromotionalBanners() {
                                         </div>
 
                                         {/* Floating YES chip */}
-                                        <div 
+                                        <div
                                             className="absolute -right-1 sm:-right-2 top-1/4 px-2 py-1 sm:px-3 sm:py-1.5 bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg text-white text-[10px] sm:text-xs font-bold animate-bounce"
                                             style={{ animationDuration: '2s', animationDelay: '0.2s' }}
                                         >
                                             YES
                                         </div>
-                                        
+
                                         {/* Floating NO chip */}
-                                        <div 
+                                        <div
                                             className="absolute -left-1 sm:-left-2 bottom-1/3 px-2 py-1 sm:px-3 sm:py-1.5 bg-gradient-to-r from-red-500 to-red-600 rounded-lg shadow-lg text-white text-[10px] sm:text-xs font-bold animate-bounce"
                                             style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}
                                         >
@@ -198,14 +238,14 @@ export function PromotionalBanners() {
                                         </div>
 
                                         {/* Floating coins */}
-                                        <div 
+                                        <div
                                             className="absolute -left-2 sm:-left-4 top-1/4 w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full shadow-lg flex items-center justify-center animate-bounce"
                                             style={{ animationDuration: '3s' }}
                                         >
                                             <span className="text-yellow-900 font-bold text-[10px] sm:text-xs">$</span>
                                         </div>
-                                        
-                                        <div 
+
+                                        <div
                                             className="absolute right-0 sm:right-2 bottom-1/4 w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full shadow-lg flex items-center justify-center animate-bounce"
                                             style={{ animationDuration: '2.8s', animationDelay: '0.3s' }}
                                         >
@@ -242,7 +282,7 @@ export function PromotionalBanners() {
                                     <div className="relative w-24 h-24 sm:w-36 sm:h-36 lg:w-48 lg:h-48">
                                         {/* Outer glow */}
                                         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-purple-500/20 rounded-full blur-3xl animate-pulse" />
-                                        
+
                                         {/* 3D Coin stack */}
                                         <div className="absolute inset-4 flex items-center justify-center">
                                             {/* Bottom coins (stack effect) */}
@@ -251,9 +291,9 @@ export function PromotionalBanners() {
                                                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-3 sm:w-20 sm:h-4 lg:w-28 lg:h-5 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full transform -translate-y-2 sm:-translate-y-3 lg:-translate-y-4" />
                                                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-3 sm:w-20 sm:h-4 lg:w-28 lg:h-5 bg-gradient-to-b from-blue-400 to-blue-600 rounded-full transform -translate-y-4 sm:-translate-y-6 lg:-translate-y-8" />
                                             </div>
-                                            
+
                                             {/* Main coin */}
-                                            <div 
+                                            <div
                                                 className="relative w-14 h-14 sm:w-20 sm:h-20 lg:w-28 lg:h-28 bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 rounded-full shadow-2xl flex items-center justify-center border-2 sm:border-4 border-blue-300/50"
                                                 style={{ transform: 'translateY(-8px)' }}
                                             >
@@ -329,11 +369,10 @@ export function PromotionalBanners() {
                                         <button
                                             key={index}
                                             onClick={() => setCurrentSlide(index)}
-                                            className={`h-1.5 rounded-full transition-all duration-300 ${
-                                                currentSlide === index 
-                                                    ? 'bg-white w-8' 
-                                                    : 'bg-white/40 w-4 hover:bg-white/60'
-                                            }`}
+                                            className={`h-1.5 rounded-full transition-all duration-300 ${currentSlide === index
+                                                ? 'bg-white w-8'
+                                                : 'bg-white/40 w-4 hover:bg-white/60'
+                                                }`}
                                             aria-label={`Go to slide ${index + 1}`}
                                         />
                                     ))}
@@ -344,9 +383,9 @@ export function PromotionalBanners() {
 
                     {/* Mini Banners: Side by side on mobile, stacked on desktop */}
                     <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 order-2">
-                        
+
                         {/* Mini Banner 1: Discord */}
-                        <div 
+                        <div
                             onClick={() => window.open('https://discord.gg/zdm8sVgg', '_blank', 'noopener,noreferrer')}
                             className="relative flex-1 h-32 sm:h-40 lg:h-[calc(50%-0.5rem)] rounded-2xl overflow-hidden cursor-pointer group"
                         >
@@ -384,7 +423,7 @@ export function PromotionalBanners() {
                         </div>
 
                         {/* Mini Banner 2: Referral */}
-                        <div 
+                        <div
                             onClick={handleReferral}
                             className="relative flex-1 h-32 sm:h-40 lg:h-[calc(50%-0.5rem)] rounded-2xl overflow-hidden cursor-pointer group"
                         >
@@ -445,6 +484,12 @@ export function PromotionalBanners() {
                 isOpen={showSuggestModal}
                 onClose={() => setShowSuggestModal(false)}
                 mode="user"
+            />
+            <SwitchToDemoDialog
+                isOpen={showDemoDialog}
+                onClose={() => setShowDemoDialog(false)}
+                onConfirm={confirmSwitchToDemo}
+                isSwitching={isSwitching}
             />
         </>
     );

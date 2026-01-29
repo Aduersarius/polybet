@@ -18,6 +18,7 @@
   "registries": {
     "@aceternity": "https://ui.aceternity.com/registry/{name}.json",
     "@intentui": "https://intentui.com/r/{name}",
-    "@moleculeui": "https://moleculeui.design/r/{name}.json"
+    "@moleculeui": "https://moleculeui.design/r/{name}.json",
+    "@diceui": "https://diceui.com/r/{name}.json"
   }
 }

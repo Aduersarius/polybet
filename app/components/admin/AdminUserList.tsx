@@ -1,11 +1,34 @@
 'use client';
 
+import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryState, parseAsInteger, parseAsString, parseAsArrayOf } from 'nuqs';
+import {
+    ColumnDef,
+} from '@tanstack/react-table';
+import { Text, DollarSign, CheckCircle2, ShieldAlert, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
+
+import { DataTable } from '@/components/data-table/data-table';
+import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
+import { DataTableToolbar } from '@/components/data-table/data-table-toolbar';
+import { useDataTable } from '@/hooks/use-data-table';
+
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Pagination } from './Pagination';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, ShieldCheck, ExternalLink } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { generateAvatarDataUri } from '@/lib/avatar';
 
 interface AdminUser {
     id: string;
@@ -13,18 +36,18 @@ interface AdminUser {
     username: string | null;
     email: string | null;
     name: string | null;
+    image: string | null;
+    avatarUrl: string | null;
     isBanned: boolean;
     isAdmin: boolean;
     isDeleted: boolean;
     lastIp?: string | null;
     lastCountry?: string | null;
-    lastUserAgent?: string | null;
-    lastDevice?: string | null;
-    lastOs?: string | null;
-    lastVisitedAt?: string | null;
     currentBalance?: number;
     totalDeposited?: number;
     totalWithdrawn?: number;
+    winRate?: number;
+    lastSeen?: string;
     _count: {
         marketActivity: number;
         createdEvents: number;
@@ -35,30 +58,40 @@ interface AdminUser {
 export function AdminUserList() {
     const adminId = 'dev-user'; // Mock admin ID
     const queryClient = useQueryClient();
-    const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const debouncedSearch = useDebounce(searchQuery, 300);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-    const [sortField, setSortField] = useState('createdAt');
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-    const itemsPerPage = 10;
 
-    // Reset to page 1 when search changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [debouncedSearch]);
+    // URL State via Nuqs (handled by useDataTable)
+    // We optionally listen to specific filters to pass to API
+    const [search] = useQueryState('user', parseAsString.withDefault(''));
+    const [statusFilter] = useQueryState('status', parseAsArrayOf(parseAsString).withDefault([]));
 
+    const [page] = useQueryState('page', parseAsInteger.withDefault(1));
+    const [perPage] = useQueryState('perPage', parseAsInteger.withDefault(10));
+    const [sorting] = useQueryState('sort', {
+        parse: (value) => {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return null;
+            }
+        }, // Simple parser for now, useDataTable handles complex
+        serialize: (value) => JSON.stringify(value),
+    });
+
+    const sortField = Array.isArray(sorting) && sorting[0]?.id ? sorting[0].id : 'createdAt';
+    const sortDir = Array.isArray(sorting) && sorting[0]?.desc ? 'desc' : 'asc';
+
+    // Data Fetching
     const { data: usersData, isLoading } = useQuery({
-        queryKey: ['admin', 'users', adminId, currentPage, debouncedSearch, sortField, sortDir],
+        queryKey: ['admin', 'users', adminId, page, perPage, search, statusFilter, sortField, sortDir],
         queryFn: async () => {
             const params = new URLSearchParams({
                 adminId,
-                page: currentPage.toString(),
-                limit: itemsPerPage.toString(),
-                ...(debouncedSearch && { search: debouncedSearch }),
-                sortField,
-                sortDir,
+                page: page.toString(),
+                limit: perPage.toString(),
+                ...(search && { search }),
+                ...(statusFilter.length > 0 && { status: statusFilter.join(',') }),
+                sortField: sortField as string,
+                sortDir: sortDir as string,
             });
             const res = await fetch(`/api/admin/users?${params}`);
             if (!res.ok) throw new Error('Failed to fetch users');
@@ -66,17 +99,11 @@ export function AdminUserList() {
         },
     });
 
-    const users = usersData?.users || [];
+    const users = React.useMemo(() => usersData?.users || [], [usersData]);
     const totalUsers = usersData?.total || 0;
-    const totalPages = Math.ceil(totalUsers / itemsPerPage);
+    const pageCount = Math.ceil(totalUsers / perPage);
 
-    // Derived counts for header
-    const activeCount = users.filter((u) => !u.isBanned && !u.isDeleted).length;
-    const adminCount = users.filter((u) => u.isAdmin).length;
-    const bannedCount = users.filter((u) => u.isBanned && !u.isDeleted).length;
-    const deletedCount = users.filter((u) => u.isDeleted).length;
-
-
+    // Mutations
     const updateUserMutation = useMutation({
         mutationFn: async ({ targetUserId, action }: { targetUserId: string; action: string }) => {
             const res = await fetch('/api/admin/users', {
@@ -89,8 +116,11 @@ export function AdminUserList() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-            setSelectedUser(null);
+            toast({ title: 'Success', description: 'User updated successfully' });
         },
+        onError: () => {
+            toast({ title: 'Error', description: 'Failed to update user', variant: 'destructive' });
+        }
     });
 
     const deleteUserMutation = useMutation({
@@ -105,321 +135,295 @@ export function AdminUserList() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-            setSelectedUser(null);
+            toast({ title: 'Success', description: 'User deleted successfully' });
+        },
+        onError: () => {
+            toast({ title: 'Error', description: 'Failed to delete user', variant: 'destructive' });
+        }
+    });
+
+    // Column Definitions
+    const columns = React.useMemo<ColumnDef<AdminUser>[]>(() => [
+        {
+            id: 'select',
+            header: ({ table }) => (
+                <Checkbox
+                    checked={
+                        table.getIsAllPageRowsSelected() ||
+                        (table.getIsSomePageRowsSelected() && 'indeterminate')
+                    }
+                    onCheckedChange={(value: any) => table.toggleAllPageRowsSelected(!!value)}
+                    aria-label="Select all"
+                    className="translate-y-[2px]"
+                />
+            ),
+            cell: ({ row }) => (
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(value: any) => row.toggleSelected(!!value)}
+                    aria-label="Select row"
+                    className="translate-y-[2px]"
+                />
+            ),
+            size: 32,
+            enableSorting: false,
+            enableHiding: false,
+        },
+        {
+            id: 'user',
+            accessorFn: (row) => row.name || row.username || row.address,
+            header: ({ column }) => <DataTableColumnHeader column={column} label="User" />,
+            cell: ({ row }) => {
+                const user = row.original;
+                return (
+                    <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9 border border-zinc-800">
+                            <AvatarImage src={user.avatarUrl || user.image || generateAvatarDataUri(user.username || user.address || user.id, 40)} />
+                            <AvatarFallback>{(user.username?.[0] || 'U').toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                            <span className="font-medium text-sm">{user.name || user.username || 'Unknown'}</span>
+                            <span className="text-xs text-zinc-500 font-mono">
+                                {user.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : '—'}
+                            </span>
+                        </div>
+                    </div>
+                );
+            },
+            meta: {
+                label: 'User',
+                placeholder: 'Search user...',
+                variant: 'text',
+                icon: Text
+            },
+            enableColumnFilter: true,
+        },
+        {
+            id: 'email',
+            accessorKey: 'email',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Email" />,
+            cell: ({ getValue }) => <span className="text-sm text-zinc-400">{(getValue() as string) || '—'}</span>,
+            enableColumnFilter: false, // Disabled to simplify toolbar, using 'User' search for everything
+        },
+        {
+            id: 'currentBalance',
+            accessorKey: 'currentBalance',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Balance" />,
+            cell: ({ getValue }) => {
+                const amount = getValue() as number;
+                return (
+                    <div className="flex items-center gap-1 font-mono text-xs">
+                        <DollarSign className="w-3 h-3 text-emerald-500" />
+                        <span>{amount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                );
+            },
+            enableColumnFilter: false,
+        },
+        {
+            id: 'totalDeposited',
+            accessorKey: 'totalDeposited',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Deposited" />,
+            cell: ({ getValue }) => {
+                const amount = getValue() as number;
+                return (
+                    <div className="flex items-center gap-1 font-mono text-xs text-zinc-400">
+                        <DollarSign className="w-3 h-3 text-zinc-500" />
+                        <span>{amount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                );
+            },
+            enableColumnFilter: false,
+        },
+        {
+            id: 'totalWithdrawn',
+            accessorKey: 'totalWithdrawn',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Withdrawn" />,
+            cell: ({ getValue }) => {
+                const amount = getValue() as number;
+                return (
+                    <div className="flex items-center gap-1 font-mono text-xs text-zinc-400">
+                        <DollarSign className="w-3 h-3 text-zinc-500" />
+                        <span>{amount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                );
+            },
+            enableColumnFilter: false,
+        },
+        {
+            id: 'winRate',
+            accessorKey: 'winRate',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Win Rate" />,
+            cell: ({ getValue }) => {
+                const rate = getValue() as number;
+                if (rate === undefined || rate === null) return <span className="text-xs text-zinc-500">—</span>;
+                const percentage = Math.round(rate * 100);
+                const colorClass = percentage >= 50 ? 'text-emerald-500' : 'text-red-500';
+                return (
+                    <div className={`font-mono text-xs font-medium ${colorClass}`}>
+                        {percentage}%
+                    </div>
+                );
+            },
+            enableColumnFilter: false,
+        },
+        {
+            id: 'lastSeen',
+            accessorKey: 'lastSeen',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Last Seen" />,
+            cell: ({ getValue }) => {
+                const dateStr = getValue() as string;
+                if (!dateStr) return <span className="text-xs text-zinc-500">—</span>;
+                return (
+                    <span className="text-xs text-zinc-500">
+                        {format(new Date(dateStr), 'MMM d, HH:mm')}
+                    </span>
+                );
+            },
+            enableColumnFilter: false,
+        },
+        {
+            id: 'marketActivity',
+            accessorFn: (row) => row._count.marketActivity,
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Bets" />,
+            cell: ({ row }) => (
+                <Badge variant="outline" className="text-[11px] h-5 border-blue-500/20 bg-blue-500/10 text-blue-200 px-2.5">
+                    {row.original._count.marketActivity}
+                </Badge>
+            ),
+            enableColumnFilter: false,
+        },
+        {
+            id: 'status',
+            accessorFn: (row) => {
+                if (row.isDeleted) return 'deleted';
+                if (row.isBanned) return 'banned';
+                if (row.isAdmin) return 'admin';
+                return 'active';
+            },
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Status" />,
+            cell: ({ row }) => {
+                const user = row.original;
+                return (
+                    <div className="flex gap-1">
+                        {user.isAdmin && <Badge variant="outline" className="border-purple-500/50 text-purple-400 bg-purple-500/10 text-[10px]"><ShieldCheck className="w-3 h-3 mr-1" />Admin</Badge>}
+                        {user.isDeleted && <Badge variant="destructive" className="text-[10px]"><Trash2 className="w-3 h-3 mr-1" />Deleted</Badge>}
+                        {user.isBanned && <Badge variant="destructive" className="text-[10px]"><ShieldAlert className="w-3 h-3 mr-1" />Banned</Badge>}
+                        {!user.isBanned && !user.isDeleted && !user.isAdmin && <Badge variant="outline" className="border-emerald-500/50 text-emerald-400 bg-emerald-500/10 text-[10px]"><CheckCircle2 className="w-3 h-3 mr-1" />Active</Badge>}
+                    </div>
+                );
+            },
+            meta: {
+                label: 'Status',
+                variant: 'multiSelect',
+                options: [
+                    { label: 'Active', value: 'active', icon: CheckCircle2 },
+                    { label: 'Banned', value: 'banned', icon: ShieldAlert },
+                    { label: 'Admin', value: 'admin', icon: ShieldCheck },
+                    { label: 'Deleted', value: 'deleted', icon: Trash2 },
+                ]
+            },
+            enableColumnFilter: true,
+        },
+        {
+            id: 'lastCountry',
+            accessorKey: 'lastCountry',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Country" />,
+            cell: ({ getValue }) => (
+                <div className="flex items-center gap-2">
+                    <span className="text-sm">{(getValue() as string) === 'US' ? '🇺🇸' : '🌐'}</span>
+                    <span className="text-xs text-zinc-500">{(getValue() as string) || 'N/A'}</span>
+                </div>
+            ),
+            enableColumnFilter: false,
+        },
+        {
+            id: 'createdAt',
+            accessorKey: 'createdAt',
+            header: ({ column }) => <DataTableColumnHeader column={column} label="Joined" />,
+            cell: ({ getValue }) => (
+                <span className="text-xs text-zinc-500">
+                    {format(new Date(getValue() as string), 'MMM d, yyyy')}
+                </span>
+            ),
+            enableColumnFilter: false,
+        },
+        {
+            id: 'actions',
+            cell: ({ row }) => {
+                const user = row.original;
+                return (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.id)}>
+                                Copy ID
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => window.open(`/admin/users/${user.id}`, '_blank')}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Profile
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onClick={() => updateUserMutation.mutate({ targetUserId: user.id, action: user.isBanned ? 'unban' : 'ban' })}
+                            >
+                                {user.isBanned ? <ShieldCheck className="mr-2 h-4 w-4 text-green-500" /> : <ShieldAlert className="mr-2 h-4 w-4 text-orange-500" />}
+                                {user.isBanned ? 'Unban User' : 'Ban User'}
+                            </DropdownMenuItem>
+                            {!user.isDeleted && (
+                                <DropdownMenuItem
+                                    className="text-red-500 focus:text-red-500"
+                                    onClick={() => deleteUserMutation.mutate(user.id)}
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete User
+                                </DropdownMenuItem>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                );
+            },
+        },
+    ], [updateUserMutation, deleteUserMutation]);
+
+    const { table } = useDataTable({
+        data: users,
+        columns,
+        pageCount,
+        initialState: {
+            pagination: { pageIndex: 0, pageSize: 10 },
+            sorting: [{ id: 'createdAt', desc: true }],
+            columnVisibility: {
+                email: false,
+                lastCountry: false,
+            }
         },
     });
 
 
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
-        setSelectedUser(null); // Clear selected user when changing pages
-    };
-
-    if (isLoading) {
-        return (
-            <Card className="border-0 bg-surface">
-                <CardHeader>
-                    <CardTitle className="text-zinc-200">Users</CardTitle>
-                    <CardDescription>Loading users…</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="h-24 rounded-lg bg-white/5 animate-pulse" />
-                </CardContent>
-            </Card>
-        );
-    }
-
     return (
-        <div className="space-y-4 relative z-10">
-            <Card className="border-0 bg-surface overflow-hidden max-w-full">
-                <CardHeader className="gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                        <div>
-                            <CardTitle className="text-zinc-200">Users</CardTitle>
-                            <CardDescription>Manage members, roles, and status</CardDescription>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-300">
-                            <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-200">
-                                Total {totalUsers}
-                            </Badge>
-                            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-100">
-                                Active {activeCount}
-                            </Badge>
-                            <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-100">
-                                Admins {adminCount}
-                            </Badge>
-                            <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-100">
-                                Banned {bannedCount}
-                            </Badge>
-                            {deletedCount > 0 && (
-                                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-100">
-                                    Deleted {deletedCount}
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div className="flex-1 relative">
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search by name, username, email, or address..."
-                                className="w-full bg-white/5 border border-white/5 rounded-lg px-4 py-2 pl-10 text-zinc-200 placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
-                            />
-                            <svg
-                                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
-                        {searchQuery && (
-                            <div className="text-sm text-muted-foreground">
-                                Found {totalUsers} users
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm text-zinc-300">
-                            <span className="text-xs uppercase tracking-wide text-zinc-500">Sort</span>
-                            <select
-                                value={sortField}
-                                onChange={(e) => setSortField(e.target.value)}
-                                className="rounded-md bg-white/5 border border-white/5 px-2 py-1 text-xs text-zinc-200"
-                            >
-                                <option value="createdAt">Joined</option>
-                                <option value="username">Username</option>
-                                <option value="email">Email</option>
-                                <option value="lastVisitedAt">Last seen</option>
-                                <option value="totalDeposited">Deposited</option>
-                                <option value="totalWithdrawn">Withdrawn</option>
-                            </select>
-                            <select
-                                value={sortDir}
-                                onChange={(e) => setSortDir(e.target.value as 'asc' | 'desc')}
-                                className="rounded-md bg-white/5 border border-white/5 px-2 py-1 text-xs text-zinc-200"
-                            >
-                                <option value="desc">Desc</option>
-                                <option value="asc">Asc</option>
-                            </select>
-                        </div>
-                    </div>
-                </CardHeader>
-
-                <CardContent className="p-0">
-                    <div className="w-full px-4 pb-4 space-y-3">
-                        {users.map((user) => (
-                            <div
-                                key={user.id}
-                                className={`rounded-lg border transition-colors p-3 md:p-4 ${user.isDeleted
-                                    ? 'border-zinc-500/20 bg-zinc-500/[0.02] hover:bg-zinc-500/[0.04] opacity-60'
-                                    : 'border-white/5 bg-white/[0.04] hover:bg-white/[0.06]'
-                                    }`}
-                                onClick={() => setSelectedUser(user === selectedUser ? null : user)}
-                            >
-                                <div className="grid gap-3 md:grid-cols-12 md:items-center">
-                                    <div className="md:col-span-3 space-y-1">
-                                        <div className="text-sm text-muted-foreground">User</div>
-                                        <div className="font-semibold text-zinc-200">
-                                            {user.name || user.username || (user.address ? `${user.address.slice(0, 12)}...` : '—')}
-                                        </div>
-                                        <div className="text-xs text-zinc-500 font-mono">
-                                            {user.address ? `${user.address.slice(0, 10)}…` : '—'}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground truncate">{user.email || '—'}</div>
-                                    </div>
-
-                                    <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-muted-foreground">Activity</div>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-100">
-                                                Bets {user._count.marketActivity}
-                                            </Badge>
-                                            <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-100">
-                                                Events {user._count.createdEvents}
-                                            </Badge>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-zinc-300">
-                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/5">
-                                                Vol: ${(user as any).betVolume?.toFixed ? (user as any).betVolume.toFixed(0) : '0'}
-                                            </span>
-                                            <span className="px-2 py-1 rounded-md bg-white/5 border border-white/5">
-                                                Win rate: {(user as any).winRate != null ? `${(user as any).winRate}%` : '—'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-muted-foreground">Balance</div>
-                                        <div className="text-sm text-zinc-200">
-                                            {typeof user.currentBalance === 'number' ? `$${user.currentBalance.toFixed(2)}` : '—'}
-                                        </div>
-                                        <div className="text-xs text-zinc-500 flex flex-wrap gap-2">
-                                            <span>
-                                                Dep: {typeof user.totalDeposited === 'number' ? `$${user.totalDeposited.toFixed(0)}` : '—'}
-                                            </span>
-                                            <span>
-                                                Wd: {typeof user.totalWithdrawn === 'number' ? `$${user.totalWithdrawn.toFixed(0)}` : '—'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-muted-foreground">Geo / Status</div>
-                                        <div className="text-sm text-zinc-200">{user.lastCountry || '—'}</div>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            {user.isAdmin ? (
-                                                <Badge variant="outline" className="border-purple-500/30 bg-purple-500/10 text-purple-100">
-                                                    Admin
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="border-white/15 bg-white/5 text-zinc-200">
-                                                    User
-                                                </Badge>
-                                            )}
-                                            {user.isDeleted ? (
-                                                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-100">
-                                                    Deleted
-                                                </Badge>
-                                            ) : (
-                                                <Badge
-                                                    variant="outline"
-                                                    className={
-                                                        user.isBanned
-                                                            ? 'border-red-500/30 bg-red-500/10 text-red-100'
-                                                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-                                                    }
-                                                >
-                                                    {user.isBanned ? 'Banned' : 'Active'}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="md:col-span-2 space-y-1">
-                                        <div className="text-xs text-muted-foreground">Timeline</div>
-                                        <div className="text-xs text-zinc-300">
-                                            Joined: {new Date(user.createdAt).toLocaleDateString()}
-                                        </div>
-                                        <div className="text-xs text-zinc-300 truncate">
-                                            Last: {user.lastVisitedAt ? new Date(user.lastVisitedAt).toLocaleString() : '—'}
-                                        </div>
-                                    </div>
-
-                                    <div className="md:col-span-1 flex md:justify-end gap-2 md:items-center">
-                                        <a
-                                            href={`/profile?address=${encodeURIComponent(user.address || user.id)}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="text-xs px-2 py-1 rounded-md border border-white/15 bg-white/5 text-zinc-100 hover:bg-white/10"
-                                        >
-                                            Profile
-                                        </a>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    updateUserMutation.mutate({
-                                                        targetUserId: user.id,
-                                                        action: user.isBanned ? 'unban' : 'ban',
-                                                    });
-                                                }}
-                                                className={`text-xs px-2 py-1 rounded-md border transition-colors ${user.isBanned
-                                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
-                                                    : 'border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20'
-                                                    }`}
-                                            >
-                                                {user.isBanned ? 'Unban' : 'Ban'}
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (pendingDeleteId === user.id) {
-                                                        deleteUserMutation.mutate(user.id);
-                                                        setPendingDeleteId(null);
-                                                    } else {
-                                                        setPendingDeleteId(user.id);
-                                                        setTimeout(() => setPendingDeleteId(prev => prev === user.id ? null : prev), 3000);
-                                                    }
-                                                }}
-                                                disabled={deleteUserMutation.isPending || user.isDeleted}
-                                                className={`text-xs px-2 py-1 rounded-md border transition-all duration-200 ${pendingDeleteId === user.id
-                                                    ? 'bg-red-600 text-white border-red-500 scale-105 shadow-lg shadow-red-600/20 font-bold'
-                                                    : 'border-white/15 bg-white/5 text-zinc-100 hover:bg-white/10'
-                                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                            >
-                                                {user.isDeleted ? 'Deleted' : pendingDeleteId === user.id ? 'Confirm?' : 'Delete'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-
-                        {users.length === 0 && (
-                            <div className="text-center py-12 text-muted-foreground">
-                                {searchQuery ? 'No users found matching your search.' : 'No users found.'}
-                            </div>
-                        )}
-                    </div>
-
-                    {selectedUser && (
-                        <div className="border-t-0 bg-surface-elevated px-4 py-4">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <div className="text-sm text-muted-foreground">User details</div>
-                                    <div className="text-lg font-semibold text-zinc-200">{selectedUser.name || selectedUser.username || 'User'}</div>
-                                </div>
-                                <button
-                                    onClick={() => setSelectedUser(null)}
-                                    className="text-muted-foreground hover:text-zinc-200 text-sm"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                            <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm">
-                                <InfoRow label="ID" value={selectedUser.id} mono />
-                                <InfoRow label="Address" value={selectedUser.address} mono />
-                                <InfoRow label="Email" value={selectedUser.email || '—'} />
-                                <InfoRow label="Username" value={selectedUser.username || '—'} />
-                                <InfoRow label="Joined" value={new Date(selectedUser.createdAt).toLocaleDateString()} />
-                                <InfoRow label="Events created" value={String(selectedUser._count.createdEvents)} />
-                                <InfoRow label="Total activity" value={String(selectedUser._count.marketActivity)} />
-                                <InfoRow label="Admin" value={selectedUser.isAdmin ? 'Yes' : 'No'} />
-                                <InfoRow label="Status" value={selectedUser.isDeleted ? 'Deleted' : selectedUser.isBanned ? 'Banned' : 'Active'} />
-                                <InfoRow label="Country" value={selectedUser.lastCountry || '—'} />
-                                <InfoRow label="IP" value={selectedUser.lastIp || '—'} mono />
-                                <InfoRow label="Device" value={selectedUser.lastDevice || '—'} />
-                                <InfoRow label="OS" value={selectedUser.lastOs || '—'} />
-                                <InfoRow label="User Agent" value={selectedUser.lastUserAgent || '—'} />
-                                <InfoRow label="Last visited" value={selectedUser.lastVisitedAt ? new Date(selectedUser.lastVisitedAt).toLocaleString() : '—'} />
-                                <InfoRow label="Balance" value={typeof selectedUser.currentBalance === 'number' ? `$${selectedUser.currentBalance.toFixed(2)}` : '—'} />
-                                <InfoRow label="Total deposited" value={typeof selectedUser.totalDeposited === 'number' ? `$${selectedUser.totalDeposited.toFixed(2)}` : '—'} />
-                                <InfoRow label="Total withdrawn" value={typeof selectedUser.totalWithdrawn === 'number' ? `$${selectedUser.totalWithdrawn.toFixed(2)}` : '—'} />
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {totalUsers > itemsPerPage && (
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                    totalItems={totalUsers}
-                    itemsPerPage={itemsPerPage}
-                />
-            )}
-        </div>
-    );
-}
-
-function InfoRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-    return (
-        <div className="flex flex-col gap-1 rounded-lg border-0 bg-background p-3">
-            <span className="text-xs uppercase tracking-wide text-zinc-500">{label}</span>
-            <span className={`text-sm text-zinc-200 ${mono ? 'font-mono break-all' : ''}`}>{value}</span>
+        <div className="h-full flex-1 flex-col space-y-8 p-8 md:flex">
+            <div className="flex items-center justify-between space-y-2">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/80 to-muted-foreground bg-clip-text text-transparent">User Management</h2>
+                    <p className="text-muted-foreground">
+                        Real-time monitoring of system participants and financial integrity.
+                    </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Badge variant="outline" className="border-border bg-muted text-muted-foreground py-1.5 px-4 rounded-full">
+                        <span className="text-foreground mr-2 uppercase tracking-wider text-[10px] font-bold">Total Users</span> {totalUsers}
+                    </Badge>
+                </div>
+            </div>
+            <DataTable table={table}>
+                <DataTableToolbar table={table} />
+            </DataTable>
         </div>
     );
 }

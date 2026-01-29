@@ -59,6 +59,7 @@ model User {
   currentBalance       Decimal               @default(0.0)
   totalDeposited       Decimal               @default(0.0)
   totalWithdrawn       Decimal               @default(0.0)
+  accountMode          String                @default("LIVE") // DEMO | LIVE - current active trading mode
   telemetry            Json?
   marketActivity       MarketActivity[]
   createdEvents        Event[]
@@ -281,6 +282,7 @@ model MarketActivity {
   price            Decimal?
   isAmmInteraction Boolean
   orderId          String? // Related order
+  accountType      String   @default("LIVE") // DEMO | LIVE
   createdAt        DateTime @default(now())
 
   user    User     @relation(fields: [userId], references: [id])
@@ -292,17 +294,21 @@ model MarketActivity {
   @@index([userId])
   @@index([createdAt])
   @@index([orderId])
+  @@index([accountType])
 }
 
 model Transaction {
-  id        String   @id @default(cuid())
-  hash      String   @unique
-  type      String
-  amount    Decimal
-  status    String
-  userId    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  id          String   @id @default(cuid())
+  hash        String   @unique
+  type        String
+  amount      Decimal
+  status      String
+  userId      String
+  accountType String   @default("LIVE") // DEMO | LIVE
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([accountType])
 }
 
 model Message {
@@ -373,6 +379,7 @@ model Order {
   stopPrice      Decimal? // For stop orders: trigger price
   stopType       String? // For stop orders: 'stop_loss', 'stop_limit'
   batchId        String? // Reference to batch operation
+  accountType    String   @default("LIVE") // DEMO | LIVE - separates demo and live orders
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -391,6 +398,7 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([batchId])
+  @@index([accountType])
 }
 
 model BatchOrder {
@@ -433,12 +441,14 @@ model Balance {
   outcomeId   String? // NULL for base currency, outcome ID for outcome tokens
   amount      Decimal  @default(0.0)
   locked      Decimal  @default(0.0)
+  accountType String   @default("LIVE") // DEMO | LIVE - separates demo and live balances
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 
-  @@unique([userId, tokenSymbol, eventId, outcomeId])
+  @@unique([userId, tokenSymbol, eventId, outcomeId, accountType])
   @@index([userId])
+  @@index([accountType])
 }
 
 model LedgerEntry {
@@ -452,12 +462,14 @@ model LedgerEntry {
   referenceType String? // 'DEPOSIT' | 'WITHDRAWAL' | 'TRADE' | etc.
   referenceId   String?
   metadata      Json?
+  accountType   String   @default("LIVE") // DEMO | LIVE
   createdAt     DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([referenceType, referenceId])
+  @@index([accountType])
 }
 
 // Better Auth models

@@ -5,13 +5,13 @@ import {
   FileTrigger as FileTriggerPrimitive,
   type FileTriggerProps as FileTriggerPrimitiveProps,
 } from "react-aria-components"
-import type { VariantProps } from "tailwind-variants"
-import { Button, type buttonStyles } from "./button"
+import { Button, buttonVariants } from "./button"
 import { Loader } from "./loader"
+import type { VariantProps } from "class-variance-authority"
 
 export interface FileTriggerProps
   extends FileTriggerPrimitiveProps,
-  VariantProps<typeof buttonStyles> {
+  VariantProps<typeof buttonVariants> {
   isDisabled?: boolean
   isPending?: boolean
   ref?: React.RefObject<HTMLInputElement>
@@ -19,9 +19,8 @@ export interface FileTriggerProps
 }
 
 export function FileTrigger({
-  intent = "outline",
-  size = "md",
-  isCircle = false,
+  variant = "outline",
+  size = "default",
   ref,
   className,
   ...props
@@ -30,10 +29,9 @@ export function FileTrigger({
     <FileTriggerPrimitive ref={ref} {...props}>
       <Button
         className={className}
-        isDisabled={props.isDisabled}
-        intent={intent}
-        size={size}
-        isCircle={isCircle}
+        disabled={props.isDisabled}
+        variant={variant as any}
+        size={size as any}
       >
         {props.children ? (
           props.children
@@ -41,21 +39,20 @@ export function FileTrigger({
           <>
             {!props.isPending ? (
               props.defaultCamera ? (
-                <CameraIcon />
+                <CameraIcon className="size-4" />
               ) : props.acceptDirectory ? (
-                <FolderIcon />
+                <FolderIcon className="size-4" />
               ) : (
-                <PaperClipIcon />
+                <PaperClipIcon className="size-4" />
               )
             ) : (
               <Loader />
             )}
             {props.allowsMultiple
-              ? "Browse a files"
+              ? "Browse files"
               : props.acceptDirectory
                 ? "Browse"
-                : "Browse a file"}
-            ...
+                : "Browse file"}
           </>
         )}
       </Button>

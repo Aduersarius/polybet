@@ -211,7 +211,7 @@ export function EventChat({ eventId: propEventId }: { eventId: string }) {
                     />
                     <Button
                         onClick={() => sendMutation.mutate(inputText)}
-                        isDisabled={!inputText.trim() || sendMutation.isPending || !session}
+                        disabled={!inputText.trim() || sendMutation.isPending || !session}
                         className="bg-accent-500 text-white hover:bg-accent-600 h-8 px-4 text-sm font-medium"
                         size="sm"
                     >

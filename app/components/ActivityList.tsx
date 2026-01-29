@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { socket } from '@/lib/socket';
 import { UserHoverCard } from './UserHoverCard';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { generateAvatarDataUri } from '@/lib/avatar';
 import {
     Pagination,
     PaginationContent,
@@ -145,12 +146,10 @@ export function ActivityList({ eventId }: ActivityListProps) {
                                 <UserHoverCard address={userAddress}>
                                     <Link href={`/profile?address=${userAddress}`} className="relative cursor-pointer">
                                         <Avatar className="w-8 h-8 border border-white/10">
-                                            {avatarUrl && (
-                                                <AvatarImage
-                                                    src={avatarUrl}
-                                                    alt={displayName}
-                                                />
-                                            )}
+                                            <AvatarImage
+                                                src={avatarUrl || generateAvatarDataUri(userAddress, 80)}
+                                                alt={displayName}
+                                            />
                                             <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xs">
                                                 {(trade.user.username?.[0] || (trade.user.address ? trade.user.address.slice(2, 3) : '?')).toUpperCase()}
                                             </AvatarFallback>

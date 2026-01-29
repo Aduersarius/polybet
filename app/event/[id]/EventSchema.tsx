@@ -1,4 +1,5 @@
 import { getEventImageUrl, getEventCanonicalUrl, getBaseUrl } from '@/lib/seo';
+import { safeJsonLd } from '@/lib/utils';
 
 interface EventSchemaProps {
     event: {
@@ -22,23 +23,23 @@ export function EventSchema({ event }: EventSchemaProps) {
     const baseUrl = getBaseUrl();
     const eventUrl = getEventCanonicalUrl(event);
     const imageUrl = getEventImageUrl(event);
-    
+
     // Determine event type based on categories
-    const isSportsEvent = event.categories?.some(cat => 
+    const isSportsEvent = event.categories?.some(cat =>
         ['SPORTS', 'ESPORTS'].includes(cat)
     );
-    
+
     const eventType = isSportsEvent ? 'SportsEvent' : 'Event';
-    
+
     // Format dates
-    const startDate = event.createdAt 
+    const startDate = event.createdAt
         ? new Date(event.createdAt).toISOString()
         : new Date().toISOString();
-    
+
     const endDate = event.resolutionDate
         ? new Date(event.resolutionDate).toISOString()
         : undefined;
-    
+
     // Determine event status - must be a schema.org URL
     let eventStatus = 'https://schema.org/EventScheduled';
     if (event.status === 'RESOLVED') {
@@ -83,8 +84,8 @@ export function EventSchema({ event }: EventSchemaProps) {
             url: eventUrl,
             price: '0',
             priceCurrency: 'USD',
-            availability: event.status === 'RESOLVED' 
-                ? 'https://schema.org/SoldOut' 
+            availability: event.status === 'RESOLVED'
+                ? 'https://schema.org/SoldOut'
                 : 'https://schema.org/InStock',
             validFrom: startDate,
         },
@@ -99,7 +100,7 @@ export function EventSchema({ event }: EventSchemaProps) {
     return (
         <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+            dangerouslySetInnerHTML={{ __html: safeJsonLd(schema) }}
         />
     );
 }

@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, useEffect, Suspense } from 'react';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { SearchBar } from './SearchBar';
 import { NotificationBell } from './NotificationBell';
 import { Wallet, Trophy } from 'lucide-react';
@@ -12,6 +12,11 @@ import { SignupModal } from './auth/SignupModal';
 import { useQuery } from '@tanstack/react-query';
 import { EnhancedDepositModal } from '@/components/wallet/EnhancedDepositModal';
 import { BalanceDropdown } from './BalanceDropdown';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { MoreHorizontal, ShieldCheck, ExternalLink, Sun, Moon } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { OnboardingTour } from './OnboardingTour';
 import { useCustomTour } from '@/contexts/CustomTourContext';
@@ -19,6 +24,7 @@ import { CreateEventModal } from './admin/CreateEventModal';
 import { CategoryBar } from './CategoryBar';
 import { useSupportChat } from '@/contexts/SupportChatContext';
 import { useBalance } from '@/hooks/use-balance';
+import { toast } from '@/components/ui/use-toast';
 import { generateAvatarDataUri } from '@/lib/avatar';
 
 
@@ -105,7 +111,24 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
     const [isMounted, setIsMounted] = useState(false);
     const [bannerVisible, setBannerVisible] = useState(false);
     const { data: balanceData, refetch: refetchBalance } = useBalance();
-    const balance = balanceData ?? 0;
+    const balance = balanceData?.balance ?? 0;
+    const [accountMode, setAccountMode] = useState<'DEMO' | 'LIVE'>('LIVE');
+    const [isLightMode, setIsLightMode] = useState(false);
+    const [isTogglingMode, setIsTogglingMode] = useState(false);
+    const queryClient = useQueryClient();
+
+    // Initial account mode sync when data first arrives
+    useEffect(() => {
+        setIsMounted(true);
+        const savedTheme = localStorage.getItem('pariflow-theme');
+        setIsLightMode(savedTheme === 'light');
+    }, []);
+
+    useEffect(() => {
+        if (balanceData?.accountMode && !isTogglingMode) {
+            setAccountMode(balanceData.accountMode);
+        }
+    }, [balanceData, isTogglingMode]);
 
     // Check if launch banner is visible (not dismissed)
     useEffect(() => {
@@ -176,6 +199,62 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
         await signOut();
     };
 
+    const handleAccountModeToggle = async (checked: boolean) => {
+        const newMode = checked ? 'DEMO' : 'LIVE';
+        setIsTogglingMode(true);
+        try {
+            const response = await fetch('/api/account/toggle-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: newMode })
+            });
+
+            if (response.ok) {
+                setAccountMode(newMode);
+                if (newMode === 'DEMO') {
+                    document.documentElement.classList.add('demo');
+                } else {
+                    document.documentElement.classList.remove('demo');
+                }
+
+                await queryClient.invalidateQueries({ queryKey: ['balance'] });
+                await queryClient.invalidateQueries({ queryKey: ['userBalance'] });
+                await queryClient.invalidateQueries({ queryKey: ['user-balances'] });
+
+                toast({
+                    title: `Switched to ${newMode} Mode`,
+                    description: `You are now using your ${newMode === 'DEMO' ? 'virtual' : 'live'} balance.`,
+                });
+            }
+        } catch (error) {
+            console.error('Failed to toggle mode:', error);
+            toast({
+                title: "Error",
+                description: "Failed to switch mode. Please try again.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsTogglingMode(false);
+        }
+    };
+
+    const handleAppearanceToggle = (checked: boolean) => {
+        const newTheme = checked ? 'light' : 'dark';
+        setIsLightMode(checked);
+        localStorage.setItem('pariflow-theme', newTheme);
+
+        if (newTheme === 'light') {
+            document.documentElement.classList.add('light');
+        } else {
+            document.documentElement.classList.remove('light');
+        }
+
+        toast({
+            title: `${checked ? 'Light' : 'Dark'} Mode Enabled`,
+            description: `Interface style updated to ${newTheme}.`,
+        });
+    };
+
     return (
         <>
             {/* Extended background for navbar overscroll */}
@@ -235,19 +314,23 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                             {/* Authentication / Platform Stats */}
                             {isMounted && session ? (
                                 <div className="flex items-center gap-2 sm:gap-3">
+
                                     {/* Balance Display */}
-                                    <BalanceDropdown balance={balance} />
+                                    <BalanceDropdown balance={balance} accountMode={accountMode} />
 
                                     {/* User Profile Dropdown */}
                                     < div className="relative group" >
                                         <button className="flex items-center gap-1.5 focus:outline-none">
-                                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black font-bold text-sm overflow-hidden border border-white/20 hover:bg-gray-100 transition-all">
-                                                <img
+                                            <Avatar className="w-8 h-8 border border-white/20 hover:bg-gray-100 transition-all">
+                                                <AvatarImage
                                                     src={(session as any).user?.image || (session as any).user?.avatarUrl || generateAvatarDataUri((session as any).user?.email || (session as any).user?.id || '?', 120)}
                                                     alt="User"
                                                     className="w-full h-full object-cover"
                                                 />
-                                            </div>
+                                                <AvatarFallback className="bg-white text-black font-bold text-sm">
+                                                    {((session as any).user?.name?.[0] || (session as any).user?.email?.[0] || '?').toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
                                             <svg
                                                 className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white transition-colors"
                                                 fill="none"
@@ -291,6 +374,44 @@ function NavbarContent({ selectedCategory = 'ALL', onCategoryChange, isAdminPage
                                                     </Link>
                                                 )}
                                             </div>
+
+                                            <div className="px-4 py-2 border-t border-blue-400/10 space-y-1">
+                                                {/* Demo Mode Toggle */}
+                                                <div className="flex items-center justify-between py-1.5 group/switch">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className={cn(
+                                                            "p-1.5 rounded-lg transition-colors",
+                                                            accountMode === 'DEMO' ? "bg-emerald-500/10 text-emerald-400" : "bg-zinc-500/10 text-zinc-400"
+                                                        )}>
+                                                            <ShieldCheck className="w-3.5 h-3.5" />
+                                                        </div>
+                                                        <span className="text-xs font-bold text-white/70 group-hover/switch:text-white transition-colors uppercase tracking-wider">Demo Mode</span>
+                                                    </div>
+                                                    <Switch
+                                                        checked={accountMode === 'DEMO'}
+                                                        onCheckedChange={handleAccountModeToggle}
+                                                        disabled={isTogglingMode}
+                                                    />
+                                                </div>
+
+                                                {/* White Theme Toggle */}
+                                                <div className="flex items-center justify-between py-1.5 group/switch">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className={cn(
+                                                            "p-1.5 rounded-lg transition-colors",
+                                                            isLightMode ? "bg-amber-500/10 text-amber-400" : "bg-blue-500/10 text-blue-400"
+                                                        )}>
+                                                            {isLightMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                                                        </div>
+                                                        <span className="text-xs font-bold text-white/70 group-hover/switch:text-white transition-colors uppercase tracking-wider">White Theme</span>
+                                                    </div>
+                                                    <Switch
+                                                        checked={isLightMode}
+                                                        onCheckedChange={handleAppearanceToggle}
+                                                    />
+                                                </div>
+                                            </div>
+
                                             <div className="border-t border-blue-400/10 py-2 px-2">
                                                 <button
                                                     onClick={handleSignOut}

@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { InternalNotes } from './InternalNotes';
 import { SLAIndicator } from './SLAIndicator';
+import { generateAvatarDataUri } from '@/lib/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface Message {
   id: string;
@@ -357,9 +359,15 @@ export function AdminTicketDetail({ ticketId, onClose, agents, currentUserId, cu
 
                   return (
                     <div key={message.id} className="flex gap-3">
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary/20 text-primary'}`}>
-                        <User className="w-4 h-4" />
-                      </div>
+                      <Avatar className="w-8 h-8 flex-shrink-0">
+                        <AvatarImage
+                          src={message.user.avatarUrl || generateAvatarDataUri(message.user.username || message.user.name || message.user.id, 80)}
+                          alt={message.user.username || message.user.name || 'User'}
+                        />
+                        <AvatarFallback className={isAgent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary/20 text-primary'}>
+                          {(message.user.username?.[0] || message.user.name?.[0] || (isAgent ? 'A' : 'U')).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
 
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">

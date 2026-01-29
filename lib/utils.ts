@@ -23,3 +23,11 @@ export function sanitizeUrl(url: string | null | undefined): string {
     }
     return '#';
 }
+
+/**
+ * Safely stringifies an object for inclusion in a <script type="application/ld+json"> tag.
+ * Prevents XSS by escaping the literal sequence "</script>".
+ */
+export function safeJsonLd(schema: any): string {
+    return JSON.stringify(schema).replace(/</g, '\\u003c');
+}

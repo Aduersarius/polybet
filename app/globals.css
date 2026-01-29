@@ -3,48 +3,154 @@
 @import "tailwindcss/utilities";
 
 :root {
-  /* 2026 Design - Warm, Professional, Human-Centered */
-  /* 
-   * IMPORTANT: These CSS variables MUST match the values in lib/colors/tokens.ts
-   * When updating colors, update both this file AND lib/colors/tokens.ts
-   * TODO: Consider generating this file from tokens.ts to ensure sync
-   */
+  /* --- Live Dark (Default) --- */
   --background: #111827;
   /* gray-900 */
   --surface: #1f2937;
-  /* gray-800 - Event cards and elevated surfaces */
+  /* gray-800 - Base color for cards */
   --surface-elevated: #232736;
-  /* Higher elevation for modals/dialogs - lighter navy */
   --primary: #3b82f6;
-  /* Must match colorTokens.primary[500] - Vibrant trust blue */
+  /* Blue */
   --secondary: #10b981;
-  /* Must match colorTokens.secondary[500] */
   --accent: #8b5cf6;
-  /* Must match colorTokens.accent[500] */
+  --on-background: #ffffff;
+  --on-surface: #ffffff;
+  --on-primary: #ffffff;
+  --border: #3f3f46;
+  /* zinc-700 */
+  --input: #3f3f46;
+  --ring: #3b82f6;
+  --muted: #1f2937;
+  --muted-foreground: #71717a;
+  --popover: #1f2937;
+  --popover-foreground: #ffffff;
+  --card: #1f2937;
+  --card-foreground: #ffffff;
+
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 17, 24, 39;
-  /* RGB values for gray-900 (#111827) */
   --background-end-rgb: 17, 24, 39;
-  /* RGB values for gray-900 (#111827) */
-  --navbar-height: 110px;
-  /* Height of fixed navbar (72px main + ~38px category bar) */
 
-  /* Shadcn Chart Colors - Modern */
+  --navbar-height: 110px;
   --chart-1: 217 91% 60%;
   --chart-2: 158 64% 52%;
   --chart-3: 43 96% 56%;
   --chart-4: 262 83% 58%;
   --chart-5: 338 78% 56%;
-
   --error: #ef4444;
   --success: #10b981;
   --warning: #f59e0b;
-  --on-background: #ffffff;
-  --on-surface: #ffffff;
-  --on-primary: #ffffff;
-
   --font-sans: var(--font-outfit);
 }
+
+/* --- Live Light --- */
+.light {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-elevated: #f1f5f9;
+  --on-background: #0f172a;
+  --on-surface: #1e293b;
+  --primary: #2563eb;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 241, 245, 249;
+
+  color-scheme: light;
+}
+
+/* --- Demo Mode Base (Safe Vibe - Emerald/Teal) --- */
+.demo {
+  /* Demo specific primary/accent to indicate "Simulated" */
+  --primary: #10b981;
+  /* Emerald 500 */
+  --ring: #10b981;
+  --chart-1: 158 64% 52%;
+  /* Emerald */
+}
+
+/* --- Demo Dark --- */
+/* (Default is Dark, so just adding .demo is enough, but we can tweak backgrounds if needed) */
+.demo:not(.light) {
+  --background: #061110;
+  /* Very deep forest black */
+  --surface: #0a1816;
+  --surface-elevated: #112522;
+  --border: #14302c;
+
+  --background-start-rgb: 6, 17, 16;
+  --background-end-rgb: 6, 17, 16;
+}
+
+/* --- Demo Light --- */
+.demo.light {
+  --background: #f0fdf4;
+  /* Minty White */
+  --surface: #ffffff;
+  --surface-elevated: #ecfdf5;
+  --border: #d1fae5;
+  --muted: #ecfdf5;
+
+  --background-start-rgb: 240, 253, 244;
+  --background-end-rgb: 236, 253, 245;
+}
+
+/* Override body styles for Demo Mode */
+.demo body {
+  /* Distinctive safe pattern for Demo Mode */
+  background-image: radial-gradient(var(--primary) 0.5px, transparent 0.5px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
+}
+
+/* Global utility overrides for light mode */
+.light .text-white,
+.light [class*="text-white/"],
+.light .text-slate-300,
+.light .text-slate-400 {
+  color: var(--on-background) !important;
+}
+
+.light [class*="text-white/70"],
+.light [class*="text-white/50"],
+.light .text-gray-400,
+.light .text-gray-500 {
+  color: var(--muted-foreground) !important;
+}
+
+/* Background overrides for light mode components */
+.light .material-card {
+  background: var(--surface) !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05) !important;
+  border-color: var(--border) !important;
+  backdrop-filter: none !important;
+}
+
+.light nav {
+  background-color: color-mix(in srgb, var(--background) 85%, transparent) !important;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05) !important;
+  border-color: var(--border) !important;
+}
+
+
+.light .custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.light .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
 
 html {
   background: var(--background);
@@ -276,6 +382,7 @@ input[type="number"] {
     transform: translateY(100%);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -288,6 +395,7 @@ input[type="number"] {
 
 /* Launch Banner - Adjust page padding when banner is visible */
 /* Banner height: ~72px (compact design) */
-body[data-banner-visible="true"] main > div > div > div[class*="pt-32"] {
-  padding-top: calc(8rem + 72px); /* 128px (pt-32) + 72px (banner + navbar spacing) */
+body[data-banner-visible="true"] main>div>div>div[class*="pt-32"] {
+  padding-top: calc(8rem + 72px);
+  /* 128px (pt-32) + 72px (banner + navbar spacing) */
 }

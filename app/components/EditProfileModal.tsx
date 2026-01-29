@@ -179,8 +179,8 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
                                         }
                                     }
                                 }}
-                                intent="outline"
-                                size="xs"
+                                variant="outline"
+                                size="sm"
                                 className="w-full !h-7 !min-h-0 !py-0 text-[10px] uppercase tracking-wider font-bold bg-white/5 border-white/20 hover:bg-white/10 hover:border-white/30 transition-all"
                             >
                                 <Camera className="w-3.5 h-3.5 mr-1.5" data-slot="icon" />
@@ -225,7 +225,7 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
                     <DialogFooter>
                         <Button
                             type="button"
-                            intent="outline"
+                            variant="outline"
                             onClick={onClose}
                             className="border-white/10 hover:bg-white/5 hover:text-white"
                         >
@@ -233,7 +233,7 @@ export default function EditProfileModal({ isOpen, onClose, user, onSaved }: Edi
                         </Button>
                         <Button
                             type="submit"
-                            isDisabled={isLoading}
+                            disabled={isLoading}
                             className="bg-blue-600 hover:bg-blue-500 text-white border-0"
                         >
                             {isLoading ? 'Saving...' : 'Save Changes'}
