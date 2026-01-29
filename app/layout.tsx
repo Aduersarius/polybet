@@ -20,6 +20,29 @@ export const metadata: Metadata = {
     icon: '/favicon.ico',
   },
   manifest: '/manifest.webmanifest',
+  metadataBase: new URL('https://pariflow.com'),
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://pariflow.com',
+    siteName: 'Pariflow',
+    title: 'Pariflow: Real-World Events Prediction Market',
+    description: 'Predict real-world events on Pariflow, a transparent prediction market that aggregates market signals to forecast outcomes across politics, economics and more.',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Pariflow - Prediction Market Platform',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pariflow: Real-World Events Prediction Market',
+    description: 'Predict real-world events on Pariflow, a transparent prediction market.',
+    images: ['/og-image.png'],
+  },
 };
 
 export const viewport: Viewport = {

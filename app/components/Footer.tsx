@@ -41,7 +41,9 @@ export function Footer() {
                             <span className="text-gray-600">•</span>
                             <a href="https://www.instagram.com/pariflow_official/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Instagram</a>
                             <span className="text-gray-600">•</span>
-                            <a href="https://discord.gg/zdm8sVgg" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discord</a>
+                            <a href="https://discord.gg/59cv7Mjx" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discord</a>
+                            <span className="text-gray-600">•</span>
+                            <a href="https://t.me/pariflow_official" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Telegram</a>
                         </div>
                         <div className="text-[10px] text-gray-500 text-center">
                             © 2026 Pariflow. All rights reserved.

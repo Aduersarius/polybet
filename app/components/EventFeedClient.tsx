@@ -11,6 +11,7 @@ import { MobileCTABanner } from "./MobileCTABanner";
 import { SignupModal } from "./auth/SignupModal";
 import { LoginModal } from "./auth/LoginModal";
 import { PromotionalBanners } from "./PromotionalBanners";
+import { MentionedIn } from "./MentionedIn";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DbEvent } from "@/lib/data";
 
@@ -275,10 +276,16 @@ export function EventFeedClient({ initialEvents, initialCategory: serverCategory
         };
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+    // Show banners only on main page (ALL category)
+    const isMainPage = selectedCategory === 'ALL';
+
     return (
         <>
-            {/* Promotional Banners - First */}
-            <PromotionalBanners />
+            {/* Promotional Banners - Only on main page */}
+            {isMainPage && <PromotionalBanners />}
+
+            {/* Mentioned In - Social Proof - Only on main page */}
+            {isMainPage && <MentionedIn />}
 
             {/* Sort Options - After Banners */}
             <motion.div
